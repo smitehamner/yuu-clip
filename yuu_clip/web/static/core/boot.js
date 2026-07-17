@@ -12,7 +12,7 @@ import { ensureExportPresetsCache } from '../library/exportpresets.js';
 import { reattachAnalysis } from '../analyze/analyze.js';
 import { openGettingStartedModal } from './helpmodals.js';
 import { initModelDownload, initModelPrefetch } from '../settings/modeldownload.js';
-import { _renderClips } from '../clips/clips.js';
+import { _renderClips, _syncKindChips } from '../clips/clips.js';
 
 // ── accessibility init ────────────────────────────────────────────────────────
 document.querySelectorAll('.modal-bg').forEach((bg, i) => {
@@ -93,6 +93,8 @@ AppState.clipSortDir = localStorage.getItem('clips-sort-dir') || 'desc';
 AppState.videoSortDir = localStorage.getItem('videos-sort-dir') || 'desc';
 _syncSortDirBtn('clips-sort-dir', AppState.clipSortDir);
 _syncSortDirBtn('videos-sort-dir', AppState.videoSortDir);
+AppState.clipKindFilter = localStorage.getItem('clips-kind-filter') || 'all';
+_syncKindChips();
 document.getElementById('log-panel').classList.add('visible', 'minimized');
 document.getElementById('log-toggle').textContent = '▼';
 

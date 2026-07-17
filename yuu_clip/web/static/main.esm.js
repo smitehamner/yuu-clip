@@ -314,7 +314,7 @@ window.toggleGroupSelect = toggleGroupSelect;
 // setStatus/undoLastStatus/closeScoreOverrideModal/closeSimilarClipsModal;
 // jobs.js reads _renderClipFilterCounts; videos.js reads _syncFilterChips), or a
 // tests/ui/*.py page.evaluate. setClipSearch, setClipScoreMin, _clearClipFilters,
-// setClipKind, _syncKindChips, toggleClipSortDir, deleteClip, deleteExport,
+// setClipKindFilter, _syncKindChips, toggleClipSortDir, deleteClip, deleteExport,
 // mergeClips, scanDuplicates, openClipsActionsMenu, _scoreOverrideSave,
 // clearScoreOverride, openDescKebab, openDescLongKebab, startFindSimilar and
 // openSimilarClipsModal dropped: their only callers were clips.js's own inline

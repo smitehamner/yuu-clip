@@ -647,7 +647,7 @@
     <div class="settings-row">
       <div class="settings-col">
         <label class="settings-label" for="s-scene-generation">Generate scenes</label>
-        <div class="settings-note">In addition to short clips, ask the LLM to find longer "scenes" (1-5 min contextual moments with a story arc). Off by default - it adds an LLM pass to each analysis. Needs LLM scoring turned on. View them with the Scenes filter above the clip list.</div>
+        <div class="settings-note">In addition to short clips, ask the LLM to find longer "scenes" (1-5 min contextual moments with a story arc). Off by default - it adds an LLM pass to each analysis. Needs LLM scoring turned on. Scenes show alongside clips in the list (badged SCENE); use the All / Clips / Scenes chips to filter.</div>
       </div>
       <label class="settings-checkbox">
         <input type="checkbox" id="s-scene-generation" aria-label="Generate scenes during analysis">
@@ -1032,9 +1032,10 @@
     <div class="resize-handle resize-handle-v" id="videos-clips-resize-handle" title="Drag to resize Recordings / Clips panels" role="separator" aria-orientation="horizontal" aria-label="Resize Recordings / Clips panels"></div>
     <div class="sidebar-group clips-group" id="clips-sidebar-group">
       <div class="clips-section-header">
-        <div class="section-toggle" role="group" aria-label="Show clips or scenes">
-          <button class="section-toggle-btn active" aria-pressed="true"  data-kind="clip"  title="Show punchy clips (15-90s)">Clips</button>
-          <button class="section-toggle-btn"        aria-pressed="false" data-kind="scene" title="Show longer scenes (1-5 min contextual moments)">Scenes</button>
+        <div class="clip-filter-tabs clip-kind-tabs" role="group" aria-label="Show clips, scenes, or both">
+          <button class="clip-chip active" aria-pressed="true"  data-kfilter="all"   title="Show clips and scenes together">All<span class="clip-chip-count" data-kcount="all"></span></button>
+          <button class="clip-chip"        aria-pressed="false" data-kfilter="clip"  title="Show only punchy clips (15-90s)">Clips<span class="clip-chip-count" data-kcount="clip"></span></button>
+          <button class="clip-chip"        aria-pressed="false" data-kfilter="scene" title="Show only longer scenes (1-5 min contextual moments)">Scenes<span class="clip-chip-count" data-kcount="scene"></span></button>
         </div>
         <div style="display:flex;align-items:center;gap:8px">
           <select id="clips-sort" class="clips-sort-select" aria-label="Sort clips by" onchange="onClipsSortChange()">

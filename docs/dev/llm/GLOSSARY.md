@@ -582,8 +582,8 @@ A longer contextual candidate - a 1-5 minute moment with a story arc, which may 
 - **Code:** a `ClipCandidate` row with `kind='scene'` (Clips are `kind='clip'`, the default)
 - **Also called in codebase:** not to be confused with `SceneBoundary` / `SceneScorer` (see Scene Scoring below), which are an unrelated **visual scene-cut timecode**, not this candidate type.
 - **Do not call it:** a "SceneBoundary" - that is a different concept.
-- **UI label:** "Scenes" (Clips/Scenes type toggle above the clip list)
-- **Notes:** Shares the `clip_candidates` table with Clips via the `kind` discriminator. The review UI defaults to Clips; Scenes are shown only when the type toggle is switched.
+- **UI label:** "Scenes" (the All / Clips / Scenes filter chips above the clip list; scene rows carry a **SCENE** badge)
+- **Notes:** Shares the `clip_candidates` table with Clips via the `kind` discriminator. The review UI shows both kinds in one merged list by default (the **All** chip); the **Clips** / **Scenes** chips filter it client-side, and the choice persists in `localStorage` (`clips-kind-filter`).
 
 ---
 

@@ -798,30 +798,78 @@ class TestDuplicateDetection:
         assert page.locator(".clip-dup-notice button[data-merge-b='999999']").count() == 1
 
 
+# A clip + a scene share the merged sidebar list. The All / Clips / Scenes chips
+# are a client-side filter over AppState.clips (both kinds are fetched together);
+# scene rows carry a SCENE badge. Seed a known mixed list and re-render so the
+# assertions never depend on whether the dev's real project has scenes.
+_MIXED_CLIPS_JS = """() => {
+  const base = {
+    status: 'pending', has_export: false, exports: [], export_stale: false,
+    tags: [], sensitive_matches: [], hotword_matches: [], scored_at: '2026-01-01T00:00:00',
+    score_overall: 0.5, score_funny: 0.5, score_dramatic: 0.5, score_action: 0.5, score_visual: 0.5,
+    start_hms: '00:00', duration_hms: '00:20', description: '',
+  };
+  AppState.clips = [
+    {...base, id: 900001, kind: 'clip',  start_ms: 1000,  end_ms: 21000},
+    {...base, id: 900002, kind: 'scene', start_ms: 30000, end_ms: 210000, duration_hms: '03:00'},
+    {...base, id: 900003, kind: 'clip',  start_ms: 40000, end_ms: 60000},
+  ];
+  window._renderClips();
+}"""
+
+
 @skip_no_server
-class TestClipKindToggle:
-    """The Clips/Scenes type toggle is a server-side switch: it reloads the clip
-    list with a kind= param and re-labels the New-clip button. Defaults to Clips."""
+class TestClipKindFilter:
+    """Both candidate kinds render in one list by default; the All / Clips / Scenes
+    chips filter it client-side (no re-fetch). Scene rows carry a SCENE badge and
+    the selection persists in localStorage. Defaults to All."""
 
-    def test_defaults_to_clips_chip_active(self, page: Page):
+    def _seed_mixed(self, page: Page) -> None:
         select_video_with_clips(page)
-        expect(page.locator("[data-kind='clip']")).to_have_class(re.compile(r"\bactive\b"))
-        expect(page.locator("[data-kind='scene']")).not_to_have_class(re.compile(r"\bactive\b"))
-        assert page.evaluate("AppState.clipKind") == "clip"
+        page.evaluate(_MIXED_CLIPS_JS)
 
-    def test_clicking_scenes_reloads_list_with_kind_scene(self, page: Page):
+    def test_defaults_to_all_chip_active(self, page: Page):
         select_video_with_clips(page)
-        requested_urls: list[str] = []
+        expect(page.locator("[data-kfilter='all']")).to_have_class(re.compile(r"\bactive\b"))
+        expect(page.locator("[data-kfilter='clip']")).not_to_have_class(re.compile(r"\bactive\b"))
+        expect(page.locator("[data-kfilter='scene']")).not_to_have_class(re.compile(r"\bactive\b"))
+        assert page.evaluate("AppState.clipKindFilter") == "all"
 
-        def _capture(route):
-            requested_urls.append(route.request.url)
-            route.fulfill(status=200, content_type="application/json", body="[]")
+    def test_all_shows_both_kinds_with_scene_badge(self, page: Page):
+        self._seed_mixed(page)
+        expect(page.locator("#clip-list li[data-clip-id]")).to_have_count(3)
+        # Only the scene row carries the SCENE badge.
+        expect(page.locator("#clip-list .scene-badge")).to_have_count(1)
+        scene_row = page.locator("#clip-list li[data-clip-id='900002']")
+        expect(scene_row.locator(".scene-badge")).to_be_visible()
+        expect(page.locator("#clip-list li[data-clip-id='900001'] .scene-badge")).to_have_count(0)
 
-        page.route("**/api/videos/*/clips*", _capture)
-        page.click("[data-kind='scene']")
-        page.wait_for_function("() => AppState.clipKind === 'scene'", timeout=3000)
-        assert requested_urls and "kind=scene" in requested_urls[-1]
-        expect(page.locator("[data-kind='scene']")).to_have_class(re.compile(r"\bactive\b"))
+    def test_scenes_chip_filters_to_scenes_only(self, page: Page):
+        self._seed_mixed(page)
+        page.click("[data-kfilter='scene']")
+        expect(page.locator("#clip-list li[data-clip-id]")).to_have_count(1)
+        expect(page.locator("#clip-list li[data-clip-id='900002']")).to_be_visible()
+        expect(page.locator("[data-kfilter='scene']")).to_have_class(re.compile(r"\bactive\b"))
+        assert page.evaluate("AppState.clipKindFilter") == "scene"
+        assert page.evaluate("localStorage.getItem('clips-kind-filter')") == "scene"
+
+    def test_clips_chip_filters_to_clips_only(self, page: Page):
+        self._seed_mixed(page)
+        page.click("[data-kfilter='clip']")
+        expect(page.locator("#clip-list li[data-clip-id]")).to_have_count(2)
+        expect(page.locator("#clip-list .scene-badge")).to_have_count(0)
+        assert page.evaluate("AppState.clipKindFilter") == "clip"
+
+    def test_chip_counts_reflect_each_kind(self, page: Page):
+        self._seed_mixed(page)
+        assert page.locator("[data-kcount='all']").inner_text() == "3"
+        assert page.locator("[data-kcount='clip']").inner_text() == "2"
+        assert page.locator("[data-kcount='scene']").inner_text() == "1"
+
+    def test_new_button_label_follows_scene_filter(self, page: Page):
+        self._seed_mixed(page)
+        page.click("[data-kfilter='scene']")
+        page.wait_for_function("() => AppState.clipKindFilter === 'scene'", timeout=3000)
         page.click("#btn-clips-actions")
         expect(
             page.locator(".hamburger-menu.open .hamburger-item").first

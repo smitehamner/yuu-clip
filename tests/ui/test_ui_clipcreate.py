@@ -217,8 +217,8 @@ class TestSceneCreate:
         select_video_with_clips(page)
         page.route("**/api/videos/*/transcript", lambda route: route.fulfill(
             status=200, content_type="application/json", body=json.dumps(_VIDEO_LINES)))
-        page.click("[data-kind='scene']")
-        page.wait_for_function("() => AppState.clipKind === 'scene'", timeout=3000)
+        page.click("[data-kfilter='scene']")
+        page.wait_for_function("() => AppState.clipKindFilter === 'scene'", timeout=3000)
         _click_clips_menu_action(page, "New scene")
         expect(page.locator("#clipcreate-transcript-view .tline")).to_have_count(3, timeout=3000)
         expect(page.locator("#panelnav-breadcrumb")).to_contain_text("New scene")
@@ -228,8 +228,8 @@ class TestSceneCreate:
         select_video_with_clips(page)
         page.route("**/api/videos/*/transcript", lambda route: route.fulfill(
             status=200, content_type="application/json", body=json.dumps(_VIDEO_LINES)))
-        page.click("[data-kind='scene']")
-        page.wait_for_function("() => AppState.clipKind === 'scene'", timeout=3000)
+        page.click("[data-kfilter='scene']")
+        page.wait_for_function("() => AppState.clipKindFilter === 'scene'", timeout=3000)
         _click_clips_menu_action(page, "New scene")
         expect(page.locator("#clipcreate-transcript-view .tline")).to_have_count(3, timeout=3000)
 

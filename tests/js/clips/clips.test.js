@@ -107,6 +107,54 @@ describe('_applyFilters', () => {
   });
 });
 
+// The merged Clips+Scenes list: both kinds live in AppState.clips together, and
+// the All / Clips / Scenes chip is a client-side filter applied by _applyFilters
+// (no re-fetch). Verify the kind filter composes with the other filters.
+describe('_applyFilters - kind filter', () => {
+  const seed = () => {
+    AppState.clips = [
+      { id: 1, kind: 'clip',  status: 'pending',  score_overall: 0.5, description: 'a', tags: [] },
+      { id: 2, kind: 'scene', status: 'approved', score_overall: 0.6, description: 'b', tags: [] },
+      { id: 3, kind: 'clip',  status: 'pending',  score_overall: 0.4, description: 'c', tags: [] },
+      { id: 4, kind: 'scene', status: 'pending',  score_overall: 0.7, description: 'd', tags: [] },
+    ];
+    AppState.clipFilters = new Set();
+    AppState.clipScoreMin = 0;
+    AppState.clipSearch = '';
+    AppState.clipSortDir = 'desc';
+    AppState.clipKindFilter = 'all';
+  };
+  const ids = () => _applyFilters().map((c) => c.id);
+  beforeEach(seed);
+  afterEach(() => { AppState.clipKindFilter = 'all'; });
+
+  it("'all' keeps both kinds", () => {
+    expect(ids()).toEqual([1, 2, 3, 4]);
+  });
+  it("'clip' keeps only clips", () => {
+    AppState.clipKindFilter = 'clip';
+    expect(ids()).toEqual([1, 3]);
+  });
+  it("'scene' keeps only scenes", () => {
+    AppState.clipKindFilter = 'scene';
+    expect(ids()).toEqual([2, 4]);
+  });
+  it('composes with a status filter', () => {
+    AppState.clipKindFilter = 'scene';
+    AppState.clipFilters = new Set(['pending']);
+    expect(ids()).toEqual([4]);
+  });
+  it('composes with the sort-direction reversal', () => {
+    AppState.clipKindFilter = 'clip';
+    AppState.clipSortDir = 'asc';
+    expect(ids()).toEqual([3, 1]);
+  });
+  it('a missing kindFilter behaves like all', () => {
+    delete AppState.clipKindFilter;
+    expect(ids()).toEqual([1, 2, 3, 4]);
+  });
+});
+
 // Client-side recomputation of a possible-duplicate's overlapping partner, so the
 // detail panel can name it and offer a one-click merge. Overlap ratio = shared span
 // / the SHORTER clip's duration; threshold mirrors DEFAULT_OVERLAP_THRESHOLD (0.7).

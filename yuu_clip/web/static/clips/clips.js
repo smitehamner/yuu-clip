@@ -21,6 +21,8 @@ import { loadVideos, _clipsListUrl } from '../videos/videos.js';
 function _applyFilters() {
   const f = AppState.clipFilters;
   let result = AppState.clips;
+  const kindFilter = AppState.clipKindFilter || 'all';
+  if (kindFilter !== 'all') result = result.filter(c => c.kind === kindFilter);
   if (f && f.size) {
     const statuses = ['pending', 'approved', 'rejected'].filter(s => f.has(s));
     if (statuses.length) result = result.filter(c => statuses.includes(c.status));
@@ -77,17 +79,25 @@ function _renderClipFilterCounts() {
     const badge = document.querySelector(`.clip-chip-count[data-count="${key}"]`);
     if (badge) badge.textContent = value == null ? '' : String(value);
   };
+  const setKindCount = (key, value) => {
+    const badge = document.querySelector(`.clip-chip-count[data-kcount="${key}"]`);
+    if (badge) badge.textContent = value == null ? '' : String(value);
+  };
   if (!AppState.activeVideoId || !AppState.clips.length) {
     for (const key of ['all', 'pending', 'approved', 'rejected', 'error', 'duplicate']) setCount(key, null);
+    for (const key of ['all', 'clip', 'scene']) setKindCount(key, null);
     return;
   }
   const counts = {pending: 0, approved: 0, rejected: 0};
   let errorCount = 0;
   let duplicateCount = 0;
+  let clipKindCount = 0;
+  let sceneKindCount = 0;
   for (const c of AppState.clips) {
     counts[c.status] = (counts[c.status] || 0) + 1;
     if ((c.tags || []).includes('llm_error')) errorCount++;
     if ((c.tags || []).includes('possible_duplicate')) duplicateCount++;
+    if (c.kind === 'scene') sceneKindCount++; else clipKindCount++;
   }
   setCount('all', AppState.clips.length);
   setCount('pending', counts.pending);
@@ -95,6 +105,9 @@ function _renderClipFilterCounts() {
   setCount('rejected', counts.rejected);
   setCount('error', errorCount || null);
   setCount('duplicate', duplicateCount || null);
+  setKindCount('all', AppState.clips.length);
+  setKindCount('clip', clipKindCount);
+  setKindCount('scene', sceneKindCount);
 }
 
 function _renderClipStatsLine(shown) {
@@ -174,23 +187,25 @@ function toggleClipFilter(token) {
   _renderClips();
 }
 
-// Candidate-type toggle (Clips vs Scenes). Unlike the status filter chips, this
-// is a server-side switch: it reloads AppState.clips for the selected kind, so
-// the status counts and stats line reflect just that kind. Defaults to Clips.
-function setClipKind(kind) {
-  if (kind !== 'clip' && kind !== 'scene') return;
-  if (AppState.clipKind === kind) return;
-  AppState.clipKind = kind;
-  AppState.activeClipId = null;
+// Candidate-type filter (All / Clips / Scenes). Both kinds are always fetched into
+// AppState.clips (see _clipsListUrl); this is a purely client-side filter applied in
+// _applyFilters, exactly like the status chips - no server reload, no re-fetch. The
+// selection persists in localStorage. Defaults to All.
+function setClipKindFilter(kind) {
+  if (kind !== 'all' && kind !== 'clip' && kind !== 'scene') return;
+  if ((AppState.clipKindFilter || 'all') === kind) return;
+  AppState.clipKindFilter = kind;
+  localStorage.setItem('clips-kind-filter', kind);
   _syncKindChips();
-  if (AppState.activeVideoId) _reloadClipList(AppState.activeVideoId);
+  _renderClips();
 }
 
 function _syncKindChips() {
-  document.querySelectorAll('[data-kind]').forEach(chip => {
-    const active = chip.dataset.kind === AppState.clipKind;
-    chip.classList.toggle('active', active);
-    chip.setAttribute('aria-pressed', active ? 'true' : 'false');
+  const active = AppState.clipKindFilter || 'all';
+  document.querySelectorAll('[data-kfilter]').forEach(chip => {
+    const on = chip.dataset.kfilter === active;
+    chip.classList.toggle('active', on);
+    chip.setAttribute('aria-pressed', on ? 'true' : 'false');
   });
 }
 
@@ -269,8 +284,9 @@ function _renderClipItems(clips) {
     li.innerHTML = `
       <div class="clip-item-row1">
         <input type="checkbox" class="clip-select-checkbox" aria-label="Select clip #${c.id}">
-        <span class="clip-num" title="Clip #${c.id}">#${c.id}</span>
+        <span class="clip-num" title="${c.kind === 'scene' ? 'Scene' : 'Clip'} #${c.id}">#${c.id}</span>
         <span class="clip-time">${c.start_hms} &middot; ${c.duration_hms}</span>
+        ${c.kind === 'scene' ? '<span class="scene-badge" title="A longer scene (1-5 min contextual moment), not a short clip">SCENE</span>' : ''}
         ${c.has_export
           ? (c.export_stale
               ? `<span class="export-pill is-stale" title="Stale - re-export to update (${escHtml((c.export_stale_reasons || []).join(', '))})">Stale</span>`
@@ -381,12 +397,13 @@ function renderPlayer(url, captionsUrl, clipId) {
   if (playNext) area.querySelector('video')?.addEventListener('ended', _playNextClip);
 }
 
-// Advances to the next clip in the current filtered/sorted order - same path
-// arrow-key navigation uses - and stops silently at the end of the list.
+// Advances to the next clip in the current filtered/sorted order - same shown
+// list arrow-key navigation uses - and stops silently at the end of the list.
 function _playNextClip() {
-  const idx = AppState.clips.findIndex(c => c.id === AppState.activeClipId);
-  if (idx === -1 || idx >= AppState.clips.length - 1) return;
-  const nextId = AppState.clips[idx + 1].id;
+  const shown = _applyFilters();
+  const idx = shown.findIndex(c => c.id === AppState.activeClipId);
+  if (idx === -1 || idx >= shown.length - 1) return;
+  const nextId = shown[idx + 1].id;
   selectClip(nextId);
   document.querySelector(`#clip-list li[data-clip-id="${nextId}"]`)?.focus();
 }
@@ -584,7 +601,7 @@ function renderDetail(clip) {
 
   document.getElementById('detail').innerHTML = `
     <div>
-      <div class="detail-type-badge clip-badge" style="margin-bottom:8px">&#127902; Clip #${clip.id}</div>
+      <div class="detail-type-badge clip-badge" style="margin-bottom:8px">&#127902; ${clip.kind === 'scene' ? 'Scene' : 'Clip'} #${clip.id}</div>
       <div class="clip-header">
         <span class="time">${clip.start_hms} &middot; ${clip.duration_hms}</span>
       </div>
@@ -1197,9 +1214,12 @@ async function scanDuplicates(busyBtn) {
 }
 
 function openClipsActionsMenu(btn) {
-  const newLabel = AppState.clipKind === 'scene' ? 'New scene' : 'New clip';
+  // With both kinds merged, the new-candidate kind follows the active kind filter:
+  // creating from the Scenes view makes a scene, otherwise a clip.
+  const newKind = AppState.clipKindFilter === 'scene' ? 'scene' : 'clip';
+  const newLabel = newKind === 'scene' ? 'New scene' : 'New clip';
   showKebab(btn, [
-    { label: newLabel, action: () => window.openClipCreatePicker(AppState.activeVideoId, AppState.clipKind) },
+    { label: newLabel, action: () => window.openClipCreatePicker(AppState.activeVideoId, newKind) },
     { label: 'Check duplicates', action: () => scanDuplicates(btn) },
   ]);
 }
@@ -1478,8 +1498,8 @@ function scoreAll() {
 // as the #clip-list / #detail delegation above, replacing the onclick=/oninput=/
 // onchange= attributes that used to live on that markup directly.
 function _handleClipSidebarClick(e) {
-  const kindBtn = e.target.closest('[data-kind]');
-  if (kindBtn) { setClipKind(kindBtn.dataset.kind); return; }
+  const kindBtn = e.target.closest('[data-kfilter]');
+  if (kindBtn) { setClipKindFilter(kindBtn.dataset.kfilter); return; }
   const filterChip = e.target.closest('[data-filter]');
   if (filterChip) { toggleClipFilter(filterChip.dataset.filter); return; }
   if (e.target.closest('#clips-sort-dir')) { toggleClipSortDir(); return; }
@@ -1504,7 +1524,7 @@ document.getElementById('score-override-save-btn').addEventListener('click', () 
 // Public API - symbols with a classic (bundle.js) consumer, a still-classic
 // module reading this module's exports as window.* (shortcuts.js, jobs.js,
 // videos.js), or a tests/ui/*.py page.evaluate. setClipSearch, setClipScoreMin,
-// _clearClipFilters, setClipKind, _syncKindChips, toggleClipSortDir, deleteClip,
+// _clearClipFilters, setClipKindFilter, toggleClipSortDir, deleteClip,
 // deleteExport, mergeClips, scanDuplicates, openClipsActionsMenu,
 // _scoreOverrideSave, clearScoreOverride, openDescKebab, openDescLongKebab,
 // startFindSimilar and openSimilarClipsModal dropped: their only callers were
@@ -1515,7 +1535,7 @@ export {
   selectClip, setStatus, undoLastStatus, renderDetail, renderPlayer, clearDetail, refreshClipDetail,
   _releasePlayerBeforeDelete,
   analyzeFrames,
-  toggleClipFilter, _syncFilterChips,
+  toggleClipFilter, _syncFilterChips, _syncKindChips,
   _applyFilters, _renderClips, _parseTimingOffset, _reloadClipList,
   _renderClipFilterCounts,
   _duplicatePartners, _mergeNeighbors, _generatedTagPillsHTML,

@@ -317,10 +317,11 @@ function _clipsSortParam() {
 }
 
 // Canonical clip-list URL: every reload of AppState.clips goes through this so the
-// active sort AND the active candidate type (Clips vs Scenes) are always applied
-// together. Adding a new fetch site? Use this, never a hand-built query string.
+// active sort is always applied. Both candidate kinds (Clips + Scenes) are fetched
+// together - the Clips/Scenes/All split is a client-side filter (see _applyFilters),
+// so no kind= param here. Adding a new fetch site? Use this, never a hand-built query.
 function _clipsListUrl(videoId) {
-  return `/api/videos/${videoId}/clips?sort=${_clipsSortParam()}&kind=${AppState.clipKind}`;
+  return `/api/videos/${videoId}/clips?sort=${_clipsSortParam()}`;
 }
 
 async function selectVideo(id) {

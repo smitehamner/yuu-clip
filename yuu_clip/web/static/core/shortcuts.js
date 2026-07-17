@@ -15,6 +15,7 @@ import {
 } from './helpmodals.js';
 import {
   selectClip, setStatus, undoLastStatus, closeScoreOverrideModal, closeSimilarClipsModal,
+  _applyFilters,
 } from '../clips/clips.js';
 import { exportClip, closeExportModal } from '../clips/clipexport.js';
 import { closeProfileManager } from '../analyze/analyze.js';
@@ -134,7 +135,11 @@ document.addEventListener('keydown', e => {
     document.querySelector(`#clip-list li[data-clip-id="${id}"]`)?.focus();
   };
 
-  const idx = AppState.clips.findIndex(c => c.id === subjectClipId);
+  // Navigate the shown (filtered + kind-filtered + sort-direction) list, not the
+  // raw AppState.clips - so J/K step through exactly the rows the sidebar renders
+  // and never jump to a hidden clip or across a hidden kind.
+  const shown = _applyFilters();
+  const idx = shown.findIndex(c => c.id === subjectClipId);
 
   switch (e.key) {
     case 'a': case 'A':
@@ -161,13 +166,13 @@ document.addEventListener('keydown', e => {
     case 'ArrowUp':
     case 'k': case 'K':
       e.preventDefault();
-      if (idx > 0) _navigateTo(AppState.clips[idx - 1].id);
+      if (idx > 0) _navigateTo(shown[idx - 1].id);
       break;
     case 'ArrowRight':
     case 'ArrowDown':
     case 'j': case 'J':
       e.preventDefault();
-      if (idx !== -1 && idx < AppState.clips.length - 1) _navigateTo(AppState.clips[idx + 1].id);
+      if (idx !== -1 && idx < shown.length - 1) _navigateTo(shown[idx + 1].id);
       break;
   }
 });
