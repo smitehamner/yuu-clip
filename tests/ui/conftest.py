@@ -278,7 +278,8 @@ def page(page):
     page.goto(LIVE_URL, wait_until="domcontentloaded")
     yield page
     try:
-        page.evaluate("if (window._activeES) { window._activeES.close(); window._activeES = null; }")
+        # Abort any in-flight SSE so it can't bleed into the next test (jobs.js).
+        page.evaluate("window._abortActiveStream && window._abortActiveStream()")
     except Exception:
         pass
     try:

@@ -2,11 +2,14 @@
   "name": "yuu-clip-frontend-build",
   "version": "0.0.0",
   "private": true,
-  "description": "Dev-only frontend build toolchain (esbuild) for yuu-clip's web UI. Not shipped - the committed static/bundle.esm.js is the artifact; Node/esbuild are only needed to rebuild it. Run via `yuu-dev bundle`.",
+  "description": "Dev-only frontend build + unit-test toolchain (esbuild + vitest) for yuu-clip's web UI. Not shipped - the committed static/bundle.esm.js is the artifact; Node is only needed to rebuild it (`yuu-dev bundle`) or run the JS unit tests (`yuu-dev test-js`).",
   "scripts": {
-    "build:esm": "node scripts/build-esm.mjs"
+    "build:esm": "node scripts/build-esm.mjs",
+    "test:js": "vitest run"
   },
   "devDependencies": {
-    "esbuild": "0.28.1"
+    "esbuild": "0.28.1",
+    "happy-dom": "20.10.6",
+    "vitest": "4.1.10"
   }
 }

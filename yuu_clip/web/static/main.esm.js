@@ -19,7 +19,7 @@ import { PanelNav } from './core/panelnav.js';
 import * as jobs from './core/jobs.js';
 import { _buildMediaUrl, setupRecordingPreview } from './core/preview.js';
 import {
-  _syncSortDirBtn, _diarizationReason, _diarizationReadiness, _diarizationNoteHtml,
+  _syncSortDirBtn, _diarizationReadiness,
   openLog, clearLog, appendLog, showToast, netErrMsg, revealInFolder, copyText,
   collapsibleCard,
 } from './core/utils.js';
@@ -51,11 +51,10 @@ import {
 import {
   loadVideos, selectVideo, renderVideoDetail, deleteVideo,
   onClipsSortChange, _clipsSortParam, _clipsListUrl,
-  _reanalyzeParams,
   _needsModelCtaHTML,
   _updateDemoButton, _updateStartIngestButton,
   _analysisLivePanelHTML, _syncAnalysisLivePanel,
-  _applyVideoFilters, _renderVideoList,
+  _renderVideoList,
   setVideoSearch, setVideoSort, toggleVideoSortDir, toggleVideoFilter,
   openVideoActionsModal,
 } from './videos/videos.js';
@@ -72,7 +71,7 @@ import {
   _releasePlayerBeforeDelete,
   analyzeFrames,
   toggleClipFilter, _syncFilterChips,
-  _applyFilters, _renderClips, _parseTimingOffset, _reloadClipList,
+  _applyFilters, _renderClips, _reloadClipList,
   _renderClipFilterCounts,
   openScoreOverride, closeScoreOverrideModal,
   closeSimilarClipsModal,
@@ -100,7 +99,7 @@ import {
   _reelMove, _reelToggle, closeReelPreview, openBatchExportModal, closeBatchExportModal,
 } from './analyze/reel.js';
 import {
-  _loadContexts, ensureContexts, _parseWeight,
+  _loadContexts, ensureContexts,
   _termContextOptions, _renderTermGroups,
   openContextManager, closeContextManager, openNewContext,
   cancelContextEdit, duplicateContext, _deriveContextId,
@@ -153,7 +152,7 @@ import { openExportEditor } from './library/exporteditor.js';
 import {
   isSplitEditorOpen, openSplitEditor, closeSplitEditor,
   initPreSplitDuration, hidePreSplitSection,
-  _fmtSplitTime, _parseSplitTime, _computeSuggestionPins, splitTimelineClick,
+  _fmtSplitTime, _parseSplitTime, splitTimelineClick,
 } from './analyze/split.js';
 // boot.js is the first-paint entry point: it must be imported LAST so its
 // top-level init (initResize/loadVideos/refreshServerState/...) runs only after
@@ -166,14 +165,11 @@ Object.assign(window, format);
 window.ColorPicker = ColorPicker;
 window.PanelNav = PanelNav;
 // utils.js is cross-cutting - every name here still has at least one classic
-// (bundle.js) consumer, or (clearLog, _diarizationReason, _diarizationNoteHtml) a
-// tests/ui/test_ui_utils.py page.evaluate. toggleLog and isCardCollapsed dropped:
-// their only consumers were utils.js's own inline handler (now addEventListener)
-// and its own collapsibleCard, respectively.
+// window.* consumer. toggleLog, isCardCollapsed, _diarizationReason and
+// _diarizationNoteHtml were dropped as their only external consumers migrated to
+// ESM imports or (the diarization helpers) to the tests/js vitest unit layer.
 window._syncSortDirBtn = _syncSortDirBtn;
-window._diarizationReason = _diarizationReason;
 window._diarizationReadiness = _diarizationReadiness;
-window._diarizationNoteHtml = _diarizationNoteHtml;
 window.openLog = openLog;
 window.clearLog = clearLog;
 window.appendLog = appendLog;
@@ -183,10 +179,11 @@ window.revealInFolder = revealInFolder;
 window.copyText = copyText;
 window.collapsibleCard = collapsibleCard;
 // jobs.js is cross-cutting - every export here still has at least one classic
-// (bundle.js) consumer or a still-present inline handler, so none of these can
-// be dropped yet. Its handful of mutable shared-state globals (_jobStepDefs,
-// _activeES, etc.) are NOT here - jobs.js wires those onto window itself via
-// live get/set accessors, since a plain snapshot would go stale on reassignment.
+// window.* consumer or a still-present inline handler, so none can be dropped yet.
+// Its mutable shared-state (_jobStepDefs/_activeStepIdx/_jobStartTime) is now read
+// cross-module via live ESM imports (videos.js), not off window; _abortActiveStream
+// is the one function conftest teardown calls to close a dangling stream. The old
+// window get/set accessor-bridge for that state is gone.
 Object.assign(window, jobs);
 // preview.js is cross-cutting - setupRecordingPreview has classic consumers
 // (clipcreate.js, videos.js, split.js, exporteditor.js); _buildMediaUrl has no
@@ -264,13 +261,11 @@ window.deleteVideo = deleteVideo;
 window.onClipsSortChange = onClipsSortChange;
 window._clipsSortParam = _clipsSortParam;
 window._clipsListUrl = _clipsListUrl;
-window._reanalyzeParams = _reanalyzeParams;
 window._needsModelCtaHTML = _needsModelCtaHTML;
 window._updateDemoButton = _updateDemoButton;
 window._updateStartIngestButton = _updateStartIngestButton;
 window._analysisLivePanelHTML = _analysisLivePanelHTML;
 window._syncAnalysisLivePanel = _syncAnalysisLivePanel;
-window._applyVideoFilters = _applyVideoFilters;
 window._renderVideoList = _renderVideoList;
 window.setVideoSearch = setVideoSearch;
 window.setVideoSort = setVideoSort;
@@ -339,7 +334,6 @@ window.toggleClipFilter = toggleClipFilter;
 window._syncFilterChips = _syncFilterChips;
 window._applyFilters = _applyFilters;
 window._renderClips = _renderClips;
-window._parseTimingOffset = _parseTimingOffset;
 window._reloadClipList = _reloadClipList;
 window._renderClipFilterCounts = _renderClipFilterCounts;
 window.openScoreOverride = openScoreOverride;
@@ -489,7 +483,6 @@ window.closeBatchExportModal = closeBatchExportModal;
 // outside the module needs them off window anymore.
 window._loadContexts = _loadContexts;
 window.ensureContexts = ensureContexts;
-window._parseWeight = _parseWeight;
 window._termContextOptions = _termContextOptions;
 window._renderTermGroups = _renderTermGroups;
 window.openContextManager = openContextManager;
@@ -677,13 +670,13 @@ window.openExportEditor = openExportEditor;
 // tests/ui/test_ui_keyboard.py, test_ui_panelnav.py and test_ui_split.py via
 // page.evaluate; initPreSplitDuration/hidePreSplitSection/_fmtSplitTime are read
 // as window.* by analyze.js (already-ESM, same reason), and _fmtSplitTime/
-// _parseSplitTime/_computeSuggestionPins/splitTimelineClick are invoked directly
-// by tests/ui/test_ui_utils.py and test_ui_split.py via page.evaluate. The four
-// test-poked STATE names (_splitPoints, _splitNames, _splitDurationS,
-// _splitEnergyFlat) plus _suggestionPins are NOT here - split.js wires those onto
-// window itself via live get/set accessors, since a plain snapshot would go stale
-// on reassignment (mirrors the jobs.js accessor-bridge). videos.js/analyze.js read
+// _parseSplitTime/splitTimelineClick are invoked directly by test_ui_split.py via
+// page.evaluate. The two test-poked STATE names (_splitPoints, _splitNames) are NOT
+// here - split.js wires those onto window itself via live get/set accessors, since a
+// plain snapshot would go stale on reassignment. videos.js/analyze.js read
 // _splitPoints/_splitDurationS/_splitIgnored via a direct import instead of window.
+// (The jobs.js equivalent bridge has since been removed; split.js's remains only for
+// test_ui_keyboard's page.evaluate pokes.)
 window.isSplitEditorOpen = isSplitEditorOpen;
 window.openSplitEditor = openSplitEditor;
 window.closeSplitEditor = closeSplitEditor;
@@ -691,5 +684,4 @@ window.initPreSplitDuration = initPreSplitDuration;
 window.hidePreSplitSection = hidePreSplitSection;
 window._fmtSplitTime = _fmtSplitTime;
 window._parseSplitTime = _parseSplitTime;
-window._computeSuggestionPins = _computeSuggestionPins;
 window.splitTimelineClick = splitTimelineClick;

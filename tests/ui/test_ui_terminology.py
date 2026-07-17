@@ -87,25 +87,7 @@ def test_sidebar_score_range_is_percentage():
     assert "score_max.toFixed" not in VIDEOS_JS
 
 
-@skip_no_server
-class TestPluralHelper:
-    def _plural(self, page: Page, args: list) -> str:
-        return page.evaluate("(args) => plural(...args)", args)
-
-    def test_singular(self, page: Page):
-        assert self._plural(page, [1, "clip"]) == "1 clip"
-
-    def test_plural(self, page: Page):
-        assert self._plural(page, [3, "clip"]) == "3 clips"
-
-    def test_zero_is_plural(self, page: Page):
-        assert self._plural(page, [0, "clip"]) == "0 clips"
-
-    def test_irregular_plural_form(self, page: Page):
-        assert self._plural(page, [2, "entry", "entries"]) == "2 entries"
-
-    def test_multiword_noun(self, page: Page):
-        assert self._plural(page, [2, "audio track"]) == "2 audio tracks"
+# The plural() helper's own cases moved to tests/js/core/format.test.js (vitest).
 
 
 @skip_no_server

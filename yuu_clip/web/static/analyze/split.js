@@ -24,21 +24,18 @@ let _splitZoom             = 1;
 let _splitEnergyFlat = [];   // [{second, rms_db}, …] merged across tracks
 let _suggestionPins  = [];    // [sec, …]
 
-// Test-only accessor bridge: the Playwright suites poke these split-state names
-// as bare page globals via page.evaluate (test_ui_keyboard mutates _splitPoints /
-// assigns _splitNames; test_ui_utils assigns _splitDurationS / _splitEnergyFlat /
-// _suggestionPins). Inside the esbuild IIFE these are closure locals, not window
+// Test-only accessor bridge: test_ui_keyboard.py pokes these two split-state names
+// as bare page globals via page.evaluate (it mutates _splitPoints / assigns
+// _splitNames). Inside the esbuild IIFE they are closure locals, not window
 // properties, and this module reassigns them - so a plain window.X = X snapshot
-// would go stale and an imported ESM binding is read-only. Live get/set defined
-// here (which can read AND write this module's own `let`s) keeps page.evaluate in
-// sync. Remove when those tests move to the vitest unit layer (mirrors the
-// jobs.js accessor-bridge deferral).
+// would go stale and an imported ESM binding is read-only. Live get/set defined here
+// (which can read AND write this module's own `let`s) keeps page.evaluate in sync.
+// Remove when that test moves to the vitest unit layer (the jobs.js equivalent bridge
+// has already been removed that way, and the _splitDurationS / _splitEnergyFlat /
+// _suggestionPins entries dropped out once their page.evaluate pokes were ported).
 for (const [name, get, set] of [
-  ['_splitPoints',    () => _splitPoints,    v => { _splitPoints = v; }],
-  ['_splitNames',     () => _splitNames,     v => { _splitNames = v; }],
-  ['_splitDurationS', () => _splitDurationS, v => { _splitDurationS = v; }],
-  ['_splitEnergyFlat', () => _splitEnergyFlat, v => { _splitEnergyFlat = v; }],
-  ['_suggestionPins', () => _suggestionPins, v => { _suggestionPins = v; }],
+  ['_splitPoints', () => _splitPoints, v => { _splitPoints = v; }],
+  ['_splitNames',  () => _splitNames,  v => { _splitNames = v; }],
 ]) Object.defineProperty(window, name, { get, set, configurable: true });
 
 // ── split editor ─────────────────────────────────────────────────────────────
@@ -240,16 +237,20 @@ async function _generateWaveform() {
 
 // ── suggestion pins ──────────────────────────────────────────────────────────
 
-export function _computeSuggestionPins() {
-  if (!_splitEnergyFlat.length || !_splitDurationS) return;
+// Pure: pick up to _SUGGESTION_COUNT quiet, spaced, interior seconds from a
+// flat [{second, rms_db}, …] energy list. Returns null (not []) when there is
+// no data, so the caller leaves any existing suggestions untouched rather than
+// clearing them.
+export function computeSuggestionPins(energyFlat, durationS) {
+  if (!energyFlat.length || !durationS) return null;
 
   // Work with normalised linear energy (not dB) for valley detection
-  const minDb = Math.min(..._splitEnergyFlat.map(s => s.rms_db));
-  const maxDb = Math.max(..._splitEnergyFlat.map(s => s.rms_db));
+  const minDb = Math.min(...energyFlat.map(s => s.rms_db));
+  const maxDb = Math.max(...energyFlat.map(s => s.rms_db));
   const range  = maxDb - minDb || 1;
 
   // Score each second: 1 = quietest, 0 = loudest
-  const scored = _splitEnergyFlat.map(s => ({
+  const scored = energyFlat.map(s => ({
     sec:   s.second,
     score: 1 - (s.rms_db - minDb) / range,
   }));
@@ -259,11 +260,16 @@ export function _computeSuggestionPins() {
   const pins = [];
   for (const { sec } of sorted) {
     if (pins.length >= _SUGGESTION_COUNT) break;
-    if (sec <= 0 || sec >= _splitDurationS) continue;
+    if (sec <= 0 || sec >= durationS) continue;
     if (pins.some(p => Math.abs(p - sec) < _SUGGESTION_MIN_GAP_S)) continue;
     pins.push(sec);
   }
-  _suggestionPins = pins.sort((a, b) => a - b);
+  return pins.sort((a, b) => a - b);
+}
+
+function _computeSuggestionPins() {
+  const pins = computeSuggestionPins(_splitEnergyFlat, _splitDurationS);
+  if (pins !== null) _suggestionPins = pins;
 }
 
 // ── timeline zoom ─────────────────────────────────────────────────────────────

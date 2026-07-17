@@ -13,6 +13,16 @@ import {
 import {
   closeGettingStartedModal, closeAboutModal, closeGlossaryModal, closeHelpModal,
 } from './helpmodals.js';
+import {
+  selectClip, setStatus, undoLastStatus, closeScoreOverrideModal, closeSimilarClipsModal,
+} from '../clips/clips.js';
+import { exportClip, closeExportModal } from '../clips/clipexport.js';
+import { closeProfileManager } from '../analyze/analyze.js';
+import { closeHighlightReelsModal, closeReelPreview, closeBatchExportModal } from '../analyze/reel.js';
+import { closeContextManager, closeAutoApproveModal, closeRetranscribeModal } from '../library/contexts.js';
+import { closeTimelineIntervalModal } from '../videos/videos-timeline.js';
+import { isProjectMenuOpen, closeProjectMenu } from '../settings/projects.js';
+import { closeSettings } from '../settings/settings.js';
 
 // ── keyboard shortcuts ────────────────────────────────────────────────────────
 
@@ -21,9 +31,6 @@ import {
 // and the full-panel editors. topmostVisibleModal (ui.js) resolves modal
 // stacking - confirm/alert take priority, so a "Discard?" confirm cancels
 // without also closing the still-dirty editor underneath it.
-//
-// Still-classic modal closers (window.closeScoreOverrideModal etc.) are called
-// as bare globals - their owning modules haven't migrated to ESM yet.
 const _modalEscapeClosers = {
   'confirm-modal':           () => _confirmCancel(),
   'alert-modal':             () => closeAlertModal(),
@@ -167,6 +174,6 @@ document.addEventListener('keydown', e => {
 
 // No exports - this module's only public surface is the keydown listener
 // registration itself; _modalEscapeClosers/_closeTopmostLayer are referenced
-// only from within this module. Still-classic globals it calls
-// (closeScoreOverrideModal, selectClip, setStatus, exportClip, etc.) resolve
-// off window since their owning modules haven't migrated to ESM yet.
+// only from within this module. Every closer/action it calls is now imported
+// (see the top of the file); shortcuts.js is a sink in the import graph (nothing
+// imports it), so those feature imports can't form a cycle back through it.

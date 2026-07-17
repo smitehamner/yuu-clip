@@ -231,52 +231,6 @@ class TestSplitTimeEdits:
         expect(split_editor.locator(".toast.error").last).to_contain_text("between")
 
 
-@skip_no_server
-class TestReanalyzeParams:
-    """H6-2 - split re-analysis reuses the original run's recorded parameters
-    (Video.analyze_run.settings) and falls back to config defaults."""
-
-    _RECORDED = {
-        "analyze_run": {
-            "settings": {
-                "model": "large-v3",
-                "track_layout": "game-2track",
-                "energy_mode": "full",
-                "scene_mode": "full",
-                "speaker_labels": True,
-                "contexts": ["ctx-old"],
-            }
-        },
-        "context_names": [],
-    }
-
-    def test_uses_original_run_settings(self, page: Page):
-        params = page.evaluate("(v) => _reanalyzeParams(v)", self._RECORDED)
-        assert params["model"] == "large-v3"
-        assert params["profile"] == "game-2track"
-        assert params["energy_mode"] == "full"
-        assert params["scene_mode"] == "full"
-        assert params["diarize"] is True
-        assert params["context_names"] == ["ctx-old"]
-
-    def test_current_context_assignment_wins_over_recorded(self, page: Page):
-        video = dict(self._RECORDED, context_names=["ctx-current"])
-        params = page.evaluate("(v) => _reanalyzeParams(v)", video)
-        assert params["context_names"] == ["ctx-current"]
-
-    def test_default_track_layout_maps_to_null_profile(self, page: Page):
-        video = {
-            "analyze_run": {"settings": {"model": "medium", "track_layout": "default"}},
-            "context_names": [],
-        }
-        params = page.evaluate("(v) => _reanalyzeParams(v)", video)
-        assert params["profile"] is None
-
-    def test_falls_back_to_config_defaults_without_a_recorded_run(self, page: Page):
-        cfg = page.evaluate("() => fetch('/api/config').then(r => r.json())")
-        params = page.evaluate("(v) => _reanalyzeParams(v)", None)
-        assert params["model"] == (cfg.get("whisper_model") or "medium")
-        assert params["energy_mode"] == (cfg.get("energy_mode") or "fast")
-        assert params["scene_mode"] == (cfg.get("scene_detection_mode") or "fast")
-        assert params["diarize"] is None
-        assert params["profile"] is None
+# TestReanalyzeParams (the pure _reanalyzeParams cases) moved to
+# tests/js/videos/videos.test.js (vitest), with the config-fallback path exercised
+# against a stubbed fetch instead of the dev's live /api/config.

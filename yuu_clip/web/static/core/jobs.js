@@ -6,36 +6,19 @@ import { AppState } from './state.js';
 import { escHtml, formatApiError, _fmtElapsed } from './format.js';
 
 // ── shared live job-render state ──────────────────────────────────────────────
-// Read cross-file by videos.js's compact step strip (bare identifiers _jobStepDefs,
-// _activeStepIdx, _jobStartTime) and by the Playwright UI-test suite, which seeds
-// several of these directly via page.evaluate. Both sides are classic, non-module
-// code, so they can only ever reach these as `window` properties - never via an ESM
-// import. A one-shot `window.X = X` snapshot would go stale the instant jobs.js
-// reassigns X, so each name gets a live get/set bridge onto `window` below instead
-// of a plain Object.assign export.
+// _jobStepDefs / _activeStepIdx / _jobStartTime are read cross-module by videos.js's
+// in-detail live panel via a live ESM `import` (a plain snapshot would go stale on
+// reassignment, but an imported binding tracks the current value) - see the export
+// block below. The rest are module-private.
 let _jobStepDefs   = [];
 let _activeES      = null;
 let _jobStartTime  = 0;
 let _activeStepIdx = -1;
 
-// Per-step progress accounting for the step-pill ETA heuristic. Not read by other
-// production modules, but the step-pill / ETA / live-panel tests seed them directly
-// via page.evaluate, so they need the same window bridge as the block above.
+// Per-step progress accounting for the step-pill ETA heuristic. Module-private.
 let _stepStartTime = 0;
 let _stepProgress  = {}; // stepIdx -> {current, total}, cleared per job
 let _stepRateAnchor = {}; // stepIdx -> {t, current} at first observed count, cleared per job
-
-for (const [name, get, set] of [
-  ['_jobStepDefs',    () => _jobStepDefs,    v => { _jobStepDefs = v; }],
-  ['_activeES',       () => _activeES,       v => { _activeES = v; }],
-  ['_jobStartTime',   () => _jobStartTime,   v => { _jobStartTime = v; }],
-  ['_activeStepIdx',  () => _activeStepIdx,  v => { _activeStepIdx = v; }],
-  ['_stepStartTime',  () => _stepStartTime,  v => { _stepStartTime = v; }],
-  ['_stepProgress',   () => _stepProgress,   v => { _stepProgress = v; }],
-  ['_stepRateAnchor', () => _stepRateAnchor, v => { _stepRateAnchor = v; }],
-]) {
-  Object.defineProperty(window, name, {get, set, configurable: true});
-}
 
 // ── progress indicator ────────────────────────────────────────────────────────
 // estMatch: substrings that map this pill to a step name from /api/estimate, so
@@ -479,6 +462,13 @@ function _clearActiveStream(handle) {
   if (_activeES === handle) { _activeES = null; _activeJobCleanup = null; }
 }
 
+// Abort any in-flight stream WITHOUT running its cleanup - for page teardown between
+// UI tests, where re-enabling buttons would be pointless. Exposed on window for the
+// Playwright conftest teardown (the one remaining out-of-module reader of _activeES).
+function _abortActiveStream() {
+  if (_activeES) { _activeES.close(); _activeES = null; _activeJobCleanup = null; }
+}
+
 function _supersedeActiveStream() {
   if (_activeES) { _activeES.close(); _activeES = null; }
   if (_activeJobCleanup) { const cleanup = _activeJobCleanup; _activeJobCleanup = null; cleanup(); }
@@ -601,9 +591,11 @@ export {
   INGEST_STEPS, SCORE_STEPS, FRAMES_STEPS, JOB_STAGES, parseProgress, _driveStepFromMarker,
   startJobUI, updateJobUI, endJobUI, applyJobBlockedState, _stepPillLabel, _renderStepPill, _tickJobTimer,
   _setPausedUIFromStatus, togglePauseJob, _pollThermalStatus,
-  _openSSE, streamSSE, _setActiveStream, _clearActiveStream, _supersedeActiveStream,
+  _openSSE, streamSSE, _setActiveStream, _clearActiveStream, _supersedeActiveStream, _abortActiveStream,
   _blockedByAnalyze, _waitWhileAnalyzePaused,
   setJobCancel, cancelJob,
+  // Live bindings read by videos.js's in-detail live panel (values change per job).
+  _jobStepDefs, _activeStepIdx, _jobStartTime,
 };
 
 // The job header's Pause/Cancel buttons are static markup in index.html (never

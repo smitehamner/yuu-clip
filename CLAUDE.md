@@ -175,20 +175,36 @@ tests/                     # unit = state-independent, run anywhere; integration
   ui/
     conftest.py            # Playwright fixtures + select_video_* helpers + teardown watchdogs
     test_ui_*.py           # Playwright against a live server (YUU_TEST_URL, default :8080)
+  js/                      # JS unit layer (vitest + happy-dom, no browser/server). Run via `yuu-dev test-js`.
+    setup.js               # seeds index.html's <body> before module imports (load-time getElementById wiring)
+    <bucket>/*.test.js     # pure module logic imported directly (formatters, filters, parse/score helpers, job-pill state)
 ```
 
 ## Running tests
 
-The suite has three tiers by directory: **unit** (state-independent, runs
+The Python suite has three tiers by directory: **unit** (state-independent, runs
 anywhere), **integration** (seeded DB / in-process TestClient), and **ui** (live
 Playwright server). `yuu-dev test-api` runs unit + integration; `yuu-dev test-ui` runs ui.
+Alongside them a fourth, non-Python tier - **js** (`tests/js/`, vitest + happy-dom) -
+holds the web UI's pure module logic and runs via `yuu-dev test-js` with no browser or
+server. Prefer it for any pure/DOM-shell JS helper (formatters, filters, parse/score
+math, the job-pill state machine driven through the public API); keep in Playwright
+only what genuinely needs a real browser (navigation, SSE, focus traps, live
+getComputedStyle / real geometry).
 
 ```powershell
+yuu-dev test-js             # JS unit layer (tests/js/**/*.test.js); no browser, ~6s, skips if Node absent
 yuu-dev test-api            # unit + integration (tests/unit tests/integration); no live server
 yuu-dev test-ui --changed   # dev default: tests around the diff + smoke
 yuu-dev test-ui --smoke     # ~6-test backstop only, quickest sanity check
 yuu-dev test-ui             # full suite (all tests/ui/test_ui_*.py) - see cadence above
 ```
+
+Run `yuu-dev test-js` after editing any `static/*.js` that has (or should have) a
+`tests/js/` counterpart. A JS helper's pure logic belongs in `tests/js/` (import the
+module, assert directly); a case that pokes module state via a Playwright
+`page.evaluate` window global should, where practical, be rewritten to drive the
+public API under vitest fake timers rather than kept in the ui tier.
 
 `yuu-dev test-ui` (full) runs 4 pytest-xdist workers by default (~3.7 min); targeted
 runs scale workers down to the selected file count (a single file runs

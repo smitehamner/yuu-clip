@@ -13,6 +13,7 @@ from yuu_clip.dev import (  # noqa: E402,F401  (registers commands)
     notices,
     serve,
     status,
+    testjs,
     tests,
 )
 from yuu_clip.dev._base import app
