@@ -160,67 +160,10 @@ class TestVisionInFlightIndicator:
         assert "Another job is running" in result["title"]
 
 
-# Cancel wiring + leak fix: analyzeFrames must (1) start a cancellable job whose
-# header Cancel targets the per-clip frames cancel endpoint with frame-specific copy,
-# and (2) clear its AppState.clipJobs in-flight flag on the error/cancel terminal
-# paths (not only onDone) so a failed run never strands the button as a spinner.
-_CANCEL_WIRING = """
-async () => {
-  const origStream = window.streamSSE;
-  const origSetCancel = window.setJobCancel;
-  let captured = null, cancelCfg = null;
-  // Stub the transport: capture args and drive the onError terminal path immediately.
-  window.streamSSE = (url, onDone, stepDefs, jobLabel, cancellable, onLine, pausable, opts, onError) => {
-    captured = {cancellable, hasOnError: typeof onError === 'function', method: opts && opts.method};
-    if (onError) onError('boom');
-  };
-  window.setJobCancel = (cfg) => { cancelCfg = cfg; };
-  AppState.analyzeFilename = null;
-  AppState.activeClipId = 999;
-  AppState.activeClipData = {id: 999};
-  analyzeFrames(999);
-  const cleared = AppState.clipJobs[999] === undefined;
-  window.streamSSE = origStream;
-  window.setJobCancel = origSetCancel;
-  return {
-    cleared,
-    cancellable: captured && captured.cancellable,
-    hasOnError: captured && captured.hasOnError,
-    method: captured && captured.method,
-    cancelUrl: cancelCfg && cancelCfg.url,
-    cancelConfirm: cancelCfg && cancelCfg.confirm,
-    hasOnCancel: !!(cancelCfg && typeof cancelCfg.onCancel === 'function'),
-  };
-}
-"""
-
-
-@skip_no_server
-class TestVisionCancelWiring:
-    # analyzeFrames imports streamSSE/setJobCancel as ESM bindings, so this
-    # test's window.streamSSE/window.setJobCancel monkeypatch no longer
-    # intercepts the call - an intended consequence of the ESM migration, not a
-    # product bug (the production wiring is correct). This implementation-wiring
-    # poke is scoped to be replaced by a direct vitest unit test (import clips.js
-    # with jobs.js mocked) in the migration's vitest follow-on. Until then, xfail.
-    @pytest.mark.xfail(
-        reason="ESM: window.streamSSE stub no longer intercepts imported binding; "
-        "covered by the vitest follow-on. See ui-esm-migration plan.",
-        strict=True,
-    )
-    def test_frame_job_is_cancellable_and_clears_flag_on_error(self, page: Page):
-        page.goto(LIVE_URL)
-        page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
-        result = page.evaluate(_CANCEL_WIRING)
-        assert result["cancellable"] is True
-        assert result["hasOnError"] is True
-        assert result["method"] == "POST"
-        # Leak fix: the error terminal path cleared the in-flight flag.
-        assert result["cleared"] is True
-        # Cancel targets the per-clip frames endpoint with its own copy + cleanup.
-        assert result["cancelUrl"] == "/api/clips/999/analyze-frames/cancel"
-        assert result["cancelConfirm"] == "Stop analysis"
-        assert result["hasOnCancel"] is True
+# analyzeFrames' cancel wiring + in-flight-flag leak fix now has a direct unit test
+# that mocks the jobs.js transport seam: tests/js/clips/vision.test.js. It replaced
+# the strict-xfail Playwright poke here (window.streamSSE no longer intercepts the
+# post-ESM imported binding).
 
 
 @skip_no_server
