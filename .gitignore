@@ -25,3 +25,6 @@ docs/dev/plans/
 # esbuild drift-check scratch output (never committed)
 /yuu_clip/web/static/*.check.js
 yuu-clip.code-workspace
+
+# mypy cache (the committed baseline is mypy-baseline.txt, which IS tracked)
+/.mypy_cache/

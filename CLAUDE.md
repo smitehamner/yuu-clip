@@ -45,9 +45,10 @@ API tests take ~1 minute. Run them selectively - not after every edit.
 Before reporting a backend fix complete, do:
 
 1. Run the linter: `yuu-dev lint` (fast - run after every Python change, even cosmetic ones; fix or `--fix` anything it flags)
-2. Run tests if the change qualifies above: `yuu-dev test-api`
-3. Restart the server: `yuu-dev serve`
-4. Confirm the fix works in the browser (or state explicitly that you cannot)
+2. Run the type gate: `yuu-dev typecheck` (mypy, ~15s; fails only on type errors NOT in the frozen `mypy-baseline.txt` - i.e. new ones, or ones in code you just touched). Fix the new error, or if it is a genuine accepted gap, run `yuu-dev typecheck --sync` to re-freeze the baseline and commit it.
+3. Run tests if the change qualifies above: `yuu-dev test-api`
+4. Restart the server: `yuu-dev serve`
+5. Confirm the fix works in the browser (or state explicitly that you cannot)
 
 Test script output: both test commands default to quiet output and write
 `test-api-last.log` / `test-ui-last.log` (full) plus `test-*-last-summary.log`
@@ -396,6 +397,12 @@ faster-whisper, `speaker_*` for diarization) rather than renaming them generic.
 - Names must be descriptive - no `x`, `tmp`, `data`, `result`, `val`
 - Error paths must be handled explicitly, not silently swallowed
 - One concern per function
+- **Type hints: annotate as-you-touch, no big-bang pass.** `yuu-dev typecheck` runs mypy
+  with a lenient global config and a frozen baseline (`mypy-baseline.txt`) of the current
+  errors; it fails only on NEW errors. When you edit a function, add parameter/return
+  annotations and fix any type error your change surfaces (don't just re-baseline it away).
+  Re-freeze the baseline (`yuu-dev typecheck --sync`, commit the result) only for a
+  genuinely-accepted existing gap, never to paper over a new mistake.
 
 ### Licensing
 - The global "no GPL/AGPL dependencies" rule covers *code* - it does **not** cover the

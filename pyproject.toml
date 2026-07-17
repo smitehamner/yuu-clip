@@ -85,6 +85,8 @@ dev = [
     "playwright>=1.40,<2.0",
     "pytest-playwright>=0.5,<1.0",
     "ruff>=0.4,<2.0",
+    "mypy>=1.8,<2.0",
+    "mypy-baseline>=0.7,<1.0",
 ]
 # The local LLM/vision backend no longer uses the in-process llama-cpp-python wheel
 # (CPU-only, and its AVX512 prebuilt wheels crashed on many consumer CPUs). It now
@@ -112,6 +114,20 @@ include = ["yuu_clip*"]
 # setuptools globs do NOT recurse, so each static subdirectory must be listed
 # explicitly - `web/static/*` alone misses web/static/help/ and web/static/fonts/.
 yuu_clip = ["web/static/*", "web/static/fonts/*", "web/static/help/*"]
+
+[tool.mypy]
+# Lenient global baseline - the codebase is largely untyped and we do NOT do a
+# big-bang annotation pass. Existing errors are frozen in a committed baseline
+# (mypy-baseline.txt); `yuu-dev typecheck` fails only on NEW errors (a regression or
+# an error in code you just touched). Annotate as-you-touch: when editing a function,
+# add types and clear any baseline entry it resolves. See CLAUDE.md.
+python_version = "3.12"
+files = ["yuu_clip"]
+ignore_missing_imports = true
+# mypy-baseline matches on message text, not line numbers, so these help it stay
+# stable across refactors.
+show_error_codes = true
+show_column_numbers = true
 
 [tool.ruff]
 line-length = 120
