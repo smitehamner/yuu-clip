@@ -182,21 +182,11 @@ class TestAccentSwitcher:
 
 @skip_no_server
 class TestWarningToken:
-    def test_warning_token_is_defined(self, page: Page):
-        value = page.evaluate(
-            "() => getComputedStyle(document.documentElement)"
-            ".getPropertyValue('--warning').trim()"
-        )
-        assert value != ""
-
-    def test_legacy_warning_tokens_are_not_defined(self, page: Page):
-        values = page.evaluate(
-            "() => ['--amber', '--warn', '--yellow'].map(name =>"
-            "  getComputedStyle(document.documentElement)"
-            "  .getPropertyValue(name).trim())"
-        )
-        assert values == ["", "", ""]
-
+    # The --warning-is-defined and legacy-tokens-not-defined contracts moved to
+    # static assertions in tests/unit/test_static_theme_colors.py (they read
+    # tokens.css, no browser). Only the real-cascade check - that `.muted`
+    # actually resolves to var(--muted) through the loaded stylesheet - needs a
+    # live browser and stays here.
     def test_muted_utility_class_applies_token_color(self, page: Page):
         colors = page.evaluate(
             """() => {

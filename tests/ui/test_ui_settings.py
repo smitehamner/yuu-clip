@@ -269,20 +269,9 @@ class TestSettingsPanelChrome:
         )
         expect(page.locator("#settings-sec-paths")).to_be_in_viewport()
 
-    def test_every_settings_section_has_a_jump_link(self, page: Page):
-        # Guards the jump row against drift: a section added without a matching
-        # link is reachable only by scrolling (how Hot-words + Sensitive Content
-        # went missing - UX review R1).
-        self._open_settings(page)
-        section_ids = page.evaluate(
-            "Array.from(document.querySelectorAll('.settings-inner .settings-section'))"
-            ".map(el => el.id)"
-        )
-        linked_ids = page.evaluate(
-            "Array.from(document.querySelectorAll('.settings-jump-link'))"
-            ".map(el => el.dataset.section)"
-        )
-        assert set(section_ids) == set(linked_ids)
+    # test_every_settings_section_has_a_jump_link moved to the browserless vitest
+    # tier (tests/js/settings/settings.test.js) - it only reads the static settings
+    # markup (section ids vs jump-link data-section), no server or real browser.
 
     def test_speech_to_text_section_leads_with_plain_term(self, page: Page):
         self._open_settings(page)

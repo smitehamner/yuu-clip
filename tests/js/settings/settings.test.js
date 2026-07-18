@@ -41,3 +41,18 @@ describe('accent switcher', () => {
     expect(localStorage.getItem('yuuclip-accent')).toBe('default');
   });
 });
+
+describe('settings jump-row drift guard', () => {
+  // Every settings section must have a matching jump link, or the section is
+  // reachable only by scrolling (how Hot-words + Sensitive Content went missing -
+  // UX review R1). Pure static markup, so ported from the getComputedStyle-free
+  // case in tests/ui/test_ui_settings.py::TestSettingsPanelChrome.
+  it('every settings section has a jump link and vice versa', () => {
+    const sectionIds = [...document.querySelectorAll('.settings-inner .settings-section')]
+      .map((el) => el.id);
+    const linkedIds = [...document.querySelectorAll('.settings-jump-link')]
+      .map((el) => el.dataset.section);
+    expect(sectionIds.length).toBeGreaterThan(0);
+    expect(new Set(sectionIds)).toEqual(new Set(linkedIds));
+  });
+});

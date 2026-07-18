@@ -53,6 +53,15 @@ def test_no_legacy_warning_token_references_in_static_files():
     assert offenders == []
 
 
+def test_no_legacy_warning_tokens_defined_in_tokens_css():
+    """CC-7: --warning is the only warning color - the legacy --amber/--warn/
+    --yellow tokens must not be *defined* anywhere in tokens.css. (Ported from
+    the getComputedStyle probe in tests/ui/test_ui_theme.py::TestWarningToken.)"""
+    css = TOKENS_CSS.read_text(encoding="utf-8")
+    defined = [name for name in ("--amber:", "--warn:", "--yellow:") if name in css]
+    assert defined == []
+
+
 _THEME_BLOCK_RE = re.compile(
     r'(?ms)^(?::root|html\[data-theme="([^"]+)"\])\s*\{(.*?)^\}'
 )

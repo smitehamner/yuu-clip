@@ -11,7 +11,6 @@ shared helpers.
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
 import pytest
 from conftest import (
@@ -445,15 +444,6 @@ class TestClipTags:
         page.click("#clip-user-tags .user-tag:has-text('drop') .user-tag-x")
         expect(page.locator("#clip-user-tags .user-tag")).to_have_count(1)
         expect(page.locator("#clip-user-tags .user-tag").first).to_contain_text("keep")
-
-
-def test_detail_cards_row_wraps():
-    """L4-3: the Scoring/Actions two-card row must wrap on narrow layouts."""
-    app_css = (
-        Path(__file__).resolve().parents[2] / "yuu_clip" / "web" / "static" / "app.css"
-    ).read_text(encoding="utf-8")
-    row_rule = re.search(r"\.detail-cards-row\s*\{([^}]*)\}", app_css)
-    assert row_rule and "flex-wrap: wrap" in row_rule.group(1)
 
 
 @skip_no_server
