@@ -7,8 +7,25 @@
 // modal-row DOM wiring (openClipActionsModal, data-copy delegation, the canReveal
 // gate) stays in Playwright.
 import { AppState } from '../../../yuu_clip/web/static/core/state.js';
+
+// _deleteExportFormat re-renders the detail/list through clips.js and confirms via
+// ui.js - stub those seams so only the DELETE request is under test.
+vi.mock('../../../yuu_clip/web/static/clips/clips.js', async (importActual) => {
+  const actual = await importActual();
+  return {
+    ...actual,
+    renderDetail: vi.fn(), renderPlayer: vi.fn(), selectClip: vi.fn(),
+    _reloadClipList: vi.fn(), _releasePlayerBeforeDelete: vi.fn(),
+  };
+});
+vi.mock('../../../yuu_clip/web/static/core/ui.js', async (importActual) => {
+  const actual = await importActual();
+  return { ...actual, showConfirm: vi.fn((t, b, l, onConfirm) => onConfirm()) };
+});
+
+import { showConfirm } from '../../../yuu_clip/web/static/core/ui.js';
 import {
-  _revealClipExport, _copyClipExportPaths,
+  _revealClipExport, _copyClipExportPaths, _handleExportFormatAction,
 } from '../../../yuu_clip/web/static/clips/clipexport.js';
 
 const exportFilesResponse = (files) => ({ ok: true, json: async () => ({ files }) });
@@ -75,5 +92,24 @@ describe('_copyClipExportPaths', () => {
     expect(clipboardWrites).toEqual([
       'D:\\exports\\clip_export.mkv\nD:\\exports\\clip_export.srt',
     ]);
+  });
+});
+
+describe('_handleExportFormatAction delete', () => {
+  // Ported from tests/ui/test_ui_clips2.py::TestMultiFormatExportRows -
+  // per-format-row delete confirms, then DELETEs that one export by id.
+  it('confirms, then DELETEs the export by id', async () => {
+    AppState.activeVideoId = 100;
+    const fetchMock = vi.fn((url) => {
+      if (url === '/api/clip-exports/42') return Promise.resolve({ ok: true, json: async () => ({ export_id: 42 }) });
+      return Promise.resolve({ ok: true, json: async () => ({ id: 9302, has_export: false, exports: [] }) });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    _handleExportFormatAction('delete', { clipId: '9302', exportId: 42 });
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/clip-exports/42', { method: 'DELETE' }));
+
+    expect(showConfirm).toHaveBeenCalledTimes(1);
+    expect(showConfirm.mock.calls[0][0]).toBe('Delete this format?');
   });
 });

@@ -207,24 +207,10 @@ class TestMultiFormatExportRows:
         expect(rows.nth(0)).to_contain_text("Original quality")
         expect(rows.nth(1)).to_contain_text("YouTube 1080p")
 
-    def test_per_row_delete_calls_the_row_delete_endpoint(self, page: Page):
-        page.goto(LIVE_URL)
-        page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
-        clip = self._clip_with_formats(9302, [self._format_row(42, "youtube-1080p")])
-        page.evaluate("(clip) => { AppState.activeClipData = clip; renderDetail(clip); }", clip)
-        page.route(
-            "**/api/clip-exports/42",
-            lambda route: route.fulfill(status=200, content_type="application/json", body='{"export_id": 42}'),
-        )
-        page.route("**/api/clips/9302", lambda route: route.fulfill(
-            status=200, content_type="application/json",
-            body='{"id": 9302, "has_export": false, "exports": []}',
-        ))
-        page.click(".export-format-row[data-export-id='42'] [data-export-action='delete']")
-        page.wait_for_selector("#confirm-modal.visible", timeout=2000)
-        with page.expect_request("**/api/clip-exports/42") as req_info:
-            page.click("#confirm-ok-btn")
-        assert req_info.value.method == "DELETE"
+    # test_per_row_delete_calls_the_row_delete_endpoint moved to
+    # tests/js/clips/clipexport.test.js - _handleExportFormatAction('delete', ...)
+    # confirms then DELETEs /api/clip-exports/<id> browserless. The row-render + the
+    # regenerate-confirmation flow below stay in Playwright.
 
     def test_regenerate_asks_for_confirmation_before_re_exporting(self, page: Page):
         page.goto(LIVE_URL)
