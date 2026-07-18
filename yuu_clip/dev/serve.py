@@ -15,6 +15,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import Optional
 
 import typer
 
@@ -100,6 +101,11 @@ def _spawn_detached(cmd: list[str], env: dict[str, str]) -> None:
 def serve(
     host: str = typer.Option(DEFAULT_HOST, "--host"),
     port: int = typer.Option(DEFAULT_PORT, "--port"),
+    project: Optional[Path] = typer.Option(
+        None, "--project", "-p",
+        help="Project dir to serve (default: the repo's own dev project). "
+             "Point at a seeded fixture project - see 'yuu-dev fixture-project'.",
+    ),
     stop: bool = typer.Option(False, "--stop", help="Reap running servers and exit without starting one."),
     yes: bool = typer.Option(False, "--yes", help="Skip the 'processing is active' confirmation."),
     open_browser: bool = typer.Option(True, "--open/--no-open"),
@@ -130,8 +136,11 @@ def serve(
     else:
         console.print("No local llama-server runtime found; local LLM/vision is disabled in dev")
 
+    project_dir = project.resolve() if project else REPO_ROOT
+    if project:
+        console.print(f"[cyan]Serving project:[/cyan] {project_dir}")
     cmd = [sys.executable, "-m", "yuu_clip.cli", "serve",
-           "--project", str(REPO_ROOT), "--host", host, "--port", str(chosen)]
+           "--project", str(project_dir), "--host", host, "--port", str(chosen)]
     if not open_browser:
         cmd.append("--no-open")
     _spawn_detached(cmd, env)

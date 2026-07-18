@@ -28,6 +28,31 @@ API-level tests run anywhere.
 - **git**
 - **Node 18+** - only if you touch `electron/`
 
+## Lightweight setups (you may not need the full install)
+
+The full install below pulls a multi-GB machine-learning stack (torch, transformers,
+mediapipe, faster-whisper) because the analyze pipeline depends on it. Two common kinds
+of contribution skip it entirely:
+
+- **Docs only** - editing Markdown under `docs/`, this file, or the README needs nothing
+  but a text editor and `git`. There is no build step for docs; open a PR.
+- **Web UI (JS / CSS) only** - the browser modules under `yuu_clip/web/static/` have a
+  pure-logic test tier that runs with **Node alone, no Python**:
+
+  ```bash
+  npm install
+  npm run test:js        # vitest (browser-less), ~10s
+  npm run build:esm      # rebuild the committed bundles after editing any static/*.js
+  ```
+
+  The committed bundles (`bundle.esm.js`, `electron/setup.bundle.js`) and the stitched
+  `index.html` are drift-guarded, so rebuild and commit them alongside your change. (If
+  you have also done the full Python install below, `yuu-dev test-js` and `yuu-dev
+  bundle` are the same thing wrapped.)
+
+Only **pipeline, API, or web-server** work - anything that runs the app or its tests -
+needs the full install below.
+
 ## Setup
 
 ```bash
@@ -81,10 +106,20 @@ Run these before opening a PR:
 
 Frontend / UI:
 
-- **`yuu-dev test-ui`** runs the Playwright suite. It needs a live server, so first run
-  `yuu-dev serve` (with at least one analyzed video in the dev project), install the
-  browser once with `playwright install chromium`, then run the tests. `--smoke` runs a
-  quick backstop; `--changed` runs the tests around your working-tree diff.
+- **`yuu-dev test-ui`** runs the Playwright suite against a live server. You do **not**
+  need a personal recording - build a seeded throwaway project and serve that instead:
+
+  ```bash
+  playwright install chromium                 # one-time browser download
+  yuu-dev fixture-project                      # seeds build/fixture-project (clips + scenes)
+  yuu-dev serve --project build/fixture-project
+  yuu-dev test-ui --smoke                       # or --changed / the full suite
+  ```
+
+  The fixture uses an ffmpeg-generated few-second clip (and still seeds a usable DB if
+  ffmpeg is absent - the smoke tier passes either way). `--smoke` runs a quick backstop;
+  `--changed` runs the tests around your working-tree diff. If you already have your own
+  analyzed project, plain `yuu-dev serve` (no `--project`) serves that instead.
 
 Desktop wrapper (only when you touch `electron/`):
 
