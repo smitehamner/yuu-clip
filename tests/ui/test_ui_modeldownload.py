@@ -190,24 +190,10 @@ class TestPrereqRefreshAfterServerChange:
     server-side change so surfaces like the analyze prereq banner update without a
     restart. Regression guard for the class of stale-until-restart bugs."""
 
-    def test_apply_prereq_warnings_clears_a_previously_shown_banner(self, page: Page):
-        # Asserts on the banner's own style.display, not visibility: the banner lives
-        # inside the (hidden-at-rest) analyze panel, so is_visible() is always false.
-        # Use the ffmpeg branch because it fires regardless of the Electron gate.
-        page.evaluate(
-            "() => _applyPrereqWarnings({ffmpeg_ok:false, llm_ok:true, llm_reason:''})"
-        )
-        assert page.evaluate(
-            "() => document.getElementById('prereq-banner').style.display"
-        ) != "none"
-        # A satisfied re-check (what refreshServerState does after a model is set up)
-        # must hide the stale banner - previously it could only ever show one.
-        page.evaluate(
-            "() => _applyPrereqWarnings({ffmpeg_ok:true, llm_ok:true, llm_reason:''})"
-        )
-        assert page.evaluate(
-            "() => document.getElementById('prereq-banner').style.display"
-        ) == "none"
+    # test_apply_prereq_warnings_clears_a_previously_shown_banner moved to
+    # tests/js/core/ui.test.js - _applyPrereqWarnings only reads/writes the static
+    # #prereq-banner, so it runs browserless there. The download-resync fetch flow
+    # below stays in Playwright.
 
     def test_successful_download_resyncs_prereqs(self, page: Page):
         # A completed download must trigger refreshServerState(), which re-fetches

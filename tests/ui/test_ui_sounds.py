@@ -45,16 +45,8 @@ def _set_stored_state(page: Page, state: dict) -> None:
 
 @skip_no_server
 class TestSoundFxPlay:
-    def test_disabled_event_does_not_touch_player(self, page: Page):
-        page.evaluate("() => localStorage.removeItem('yuuclip-sounds')")
-        result = page.evaluate(
-            "() => {"
-            "  const before = document.querySelector('audio')?.src;"
-            "  SoundFx.play('analysis');"
-            "  return true;"  # no exception is the main assertion; src assert below
-            "}"
-        )
-        assert result is True
+    # test_disabled_event_does_not_touch_player moved to tests/js/library/sounds.test.js
+    # (a disabled event returns before touching the player - no browser needed).
 
     def test_enabled_event_plays_configured_sound(self, page: Page):
         # No dedicated getter exists for the shared <audio> element's src, so
@@ -76,13 +68,8 @@ class TestSoundFxPlay:
         # returning early on the enabled-gate check.
         expect(page.locator(".sound-stop-pill")).to_be_attached(timeout=3000)
 
-    def test_unknown_event_key_is_a_noop(self, page: Page):
-        # Defensive: a typo'd event key must not throw.
-        threw = page.evaluate(
-            "() => { try { SoundFx.play('not-a-real-event'); return false; }"
-            "  catch { return true; } }"
-        )
-        assert threw is False
+    # test_unknown_event_key_is_a_noop moved to tests/js/library/sounds.test.js
+    # (an unknown event key returns before touching the player - no browser needed).
 
     def test_stop_hides_the_stop_pill(self, page: Page):
         _set_stored_state(page, {
