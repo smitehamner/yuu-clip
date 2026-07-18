@@ -62,6 +62,17 @@ the code is a product/behavior change (VRAM thresholds were tuned for CUDA) beyo
 docs phase. Wizard owner should decide: credit Vulkan GPU accel for non-NVIDIA cards in the
 recommendation, or keep the NVIDIA gate but correct the comment's rationale to the real one.
 
+**RESOLVED (same session, owner-approved, commits `8ae92f4` + `44f71c8`):** kept the NVIDIA
+gate but made it honest. The gate's real basis is VRAM *measurability*, not acceleration -
+only NVIDIA gets the `nvidia-smi` VRAM override in `gpu-detect.js`, so the large model can't
+be safely sized for AMD/Intel even though the Vulkan build accelerates them. `8ae92f4` fixed
+the code comment; `44f71c8` split `isCpuOnly` into `canSizeGpu` (model sizing / strong-push
+gate) + `gpuAccelerates` (copy) so a non-NVIDIA GPU user now reads "Your GPU accelerates local
+AI, but its video memory could not be measured, so lightweight is the safer pick" instead of
+the false "No CUDA-capable GPU detected. Runs on CPU". Recommendation *behavior* unchanged;
+the two tests that encoded the old false assumption were rewritten. This is no longer an open
+decision.
+
 ---
 
 ## Phase 5 logging - pre-public polish (dev-CLI / approval route / setup wizard) (2026-07-18)
