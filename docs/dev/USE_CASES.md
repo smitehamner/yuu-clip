@@ -261,8 +261,8 @@ A one-glance "what to walk before public" list is in the final section.
   5. Promote a named speaker to a Person; open People to rename/merge/split; confirm a "Same person?" suggestion on a new recording.
   6. Export a clip with captions.
 - **Expected:** names appear in clip transcripts and exported captions and survive re-analysis; borderline voice matches show a "Might be {name}" prompt and stay unnamed until confirmed (never silently mislabel); Fix names changes nothing until Apply and flows through the caption-edit path (overlapping clips marked for re-score); a Person's rename/recolor flows to every recording.
-- **Automation:** automated for the caption-propagation and name-persistence pieces; the real diarization model is golden-only.
-- **Coverage:** integration speaker/people tests; ui speaker-card tests; golden for real diarization.
+- **Automation:** automated / golden.
+- **Coverage:** caption-propagation and name-persistence via integration speaker/people tests + ui speaker-card tests; the real diarization model is golden-only.
 - **Pre-release priority:** P1 - lots of surface, real data consequences, and the borderline-match guard is worth eyeballing.
 
 ---
@@ -362,8 +362,8 @@ A one-glance "what to walk before public" list is in the final section.
   2. Watch the job header (sampling -> describing); switch clips and come back.
   3. (Optional) enable Auto-describe silent clips (Advanced AI options); tick Include frame analysis on a recording re-score.
 - **Expected:** the summary lands in a "What's on screen" card on the correct clip even if you navigated away, and feeds the scorer prompt as context without setting the score by itself; it never runs automatically during analysis; auto-describe only replaces the template one-liner on top silent clips and never redoes a clip that already has a description.
-- **Automation:** automated for the wiring (cancel/return-to-right-clip) with a stubbed vision model; real vision is golden-only.
-- **Coverage:** js vision cancel-wiring test; integration vision tests; golden for a real model.
+- **Automation:** automated / golden.
+- **Coverage:** the wiring (cancel/return-to-right-clip, stubbed vision model) via the js vision cancel-wiring test + integration vision tests; a real vision model is golden-only.
 - **Pre-release priority:** P2 - opt-in, and the tricky wiring is already unit-covered.
 
 ---
@@ -392,8 +392,8 @@ A one-glance "what to walk before public" list is in the final section.
   3. `GET /api/status` idle and during a job.
   4. Settings -> Notification sounds; opt in to an event, Preview, and confirm the cue fires on completion (Stop sound button appears).
 - **Expected:** all destructive actions use the app modal; log downloads non-empty and username-redacted; status returns `any_running`/`active_jobs` correctly; sound cues are off by default and only fire for opted-in events.
-- **Automation:** automated for confirmations/status/log; sound playback is manual.
-- **Coverage:** ui confirmation/log tests; integration status tests.
+- **Automation:** automated / manual-only.
+- **Coverage:** confirmations/status/log via ui confirmation/log tests + integration status tests; sound playback is manual-only.
 - **Pre-release priority:** P2 - mostly automated; the packaged Reveal-in-folder is covered under UC-G03.
 
 ### UC-G03 - Desktop shell lifecycle (packaged)

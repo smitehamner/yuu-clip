@@ -137,6 +137,23 @@ registry, not memory, is the source of truth. At each code-hygiene checkpoint (s
 global convention), re-audit `DOC-CLAIMS.md` alongside the code-quality pass so stale
 claims are caught on the same cadence.
 
+## MANDATORY: adding or changing a user-facing feature (use-case catalog)
+
+`docs/dev/USE_CASES.md` is the authoritative end-to-end use-case catalog (IDs
+`UC-<section><nn>`), and `docs/dev/testing/installed-app-checklist.md` is its derived
+manual release sign-off. When you add or materially change a user-facing flow:
+
+1. Add or update its `UC-` entry in `docs/dev/USE_CASES.md` (keep the fields: Actor
+   goal, Preconditions, Steps, Expected, **Automation** one of `automated` / `golden` /
+   `manual-only` (slash-separate when mixed), Coverage, **Pre-release priority** P0/P1/P2).
+   New cases append within their section - never reuse or renumber a retired ID.
+2. Add its matching row to `installed-app-checklist.md`.
+3. Add a `tests/system/` test (once that tier exists, Stage 3) or justify `manual-only`.
+
+`tests/unit/test_use_case_catalog.py` enforces the structure - unique sequential IDs,
+valid Automation/priority tags, and no checklist row or catalog entry without its
+counterpart. Run `yuu-dev test-unit` after editing either file.
+
 ## Repeated hygiene passes after a wide change (project specifics)
 
 Follow the global "repeated verification passes after a wide change" convention after a
