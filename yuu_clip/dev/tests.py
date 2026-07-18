@@ -62,14 +62,14 @@ def _split_passthrough(pytest_args: Optional[List[str]]) -> tuple[list[str], lis
     return targets, extras
 
 
-def _run_tiers(
+def _run_tiers_code(
     tiers: list[str],
     pytest_args: Optional[List[str]],
     detailed: bool,
     log: Path,
     summary: Path,
-) -> None:
-    """Run one or more pytest tier directories, tee to a log, and exit with pytest's code.
+) -> int:
+    """Run one or more pytest tier directories, tee to a log, and return pytest's code.
 
     An explicit target (a file/nodeid in ``pytest_args``) replaces the default tier
     selection and runs in process; otherwise the named tiers run under xdist.
@@ -81,7 +81,17 @@ def _run_tiers(
     code, output = run_and_tee(cmd, REPO_ROOT, pytest_env())
     print_summary(write_run_logs(output, log, summary))
     console.print(f"[dim]Full log: {log}  |  Summary: {summary}[/dim]")
-    raise typer.Exit(code)
+    return code
+
+
+def _run_tiers(
+    tiers: list[str],
+    pytest_args: Optional[List[str]],
+    detailed: bool,
+    log: Path,
+    summary: Path,
+) -> None:
+    raise typer.Exit(_run_tiers_code(tiers, pytest_args, detailed, log, summary))
 
 
 @app.command("test-unit", context_settings={"ignore_unknown_options": True})
@@ -110,6 +120,32 @@ def test_api(
     """Run unit + integration together (the pre-done gate) - a convenience combo of
     test-unit + test-integration. No live server needed."""
     _run_tiers(["tests/unit", "tests/integration"], pytest_args, detailed, API_LOG, API_SUMMARY)
+
+
+@app.command("test-all")
+def test_all(
+    detailed: bool = typer.Option(False, "--detailed", help="Per-test -v output."),
+) -> None:
+    """Run every server-free tier in one go: js -> unit -> integration.
+
+    The ui tier is deliberately excluded: it drives a *live* server and needs a
+    seeded project, so it stays a separate `yuu-dev test-ui` run. Exits non-zero if
+    any tier fails; a missing Node toolchain skips the js tier (not a failure).
+    """
+    from yuu_clip.dev.testjs import run_vitest
+
+    console.print("[cyan]== test-all: js -> unit -> integration (ui runs separately) ==[/cyan]")
+    results = [
+        ("js", run_vitest(required=False)),
+        ("unit+integration",
+         _run_tiers_code(["tests/unit", "tests/integration"], None, detailed, API_LOG, API_SUMMARY)),
+    ]
+    console.print("")
+    console.print("[cyan]== test-all summary ==[/cyan]")
+    for tier, code in results:
+        status = "[green]PASS[/green]" if code == 0 else f"[red]FAIL (exit {code})[/red]"
+        console.print(f"  {tier:<18} {status}")
+    raise typer.Exit(1 if any(code != 0 for _, code in results) else 0)
 
 
 def _load_selector():

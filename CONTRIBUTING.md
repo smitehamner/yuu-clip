@@ -85,6 +85,7 @@ directly on any OS:
 | `yuu-dev test-unit` | Python unit tier only (`tests/unit`); the fast inner loop |
 | `yuu-dev test-integration` | Integration tier only (`tests/integration`, seeded DB) |
 | `yuu-dev test-api` | Unit + integration together (combo of the two above); no live server needed |
+| `yuu-dev test-all` | Every server-free tier in one go: js + unit + integration (not ui) |
 | `yuu-dev test-ui` | Playwright UI suite against a running dev server |
 | `yuu-dev logs --follow` | Tail the server log |
 
@@ -135,7 +136,9 @@ cd electron
 npm test
 ```
 
-CI runs `lint` and `test-api` on every pull request; keep both green.
+CI runs `lint`, `typecheck`, `test-api`, and `test-js` on every pull request; keep them
+all green. The ui (Playwright) tier is not run in CI - it needs a live server + seeded
+project, so run it locally against a fixture project (above) before a frontend change.
 
 ## Code standards
 

@@ -126,9 +126,11 @@ by what the test needs; the `yuu-dev` command names map straight onto them.
 Each tier has its own command: `yuu-dev test-unit` runs unit, `yuu-dev test-integration`
 runs integration, and `yuu-dev test-api` is the convenience combo of the two (the pre-done
 gate); `yuu-dev test-ui` runs ui (see CLAUDE.md for the `--changed` / `--smoke` cadence);
-`yuu-dev test-js` runs js. The fast inner loop is `test-unit` (+ `test-js` when
-`static/*.js` changed); run `test-js` after editing any `static/*.js` that has (or should
-have) a `tests/js/` counterpart.
+`yuu-dev test-js` runs js. `yuu-dev test-all` runs every server-free tier in one go
+(js + unit + integration, but not ui - a missing Node toolchain skips js rather than
+failing). The fast inner loop is `test-unit` (+ `test-js` when `static/*.js` changed); run
+`test-js` after editing any `static/*.js` that has (or should have) a `tests/js/`
+counterpart. CI runs lint, typecheck, test-api, and test-js; the ui tier stays local.
 
 ---
 

@@ -297,6 +297,59 @@ def test_test_integration_runs_only_the_integration_tier(monkeypatch, tmp_path):
     assert "tests/unit" not in cmd
 
 
+def test_test_all_runs_js_then_python_and_passes_when_all_green(monkeypatch, tmp_path):
+    calls: list = []
+    monkeypatch.setattr(testjs_mod, "run_vitest", lambda *a, **k: calls.append("js") or 0)
+    monkeypatch.setattr(tests_mod, "API_LOG", tmp_path / "a.log")
+    monkeypatch.setattr(tests_mod, "API_SUMMARY", tmp_path / "a-summary.log")
+
+    def fake_run_and_tee(cmd, cwd, env=None):
+        calls.append("py")
+        return 0, "============ 5 passed in 0.1s ============\n"
+
+    monkeypatch.setattr(tests_mod, "run_and_tee", fake_run_and_tee)
+
+    result = runner.invoke(app, ["test-all"])
+    assert result.exit_code == 0
+    assert calls == ["js", "py"]  # js runs before the Python tiers
+
+
+def test_test_all_fails_when_any_tier_fails(monkeypatch, tmp_path):
+    # The js tier passes but the Python tiers fail - test-all must still exit non-zero.
+    monkeypatch.setattr(testjs_mod, "run_vitest", lambda *a, **k: 0)
+    monkeypatch.setattr(tests_mod, "API_LOG", tmp_path / "a.log")
+    monkeypatch.setattr(tests_mod, "API_SUMMARY", tmp_path / "a-summary.log")
+    monkeypatch.setattr(
+        tests_mod, "run_and_tee",
+        lambda cmd, cwd, env=None: (5, "============ 1 failed in 0.1s ============\n"),
+    )
+
+    result = runner.invoke(app, ["test-all"])
+    assert result.exit_code == 1
+
+
+def test_test_all_treats_missing_node_as_skip_not_failure(monkeypatch, tmp_path):
+    # run_vitest(required=False) returns 0 when Node is absent; a green Python run
+    # then means test-all passes rather than failing on the skipped js tier.
+    captured: dict = {}
+
+    def fake_run_vitest(*args, **kwargs):
+        captured["required"] = kwargs.get("required")
+        return 0
+
+    monkeypatch.setattr(testjs_mod, "run_vitest", fake_run_vitest)
+    monkeypatch.setattr(tests_mod, "API_LOG", tmp_path / "a.log")
+    monkeypatch.setattr(tests_mod, "API_SUMMARY", tmp_path / "a-summary.log")
+    monkeypatch.setattr(
+        tests_mod, "run_and_tee",
+        lambda cmd, cwd, env=None: (0, "============ 5 passed in 0.1s ============\n"),
+    )
+
+    result = runner.invoke(app, ["test-all"])
+    assert result.exit_code == 0
+    assert captured["required"] is False  # test-all tolerates a missing JS toolchain
+
+
 def test_test_ui_propagates_failing_exit_code(monkeypatch, tmp_path):
     # A wrapper that swallowed the pytest exit code would hide red UI tests. Stub
     # the live-server preflights + lock so only the exit-code plumbing is exercised.

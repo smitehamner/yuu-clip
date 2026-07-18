@@ -273,6 +273,7 @@ yuu-dev test-js             # JS unit layer (tests/js/**/*.test.js); no browser,
 yuu-dev test-unit           # FAST inner loop: Python unit tier only (tests/unit); no DB seeding
 yuu-dev test-integration    # integration tier only (tests/integration); seeded DB / in-process TestClient
 yuu-dev test-api            # GATE: full unit + integration; convenience combo of test-unit + test-integration
+yuu-dev test-all            # every server-free tier in one go: js + unit + integration (NOT ui)
 yuu-dev test-ui --changed   # dev default: tests around the diff + smoke
 yuu-dev test-ui --smoke     # ~6-test backstop only, quickest sanity check
 yuu-dev test-ui             # full suite (all tests/ui/test_ui_*.py) - see cadence above

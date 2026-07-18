@@ -71,3 +71,18 @@ jobs:
           pip install -e ".[dev]" -c requirements.lock
       - name: Unit + integration tests
         run: python -m yuu_clip.dev test-api
+
+  test-js:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      # The JS unit tier that `yuu-dev test-js` wraps (vitest + happy-dom over
+      # tests/js/). Node-only, sub-minute - no Python env needed to run it. The ui
+      # (Playwright) tier stays out of CI: it drives a live server + seeded project.
+      - name: JS unit tests (vitest)
+        run: npm run test:js
