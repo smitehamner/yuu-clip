@@ -333,13 +333,14 @@ Run it only after changing files under `electron/` (e.g. `main.js`,
 
 ## Current focus
 
-**Pre-public polish pass, then use-case validation.** The pipeline and web UI are
-complete and in regular use. The current work is the pre-public high-polish plan
-(`001_PRE-PUBLIC_polish-pass`): closing every gap where the product and its docs
-disagree, killing the wizard/Settings duplication, making `index.html` maintainable,
-and landing the merged Clips+Scenes view - so the first public impression matches the
-engineering. After it ships, the `e2e-use-cases` plan validates each use case through
-the app.
+**Pre-public flip, then use-case validation.** The pipeline and web UI are complete and
+in regular use. The pre-public high-polish pass shipped 2026-07-17 (docs-truth sweep,
+wizard/Settings dedup, maintainable `index.html`, merged Clips+Scenes view, mypy gate,
+in-app help). What remains before flipping the repo public is owner-only, run against a
+real packaged build: the packaged-app verification checklist
+(`docs/dev/testing/packaged-app-verification.md`), one more friend/VM install, and the
+four public-only checks in ROADMAP section 2. After the flip, the `e2e-use-cases` plan
+validates each use case through the app.
 
 When fixing a UI bug, the loop is still:
 

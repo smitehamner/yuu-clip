@@ -83,12 +83,12 @@ Wanted before distributing beyond friends/trusted users.
   in-app so help works offline, but the per-doc "View online" GitHub fallback links remain -
   confirm they resolve for a logged-out visitor once the repo is public.
 
-- [ ] **Recorded direction: `index.html` becomes a build-time stitch of `static/partials/*`**
-  (pre-public polish pass, WS-E). The committed `index.html` becomes an artifact stitched by
-  `yuu-dev bundle` from per-region partials + an `index.src.html` shell, drift-guarded like
-  `bundle.esm.js`; a matching inline-style extraction pass moves color-bearing inline styles
-  into `app.css`. Noted here so the direction is discoverable; the work itself lives in the
-  `001_PRE-PUBLIC_polish-pass` plan.
+- [ ] **Opportunistic: extract remaining inline styles in the partials into `app.css`
+  classes.** The `index.html` build-time stitch (`static/index.src.html` + `partials/*`
+  via `yuu-dev bundle`) already shipped; the paired inline-style extraction was deferred as
+  opportunistic cleanup (the ~100 remaining inline styles are valid `var(--token)`/layout
+  styles, and the color-literal guard already globs the partials, so there is no safety
+  gap). Do it when a region is being edited anyway, not as a blind sweep.
 
 ---
 
