@@ -1,7 +1,7 @@
 """
 Playwright UI tests - highlight reel ("demo") modal.
 
-Run against the live dev server on port 8080. See tests/conftest.py for shared
+Run against the live fixture server yuu-dev test-ui spawns. See tests/conftest.py for shared
 helpers.
 """
 from __future__ import annotations
@@ -10,7 +10,7 @@ import json
 import time
 from pathlib import Path
 
-from conftest import LIVE_URL, skip_no_server
+from conftest import LIVE_URL, served_project_dir, skip_no_server
 from playwright.sync_api import Page, expect
 
 
@@ -255,7 +255,7 @@ class TestReelDelete:
     def test_delete_reel_from_view_tab(self, page: Page):
         # End-to-end against the live server: a throwaway reel file on disk,
         # deleted through the View tab's Delete button + confirm dialog.
-        reels_dir = Path(__file__).resolve().parent.parent.parent / ".yuu-clip" / "reels"
+        reels_dir = served_project_dir(page) / ".yuu-clip" / "reels"
         reels_dir.mkdir(parents=True, exist_ok=True)
         fake_reel = reels_dir / "uitest_delete_me.mkv"
         fake_reel.write_bytes(b"fake")
@@ -277,7 +277,7 @@ class TestReelDelete:
 @skip_no_server
 class TestReelShowInFolder:
     def test_show_in_folder_posts_reveal_with_reel_path(self, page: Page):
-        reels_dir = Path(__file__).resolve().parent.parent.parent / ".yuu-clip" / "reels"
+        reels_dir = served_project_dir(page) / ".yuu-clip" / "reels"
         reels_dir.mkdir(parents=True, exist_ok=True)
         fake_reel = reels_dir / "uitest_show_in_folder.mkv"
         fake_reel.write_bytes(b"fake")
@@ -308,8 +308,8 @@ class TestReelStaleness:
     no network stubbing, matching the TestReelDelete/TestReelShowInFolder
     pattern of writing throwaway files into the live project's reels dir."""
 
-    def _reels_dir(self) -> Path:
-        return Path(__file__).resolve().parent.parent.parent / ".yuu-clip" / "reels"
+    def _reels_dir(self, page: Page) -> Path:
+        return served_project_dir(page) / ".yuu-clip" / "reels"
 
     def _write_reel(self, reels_dir: Path, name: str, clip_ids: list) -> Path:
         import json
@@ -338,7 +338,7 @@ class TestReelStaleness:
     def test_stale_badge_shown_for_unexported_member_clip(self, page: Page):
         clip_id = self._find_unexported_clip_id(page)
         assert clip_id is not None, "live project fixture needs at least one unexported clip"
-        reels_dir = self._reels_dir()
+        reels_dir = self._reels_dir(page)
         fake_reel = self._write_reel(reels_dir, "uitest_stale_reel.mkv", [clip_id])
         try:
             page.evaluate("openHighlightReelsModal('view')")
@@ -350,7 +350,7 @@ class TestReelStaleness:
             fake_reel.with_suffix(".reel.json").unlink(missing_ok=True)
 
     def test_no_stale_badge_for_legacy_reel_without_manifest(self, page: Page):
-        reels_dir = self._reels_dir()
+        reels_dir = self._reels_dir(page)
         reels_dir.mkdir(parents=True, exist_ok=True)
         fake_reel = reels_dir / "uitest_legacy_reel.mkv"
         fake_reel.write_bytes(b"fake")

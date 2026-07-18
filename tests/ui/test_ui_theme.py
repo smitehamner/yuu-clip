@@ -14,7 +14,7 @@ theme/accent switcher DOM cases moved to ``tests/js/settings/settings.test.js``.
 What remains here needs a live page (getComputedStyle, before-first-paint reload,
 the Settings save-gating form).
 
-Run against the live dev server on port 8080. See tests/conftest.py for shared
+Run against the live fixture server yuu-dev test-ui spawns. See tests/conftest.py for shared
 helpers.
 """
 from __future__ import annotations

@@ -6,7 +6,7 @@ models" lists are populated from GET /api/llm/catalog at panel-open time, and
 gateOnCapability() disables a control with a linked explanation when the active
 model lacks the needed capability (the pattern plan 11's image controls use).
 
-Read-only against the live dev server on port 8080 - no Save is clicked.
+Read-only against the live fixture server yuu-dev test-ui spawns - no Save is clicked.
 /api/llm/capabilities is an on-demand endpoint, so it is route-mocked after
 goto, right before the interaction that reads it. See tests/conftest.py.
 """

@@ -7,7 +7,7 @@ create a real row or run live LLM scoring against the project's actual
 database - see test_ui_clips.py's TestRescoreClipProgressPill for the same
 rule applied to the existing rescore action.
 
-Run against the live dev server on port 8080. See tests/conftest.py for shared
+Run against the live fixture server yuu-dev test-ui spawns. See tests/conftest.py for shared
 helpers.
 """
 from __future__ import annotations

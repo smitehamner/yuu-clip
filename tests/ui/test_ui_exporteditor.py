@@ -7,7 +7,7 @@ database (same rule as test_ui_clipcreate.py). The editor is opened by calling
 openExportEditor() directly against a real selected recording, so its inline
 preview <video> points at a real source URL while all data is mocked.
 
-Run against the live dev server on port 8080. See tests/conftest.py for shared
+Run against the live fixture server yuu-dev test-ui spawns. See tests/conftest.py for shared
 helpers.
 """
 from __future__ import annotations

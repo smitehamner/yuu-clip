@@ -5,7 +5,7 @@ The four user guides ship inside the app (yuu_clip/web/static/help/*.md, copied
 from docs/user/ by `yuu-dev help-docs`) and render in-app so Help works offline
 and while the repo is private. Each doc keeps a secondary "View online" link.
 
-Run against the live dev server on port 8080.
+Run against the live fixture server yuu-dev test-ui spawns.
 """
 from __future__ import annotations
 

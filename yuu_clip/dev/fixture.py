@@ -1,16 +1,17 @@
 """``yuu-dev fixture-project`` - stand up a seeded throwaway project for the UI suite.
 
-The Playwright ``tests/ui/`` tier drives a *live* server (``YUU_TEST_URL``); by
-default that is the repo owner's real dev project. A contributor (or CI) has no
-analyzed recording, so this command builds a disposable project - a tiny
-ffmpeg-generated clip plus a seeded DB (a handful of clips AND scenes) - that the
-UI suite can run against with no personal data present. Serve it with
-``yuu-dev serve --project <dir>``.
+The Playwright ``tests/ui/`` tier drives a *live* server. ``yuu-dev test-ui`` now
+serves a disposable copy of this fixture (built fresh each run, isolated config,
+free port - see ``yuu_clip/dev/uiserver.py``) so the suite never depends on the
+owner's real project. This command exposes the same builder for manual use - build
+a project with a tiny ffmpeg-generated clip plus a seeded DB (a handful of clips
+AND scenes) and serve it by hand with ``yuu-dev serve --project <dir>``.
 
 ``seed_project_db`` is the single seeding routine shared with
-``tests/integration/conftest.py`` so the two never drift; ``with_scenes=False``
-reproduces the integration seed exactly (three clips), and the fixture builder
-opts into the extra scene rows the merged Clips+Scenes view needs.
+``tests/integration/conftest.py`` so the two never drift; the defaults reproduce
+the integration seed exactly (three clips, no scenes, no transcript excerpts), and
+the fixture builder opts into the extra scene rows the merged Clips+Scenes view
+needs plus clip transcript excerpts the transcript UI tests drive.
 """
 from __future__ import annotations
 
@@ -34,7 +35,7 @@ _CLIP_ROWS = [(0.85, "pending"), (0.60, "approved"), (0.20, "rejected")]
 _SCENE_ROWS = [(0.75, "pending"), (0.45, "approved")]
 
 
-def _seed_rows(session, video_path: str, *, with_scenes: bool) -> None:
+def _seed_rows(session, video_path: str, *, with_scenes: bool, with_transcript: bool) -> None:
     from yuu_clip.db.models import AudioTrack, ClipCandidate, Video
 
     video = Video(
@@ -69,6 +70,10 @@ def _seed_rows(session, video_path: str, *, with_scenes: bool) -> None:
             score_visual=score * 0.7,
             score_laugh=score * 0.4,
             description=f"Test clip {i + 1}",
+            # A non-empty excerpt makes the clip render its transcript view
+            # (clips.js only calls loadClipTranscript when this is set), which the
+            # transcript UI tests drive against a mocked /transcript endpoint.
+            transcript_excerpt=(f"Test transcript for clip {i + 1}" if with_transcript else None),
             status=status,
             scored_at=scored_at,
         ))
@@ -94,12 +99,20 @@ def _seed_rows(session, video_path: str, *, with_scenes: bool) -> None:
     session.commit()
 
 
-def seed_project_db(project_dir: Path, video_path: str, *, with_scenes: bool = False) -> None:
+def seed_project_db(
+    project_dir: Path,
+    video_path: str,
+    *,
+    with_scenes: bool = False,
+    with_transcript: bool = False,
+) -> None:
     """Create the ``.yuu-clip`` project structure and seed a demo DB in place.
 
     Seeds one done video, a combined audio track, and three clips; add the two
-    scene rows with ``with_scenes=True``. Shared by the integration ``project_dir``
-    fixture (scenes off) and the fixture-project builder (scenes on).
+    scene rows with ``with_scenes=True`` and clip transcript excerpts with
+    ``with_transcript=True``. Both extras are off by default so the integration
+    ``project_dir`` fixture stays byte-identical to the original three-clip seed;
+    the fixture-project builder opts into both.
     """
     from yuu_clip.db.models import make_session
 
@@ -110,7 +123,7 @@ def seed_project_db(project_dir: Path, video_path: str, *, with_scenes: bool = F
 
     session = make_session(data / "project.db")
     try:
-        _seed_rows(session, video_path, with_scenes=with_scenes)
+        _seed_rows(session, video_path, with_scenes=with_scenes, with_transcript=with_transcript)
     finally:
         session.close()
 
@@ -147,7 +160,7 @@ def build_fixture_project(dest: Path, *, force: bool = False) -> Path:
 
     media_path = dest / MEDIA_FILENAME
     _generate_media(media_path)
-    seed_project_db(dest, str(media_path), with_scenes=True)
+    seed_project_db(dest, str(media_path), with_scenes=True, with_transcript=True)
     return dest
 
 

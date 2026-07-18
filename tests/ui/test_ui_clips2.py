@@ -5,7 +5,7 @@ tags, per-clip detail cards, playback options, and description chips.
 
 Split out of test_ui_clips.py purely so pytest-xdist's --dist loadfile can
 spread the ~108 clip tests across two workers instead of pinning them all to
-one. Run against the live dev server on port 8080. See tests/conftest.py for
+one. Run against the live fixture server yuu-dev test-ui spawns. See tests/conftest.py for
 shared helpers.
 """
 from __future__ import annotations

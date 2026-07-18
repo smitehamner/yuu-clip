@@ -6,7 +6,7 @@ mocked with page.route right before opening the panel - the panel is opened by
 calling openNameCorrections() directly against a real selected recording. No real
 transcript is scanned or edited.
 
-Run against the live dev server on port 8080. See tests/conftest.py for helpers.
+Run against the live fixture server yuu-dev test-ui spawns. See tests/conftest.py for helpers.
 """
 from __future__ import annotations
 

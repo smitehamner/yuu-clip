@@ -5,7 +5,7 @@ Split Editor is the framework's proving consumer, so these tests drive it
 through PanelNav rather than testing the framework in isolation. Complements
 test_ui_split.py, which covers the editor's own behavior in depth.
 
-Run against the live dev server on port 8080. See tests/conftest.py for shared
+Run against the live fixture server yuu-dev test-ui spawns. See tests/conftest.py for shared
 helpers.
 """
 from __future__ import annotations

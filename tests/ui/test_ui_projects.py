@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 
-from conftest import LIVE_URL, skip_no_server
+from conftest import LIVE_URL, served_project_dir, skip_no_server
 from playwright.sync_api import Page, expect
 
 _OPEN = re.compile(r"\bopen\b")
@@ -18,15 +18,19 @@ _VISIBLE = re.compile(r"\bvisible\b")
 
 @skip_no_server
 class TestProjectSwitcher:
+    def _expected_name(self, page: Page) -> str:
+        # The switcher shows the basename of whatever project the server serves
+        # (the fixture project under test-ui) - derive it, never hardcode.
+        return served_project_dir(page).name
+
     def test_button_shows_current_project_name(self, page: Page):
         page.goto(LIVE_URL)
         expect(page.locator("#btn-project-switcher")).to_be_visible()
-        # The live dev server runs the repo root project - basename "yuu-clip".
-        expect(page.locator("#project-current-name")).to_have_text("yuu-clip")
+        expect(page.locator("#project-current-name")).to_have_text(self._expected_name(page))
 
     def test_menu_opens_with_open_another_item(self, page: Page):
         page.goto(LIVE_URL)
-        expect(page.locator("#project-current-name")).to_have_text("yuu-clip")
+        expect(page.locator("#project-current-name")).to_have_text(self._expected_name(page))
         page.locator("#btn-project-switcher").click()
         menu = page.locator("#project-menu")
         expect(menu).to_have_class(_OPEN)
@@ -34,7 +38,7 @@ class TestProjectSwitcher:
 
     def test_open_another_project_shows_modal(self, page: Page):
         page.goto(LIVE_URL)
-        expect(page.locator("#project-current-name")).to_have_text("yuu-clip")
+        expect(page.locator("#project-current-name")).to_have_text(self._expected_name(page))
         page.locator("#btn-project-switcher").click()
         page.locator("#project-menu").get_by_text("Open another project…").click()
         expect(page.locator("#open-project-modal")).to_have_class(_VISIBLE)
@@ -45,7 +49,7 @@ class TestProjectSwitcher:
 
     def test_menu_closes_on_outside_click(self, page: Page):
         page.goto(LIVE_URL)
-        expect(page.locator("#project-current-name")).to_have_text("yuu-clip")
+        expect(page.locator("#project-current-name")).to_have_text(self._expected_name(page))
         page.locator("#btn-project-switcher").click()
         expect(page.locator("#project-menu")).to_have_class(_OPEN)
         page.locator("header .brand h1").click()
@@ -53,7 +57,7 @@ class TestProjectSwitcher:
 
     def test_escape_closes_menu_and_refocuses_trigger(self, page: Page):
         page.goto(LIVE_URL)
-        expect(page.locator("#project-current-name")).to_have_text("yuu-clip")
+        expect(page.locator("#project-current-name")).to_have_text(self._expected_name(page))
         page.locator("#btn-project-switcher").click()
         expect(page.locator("#project-menu")).to_have_class(_OPEN)
         page.keyboard.press("Escape")

@@ -13,8 +13,7 @@ Every fetch the asserted render awaits is stubbed (hermetic-stubbing rule): the
 status/capabilities reads, the SSE download endpoint, the clear endpoint, and the
 capability-tiers refresh. The boot flow is driven by calling initModelDownload()
 after the routes are in place - the fixture's own initial boot ran against the
-real (empty) dev config, so it never renders a banner. Read-only against the live
-dev server on port 8080. See tests/conftest.py.
+real (empty) dev config, so it never renders a banner. Read-only against the live fixture server yuu-dev test-ui spawns. See tests/conftest.py.
 """
 from __future__ import annotations
 

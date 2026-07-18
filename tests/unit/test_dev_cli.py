@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -164,15 +165,6 @@ def test_find_free_port_returns_none_when_all_busy(monkeypatch):
 
 
 # --- test-ui: preflight + selection helpers -----------------------------
-
-def test_running_server_count_counts_serve_processes():
-    processes = [
-        _proc(1, "python.exe", "python -m yuu_clip.cli serve --project X"),
-        _proc(2, "python.exe", "python -m yuu_clip.cli serve --project X"),
-        _proc(3, "chrome.exe", "chrome"),
-    ]
-    assert tests_mod.running_server_count(processes) == 2
-
 
 def test_orphan_test_procs_flags_pytest_and_playwright():
     root = str(tests_mod.REPO_ROOT)
@@ -350,11 +342,18 @@ def test_test_all_treats_missing_node_as_skip_not_failure(monkeypatch, tmp_path)
     assert captured["required"] is False  # test-all tolerates a missing JS toolchain
 
 
+@contextmanager
+def _fake_fixture_server(*args, **kwargs):
+    """Stand-in for uiserver.fixture_server: yields a URL, builds nothing."""
+    yield "http://127.0.0.1:9999"
+
+
 def test_test_ui_propagates_failing_exit_code(monkeypatch, tmp_path):
     # A wrapper that swallowed the pytest exit code would hide red UI tests. Stub
-    # the live-server preflights + lock so only the exit-code plumbing is exercised.
-    monkeypatch.setattr(tests_mod, "_preflight_processes", lambda: None)
-    monkeypatch.setattr(tests_mod, "_preflight_seed_data", lambda: None)
+    # the orphan preflight + fixture server + lock so only the exit-code plumbing
+    # is exercised.
+    monkeypatch.setattr(tests_mod, "_preflight_orphans", lambda: None)
+    monkeypatch.setattr(tests_mod, "fixture_server", _fake_fixture_server)
     monkeypatch.setattr(tests_mod, "acquire_ui_lock", lambda lock_path: True)
     monkeypatch.setattr(tests_mod, "UI_LOCK", tmp_path / "test-ui.lock")
     monkeypatch.setattr(tests_mod, "UI_LOG", tmp_path / "ui.log")
@@ -370,8 +369,8 @@ def test_test_ui_propagates_failing_exit_code(monkeypatch, tmp_path):
 
 def test_test_ui_releases_lock_even_when_run_fails(monkeypatch, tmp_path):
     lock = tmp_path / "test-ui.lock"
-    monkeypatch.setattr(tests_mod, "_preflight_processes", lambda: None)
-    monkeypatch.setattr(tests_mod, "_preflight_seed_data", lambda: None)
+    monkeypatch.setattr(tests_mod, "_preflight_orphans", lambda: None)
+    monkeypatch.setattr(tests_mod, "fixture_server", _fake_fixture_server)
     monkeypatch.setattr(tests_mod, "UI_LOCK", lock)
     monkeypatch.setattr(tests_mod, "UI_LOG", tmp_path / "ui.log")
     monkeypatch.setattr(tests_mod, "UI_SUMMARY", tmp_path / "ui-summary.log")
@@ -393,8 +392,8 @@ def test_test_ui_explicit_target_replaces_suite_selection(monkeypatch, tmp_path)
         calls["cmd"] = cmd
         return 0, "============ 1 passed in 0.2s ============\n"
 
-    monkeypatch.setattr(tests_mod, "_preflight_processes", lambda: None)
-    monkeypatch.setattr(tests_mod, "_preflight_seed_data", lambda: None)
+    monkeypatch.setattr(tests_mod, "_preflight_orphans", lambda: None)
+    monkeypatch.setattr(tests_mod, "fixture_server", _fake_fixture_server)
     monkeypatch.setattr(tests_mod, "acquire_ui_lock", lambda lock_path: True)
     monkeypatch.setattr(tests_mod, "UI_LOCK", tmp_path / "test-ui.lock")
     monkeypatch.setattr(tests_mod, "UI_LOG", tmp_path / "ui.log")

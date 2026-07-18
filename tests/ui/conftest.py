@@ -1,10 +1,16 @@
 """Fixtures for the live-server Playwright UI suite (``tests/ui/``).
 
-These tests need a dev server running on the test URL (default
-``http://127.0.0.1:8080``; override with ``YUU_TEST_URL`` so the harness and a
-non-default dev port can agree). The seeded-DB / TestClient fixtures live in
-``tests/integration/conftest.py``; only ``isolate_global_config`` is inherited
-from the root ``tests/conftest.py``.
+These tests drive a live server at ``YUU_TEST_URL``. ``yuu-dev test-ui`` sets that
+to a disposable, isolated *fixture* server it spawns for the run (freshly-seeded
+project + isolated config on a free port - see ``yuu_clip/dev/uiserver.py``), so
+the suite is deterministic and never touches the owner's interactive :8080 server.
+Run standalone (bare ``pytest tests/ui``) it defaults to ``http://127.0.0.1:8080``.
+
+Because the served project is the fixture, not the repo, tests resolve on-disk
+project paths via ``served_project_dir(page)`` below, never the repo root, and
+must not assert values from a personal config. The seeded-DB / TestClient fixtures
+live in ``tests/integration/conftest.py``; only ``isolate_global_config`` is
+inherited from the root ``tests/conftest.py``.
 """
 from __future__ import annotations
 
@@ -12,6 +18,7 @@ import os
 import socket
 import subprocess
 import threading
+from pathlib import Path
 from urllib.parse import urlparse
 
 import pytest
@@ -38,6 +45,18 @@ skip_no_server = pytest.mark.skipif(
     not _server_up(),
     reason=f"Live server not running on {LIVE_URL}",
 )
+
+
+def served_project_dir(page) -> Path:
+    """Absolute path of the project the live server is serving.
+
+    test-ui stands up a disposable *fixture* project (yuu_clip.dev.uiserver), so
+    tests that touch on-disk project files (reels, exports) must resolve the
+    served project's dir from the server - never assume the repo root. Read from
+    /api/projects, which reports the active project path.
+    """
+    current = page.evaluate("() => fetch('/api/projects').then(r => r.json()).then(d => d.current)")
+    return Path(current)
 
 
 def select_video_with_clips(page) -> None:

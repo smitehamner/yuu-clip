@@ -20,7 +20,7 @@ Playback itself (HTMLAudioElement.play()) is not asserted beyond "a src got
 set" - autoplay policies make actual playback flaky in a headless browser,
 and the code already swallows play() rejection intentionally.
 
-Run against the live dev server on port 8080. See tests/conftest.py for shared
+Run against the live fixture server yuu-dev test-ui spawns. See tests/conftest.py for shared
 helpers.
 """
 from __future__ import annotations

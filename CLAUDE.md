@@ -101,10 +101,11 @@ The committed artifacts are what ships - Node is never needed to run the app.
 No server restart needed. But before reporting a UI fix as complete:
 
 1. Confirm the fix works in the browser
-2. If the server is running, run the UI tests to catch regressions
+2. Run the UI tests to catch regressions (`yuu-dev test-ui` stands up its own
+   isolated fixture server - your interactive `yuu-dev serve` need not be running)
 
-**Run targeted, not the whole suite every time.** The full suite is ~655 tests
-/ ~3.7 min and is server-bound - its wall time is DB/server throughput divided
+**Run targeted, not the whole suite every time.** The full suite is ~711 tests
+/ ~2.7 min and is server-bound - its wall time is DB/server throughput divided
 across workers, so adding workers past 4 does not help and running it on every
 edit is the slow part of the loop. Pick the run by scope, using judgment:
 
@@ -244,7 +245,7 @@ tests/                     # unit = state-independent, run anywhere; integration
     test_*.py              # route/pipeline tests that need the seeded DB
   ui/
     conftest.py            # Playwright fixtures + select_video_* helpers + teardown watchdogs
-    test_ui_*.py           # Playwright against a live server (YUU_TEST_URL, default :8080)
+    test_ui_*.py           # Playwright against the isolated fixture server test-ui spawns (YUU_TEST_URL)
   js/                      # JS unit layer (vitest + happy-dom, no browser/server). Run via `yuu-dev test-js`.
     setup.js               # seeds index.html's <body> before module imports (load-time getElementById wiring)
     <bucket>/*.test.js     # pure module logic imported directly (formatters, filters, parse/score helpers, job-pill state)
@@ -285,7 +286,20 @@ module, assert directly); a case that pokes module state via a Playwright
 `page.evaluate` window global should, where practical, be rewritten to drive the
 public API under vitest fake timers rather than kept in the ui tier.
 
-`yuu-dev test-ui` (full) runs 4 pytest-xdist workers by default (~3.7 min); targeted
+**Isolated fixture server (determinism).** `yuu-dev test-ui` stands up its own
+disposable server for the run: a freshly-seeded fixture project
+(`build_fixture_project`, force-rebuilt each run) served on a free port with an
+isolated global config (`YUU_CONFIG_DIR` -> a temp dir, so pure `Config`
+defaults), then torn down (`yuu_clip/dev/uiserver.py`). It never touches - or
+requires - the interactive `yuu-dev serve` :8080 server, so the suite is
+deterministic regardless of your real project's data/config. Consequences for
+writing ui tests: never assert a value that comes from your personal config -
+derive it from `/api/config` or the known fixture seed (3 clips / 2 scenes with
+fixed scores + statuses); and resolve on-disk project paths (reels, exports) via
+`served_project_dir(page)` (conftest), never the repo root.
+
+`yuu-dev test-ui` (full) runs 4 pytest-xdist workers by default (~711 tests, ~2.7 min,
+plus a few seconds to build + warm the fixture server); targeted
 runs scale workers down to the selected file count (a single file runs
 in-process). Pass `--sequential` only when debugging suspected worker-parallelism
 flakes. `--changed` calls `scripts/select_ui_tests.py`, which maps changed source

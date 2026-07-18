@@ -22,6 +22,7 @@ import typer
 from yuu_clip.dev import procs
 from yuu_clip.dev._base import REPO_ROOT, app, console, print_summary, pytest_env, run_and_tee
 from yuu_clip.dev._summary import write_run_logs
+from yuu_clip.dev.uiserver import fixture_server
 
 UNIT_LOG = REPO_ROOT / "test-unit-last.log"
 UNIT_SUMMARY = REPO_ROOT / "test-unit-last-summary.log"
@@ -37,7 +38,6 @@ UI_LOCK = REPO_ROOT / "test-ui.lock"
 LOCK_MAX_AGE_MIN = 15
 MAX_UI_WORKERS = 4
 
-_SERVE_RE = re.compile(r"yuu_clip\.cli serve")
 _ORPHAN_RE = re.compile(r"-m\s+pytest|playwright[/\\]driver[/\\]package[/\\]cli\.js")
 
 
@@ -169,13 +169,6 @@ def ui_test_paths(smoke: bool, changed: bool) -> tuple[list[str], list[str]]:
     return full, []
 
 
-def running_server_count(processes: list[procs.ProcInfo]) -> int:
-    return sum(
-        1 for proc in processes
-        if proc.name.lower() == "python.exe" and _SERVE_RE.search(proc.command_line)
-    )
-
-
 def _runs_from_this_repo(command_line: str) -> bool:
     """True when the command runs out of this repo's tree (its venv or the prebuilt
     build runtime, both under REPO_ROOT). Scopes the orphan check to OUR processes so
@@ -210,35 +203,22 @@ def acquire_ui_lock(lock_path: Path) -> bool:
     return False
 
 
-def _preflight_processes() -> None:
+def _preflight_orphans() -> None:
+    """Reject leftover pytest/Playwright workers from a crashed prior run.
+
+    The pre-existing-server and seed-data checks are gone: test-ui now stands up
+    its own isolated fixture server (yuu_clip.dev.uiserver), so nothing needs to
+    be serving :8080 beforehand and the seed is guaranteed by the fixture. Only
+    the orphan guard remains - a stray worker from a killed run would fight the
+    new one for the browser driver.
+    """
     processes = procs.list_processes(["python.exe", "node.exe"])
-    count = running_server_count(processes)
-    if count == 0:
-        console.print("[red]No yuu-clip server is running. Start one with yuu-dev serve, then retry.[/red]")
-        raise typer.Exit(3)
-    if count > 2:
-        console.print(f"[red]More than one yuu-clip server is running ({count} serve procs; one server is 2).[/red]")
-        console.print("[red]Run yuu-dev serve (stops strays, starts one), then retry.[/red]")
-        raise typer.Exit(3)
     orphans = orphan_test_procs(processes)
     if orphans:
         console.print("[red]Leftover pytest/Playwright process(es) from a prior run are still alive:[/red]")
         for proc in orphans:
             console.print(f"  PID {proc.pid}  {proc.name}")
         console.print("[red]Kill them, then retry.[/red]")
-        raise typer.Exit(3)
-
-
-def _preflight_seed_data() -> None:
-    import httpx
-    try:
-        videos = httpx.get("http://127.0.0.1:8080/api/videos", timeout=10).json()
-    except Exception as exc:
-        console.print(f"[red]Could not reach /api/videos to check for seed data: {exc}[/red]")
-        raise typer.Exit(3)
-    if not videos:
-        console.print("[red]The dev project has no analyzed videos - most UI tests will fail waiting[/red]")
-        console.print("[red]for a sidebar video that never appears. Analyze a test video first.[/red]")
         raise typer.Exit(3)
 
 
@@ -259,10 +239,14 @@ def test_ui(
     smoke: bool = typer.Option(False, "--smoke", help="Just the smoke backstop."),
     pytest_args: Optional[List[str]] = typer.Argument(None),
 ) -> None:
-    """Run the Playwright UI suite against the live :8080 dev server."""
-    console.print("UI tests require a live server at http://127.0.0.1:8080 (run yuu-dev serve first)")
-    _preflight_processes()
-    _preflight_seed_data()
+    """Run the Playwright UI suite against a disposable, isolated fixture server.
+
+    test-ui builds a freshly-seeded fixture project, serves it on a free port with
+    an isolated config, points Playwright at it via YUU_TEST_URL, and tears it all
+    down when the run ends - the owner's interactive :8080 server is never touched
+    or required.
+    """
+    _preflight_orphans()
 
     if not acquire_ui_lock(UI_LOCK):
         holder = UI_LOCK.read_text(encoding="utf-8", errors="replace").strip()
@@ -284,9 +268,13 @@ def test_ui(
         console.print(f"[cyan]Running {len(paths)} UI test file(s):[/cyan]")
         for path in paths:
             console.print(f"  {Path(path).name}")
-        cmd = [sys.executable, *_pytest(paths, detailed), "--no-header", "--timeout=60",
-               *_worker_args(len(paths), sequential), *extras]
-        code, output = run_and_tee(cmd, REPO_ROOT, pytest_env())
+
+        with fixture_server() as url:
+            env = pytest_env()
+            env["YUU_TEST_URL"] = url
+            cmd = [sys.executable, *_pytest(paths, detailed), "--no-header", "--timeout=60",
+                   *_worker_args(len(paths), sequential), *extras]
+            code, output = run_and_tee(cmd, REPO_ROOT, env)
         print_summary(write_run_logs(output, UI_LOG, UI_SUMMARY))
         console.print(f"[dim]Full log: {UI_LOG}  |  Summary: {UI_SUMMARY}[/dim]")
     finally:

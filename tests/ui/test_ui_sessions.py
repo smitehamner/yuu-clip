@@ -3,7 +3,7 @@ Playwright UI tests - session grouping (sidebar groups, suggest prompt, detail
 view, reel scope). Uses route mocking so the tests don't depend on or mutate the
 live project's real recordings.
 
-Run against the live dev server on port 8080. See tests/conftest.py for shared
+Run against the live fixture server yuu-dev test-ui spawns. See tests/conftest.py for shared
 helpers.
 """
 from __future__ import annotations

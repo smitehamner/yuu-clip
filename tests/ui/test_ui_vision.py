@@ -2,7 +2,7 @@
 
 Covers the "What's on screen" clip-detail card (shown only when the Image
 analysis master switch is on) and the Settings → LLM scoring fields. Read-only
-against the live dev server on port 8080. /api/llm/capabilities is on-demand, so
+against the live fixture server yuu-dev test-ui spawns. /api/llm/capabilities is on-demand, so
 it is route-mocked after goto, right before the interaction that reads it.
 """
 from __future__ import annotations

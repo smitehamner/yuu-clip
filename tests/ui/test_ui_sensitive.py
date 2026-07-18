@@ -1,13 +1,13 @@
 """Playwright UI tests - Sensitive Content Settings section and clip surfacing
 (roadmap plan 06).
 
-Follows the same pattern as test_ui_hotwords.py: CRUD tests run against the live
-dev server's real project DB, so every test that creates a sensitive term cleans
+Follows the same pattern as test_ui_hotwords.py: CRUD tests run against the
+fixture project's DB, so every test that creates a sensitive term cleans
 it up via a direct API call in a ``finally`` block. Badge/detail-panel rendering
 tests use synthetic AppState.clips/renderDetail data so they never touch real
 clip scores.
 
-Run against the live dev server on port 8080. See tests/conftest.py for shared
+Run against the live fixture server yuu-dev test-ui spawns. See tests/conftest.py for shared
 helpers.
 """
 from __future__ import annotations

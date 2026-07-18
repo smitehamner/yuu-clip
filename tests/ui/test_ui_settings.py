@@ -9,7 +9,7 @@ Read-only by design: saving whisper_language goes through PATCH /api/config,
 which is covered by tests/test_config.py - clicking Save here would write the
 live project's real config.json.
 
-Run against the live dev server on port 8080. See tests/conftest.py for shared
+Run against the live fixture server yuu-dev test-ui spawns. See tests/conftest.py for shared
 helpers.
 """
 from __future__ import annotations

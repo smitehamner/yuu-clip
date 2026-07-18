@@ -7,8 +7,7 @@ maps to the edit.
 
 Deliberately reuses the proven conftest helpers rather than novel selectors so
 the backstop itself stays robust. Keep it small - this is a "is the app
-fundamentally working?" check, not feature coverage. Run against the live dev
-server on port 8080. See tests/conftest.py for the shared helpers.
+fundamentally working?" check, not feature coverage. Run against the live fixture server yuu-dev test-ui spawns. See tests/conftest.py for the shared helpers.
 """
 from __future__ import annotations
 

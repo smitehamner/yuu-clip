@@ -9,7 +9,7 @@ live server. What remains is the one case that genuinely needs a real browser:
 the job pill must never displace the header buttons, which is a real-geometry
 (getBoundingClientRect / viewport layout) assertion.
 
-Run against the live dev server on port 8080. See tests/conftest.py for shared
+Run against the live fixture server yuu-dev test-ui spawns. See tests/conftest.py for shared
 helpers.
 """
 from __future__ import annotations
@@ -34,6 +34,14 @@ def page(logic_page):
 class TestJobPillHeaderOverflow:
     def test_header_buttons_stay_in_viewport_during_long_ingest(self, page: Page):
         page.set_viewport_size({"width": 800, "height": 720})
+        # The project switcher's width depends on the served project's folder name,
+        # which is incidental here - this test is about the job pill not displacing
+        # the header buttons. Pin the name to a fixed short string so the assertion
+        # measures the pill, not the fixture's folder-name length.
+        page.evaluate(
+            "() => { const el = document.getElementById('project-current-name');"
+            " if (el) el.textContent = 'proj'; }"
+        )
         page.evaluate(
             "() => {"
             "  startJobUI(INGEST_STEPS, 'Analyzing');"

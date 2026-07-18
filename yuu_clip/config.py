@@ -36,6 +36,13 @@ _log = logging.getLogger(__name__)
 
 
 def _global_config_dir() -> Path:
+    # YUU_CONFIG_DIR overrides the OS global-config location (mirrors the
+    # YUU_CLIP_FFMPEG_DIR / YUU_CLIP_LLAMA_SERVER_DIR env seams). The dev UI test
+    # harness points a spawned fixture server at an empty dir so it reads pure
+    # Config defaults and never touches the owner's real settings.
+    override = os.environ.get("YUU_CONFIG_DIR")
+    if override:
+        return Path(override)
     return Path(user_config_dir(APP_NAME))
 
 

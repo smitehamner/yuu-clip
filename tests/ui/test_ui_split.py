@@ -9,7 +9,7 @@ and the re-analyze parameter builder that reuses the original run's settings.
 All tests are non-destructive: no split is ever confirmed against the live
 server - confirms are cancelled and editors closed via the discard path.
 
-Run against the live dev server on port 8080. See tests/conftest.py for shared
+Run against the live fixture server yuu-dev test-ui spawns. See tests/conftest.py for shared
 helpers.
 """
 from __future__ import annotations

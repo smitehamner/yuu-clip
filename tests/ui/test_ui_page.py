@@ -1,7 +1,7 @@
 """
 Playwright UI tests - page load and sidebar.
 
-Run against the live dev server on port 8080. Skipped automatically if the
+Run against the live fixture server yuu-dev test-ui spawns. Skipped automatically if the
 server is not reachable. See tests/conftest.py for the shared helpers.
 """
 from __future__ import annotations

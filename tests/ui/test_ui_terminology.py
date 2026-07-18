@@ -6,7 +6,7 @@ they read committed files and need no browser, so paying the live-server setup
 here was pure waste. What remains is the one contract that genuinely needs a
 rendered page: the sidebar heading reads "Recordings" after boot.
 
-Runs against the live dev server on port 8080. See tests/conftest.py for shared
+Runs against the live fixture server yuu-dev test-ui spawns. See tests/conftest.py for shared
 helpers.
 """
 from __future__ import annotations

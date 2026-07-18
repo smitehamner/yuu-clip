@@ -2,7 +2,7 @@
 Playwright UI tests - per-video summary regeneration confirm flow and the
 video-level Additional Actions modal.
 
-Run against the live dev server on port 8080. See tests/conftest.py for shared
+Run against the live fixture server yuu-dev test-ui spawns. See tests/conftest.py for shared
 helpers.
 """
 from __future__ import annotations

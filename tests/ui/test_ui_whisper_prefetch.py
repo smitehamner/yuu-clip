@@ -14,8 +14,7 @@ Every fetch the asserted render awaits is stubbed (hermetic-stubbing rule). The 
 tests register their stubs and then re-navigate (_reboot_against_stubs) so boot.js runs
 its one initModelPrefetch/initModelDownload pass against those stubs - the fixture's own
 boot (against the real dev config) is torn down with the old page, so it can't leave a
-stream or row that races the assertions. Read-only against the live dev server on port
-8080. See tests/conftest.py.
+stream or row that races the assertions. Read-only against the live fixture server yuu-dev test-ui spawns. See tests/conftest.py.
 """
 from __future__ import annotations
 
