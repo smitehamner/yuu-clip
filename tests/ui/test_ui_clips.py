@@ -652,16 +652,10 @@ class TestBulkApproveReject:
         assert payload["status"] == "approved"
         assert payload["clip_ids"] == [clip_id]
 
-    def test_bulk_reject_sends_selected_clip_ids(self, page: Page):
-        select_video_with_clips(page)
-        clip_id = page.evaluate("() => AppState.clips[0].id")
-        _first_row(page).locator(".clip-select-checkbox").check()
-        page.route("**/api/clips/bulk-status", lambda route: route.abort())
-        with page.expect_request(lambda r: "bulk-status" in r.url) as req_info:
-            page.click(".clip-bulk-actions button:has-text('Reject')")
-        payload = req_info.value.post_data_json
-        assert payload["status"] == "rejected"
-        assert payload["clip_ids"] == [clip_id]
+    # test_bulk_reject_sends_selected_clip_ids removed: the reject request shape is
+    # covered in tests/js/clips/clipbulk.test.js, and the checkbox->toolbar-click
+    # wiring is identical to the approve case above (same _handleBulkToolbarClick
+    # switch), which stays here as the wiring proof.
 
 
 @skip_no_server
@@ -723,18 +717,10 @@ class TestBulkExportStaleWarning:
         page.wait_for_selector("#confirm-modal.visible", state="hidden", timeout=2000)
         assert not export_requests
 
-    def test_non_stale_selection_exports_without_warning(self, page: Page):
-        select_video_with_clips(page)
-        clip_id = page.evaluate("""() => {
-            AppState.clips.forEach(c => c.transcript_stale = false);
-            return AppState.clips[0].id;
-        }""")
-        _first_row(page).locator(".clip-select-checkbox").check()
-        page.route("**/api/clips/bulk-export**", lambda route: route.abort())
-        with page.expect_request(lambda r: "bulk-export" in r.url) as req_info:
-            page.click(".clip-bulk-actions button:has-text('Export')")
-        assert f"clip_ids={clip_id}" in req_info.value.url
-        expect(page.locator("#confirm-modal")).not_to_be_visible()
+    # test_non_stale_selection_exports_without_warning removed: the "no stale ->
+    # stream export with the selected clip_ids, no confirm" behavior is covered in
+    # tests/js/clips/clipbulk.test.js. The Export-click DOM wiring is exercised by
+    # the stale-warning tests above (same toolbar handler).
 
 
 # ---------------------------------------------------------------------------
