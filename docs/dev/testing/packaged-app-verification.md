@@ -103,15 +103,12 @@ the Python byte-pump (ROADMAP item 1). This path does not exist in browser-dev m
 
 ---
 
-## Known drift to fix in `manual-regression.md` before running it packaged
+## Relationship to the use-case catalog and installed-app checklist
 
-`manual-regression.md` predates the four-axis + Clips/Scenes work and is stale in a few
-rows (surfaced during WS-I, not yet fixed there):
-
-- Row 14 / 22 list score icons as `star / funny / dramatic / action` only - missing the
-  **Visual** axis (glyph 🎬). Should read four axes.
-- No coverage of the merged **Clips + Scenes** sidebar (SCENE badge, All/Clips/Scenes
-  kind chips, per-kind counts) added in WS-D.
-
-Fold these into `manual-regression.md` when it is next revised so the packaged run
-checks the current UI.
+The old dev-server `manual-regression.md` has been retired to a pointer stub; the
+functional walk now lives in the use-case catalog [../USE_CASES.md](../USE_CASES.md) and
+its release view [installed-app-checklist.md](installed-app-checklist.md), which already
+reflect the current UI (four scoring axes plus **Visual**, and the merged **Clips +
+Scenes** sidebar with the SCENE badge / kind chips - see UC-B02). This file stays the
+authority for the packaged-**only** surfaces (sections A-I above); the checklist links
+back to these sections rather than duplicating them.
