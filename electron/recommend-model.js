@@ -18,6 +18,8 @@ const STRONG_VRAM_MB = 6000;
 const STRONG_DISK_GB = 8;
 
 const CPU_NOTE = 'Runs on CPU, will be slower, but still usable.';
+const UNSIZED_GPU_NOTE = 'Your GPU accelerates local AI, but its video memory could not '
+  + 'be measured, so lightweight is the safer pick.';
 
 const HEADLINES = {
   strong: 'Set up local AI - this PC can run it well',
@@ -33,24 +35,22 @@ function buildRecommendation(push, reason) {
 }
 
 function recommendLocalModel({ vramMB, freeDiskGB, gpuVendor } = {}) {
-  // Non-NVIDIA GPUs are gated for MODEL SIZING, not acceleration. The bundled
-  // llama.cpp is the Vulkan build, so AMD/Intel GPUs do accelerate LLM scoring
-  // (see docs/project/ROADMAP.md and the wizard's GPU step). But only NVIDIA
-  // VRAM is measured reliably: gpu-detect.js overrides the ~4 GB-capped WMI
-  // AdapterRAM via nvidia-smi for NVIDIA only, leaving AMD/Intel with that
-  // unreliable capped value. Without a trustworthy VRAM figure we can't tell
-  // whether the large model fits, so we fall back to the lightweight
-  // recommendation rather than risk an OOM. (Flag: the isCpuOnly name and the
-  // "Runs on CPU" reason strings below overstate this - they read as "no GPU
-  // accel" when the real limit is only "VRAM unknown". Left for a follow-up.)
-  const isCpuOnly = !vramMB || gpuVendor !== 'nvidia';
+  // Only NVIDIA VRAM is measured reliably: gpu-detect.js overrides the ~4 GB-capped
+  // WMI AdapterRAM via nvidia-smi for NVIDIA only. The bundled llama.cpp is the
+  // Vulkan build, so AMD/Intel GPUs still accelerate LLM scoring (see
+  // docs/project/ROADMAP.md and the wizard's GPU step) - we just can't size the
+  // large model for them without a trustworthy VRAM figure, so they (and machines
+  // with no detectable GPU) fall back to the lightweight recommendation.
+  const canSizeGpu = Boolean(vramMB) && gpuVendor === 'nvidia';
+  const gpuAccelerates = gpuVendor === 'nvidia' || gpuVendor === 'amd' || gpuVendor === 'intel';
+  const constraintNote = gpuAccelerates ? UNSIZED_GPU_NOTE : CPU_NOTE;
   const neededBytes = bytesNeeded(MODEL_SIZE_GB);
 
   // Never block on an unknowable disk check - fall back to soft, matching
   // disk-space.js's own "never block on an unknowable" philosophy.
   if (freeDiskGB === null || freeDiskGB === undefined) {
     let reason = 'Free disk space could not be determined, so lightweight is the safer default.';
-    if (isCpuOnly) reason += ' ' + CPU_NOTE;
+    if (!canSizeGpu) reason += ' ' + constraintNote;
     return buildRecommendation('soft', reason);
   }
 
@@ -61,14 +61,14 @@ function recommendLocalModel({ vramMB, freeDiskGB, gpuVendor } = {}) {
     return buildRecommendation('none', reason);
   }
 
-  if (!isCpuOnly && vramMB >= STRONG_VRAM_MB && freeDiskGB >= STRONG_DISK_GB) {
+  if (canSizeGpu && vramMB >= STRONG_VRAM_MB && freeDiskGB >= STRONG_DISK_GB) {
     const reason = `Capable GPU detected (${vramMB} MB VRAM) with plenty of free disk space `
       + `for the ${MODEL_SIZE_GB} GB model.`;
     return buildRecommendation('strong', reason);
   }
 
-  const reason = isCpuOnly
-    ? `No CUDA-capable GPU detected. ${CPU_NOTE}`
+  const reason = !canSizeGpu
+    ? constraintNote
     : `GPU has limited VRAM (${vramMB} MB) or disk space is tight; local AI will work but may run slower.`;
   return buildRecommendation('soft', reason);
 }

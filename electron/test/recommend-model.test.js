@@ -43,16 +43,21 @@ test('weak GPU (below VRAM threshold) with ample disk gets soft, no false strong
   assert.equal(rec.push, 'soft');
 });
 
-test('AMD GPU with ample VRAM is not treated as accelerated (CUDA-only app)', () => {
+// AMD/Intel accelerate LLM scoring via the bundled Vulkan build, but their VRAM
+// can't be measured reliably (only NVIDIA gets an nvidia-smi override), so they
+// stay on the lightweight recommendation - without the false "runs on CPU" claim.
+test('AMD GPU softens for unmeasured VRAM, not a false CPU claim', () => {
   const rec = recommendLocalModel({ vramMB: 8000, freeDiskGB: 20, gpuVendor: 'amd' });
   assert.equal(rec.push, 'soft');
-  assert.match(rec.reason, /Runs on CPU, will be slower/);
+  assert.match(rec.reason, /video memory could not be measured/);
+  assert.doesNotMatch(rec.reason, /Runs on CPU/);
 });
 
-test('Intel GPU with ample VRAM is not treated as accelerated (CUDA-only app)', () => {
+test('Intel GPU softens for unmeasured VRAM, not a false CPU claim', () => {
   const rec = recommendLocalModel({ vramMB: 8000, freeDiskGB: 20, gpuVendor: 'intel' });
   assert.equal(rec.push, 'soft');
-  assert.match(rec.reason, /Runs on CPU, will be slower/);
+  assert.match(rec.reason, /video memory could not be measured/);
+  assert.doesNotMatch(rec.reason, /Runs on CPU/);
 });
 
 test('low disk exactly at the bytesNeeded boundary is not none', () => {
