@@ -1,7 +1,6 @@
 """
-Playwright UI tests - per-video summary regeneration confirm flow, the
-run-timing provenance line in the World Contexts section, and the video-level
-Additional Actions modal.
+Playwright UI tests - per-video summary regeneration confirm flow and the
+video-level Additional Actions modal.
 
 Run against the live dev server on port 8080. See tests/conftest.py for shared
 helpers.
@@ -10,20 +9,6 @@ from __future__ import annotations
 
 from conftest import LIVE_URL, select_video_with_clips, skip_no_server
 from playwright.sync_api import Page, expect
-
-_MOCK_ANALYZE_RUN = {
-    "started_at": "2026-06-01T00:00:00+00:00",
-    "finished_at": "2026-06-01T00:04:12+00:00",
-    "elapsed_ms": 252000,
-    "device": {"has_gpu": False},
-    "settings": {},
-    "stages": [
-        {"name": "extract", "seconds": 12},
-        {"name": "transcribe", "seconds": 181},
-        {"name": "speakers", "seconds": 38},
-        {"name": "score", "seconds": 41},
-    ],
-}
 
 
 def _render_video_with(page: Page, overrides: dict) -> None:
@@ -40,20 +25,12 @@ def _render_video_with(page: Page, overrides: dict) -> None:
     )
 
 
-@skip_no_server
-class TestRunTimingProvenanceLine:
-    """The World Contexts section shows a 'Last run: ... total (...)' line built
-    from Video.analyze_run when present, and omits it otherwise."""
-
-    def test_shows_total_and_per_stage_timing(self, page: Page):
-        _render_video_with(page, {"analyze_run": _MOCK_ANALYZE_RUN})
-        expect(page.locator("#detail")).to_contain_text(
-            "Last run: 4m 12s total (extract 12s · transcribe 3m 01s · speakers 38s · score 41s)"
-        )
-
-    def test_absent_when_analyze_run_is_null(self, page: Page):
-        _render_video_with(page, {"analyze_run": None})
-        expect(page.locator("#detail")).not_to_contain_text("Last run:")
+# TestRunTimingProvenanceLine (the 'Last run: ...' timing line) and
+# TestVideoDetailCardLayout (per-section .detail-card layout) moved to
+# tests/js/videos/videodetail.test.js (vitest): both only called
+# renderVideoDetail(video, null) and read the built #detail DOM, so they run
+# browserless with setupRecordingPreview / the window.* timeline+speaker seams
+# stubbed and the real _runTimingLine under test.
 
 
 # TestAnalysisLivePanel (Cancel wiring + active-step progress fill) moved to
@@ -159,69 +136,6 @@ class TestDeleteVideoConfirm:
             timeout=3000,
         ):
             page.click("#confirm-ok-btn")
-
-
-@skip_no_server
-class TestVideoDetailCardLayout:
-    """Every major section of the video detail is a .detail-card that owns its
-    own action (M3-1/M3-2/CC-9); title kebab always renders (M3-3); meta line
-    sits under the title (L3-1)."""
-
-    def test_summary_card_renders_with_generate_button_when_empty(self, page: Page):
-        _render_video_with(page, {"summary": None})
-        card = page.locator("#detail .detail-card", has_text="Session Summary")
-        expect(card).to_have_count(1)
-        expect(card.locator("#btn-summarize-video")).to_have_text("Generate Summary")
-
-    def test_summary_card_shows_content_and_kebab_when_present(self, page: Page):
-        _render_video_with(page, {"summary": "A great session happened."})
-        card = page.locator("#detail .detail-card", has_text="Session Summary")
-        expect(card).to_contain_text("A great session happened.")
-        expect(card.locator(".kebab-btn")).to_have_count(1)
-
-    def test_timeline_card_renders_with_generate_button_when_empty(self, page: Page):
-        _render_video_with(page, {"has_timeline": False})
-        card = page.locator("#detail .detail-card", has_text="Session Timeline")
-        expect(card).to_have_count(1)
-        expect(card.locator("#btn-generate-timeline")).to_have_text("Generate Timeline")
-
-    def test_timeline_card_button_says_regenerate_when_timeline_exists(self, page: Page):
-        _render_video_with(page, {"has_timeline": True})
-        card = page.locator("#detail .detail-card", has_text="Session Timeline")
-        expect(card.locator("#btn-generate-timeline")).to_have_text("Regenerate Timeline")
-
-    def test_world_contexts_is_its_own_card_outside_the_title_card(self, page: Page):
-        _render_video_with(page, {})
-        title_card = page.locator("#detail .detail-card").first
-        expect(title_card).not_to_contain_text("World Contexts")
-        ctx_card = page.locator(
-            "#detail .detail-card", has=page.locator(".context-chips")
-        )
-        expect(ctx_card).to_have_count(1)
-        expect(ctx_card.locator(".detail-card-title")).to_have_text("World Contexts")
-
-    def test_title_kebab_renders_when_no_title_exists(self, page: Page):
-        _render_video_with(page, {"title": None})
-        title_card = page.locator("#detail .detail-card").first
-        expect(title_card.locator(".kebab-btn")).to_have_count(1)
-
-    def test_meta_line_sits_under_the_title_inside_the_title_card(self, page: Page):
-        _render_video_with(page, {})
-        title_card = page.locator("#detail .detail-card").first
-        expect(title_card).to_contain_text("clipped")
-
-    def test_actions_row_keeps_only_export_and_additional_actions(self, page: Page):
-        _render_video_with(page, {})
-        buttons = page.locator("#detail .vid-actions button")
-        expect(buttons).to_have_count(2)
-        expect(buttons.nth(0)).to_have_text("Export Approved")
-        expect(buttons.nth(1)).to_have_text("Additional Actions")
-
-    def test_full_transcript_section_is_a_card(self, page: Page):
-        _render_video_with(page, {"clip_count": 3, "status": "done"})
-        expect(
-            page.locator("#detail #video-transcript-details.detail-card")
-        ).to_have_count(1)
 
 
 @skip_no_server
