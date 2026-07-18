@@ -1059,7 +1059,9 @@ class TestClipsActionsMenu:
         trigger.click()
         expect(page.locator(".hamburger-menu.open")).to_be_visible()
         expect(trigger).to_have_attribute("aria-expanded", "true")
-        expect(page.locator(".hamburger-menu.open .hamburger-item")).to_have_count(2)
+        # Default "All" kind filter offers both create entries (New clip, New scene)
+        # plus Check duplicates - see openClipsActionsMenu.
+        expect(page.locator(".hamburger-menu.open .hamburger-item")).to_have_count(3)
 
     def test_escape_closes_and_returns_focus(self, page: Page):
         select_video_with_clips(page)
