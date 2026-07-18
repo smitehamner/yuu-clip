@@ -95,7 +95,7 @@ function renderFfmpegSlot(s) {
     `<div style="display:flex;gap:6px;align-items:center;width:100%">` +
       `<code style="flex:1">winget install Gyan.FFmpeg</code>` +
       `<button class="sm" data-copy="winget install Gyan.FFmpeg">Copy</button>` +
-      `<button class="sm" onclick="api.openURL('https://www.gyan.dev/ffmpeg/builds/')">Open gyan.dev</button>` +
+      `<button class="sm" data-open-url="https://www.gyan.dev/ffmpeg/builds/">Open gyan.dev</button>` +
     `</div>`
   );
 }
@@ -132,7 +132,7 @@ function renderCudaSlot(s) {
     `Your NVIDIA GPU can transcribe much faster than the CPU. This one-time install ` +
     `adds the CUDA support libraries (cuBLAS + cuDNN, ~1 GB). You can keep using this ` +
     `window while it runs. (LLM scoring already uses your GPU - this only speeds up transcription.)`,
-    `<button class="sm" id="install-btn-cuda-libs" onclick="startInstall('cuda-libs')">Speed up transcription (~1 GB)</button>
+    `<button class="sm" id="install-btn-cuda-libs" data-install="cuda-libs">Speed up transcription (~1 GB)</button>
      <div class="pull-msg" id="install-msg-cuda-libs"></div>`);
 }
 
@@ -148,8 +148,8 @@ function renderGgufDownloadSlot(s) {
   el.innerHTML = row('gguf-download', 'warn', '○', 'Download the recommended model',
     `${esc(recName)} (${esc(rec.licence || '')}, so clips you make can be monetized)` +
     `${recSize ? ', ' + recSize : ''}. You can keep using this window while it downloads.`,
-    `<button class="sm" id="gguf-download-btn" onclick="startGgufDownload()">Download recommended model${recSize ? ' (' + esc(recSize) + ')' : ''}</button>
-     <button class="sm" id="gguf-cancel-btn" onclick="cancelGgufDownload()" style="display:none">Cancel</button>
+    `<button class="sm" id="gguf-download-btn" data-action="gguf-download">Download recommended model${recSize ? ' (' + esc(recSize) + ')' : ''}</button>
+     <button class="sm" id="gguf-cancel-btn" data-action="gguf-cancel" style="display:none">Cancel</button>
      <div class="pull-bar" id="gguf-download-bar" style="display:none;width:100%;margin-top:5px"><div class="pull-fill" id="gguf-download-fill"></div></div>
      <div class="pull-msg" id="gguf-download-msg"></div>`);
 }
@@ -364,13 +364,30 @@ async function recheck() {
 
 // ── UI events ──────────────────────────────────────────────────────────────
 
+// Event delegation for every button injected via innerHTML (slots re-render on each
+// status refresh). Inline on-event handlers can't be used here: this file is bundled
+// into an IIFE, so module-scoped functions like startGgufDownload are neither global
+// (inline handlers resolve on window) nor even present (esbuild tree-shakes functions
+// referenced only from string literals). The static guard in
+// test/setup-renderer-handlers.test.js keeps inline handlers from creeping back.
 document.addEventListener('click', e => {
-  const btn = e.target.closest('[data-copy]');
-  if (!btn) return;
-  api.copyText(btn.dataset.copy);
-  const original = btn.textContent;
-  btn.textContent = 'Copied!';
-  setTimeout(() => { btn.textContent = original; }, 1200);
+  const copyBtn = e.target.closest('[data-copy]');
+  if (copyBtn) {
+    api.copyText(copyBtn.dataset.copy);
+    const original = copyBtn.textContent;
+    copyBtn.textContent = 'Copied!';
+    setTimeout(() => { copyBtn.textContent = original; }, 1200);
+    return;
+  }
+  const urlBtn = e.target.closest('[data-open-url]');
+  if (urlBtn) { api.openURL(urlBtn.dataset.openUrl); return; }
+  const installBtn = e.target.closest('[data-install]');
+  if (installBtn) { startInstall(installBtn.dataset.install); return; }
+  const actionBtn = e.target.closest('[data-action]');
+  if (actionBtn) {
+    if (actionBtn.dataset.action === 'gguf-download') startGgufDownload();
+    else if (actionBtn.dataset.action === 'gguf-cancel') cancelGgufDownload();
+  }
 });
 
 document.getElementById('browse-btn').addEventListener('click', async () => {
