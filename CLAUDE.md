@@ -392,7 +392,6 @@ Use these glossary terms in **conversation** too, not just in code. If discussin
 - Be concise in responses - no preamble, no "I've completed..." summaries
 - State what changed and why, nothing else
 - Make easy, low-risk fixes autonomously then report what remains - don't ask for approval on obvious fixes
-- Prefer user-level config (`~/.claude/settings.json`) over project-level for personal preferences
 
 ## Testing
 - Tests before or alongside implementation, never after
