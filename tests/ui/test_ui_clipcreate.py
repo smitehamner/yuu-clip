@@ -277,13 +277,14 @@ class TestSceneCreate:
         lines = page.locator("#clipcreate-transcript-view .tline")
         lines.nth(1).click()
         lines.nth(2).click()
-        page.click("#clipcreate-confirm-btn")
+        # Scenes auto-score on creation like clips (scene rubric, picked by kind in the
+        # rescore route). Wait for the rescore request deterministically rather than a
+        # fixed sleep - under load the POST can lag past any arbitrary timeout.
+        with page.expect_request(f"**/api/clips/{_FAKE_CLIP_ID}/rescore", timeout=5000):
+            page.click("#clipcreate-confirm-btn")
 
         expect(page.locator("#panelnav-root")).to_be_hidden(timeout=3000)
         assert created_bodies == [{"start_ms": 5_000, "end_ms": 12_000, "kind": "scene"}]
-        # Stage 2: scenes auto-score on creation like clips (via the scene rubric,
-        # picked by kind in the rescore route).
-        page.wait_for_timeout(300)
         assert rescore_calls == [1]
 
 

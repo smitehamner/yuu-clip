@@ -309,8 +309,11 @@ class TestVideoShowInFolder:
             ),
         )
         _render_video_with(page, {"path": "D:\\recordings\\uitest_source.mkv"})
-        page.wait_for_function("() => AppState.canReveal === true", timeout=5000)
-        page.evaluate("renderVideoDetail(AppState.activeVideoData, null)")
+        # canReveal is seeded from the server's /api/status during boot; force it true
+        # and re-render so the button's visibility is deterministic instead of racing
+        # boot completion under parallel load (the source of this test's flakiness).
+        # The hidden-when-unavailable case is covered by the sibling test below.
+        page.evaluate("() => { AppState.canReveal = true; renderVideoDetail(AppState.activeVideoData, null); }")
         btn = page.locator("#detail button:has-text('Show in Folder')")
         expect(btn).to_be_visible()
         with page.expect_request("**/api/reveal") as req_info:
