@@ -184,7 +184,7 @@ function _videoItemLi(v, analyzingName, inSession) {
   const errBadge = errCount === 0 ? ''
     : llmUsable
     ? `<div class="meta" style="margin-top:2px;color:var(--warning)" title="LLM scoring failed for ${plural(errCount, 'clip')} - re-score to retry">&#9888; ${plural(errCount, 'scoring error')}</div>`
-    : `<div class="meta" style="margin-top:2px;color:var(--muted)" title="These clips were scored before a language model was set up - set one up, then re-score for AI scoring and descriptions">Scored without a language model</div>`;
+    : `<div class="meta" style="margin-top:2px;color:var(--muted)" title="These clips were scored before a language model was set up - set one up, then re-score for LLM scoring and descriptions">Scored without a language model</div>`;
   const checkbox = selectable
     ? `<input type="checkbox" class="session-select-box" aria-label="Select for grouping" ${window.SessionUI.selected.has(v.id) ? 'checked' : ''}>`
     : '';

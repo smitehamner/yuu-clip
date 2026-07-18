@@ -11,6 +11,163 @@ same thing without the context. Most recent first.
 
 ---
 
+## Phase 6 docs and comments - pre-public polish (dev-CLI / wizard / whisper-catalog) (2026-07-18)
+
+Docs-and-comments phase over the hand-written new/changed logic since baseline `6848574`
+(the `001_PRE-PUBLIC_polish-pass` body). Applied two user-facing glossary fixes (glossary
+bans "AI scoring" in favour of "LLM scoring"):
+- `videos/videos.js` "scored without a language model" tooltip said "re-score for AI
+  scoring and descriptions" while its sibling branch one line up already says "LLM scoring
+  failed" - fixed to "LLM scoring" (internal consistency + glossary). Rebundled.
+- `partials/modals/about.html` third-party grouping header "AI scoring" -> "Local AI"
+  (the row it heads, llama.cpp, does LLM scoring AND vision/image-analysis, so the narrower
+  "LLM scoring" would undersell it; "Local AI" is accurate and matches existing wizard
+  copy - "Set up local AI"). Re-stitched index.html. No test pinned either string
+  (`test_ui_page.py` only asserts the About version); `test-js` 226 + `test-unit` 983 green.
+
+The following were reviewed and deliberately left as-is:
+
+### `whisper_catalog.py`, dev-command modules, `constants.js`/`setup-preload.js`/`whisper-select.js` WHY comments - kept
+Every comment in the in-scope dev modules and wizard-data files explains a genuinely
+non-obvious constraint, not restatement: `whisper_catalog.py`'s module docstring records
+that the size/VRAM strings were the classic hand-copy drift point now single-sourced here;
+`constants.js`/`setup-preload.js`/`recommend-model.js`/`setup-renderer.js` document the
+generated-from-Python catalog seam (`yuu-dev shared-data`), the packaged-vs-dev binary
+provenance, the setup-version re-show rule, and the esbuild-tree-shakes-string-referenced-
+functions reason for event delegation; `whisper-select.js` carries the measured VRAM
+headroom rationale. All earn their place. The box-drawing `--` section dividers in
+`setup-renderer.js` are the codebase-wide comment-only convention (2026-07-10 entry) - a
+`.js` comment, never console-bound - not re-flagged.
+
+### `approval.py` route docstrings and `clipcreate.js` picker comments - kept
+`approval.py`'s one-line route docstrings and its "pending"/"approved" references are
+accurate descriptions of the code's status values (code identifier, not user-facing text -
+the UI renders "Unreviewed"). `clipcreate.js`'s inline-preview-not-#player-area rationale
+and the clips-vs-scenes kind comment explain real WHYs. No change.
+
+### FLAGGED (needs human decision - a factually-wrong comment entangled with behavior)
+`electron/recommend-model.js:36-38` justifies its `gpuVendor !== 'nvidia' => CPU-only`
+recommendation with "the bundled llama.cpp build is CUDA, and ... AMD/Intel GPUs run
+llama.cpp on CPU here". That rationale is **factually wrong**: the bundled llama-server is
+the **Vulkan** build (`constants.js:31-36` - the dir holds `vulkan\`+`cpu\`; Python
+`resolve_server_binary` prefers vulkan), and `setup-renderer.js:109-119` tells non-NVIDIA
+users "your GPU speeds up LLM scoring" via that Vulkan engine. So the wizard shows a
+capable AMD/Intel user "your GPU speeds up LLM scoring" on one screen while the local-model
+recommendation (`recommendLocalModel`) treats the same machine as CPU-only ("No CUDA-capable
+GPU detected. Runs on CPU..."). The NVIDIA gate was a deliberate commit (`eb997eb`
+"treat non-NVIDIA GPUs as CPU-only"), so the *behavior* may be intended - but its stated
+reason is false and it contradicts the sibling wizard copy. Fixing the comment alone would
+either restate a falsehood or expose that the code under-credits Vulkan GPU accel; fixing
+the code is a product/behavior change (VRAM thresholds were tuned for CUDA) beyond this
+docs phase. Wizard owner should decide: credit Vulkan GPU accel for non-NVIDIA cards in the
+recommendation, or keep the NVIDIA gate but correct the comment's rationale to the real one.
+
+---
+
+## Phase 5 logging - pre-public polish (dev-CLI / approval route / setup wizard) (2026-07-18)
+
+Logging-coverage phase over the hand-written new/changed logic since baseline `6848574`
+(the `001_PRE-PUBLIC_polish-pass` body). Surveyed every logging/console/error surface in
+scope; **no code changes were warranted** - the surfaces are already diagnosable and
+cp1252-clean. Verified and deliberately left as-is:
+
+### `web/routes/clips/approval.py` - already logs both routes with context
+`auto_approve` logs `Auto-approved %d clips with %s >= %.2f for video %d` and
+`reset_approvals` logs `Reset %d clip approvals for video %d` - each carries the count,
+the video id, and (for auto-approve) the score field + threshold. That is enough to
+reconstruct a mis-approval from `.yuu-clip/yuu-clip.log` without a code reread. Validation
+rejects (bad threshold / unknown score_field / missing video) surface as `HTTPException`
+to the browser toast, the established pattern; they are expected user-input errors, not
+log-worthy failures. No gap.
+
+### New `yuu-dev` dev-command modules (`fixture`, `helpdocs`, `htmlstitch`, `shareddata`, `typecheck`, `tests`, `serve`) - developer console output, not application logging
+Same basis as the already-anchored `bundle.py`/`testjs.py` entry (2026-07-16). These are
+`yuu-dev` developer-CLI tools; their "logging" surface is Rich `console.print` to the
+developer, not the app log file. Each failure path prints a red, ASCII-only, actionable
+message and raises `typer.Exit` with a non-zero code (`fixture` --force hint, `typecheck`
+propagates mypy's returncode, `tests` the pre-check trio - no server / >1 server /
+leftover pytest procs - each exit 3 with the fix, `serve` port-in-use + processing-active
+guards). `htmlstitch.stitch` raises `FileNotFoundError` on a missing partial so a typo can
+never silently drop a region. Confirmed **zero non-ASCII** in any print/console string
+across all in-scope dev modules + `whisper_catalog.py` + `approval.py` (Python scan), so
+no cp1252 console-crash risk. Application-style `logging` would be the wrong tool for
+one-shot dev ergonomics.
+
+### `electron/setup-renderer.js` - pure display; the diagnosable trace lives in `main.js`
+The wizard renderer has no `console.*` calls by design: it is a thin view over the
+`setup:*` IPC. Every failure it can show - GGUF download failed, package install failed,
+initial status check failed, restore-backup failed - is surfaced to the user in the DOM,
+and the operation that actually failed runs in `main.js`, which logs each one via
+`logSetup` with the error message and (for installs) the pip stderr tail
+(`Wizard install failed`, `GGUF model download failed`, `GGUF model download blocked`).
+So a 3am wizard failure is both user-visible AND recorded in the app log. The `…`
+ellipses in the renderer's status strings ("Downloading…", "Checking…") are browser/
+Chromium DOM text rendered as UTF-8 - the anchored 2026-07-09 browser-DOM ellipsis
+decision applies, not the cp1252 console rule. `recommend-model.js` / `whisper-select.js`
+are pure data transforms with no error paths. No gap.
+
+### DEFERRED (out of scope - `main.js` not in this review's file scope)
+`main.js` `setup:get-status` logs a status line via `logSetup` only on the success path
+(line 298); if it throws before that (e.g. `detectGPU` raising), the renderer catches and
+shows "Setup check failed" with the error text, but nothing is written to the app log. A
+one-line `try/catch + logSetup` around the handler body would make that transient failure
+diagnosable after the wizard window closes. Minor; `main.js` is outside the Python +
+wizard-JS scope handed to this pass, and the error is at least shown to the user. Flagged
+for the wizard owner.
+
+---
+
+## Phase 4 refactor - pre-public polish (fixture/help-docs/wizard-data) (2026-07-18)
+
+Refactor phase over the hand-written new/changed logic since baseline `6848574` (the
+`001_PRE-PUBLIC_polish-pass` body): the new `yuu-dev` dev commands (`fixture-project`,
+`help-docs`, `shared-data`, `typecheck`, `test-unit`/`test-integration`/`test-all`), the
+`whisper_catalog.py` product list, `htmlstitch.py`, the in-app Help viewer
+(`markdown.js` + `helpmodals.js`), the merged Clips+Scenes client-side kind filter
+(`clips.js`/`videos.js`/`shortcuts.js`/`state.js`/`boot.js`), the centralized
+`shared/escapehtml.js` + `shared/whisperlang.js`, and the wizard's catalog-data wiring
+(`constants.js`/`recommend-model.js`/`setup-renderer.js`). Applied: deduped
+`helpmodals.js`'s standalone `_escText` escaper into the now-canonical shared `escHtml`
+(`shared/escapehtml.js`) - the escaper was centralized this same window (format.js now
+re-exports it; whisperlang imports it), so the local copy was a leftover third instance.
+Gate: `yuu-dev bundle` + `test-js` 226, `test-ui --changed` (help + smoke) 12 - green.
+The following were reviewed and deliberately left as-is:
+
+### `markdown.js` `inlineMd` leading `& < >` escape - kept inline, not routed through `escHtml`
+Decision: Keep the inline `.replace(/&/g,...).replace(/</g,...).replace(/>/g,...)` at the
+head of `inlineMd`.
+Rationale: It is the first stage of a chained inline-formatting transform (escape, then
+`` `code` ``/`**bold**`/`*italic*`/`[link]()`), not a standalone escaper. The shared
+`escHtml` also escapes `"` -> `&quot;`; substituting it would change this function's output
+string for any doc text containing a quote (visually identical when rendered, but a real
+diff the guides' golden tests could pin). Below rule-of-three now that `_escText` is gone
+(canonical `escHtml` + this one pipeline stage), and coupling a markdown parser's escape
+step to the attribute-safe escaper buys nothing. Revisit only if a third standalone `& < >`
+escaper appears.
+
+### New `yuu-dev` dev-command modules (`fixture.py`, `helpdocs.py`, `htmlstitch.py`, `shareddata.py`, `typecheck.py`) - already well-decomposed
+Decision: Keep as-is.
+Rationale: Reviewed for the phase's hard rules (function length, one concern, naming, no
+duplication). Each is short, single-concern, and factored around the right seam -
+`fixture.py`'s `seed_project_db` is deliberately the single seed routine shared with the
+integration conftest (the `with_scenes` flag is the documented divergence point, not a
+behavior-flag smell); `shareddata.py`/`whisper_catalog.py` follow the established
+`model_catalog.py`/`content_presets.py` frozen-dataclass + small-helpers pattern;
+`tests.py`'s `_run_tiers_code`/`_run_tiers` already extract the shared tier-runner. No
+high-value structural change found - further edits would be churn.
+
+### `setup-renderer.js` `applyDefaults` (~44 lines) and `clips.js` `openClipsActionsMenu` nested ternary - kept whole
+Decision: Keep as-is.
+Rationale: `applyDefaults` is one concern (fill the wizard form from saved config on first
+render) - a flat sequence of DOM assignments that only shares local state; splitting it
+would fragment that single first-render pass across helpers for no readability gain (same
+basis as the kept `transcribe_track`/`_attach_speakers` calls). `openClipsActionsMenu`'s
+three-way create-item ternary (Scenes -> "New scene", Clips -> "New clip", All -> both) is
+short and carries a WHY comment explaining the All-view "offer both" choice; a dispatch
+table would be more machinery than three literal cases justify.
+
+---
+
 ## ESM migration + JS-test rebalance review (2026-07-16)
 
 Full `shqr-code-quality-review` (all 7 phases) over the 64 commits since baseline

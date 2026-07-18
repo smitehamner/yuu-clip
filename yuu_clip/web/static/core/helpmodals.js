@@ -5,6 +5,7 @@
 //   Tests: tests/ui/test_ui_settings.py, tests/ui/test_ui_help.py, tests/ui/test_ui_page.py, tests/ui/test_ui_keyboard.py
 
 import { renderMarkdown } from './markdown.js';
+import { escHtml } from '../shared/escapehtml.js';
 
 // ── getting started modal ─────────────────────────────────────────────────────
 let _gettingStartedOpener = null;
@@ -57,8 +58,6 @@ const HELP_DOCS = [
     onlineUrl: 'https://github.com/smitehamner/yuu-clip/blob/main/docs/user/PERFORMANCE.md' },
 ];
 
-const _escText = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
 let _helpOpener = null;
 export function openHelpModal() {
   _helpOpener = document.activeElement;
@@ -109,7 +108,7 @@ function _helpViewHtml(doc, bodyHtml, toc) {
   let tocHtml = '';
   if (toc.length) {
     const items = toc.map((entry) =>
-      `<li class="help-toc-l${entry.level}"><button type="button" class="help-toc-link" data-help-toc="${entry.id}">${_escText(entry.text)}</button></li>`
+      `<li class="help-toc-l${entry.level}"><button type="button" class="help-toc-link" data-help-toc="${entry.id}">${escHtml(entry.text)}</button></li>`
     ).join('');
     tocHtml = `<nav class="help-toc" aria-label="On this page"><div class="help-toc-head">On this page</div><ul>${items}</ul></nav>`;
   }
