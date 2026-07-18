@@ -123,9 +123,12 @@ by what the test needs; the `yuu-dev` command names map straight onto them.
   a Playwright case that only pokes module state via `page.evaluate` should be rewritten to
   drive the public API under vitest fake timers instead.
 
-`yuu-dev test-api` runs unit + integration; `yuu-dev test-ui` runs ui (see CLAUDE.md for
-the `--changed` / `--smoke` cadence); `yuu-dev test-js` runs js. Run `test-js` after
-editing any `static/*.js` that has (or should have) a `tests/js/` counterpart.
+Each tier has its own command: `yuu-dev test-unit` runs unit, `yuu-dev test-integration`
+runs integration, and `yuu-dev test-api` is the convenience combo of the two (the pre-done
+gate); `yuu-dev test-ui` runs ui (see CLAUDE.md for the `--changed` / `--smoke` cadence);
+`yuu-dev test-js` runs js. The fast inner loop is `test-unit` (+ `test-js` when
+`static/*.js` changed); run `test-js` after editing any `static/*.js` that has (or should
+have) a `tests/js/` counterpart.
 
 ---
 

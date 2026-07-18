@@ -29,24 +29,35 @@ yuu-dev logs --follow
 
 ## MANDATORY: after any Python change
 
-API tests take ~1 minute. Run them selectively - not after every edit.
+The test tiers split by speed. Lean on the fast tiers during iteration; save the
+slower integration + UI tiers for the gate before you report a change done.
 
-**Run `yuu-dev test-api` before reporting done when:**
-- Fixing a logic bug in a route handler or scoring/analyze pipeline
-- Adding or removing a route, or changing its response shape
-- Touching DB models, migrations, or config parsing
-- Making any change that could silently break existing behavior
+**Fast inner loop (seconds - run frequently, as often as after each edit):**
+- `yuu-dev test-js` - the vitest tier, ~6s, no server. Run whenever a `static/*.js`
+  changed (this is where most pure-logic tests now live).
+- `yuu-dev test-unit` - the Python **unit tier only** (`tests/unit`), no DB seeding.
+  This skips the slower integration tier. Run after most Python edits.
 
-**Skip tests when:**
-- The change is cosmetic (log wording, comment, rename with no behavior change)
-- You're mid-iteration and will run tests at the end before reporting done
-- The change is HTML/JS/CSS only (no Python touched)
+**Gate before reporting a backend change done (the slower tiers):**
+- `yuu-dev test-api` - the full **unit + integration** tiers (~1 min, seeded DB /
+  in-process TestClient); a convenience combo of `test-unit` + `test-integration`.
+  Run this as the pre-done / pre-commit gate for ANY backend change, regardless of
+  what it touched - the fast loop is not a substitute for it. It stays the source of
+  truth that existing behavior still works. (`yuu-dev test-integration` runs just the
+  integration tier when you want to isolate it.)
+- `yuu-dev test-ui` - keep its existing `--changed` / `--smoke` / full triggers (see
+  the static-file section below); unchanged by this cadence.
+
+**Skip tests entirely when:**
+- The change is cosmetic (log wording, comment, rename with no behavior change) -
+  still run `yuu-dev lint`.
+- The change is HTML/CSS only (no Python and no `static/*.js` touched).
 
 Before reporting a backend fix complete, do:
 
 1. Run the linter: `yuu-dev lint` (fast - run after every Python change, even cosmetic ones; fix or `--fix` anything it flags)
 2. Run the type gate: `yuu-dev typecheck` (mypy, ~15s; fails only on type errors NOT in the frozen `mypy-baseline.txt` - i.e. new ones, or ones in code you just touched). Fix the new error, or if it is a genuine accepted gap, run `yuu-dev typecheck --sync` to re-freeze the baseline and commit it.
-3. Run tests if the change qualifies above: `yuu-dev test-api`
+3. Run the full gate: `yuu-dev test-api` (unit + integration) - not just the fast `test-unit` loop you used while iterating.
 4. Restart the server: `yuu-dev serve`
 5. Confirm the fix works in the browser (or state explicitly that you cannot)
 
@@ -251,9 +262,17 @@ math, the job-pill state machine driven through the public API); keep in Playwri
 only what genuinely needs a real browser (navigation, SSE, focus traps, live
 getComputedStyle / real geometry).
 
+Each tier has its own first-class command; `test-api` is the convenience combo of the
+two Python tiers. **Cadence** (see "after any Python change" above): the fast tiers -
+`yuu-dev test-js` and `yuu-dev test-unit` - are the frequent inner-loop check. Full
+`yuu-dev test-api` (adding integration) is the gate before reporting a backend change
+done, not an every-edit command.
+
 ```powershell
 yuu-dev test-js             # JS unit layer (tests/js/**/*.test.js); no browser, ~6s, skips if Node absent
-yuu-dev test-api            # unit + integration (tests/unit tests/integration); no live server
+yuu-dev test-unit           # FAST inner loop: Python unit tier only (tests/unit); no DB seeding
+yuu-dev test-integration    # integration tier only (tests/integration); seeded DB / in-process TestClient
+yuu-dev test-api            # GATE: full unit + integration; convenience combo of test-unit + test-integration
 yuu-dev test-ui --changed   # dev default: tests around the diff + smoke
 yuu-dev test-ui --smoke     # ~6-test backstop only, quickest sanity check
 yuu-dev test-ui             # full suite (all tests/ui/test_ui_*.py) - see cadence above

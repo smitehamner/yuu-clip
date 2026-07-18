@@ -8,6 +8,10 @@ __pycache__/
 /exports
 docs/dev/plans/
 .claude
+/test-unit-last.log
+/test-unit-last-summary.log
+/test-integration-last.log
+/test-integration-last-summary.log
 /test-api-last.log
 /test-ui-last.log
 /test-api-last-summary.log

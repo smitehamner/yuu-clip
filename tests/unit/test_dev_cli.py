@@ -261,6 +261,42 @@ def test_test_api_explicit_target_replaces_default_tiers(monkeypatch, tmp_path):
     assert "-n" not in cmd
 
 
+def test_test_unit_runs_only_the_unit_tier(monkeypatch, tmp_path):
+    calls: dict = {}
+
+    def fake_run_and_tee(cmd, cwd, env=None):
+        calls["cmd"] = cmd
+        return 0, "============ 1 passed in 0.1s ============\n"
+
+    monkeypatch.setattr(tests_mod, "run_and_tee", fake_run_and_tee)
+    monkeypatch.setattr(tests_mod, "UNIT_LOG", tmp_path / "u.log")
+    monkeypatch.setattr(tests_mod, "UNIT_SUMMARY", tmp_path / "u-summary.log")
+
+    result = runner.invoke(app, ["test-unit"])
+    assert result.exit_code == 0
+    cmd = calls["cmd"]
+    assert "tests/unit" in cmd
+    assert "tests/integration" not in cmd
+
+
+def test_test_integration_runs_only_the_integration_tier(monkeypatch, tmp_path):
+    calls: dict = {}
+
+    def fake_run_and_tee(cmd, cwd, env=None):
+        calls["cmd"] = cmd
+        return 5, "============ 1 failed in 0.1s ============\n"
+
+    monkeypatch.setattr(tests_mod, "run_and_tee", fake_run_and_tee)
+    monkeypatch.setattr(tests_mod, "INTEGRATION_LOG", tmp_path / "i.log")
+    monkeypatch.setattr(tests_mod, "INTEGRATION_SUMMARY", tmp_path / "i-summary.log")
+
+    result = runner.invoke(app, ["test-integration"])
+    assert result.exit_code == 5
+    cmd = calls["cmd"]
+    assert "tests/integration" in cmd
+    assert "tests/unit" not in cmd
+
+
 def test_test_ui_propagates_failing_exit_code(monkeypatch, tmp_path):
     # A wrapper that swallowed the pytest exit code would hide red UI tests. Stub
     # the live-server preflights + lock so only the exit-code plumbing is exercised.

@@ -23,6 +23,10 @@ from yuu_clip.dev import procs
 from yuu_clip.dev._base import REPO_ROOT, app, console, print_summary, pytest_env, run_and_tee
 from yuu_clip.dev._summary import write_run_logs
 
+UNIT_LOG = REPO_ROOT / "test-unit-last.log"
+UNIT_SUMMARY = REPO_ROOT / "test-unit-last-summary.log"
+INTEGRATION_LOG = REPO_ROOT / "test-integration-last.log"
+INTEGRATION_SUMMARY = REPO_ROOT / "test-integration-last-summary.log"
 API_LOG = REPO_ROOT / "test-api-last.log"
 API_SUMMARY = REPO_ROOT / "test-api-last-summary.log"
 UI_LOG = REPO_ROOT / "test-ui-last.log"
@@ -58,22 +62,54 @@ def _split_passthrough(pytest_args: Optional[List[str]]) -> tuple[list[str], lis
     return targets, extras
 
 
+def _run_tiers(
+    tiers: list[str],
+    pytest_args: Optional[List[str]],
+    detailed: bool,
+    log: Path,
+    summary: Path,
+) -> None:
+    """Run one or more pytest tier directories, tee to a log, and exit with pytest's code.
+
+    An explicit target (a file/nodeid in ``pytest_args``) replaces the default tier
+    selection and runs in process; otherwise the named tiers run under xdist.
+    """
+    console.print(f"Log: {log}")
+    targets, extras = _split_passthrough(pytest_args)
+    selection = targets if targets else [*tiers, "-n", "auto"]
+    cmd = [sys.executable, *_pytest(selection, detailed), *extras]
+    code, output = run_and_tee(cmd, REPO_ROOT, pytest_env())
+    print_summary(write_run_logs(output, log, summary))
+    console.print(f"[dim]Full log: {log}  |  Summary: {summary}[/dim]")
+    raise typer.Exit(code)
+
+
+@app.command("test-unit", context_settings={"ignore_unknown_options": True})
+def test_unit(
+    detailed: bool = typer.Option(False, "--detailed", help="Per-test -v output."),
+    pytest_args: Optional[List[str]] = typer.Argument(None),
+) -> None:
+    """Run the unit tier only (tests/unit) - the fast inner loop: pure, no DB seeding."""
+    _run_tiers(["tests/unit"], pytest_args, detailed, UNIT_LOG, UNIT_SUMMARY)
+
+
+@app.command("test-integration", context_settings={"ignore_unknown_options": True})
+def test_integration(
+    detailed: bool = typer.Option(False, "--detailed", help="Per-test -v output."),
+    pytest_args: Optional[List[str]] = typer.Argument(None),
+) -> None:
+    """Run the integration tier only (tests/integration) - seeded DB / in-process TestClient."""
+    _run_tiers(["tests/integration"], pytest_args, detailed, INTEGRATION_LOG, INTEGRATION_SUMMARY)
+
+
 @app.command("test-api", context_settings={"ignore_unknown_options": True})
 def test_api(
     detailed: bool = typer.Option(False, "--detailed", help="Per-test -v output."),
     pytest_args: Optional[List[str]] = typer.Argument(None),
 ) -> None:
-    """Run the unit + integration tiers (fast, no live server needed)."""
-    console.print(f"Log: {API_LOG}")
-    targets, extras = _split_passthrough(pytest_args)
-    # An explicit target (a file/nodeid) replaces the default tiers and runs in
-    # process; otherwise run both tiers under xdist.
-    selection = targets if targets else ["tests/unit", "tests/integration", "-n", "auto"]
-    cmd = [sys.executable, *_pytest(selection, detailed), *extras]
-    code, output = run_and_tee(cmd, REPO_ROOT, pytest_env())
-    print_summary(write_run_logs(output, API_LOG, API_SUMMARY))
-    console.print(f"[dim]Full log: {API_LOG}  |  Summary: {API_SUMMARY}[/dim]")
-    raise typer.Exit(code)
+    """Run unit + integration together (the pre-done gate) - a convenience combo of
+    test-unit + test-integration. No live server needed."""
+    _run_tiers(["tests/unit", "tests/integration"], pytest_args, detailed, API_LOG, API_SUMMARY)
 
 
 def _load_selector():

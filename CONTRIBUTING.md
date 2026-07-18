@@ -81,7 +81,10 @@ directly on any OS:
 | `yuu-dev serve` | Start the dev web server (defaults to http://127.0.0.1:8080) |
 | `yuu-dev status` | Report whether a job is processing (query before restarting) |
 | `yuu-dev lint` | Run ruff over `yuu_clip` and `tests` (`--fix` to auto-fix) |
-| `yuu-dev test-api` | Unit + integration tests (no live server needed) |
+| `yuu-dev test-js` | JS unit layer (vitest); no browser, ~6s |
+| `yuu-dev test-unit` | Python unit tier only (`tests/unit`); the fast inner loop |
+| `yuu-dev test-integration` | Integration tier only (`tests/integration`, seeded DB) |
+| `yuu-dev test-api` | Unit + integration together (combo of the two above); no live server needed |
 | `yuu-dev test-ui` | Playwright UI suite against a running dev server |
 | `yuu-dev logs --follow` | Tail the server log |
 
@@ -101,8 +104,12 @@ Then open http://127.0.0.1:8080 and use **+ Analyze** to add a recording.
 Run these before opening a PR:
 
 - **`yuu-dev lint`** - fast; run it after any Python change (even cosmetic ones).
-- **`yuu-dev test-api`** - the unit + integration tiers. Required before submitting any
-  backend change (route handler, pipeline, DB model, config parsing). ~1 minute.
+- **`yuu-dev test-unit`** - the Python unit tier only (`tests/unit`); no DB seeding.
+  This is the fast inner-loop check to run frequently while iterating.
+- **`yuu-dev test-api`** - the full unit + integration tiers (a convenience combo of
+  `test-unit` + `test-integration`). Required before submitting any backend change
+  (route handler, pipeline, DB model, config parsing); the fast loop is not a
+  substitute for it. ~1 minute.
 
 Frontend / UI:
 
