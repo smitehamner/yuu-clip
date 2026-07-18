@@ -31,8 +31,23 @@ from yuu_clip import content_presets, model_catalog, whisper_catalog
 from yuu_clip.config import ALLOWED_WHISPER_LANGUAGES
 from yuu_clip.dev._base import REPO_ROOT, app, console
 
-WEB_JSON = REPO_ROOT / "yuu_clip" / "web" / "static" / "shared" / "catalog-data.json"
-ELECTRON_JSON = REPO_ROOT / "electron" / "shared" / "catalog-data.json"
+_WEB_SHARED = REPO_ROOT / "yuu_clip" / "web" / "static" / "shared"
+_ELECTRON_SHARED = REPO_ROOT / "electron" / "shared"
+WEB_JSON = _WEB_SHARED / "catalog-data.json"
+ELECTRON_JSON = _ELECTRON_SHARED / "catalog-data.json"
+
+# The web app hand-edits these; the wizard cannot reach the web static tree at runtime
+# (separate package), so it gets committed mirror copies under electron/shared/. Mirrored
+# here (pure Python, no Node) rather than by `yuu-dev bundle` so the drift guard stays
+# offline. (source under static/, destination filename under electron/shared/.)
+WEB_TOKENS_CSS = _WEB_SHARED / "tokens.css"
+ELECTRON_TOKENS_CSS = _ELECTRON_SHARED / "tokens.css"
+WEB_FONT = REPO_ROOT / "yuu_clip" / "web" / "static" / "fonts" / "oxanium.woff2"
+ELECTRON_FONT = _ELECTRON_SHARED / "oxanium.woff2"
+_MIRRORED: tuple[tuple[Path, Path], ...] = (
+    (WEB_TOKENS_CSS, ELECTRON_TOKENS_CSS),
+    (WEB_FONT, ELECTRON_FONT),
+)
 
 # Canonical AI-privacy copy (yuu-clip is local-only: the mode only decides whether a
 # generative model runs at all). One home for both the wizard and web Settings.
@@ -94,11 +109,16 @@ def write_shared_data() -> list[Path]:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(payload, encoding="utf-8", newline="\n")
         written.append(path)
+    for source, dest in _MIRRORED:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(source.read_bytes())
+        written.append(dest)
     return written
 
 
 @app.command("shared-data")
 def shared_data() -> None:
-    """Generate the shared catalog-data.json (web + electron copies) from Python truth."""
+    """Generate the wizard's committed shared assets: catalog-data.json (from Python
+    truth) plus mirror copies of the web tokens.css + Oxanium font the wizard consumes."""
     for path in write_shared_data():
         console.print(f"Wrote {path.relative_to(REPO_ROOT)}")

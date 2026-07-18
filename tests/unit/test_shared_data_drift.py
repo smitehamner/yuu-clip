@@ -11,14 +11,25 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from yuu_clip import content_presets, model_catalog
 from yuu_clip.config import ALLOWED_WHISPER_LANGUAGES
 from yuu_clip.dev.shareddata import (
+    _MIRRORED,
     ELECTRON_JSON,
     WEB_JSON,
     build_catalog_data,
     render_json,
 )
+
+
+@pytest.mark.parametrize("source,dest", _MIRRORED, ids=lambda p: p.name)
+def test_wizard_mirror_copies_are_current(source, dest):
+    assert dest.exists(), f"{dest.name} missing - run `yuu-dev shared-data`"
+    assert dest.read_bytes() == source.read_bytes(), (
+        f"electron/shared/{dest.name} is stale - run `yuu-dev shared-data` and commit it"
+    )
 
 
 def _load(path) -> dict:

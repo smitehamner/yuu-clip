@@ -22,6 +22,9 @@ import re
 from pathlib import Path
 
 STATIC_DIR = Path(__file__).resolve().parents[2] / "yuu_clip" / "web" / "static"
+# Theme tokens live in the shared file (linked before app.css and also consumed by the
+# Electron wizard); app.css itself must carry no colour literals.
+TOKENS_CSS = STATIC_DIR / "shared" / "tokens.css"
 
 THEMES = ["dark", "light", "high-contrast"]
 
@@ -69,7 +72,7 @@ def _theme_blocks(css: str) -> dict[str, str]:
 
 
 def test_every_theme_block_overrides_the_full_color_token_set():
-    css = (STATIC_DIR / "app.css").read_text(encoding="utf-8")
+    css = TOKENS_CSS.read_text(encoding="utf-8")
     blocks = _theme_blocks(css)
     assert sorted(blocks) == sorted(THEMES)
     missing = [

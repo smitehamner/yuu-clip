@@ -218,10 +218,13 @@ copies: `yuu_clip/web/static/shared/` (web) and `electron/shared/` (wizard). The
 
 **Shared UI layer + its boundary rule.** Beyond the data, the two stacks share real ESM
 modules under `yuu_clip/web/static/shared/` (currently `escapehtml.js` and
-`whisperlang.js`, the transcription-language `<option>` builder). Each is imported at
-*build time* into both bundles - the web `bundle.esm.js` (esbuild graph from
-`main.esm.js`) and the wizard `setup.bundle.js` (second esbuild entry from
-`electron/setup-renderer.js`). **Boundary rule: a `static/shared/` module takes data +
+`whisperlang.js`, the transcription-language `<option>` builder) plus `tokens.css`, the
+theme-token palette. The JS modules are imported at *build time* into both bundles - the
+web `bundle.esm.js` (esbuild graph from `main.esm.js`) and the wizard `setup.bundle.js`
+(second esbuild entry from `electron/setup-renderer.js`). `tokens.css` is linked before
+`app.css` in the web app and mirrored (with the Oxanium font) into `electron/shared/` by
+`yuu-dev shared-data` for the wizard, which links it directly - so the wizard renders in
+the app's real palette instead of a parallel hardcoded one. **Boundary rule: a `static/shared/` module takes data +
 callbacks and returns values/markup - it never `fetch`es or does IPC itself.** Settings
 feeds it HTTP-backed state; the wizard feeds it catalog/IPC-backed state. That is what
 lets one module serve both runtimes. (The two model-card *renderers* are deliberately

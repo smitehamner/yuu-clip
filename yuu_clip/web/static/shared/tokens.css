@@ -1,0 +1,153 @@
+/* Shared theme tokens - the single source of the app's colour/shape/type design
+   tokens. Extracted from app.css so BOTH the web app (linked before app.css in
+   index.src.html) and the Electron setup wizard (its own committed copy at
+   electron/shared/tokens.css, drift-guarded) render with the same palette. Pure
+   custom-property definitions - no @font-face or url() here, so it is runtime-path
+   free and loads identically in both runtimes. Every theme block must override the
+   full colour-token set (enforced by tests/unit/test_static_theme_colors.py). */
+
+:root {
+  --bg:       #0f0f11;
+  --bg-deep:  #0d0d0d;
+  --surface:  #1a1a1f;
+  --surface-raised: #1e1e2a;
+  --selection: #262640;
+  --border:   #2a2a33;
+  --text:     #e8e8f0;
+  --muted:    #9595aa; /* ≥4.5:1 on --surface and --border (CC-1) */
+  --text-secondary: #c4c4d8;
+  --accent:   #0a7a9b; /* cyan chrome - dark enough for 4.5:1 white-on-accent (CC-1) */
+  --accent-text: #4fc3f7; /* accent as running text on bg/surface - --accent itself is too dark there */
+  --accent2:  #4fc3f7;
+  --on-accent: #ffffff;   /* text on accent fills */
+  --highlight:    #ffb020; /* reserved gold: the two funnel actions (Analyze, Export) + overall score - fill/border only, never text (CC-1) */
+  --on-highlight: #241700; /* dark text on gold fills */
+  --green:    #4caf7d;
+  --on-green: var(--bg); /* text on green fills - dark themes use dark-on-green */
+  --red:      #e05c5c;
+  --on-red:   var(--bg); /* text on red fills - white on this red is only ~3.6:1 */
+  --warning:  #f0c060; /* the only warning color - no --amber/--warn/--yellow (CC-7) */
+  --on-warning: #1a1a1a; /* text on --warning fills */
+  --warn-hot: #f0603c; /* over-threshold time estimates only */
+  --funny:    #f7a85a;
+  --dramatic: #b06af7;
+  --action:   #4fc3f7;
+  --laugh:    #f77ac0;
+  /* Visual reuses the score-gradient's --action hue (it inherited the scene-cut
+     signal from Action); the var() resolves per-theme, so no new literal or
+     per-theme override is needed. */
+  --visual:   var(--action);
+  --overall:  var(--highlight);
+  --shadow-pop:  0 4px 20px rgba(0,0,0,.5);
+  --shadow-menu: 0 8px 24px rgba(0,0,0,.5);
+  --modal-backdrop: rgba(0,0,0,.7);
+  --on-scrim: #e6e6e6; /* text on the fixed-dark over-video scrim (theme-independent, like --modal-backdrop) */
+  /* shape + type signature (not per-theme; only the color tokens must be) */
+  --radius:    10px; /* cards, panels, modals */
+  --radius-sm: 6px;  /* inputs, pills, small chips */
+  --font-display: "Oxanium", system-ui, sans-serif; /* bundled display face - see @font-face */
+  /* pane sizes - updated by drag resize, saved to localStorage */
+  --sidebar-width:       300px;
+  --videos-group-height: 35%;
+  --player-max-height:   42vh;
+  --log-max-height:      160px;
+  color-scheme: dark;
+}
+
+/* ── themes ──
+   data-theme is set on <html> before first paint (inline script in index.html)
+   and switched live from Settings → UI → Theme. Every theme must override the
+   full color set above and keep WCAG AA: --text/--muted/--text-secondary vs
+   --bg/--surface/--border; --on-accent vs --accent; --on-green vs --green;
+   --on-red vs --red; --accent-text/--accent2/--warning/--warn-hot as text vs
+   --bg and --surface. Enforced per theme in tests/ui/test_ui_theme.py. */
+html[data-theme="light"] {
+  --bg:       #f2f2f6;
+  --bg-deep:  #e9e9ef;
+  --surface:  #ffffff;
+  --surface-raised: #ececf3;
+  --selection: #e4e1fb;
+  --border:   #d5d5e0;
+  --text:     #1c1c26;
+  --muted:    #55556a;
+  --text-secondary: #3c3c4e;
+  --accent:   #0e7490; /* cyan chrome */
+  --accent-text: #0e7490; /* dark enough to double as text */
+  --accent2:  #0e7490; /* darkened cyan - used as body text (descriptions, timestamps) */
+  --on-accent: #ffffff;
+  --highlight:    #f0aa1a; /* reserved gold */
+  --on-highlight: #241700;
+  --green:    #2e7d4f;
+  --on-green: #ffffff;
+  --red:      #c53030;
+  --on-red:   #ffffff;
+  --warning:  #8a5d00;
+  --on-warning: #ffffff;
+  --warn-hot: #c2410c;
+  --funny:    #c26a12;
+  --dramatic: #8b3fd6;
+  --action:   #0e7490;
+  --laugh:    #c2298a;
+  --shadow-pop:  0 4px 20px rgba(0,0,0,.18);
+  --shadow-menu: 0 8px 24px rgba(0,0,0,.18);
+  --modal-backdrop: rgba(0,0,0,.45);
+  color-scheme: light;
+}
+
+html[data-theme="high-contrast"] {
+  --bg:       #000000;
+  --bg-deep:  #000000;
+  --surface:  #0a0a0e;
+  --surface-raised: #14141c;
+  --selection: #2b2b50;
+  --border:   #52525f; /* doubles as pill/hover fill - must keep 4.5:1 under --muted text */
+  --text:     #ffffff;
+  --muted:    #d0d0e4;
+  --text-secondary: #ececff;
+  --accent:   #4fd0f5; /* cyan chrome */
+  --accent-text: #7fdcff;
+  --accent2:  #6fd6ff;
+  --on-accent: #000000;
+  --highlight:    #ffce4a; /* reserved gold */
+  --on-highlight: #000000;
+  --green:    #4ade80;
+  --on-green: #000000;
+  --red:      #ff7b7b;
+  --on-red:   #000000;
+  --warning:  #ffd54f;
+  --on-warning: #000000;
+  --warn-hot: #ff8a50;
+  --funny:    #ffb066;
+  --dramatic: #d09aff;
+  --action:   #6fd6ff;
+  --laugh:    #ff9ad6;
+  --modal-backdrop: rgba(0,0,0,.85);
+  color-scheme: dark;
+}
+
+/* ── accent variants ──
+   data-accent is an orthogonal choice layered on the base theme (set on <html>
+   before first paint, switched from Settings). Each variant overrides only the
+   accent-family tokens (--accent, --accent-text, --accent2, --on-accent) and must
+   be tuned per base theme, because one accent value cannot clear WCAG AA on both
+   the dark and the light surfaces. "default" keeps each theme's own accents (no
+   block). Every (theme, accent) pairing is contrast-checked in
+   tests/ui/test_ui_theme.py. */
+html[data-accent="blue"] { /* on the dark default surfaces */
+  --accent:      #2b5fd0;
+  --accent-text: #7aa2ff;
+  --accent2:     #56b6f5;
+  --on-accent:   #ffffff;
+}
+html[data-theme="light"][data-accent="blue"] {
+  --accent:      #2f57d8;
+  --accent-text: #2f57d8;
+  --accent2:     #1560b0;
+  --on-accent:   #ffffff;
+}
+html[data-theme="high-contrast"][data-accent="blue"] {
+  --accent:      #5b9bff;
+  --accent-text: #8ab4ff;
+  --accent2:     #6fc0ff;
+  --on-accent:   #000000;
+}
