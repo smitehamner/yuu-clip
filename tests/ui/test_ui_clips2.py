@@ -851,31 +851,9 @@ class TestCopyToClipboard:
         assert page.evaluate("() => window.__copiedText") == excerpt
         expect(page.locator("#toast-container .toast.success")).to_contain_text("Transcript copied")
 
-    def test_copy_export_file_paths(self, page: Page):
-        self._stub_clipboard(page)
-        page.goto(LIVE_URL)
-        select_first_video_and_clip(page)
-        page.wait_for_selector(".detail", timeout=3000)
-        page.route(
-            "**/api/clips/*/export-files",
-            lambda route: route.fulfill(
-                status=200, content_type="application/json",
-                body='{"files": ["clip_export.mkv", "clip_export.srt"]}',
-            ),
-        )
-        page.evaluate(
-            """() => {
-                AppState.activeClipData.has_export = true;
-                AppState.exportDir = 'D:\\\\exports';
-                openClipActionsModal(AppState.activeClipData.id);
-            }"""
-        )
-        page.wait_for_selector("#actions-modal.visible", timeout=2000)
-        page.click("#actions-modal-body .action-row:has-text('Copy File Path(s)')")
-        page.wait_for_function("() => window.__copiedText")
-        assert page.evaluate("() => window.__copiedText") == (
-            "D:\\exports\\clip_export.mkv\nD:\\exports\\clip_export.srt"
-        )
+    # test_copy_export_file_paths moved to tests/js/clips/clipexport.test.js - the
+    # _copyClipExportPaths path-assembly + clipboard write runs browserless there.
+    # The data-copy description/transcript delegation above stays (DOM wiring).
 
 
 # ---------------------------------------------------------------------------
@@ -884,35 +862,10 @@ class TestCopyToClipboard:
 
 @skip_no_server
 class TestClipShowInFolder:
-    def test_show_in_folder_posts_reveal_with_first_export_file(self, page: Page):
-        page.goto(LIVE_URL)
-        select_first_video_and_clip(page)
-        page.wait_for_selector(".detail", timeout=3000)
-        page.wait_for_function("() => AppState.canReveal === true", timeout=5000)
-        page.route(
-            "**/api/clips/*/export-files",
-            lambda route: route.fulfill(
-                status=200, content_type="application/json",
-                body='{"files": ["clip_export.mkv", "clip_export.srt"]}',
-            ),
-        )
-        page.route(
-            "**/api/reveal",
-            lambda route: route.fulfill(
-                status=200, content_type="application/json", body='{"status": "ok"}'
-            ),
-        )
-        page.evaluate(
-            """() => {
-                AppState.activeClipData.has_export = true;
-                AppState.exportDir = 'D:\\\\exports';
-                openClipActionsModal(AppState.activeClipData.id);
-            }"""
-        )
-        page.wait_for_selector("#actions-modal.visible", timeout=2000)
-        with page.expect_request("**/api/reveal") as req_info:
-            page.click("#actions-modal-body .action-row:has-text('Show in Folder')")
-        assert req_info.value.post_data_json["path"] == "D:\\exports\\clip_export.mkv"
+    # test_show_in_folder_posts_reveal_with_first_export_file moved to
+    # tests/js/clips/clipexport.test.js - the _revealClipExport -> revealInFolder ->
+    # POST /api/reveal path-assembly chain runs browserless there. The canReveal gate
+    # (the action row is absent when reveal is unavailable) stays here.
 
     def test_hidden_when_reveal_unavailable(self, page: Page):
         page.goto(LIVE_URL)
