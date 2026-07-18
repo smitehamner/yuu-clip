@@ -33,9 +33,16 @@ function buildRecommendation(push, reason) {
 }
 
 function recommendLocalModel({ vramMB, freeDiskGB, gpuVendor } = {}) {
-  // This app only accelerates NVIDIA (the bundled llama.cpp build is CUDA, and
-  // the wizard's GPU-acceleration step is NVIDIA-only). AMD/Intel GPUs run
-  // llama.cpp on CPU here, so they get the same honest CPU-speed treatment.
+  // Non-NVIDIA GPUs are gated for MODEL SIZING, not acceleration. The bundled
+  // llama.cpp is the Vulkan build, so AMD/Intel GPUs do accelerate LLM scoring
+  // (see docs/project/ROADMAP.md and the wizard's GPU step). But only NVIDIA
+  // VRAM is measured reliably: gpu-detect.js overrides the ~4 GB-capped WMI
+  // AdapterRAM via nvidia-smi for NVIDIA only, leaving AMD/Intel with that
+  // unreliable capped value. Without a trustworthy VRAM figure we can't tell
+  // whether the large model fits, so we fall back to the lightweight
+  // recommendation rather than risk an OOM. (Flag: the isCpuOnly name and the
+  // "Runs on CPU" reason strings below overstate this - they read as "no GPU
+  // accel" when the real limit is only "VRAM unknown". Left for a follow-up.)
   const isCpuOnly = !vramMB || gpuVendor !== 'nvidia';
   const neededBytes = bytesNeeded(MODEL_SIZE_GB);
 
