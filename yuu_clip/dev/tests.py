@@ -30,6 +30,8 @@ INTEGRATION_LOG = REPO_ROOT / "test-integration-last.log"
 INTEGRATION_SUMMARY = REPO_ROOT / "test-integration-last-summary.log"
 API_LOG = REPO_ROOT / "test-api-last.log"
 API_SUMMARY = REPO_ROOT / "test-api-last-summary.log"
+SYSTEM_LOG = REPO_ROOT / "test-system-last.log"
+SYSTEM_SUMMARY = REPO_ROOT / "test-system-last-summary.log"
 UI_LOG = REPO_ROOT / "test-ui-last.log"
 UI_SUMMARY = REPO_ROOT / "test-ui-last-summary.log"
 UI_TESTS_DIR = REPO_ROOT / "tests" / "ui"
@@ -120,6 +122,19 @@ def test_api(
     """Run unit + integration together (the pre-done gate) - a convenience combo of
     test-unit + test-integration. No live server needed."""
     _run_tiers(["tests/unit", "tests/integration"], pytest_args, detailed, API_LOG, API_SUMMARY)
+
+
+@app.command("test-system", context_settings={"ignore_unknown_options": True})
+def test_system(
+    detailed: bool = typer.Option(False, "--detailed", help="Per-test -v output."),
+    pytest_args: Optional[List[str]] = typer.Argument(None),
+) -> None:
+    """Run the full-stack system tier (tests/system) - the real analyze pipeline
+    against a generated fixture video (Whisper + LLM stubbed) plus the FastAPI
+    TestClient. Needs ffmpeg on PATH (guard-skips otherwise); no live server. This
+    is a pre-release gate, not a per-edit check - it is deliberately excluded from
+    test-api's default selection."""
+    _run_tiers(["tests/system"], pytest_args, detailed, SYSTEM_LOG, SYSTEM_SUMMARY)
 
 
 @app.command("test-all")

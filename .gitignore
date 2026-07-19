@@ -18,6 +18,8 @@ CLAUDE.local.md
 /test-api-last-summary.log
 /test-ui-last-summary.log
 /test-js-last.log
+/test-system-last.log
+/test-system-last-summary.log
 /test-ui.lock
 
 # Build artifacts

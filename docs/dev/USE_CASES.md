@@ -10,13 +10,15 @@ within a section without renumbering the rest. IDs are stable once assigned - ne
 reuse or renumber a retired ID.
 
 **Status of the surrounding plan (`e2e-use-cases/INDEX.md`):** Stage 1 (this catalog)
-is authored. Stages 2-6 (the `tests/system/` tier, the golden-path test, the Electron
-smoke test, and the drift-guard meta-test) are NOT built yet. The installed-app manual
-checklist derived from this catalog lives at
-[testing/installed-app-checklist.md](testing/installed-app-checklist.md). So the
-`Coverage` line below names the existing automated tests that already touch a use case
-plus, where relevant, the future `tests/system/` node the plan will add - it does not
-imply that node exists today.
+and Stage 2 (the installed-app checklist) are authored; Stage 3 (the `tests/system/`
+full-stack tier) and Stage 6 (the drift-guard meta-test) are built. Stage 4 (the opt-in
+golden real-models path) and Stage 5 (the Electron boot smoke test) are not built yet.
+The installed-app manual checklist derived from this catalog lives at
+[testing/installed-app-checklist.md](testing/installed-app-checklist.md). Every
+`automated`/`golden` use case's `Coverage` line now ends with an `Automated by
+<pytest node id>` reference to a real test node; `tests/unit/test_use_case_catalog.py`
+fails the build if any of those node ids stops existing (run the system tier itself with
+`yuu-dev test-system`).
 
 ## How to read an entry
 
@@ -75,7 +77,7 @@ A one-glance "what to walk before public" list is in the final section.
   4. (First-run alternative) In the wizard, choose "Restore from a backup instead".
 - **Expected:** a new folder starts a fresh empty project; switching reloads without a restart; switch is blocked while a job is running; empty state reads correctly (no clips, clear call to Analyze).
 - **Automation:** automated (project switch/open drivable via routes; empty-state via UI).
-- **Coverage:** ui project-switch tests; system test planned (Stage 3).
+- **Coverage:** ui project-switch tests. Automated by tests/ui/test_ui_projects.py::TestProjectSwitcher::test_open_another_project_shows_modal.
 - **Pre-release priority:** P1 - common, but the switch path is exercised by automated tests; the empty-state first-run is the part worth eyeballing.
 
 ---
@@ -94,7 +96,7 @@ A one-glance "what to walk before public" list is in the final section.
   6. Try `+ Analyze` again mid-run.
 - **Expected:** estimate updates when model/layout change; on start the panel closes and pills advance in step with real progress; the recording appears in the sidebar immediately with a live stage spinner and survives a page refresh; a second analyze is blocked with a clear "another job is running" message; on completion the pills clear and clips are listed.
 - **Automation:** automated (drive the real `cli/_pipeline` analyze path against the fixture with Whisper + LLM stubbed) / golden (real models on a spoken clip).
-- **Coverage:** integration pipeline tests; ui analyze/progress tests; system + golden planned (Stages 3-4).
+- **Coverage:** integration pipeline tests; ui analyze/progress tests; golden planned (Stage 4). Automated by tests/system/test_uc_analyze_review_export_play.py::test_analyze_produces_scored_clips.
 - **Pre-release priority:** P0 - the spine of the product; walk it once on real footage with real models.
 
 ### UC-B02 - Orient to the results
@@ -108,7 +110,7 @@ A one-glance "what to walk before public" list is in the final section.
   5. Switch to another recording and back.
 - **Expected:** clips default to Overall descending; sort reorders and the left-border color tracks the selection; kind chips and per-kind counts filter correctly; sort/kind preference is remembered; status filter resets to All on recording switch.
 - **Automation:** automated.
-- **Coverage:** ui clip-list/sort/filter tests; js filter/sort logic tests.
+- **Coverage:** ui clip-list/sort/filter tests; js filter/sort logic tests. Automated by tests/ui/test_ui_clips.py::TestClipSort::test_toggling_direction_reverses_clip_order.
 - **Pre-release priority:** P2 - heavily covered by automated tests already.
 
 ### UC-B03 - Review clips with the keyboard
@@ -121,7 +123,7 @@ A one-glance "what to walk before public" list is in the final section.
   4. `?` to open the controls list.
 - **Expected:** `A`/`R` flip the status dot green/red; navigation updates the detail panel; undo within 5 s reverts with a toast, after 6 s does nothing; controls modal lists the shortcuts.
 - **Automation:** automated.
-- **Coverage:** ui keyboard/review tests; js undo-window logic.
+- **Coverage:** ui keyboard/review tests; js undo-window logic. Automated by tests/ui/test_ui_clips2.py::TestGlobalKeyboardGuard::test_shortcut_acts_on_focused_clip_row_not_active_clip.
 - **Pre-release priority:** P2 - well covered by automated tests.
 
 ### UC-B04 - Inspect a clip in detail
@@ -133,7 +135,7 @@ A one-glance "what to walk before public" list is in the final section.
   3. Read the "No dialogue in this clip" note on a silent visual clip.
 - **Expected:** unscored clips show "Not yet scored", never a misleading 0%; the Laughs bar appears only when laughter was measured; silent clips show an explicit no-dialogue note plus a template one-liner, never a blank transcript card.
 - **Automation:** automated.
-- **Coverage:** ui clip-detail tests; js score-bar/tag rendering tests.
+- **Coverage:** ui clip-detail tests; js score-bar/tag rendering tests. Automated by tests/integration/test_videos.py::TestClips::test_get_clip_detail.
 - **Pre-release priority:** P2.
 
 ### UC-B05 - Export a clip and play it
@@ -145,7 +147,7 @@ A one-glance "what to walk before public" list is in the final section.
   3. When it finishes, the player appears in the detail panel; press Space to play.
 - **Expected:** Quick export (no re-encode) finishes in about 1-5 s; a real MKV lands in `.yuu-clip/exports/` with an SRT sidecar alongside; the player plays it (in the packaged app via the `yuu-media://` protocol) and shows captions.
 - **Automation:** automated (export writes a real file + sidecar; assert existence and duration) / golden.
-- **Coverage:** integration export tests; ui export tests; native-protocol playback is packaged-only (packaged-app-verification.md section E); system planned (Stage 3).
+- **Coverage:** integration export tests; ui export tests; native-protocol playback is packaged-only (packaged-app-verification.md section E); golden planned (Stage 4). Automated by tests/system/test_uc_analyze_review_export_play.py::test_approve_then_export_writes_file_and_sidecar.
 - **Pre-release priority:** P0 - core loop; and packaged playback via `yuu-media://` has no headless coverage (seek/Range, path-traversal refusal).
 
 ### UC-B06 - Bulk review and export
@@ -157,7 +159,7 @@ A one-glance "what to walk before public" list is in the final section.
   3. Undo a bulk status change with the toast or `Ctrl+Z`.
 - **Expected:** bulk actions apply only to checked clips visible under the active filter; bulk delete confirms first; bulk export warns if any selected clip's captions were edited since scoring; bulk undo reverts each clip to its own previous status.
 - **Automation:** automated.
-- **Coverage:** ui bulk-action tests; system planned (Stage 3).
+- **Coverage:** ui bulk-action tests. Automated by tests/integration/test_videos.py::TestBulkClipStatus::test_bulk_update_only_touches_given_ids.
 - **Pre-release priority:** P1 - bulk delete/export touch real files; worth one manual pass.
 
 ---
@@ -170,7 +172,7 @@ A one-glance "what to walk before public" list is in the final section.
 - **Steps:** click the one-liner (or long description) text; edit; click away.
 - **Expected:** saves immediately and persists across navigation and reload; a later LLM regeneration keeps the user edit and the original separate.
 - **Automation:** automated.
-- **Coverage:** ui/integration description-edit tests.
+- **Coverage:** ui/integration description-edit tests. Automated by tests/integration/test_export.py::TestExportStaleness::test_title_card_export_stale_after_description_edit.
 - **Pre-release priority:** P2.
 
 ### UC-C02 - Trim a clip, then export
@@ -182,7 +184,7 @@ A one-glance "what to walk before public" list is in the final section.
   3. Export from the same panel.
 - **Expected:** trim offsets change the output duration; `trim_edited_at` is set; the stale-export badge logic flips; the exported file matches the trimmed range.
 - **Automation:** automated (assert output duration + `trim_edited_at`).
-- **Coverage:** integration trim/export-metadata tests; system planned (Stage 3).
+- **Coverage:** integration trim/export-metadata tests. Automated by tests/system/test_uc_trim_export.py::test_trim_changes_duration_and_flips_stale.
 - **Pre-release priority:** P1 - common editing flow with a real output change.
 
 ### UC-C03 - Edit captions, then re-export
@@ -194,7 +196,7 @@ A one-glance "what to walk before public" list is in the final section.
   3. Re-export the clip.
 - **Expected:** editing rebuilds the excerpt of every overlapping clip and marks them for re-scoring; re-export refreshes the SRT sidecar with the corrected text.
 - **Automation:** automated.
-- **Coverage:** integration caption-edit tests; system planned (Stage 3).
+- **Coverage:** integration caption-edit tests. Automated by tests/system/test_uc_captions_edit_reexport.py::test_caption_edit_rebuilds_excerpt_and_refreshes_sidecar.
 - **Pre-release priority:** P1.
 
 ### UC-C04 - Split a recording, then export from a segment
@@ -207,7 +209,7 @@ A one-glance "what to walk before public" list is in the final section.
   4. Later, Undo Split (Additional Actions on a segment).
 - **Expected:** Split only redistributes clips and transcript lines to the segment containing each clip's start, preserving straddling clips; segment-relative timing survives export (the exported file cuts the correct absolute range); the parent is hidden once split; Undo Split merges siblings back with original absolute timing and restores the parent.
 - **Automation:** automated (assert segment-relative timing survives export).
-- **Coverage:** integration split tests; system planned (Stage 3).
+- **Coverage:** integration split tests. Automated by tests/system/test_uc_split_export.py::test_split_migrates_clips_and_segment_export_keeps_timing.
 - **Pre-release priority:** P1 - destructive, timing-sensitive, real user data.
 
 ### UC-C05 - Merge duplicate or adjacent clips, then export
@@ -219,7 +221,7 @@ A one-glance "what to walk before public" list is in the final section.
   3. Export the merged clip.
 - **Expected:** merge clears the duplicate flag, resets export metadata, and the merged range exports as one file.
 - **Automation:** automated (assert merge resets export metadata and merged file exports).
-- **Coverage:** integration merge tests; system planned (Stage 3).
+- **Coverage:** integration merge tests. Automated by tests/system/test_uc_merge_export.py::test_merge_resets_export_metadata_and_exports_one_file.
 - **Pre-release priority:** P1.
 
 ### UC-C06 - Create a clip (or scene) by hand
@@ -232,7 +234,7 @@ A one-glance "what to walk before public" list is in the final section.
   4. Confirm.
 - **Expected:** the clip/scene is created, selected, and immediately LLM-scored like any other - no separate "manual, unscored" state; a Scene carries the SCENE badge and scene-aware scoring.
 - **Automation:** automated.
-- **Coverage:** integration manual-clip tests; system planned (Stage 3).
+- **Coverage:** integration manual-clip tests. Automated by tests/integration/test_clip_create.py::TestCreateManualClipHappyPath::test_creates_pending_clip_with_manual_tag.
 - **Pre-release priority:** P2.
 
 ---
@@ -247,7 +249,7 @@ A one-glance "what to walk before public" list is in the final section.
   2. Watch the SSE stream; the transcript updates.
 - **Expected:** the excerpt and any SRT sidecar refresh; recording-level retranscribe keeps existing clips but flags them for re-score; speaker labels are reused.
 - **Automation:** automated (stubbed retranscribe: excerpt + sidecar refresh).
-- **Coverage:** integration retranscribe tests; system planned (Stage 3).
+- **Coverage:** integration retranscribe tests. Automated by tests/system/test_uc_retranscribe_refresh.py::test_recording_retranscribe_refreshes_excerpt_and_sidecar.
 - **Pre-release priority:** P2.
 
 ### UC-D02 - Diarize, name speakers, export with captions
@@ -262,7 +264,7 @@ A one-glance "what to walk before public" list is in the final section.
   6. Export a clip with captions.
 - **Expected:** names appear in clip transcripts and exported captions and survive re-analysis; borderline voice matches show a "Might be {name}" prompt and stay unnamed until confirmed (never silently mislabel); Fix names changes nothing until Apply and flows through the caption-edit path (overlapping clips marked for re-score); a Person's rename/recolor flows to every recording.
 - **Automation:** automated / golden.
-- **Coverage:** caption-propagation and name-persistence via integration speaker/people tests + ui speaker-card tests; the real diarization model is golden-only.
+- **Coverage:** caption-propagation and name-persistence via integration speaker/people tests + ui speaker-card tests; the real diarization model is golden-only. Automated by tests/system/test_uc_speakers_export.py::test_speaker_name_flows_into_captions_and_survives_rename.
 - **Pre-release priority:** P1 - lots of surface, real data consequences, and the borderline-match guard is worth eyeballing.
 
 ---
@@ -275,7 +277,7 @@ A one-glance "what to walk before public" list is in the final section.
 - **Steps:** Generate Summary; wait for the SSE stream; click the summary text to edit inline; edit and click away.
 - **Expected:** a title + paragraph appear; the inline edit saves and survives reload.
 - **Automation:** automated (stubbed LLM).
-- **Coverage:** integration summary tests; system planned (Stage 3).
+- **Coverage:** integration summary tests. Automated by tests/system/test_uc_summary.py::test_analyze_persists_summary_and_summarize_route_regenerates.
 - **Pre-release priority:** P2.
 
 ### UC-E02 - Session timeline and multi-recording sessions
@@ -287,7 +289,7 @@ A one-glance "what to walk before public" list is in the final section.
   3. Open the session detail: Session Summary and Unified Timeline across recordings with the real-world break labeled.
 - **Expected:** timeline markers map to the right clips; a session rolls up member summaries and stitches per-recording timelines into one axis; ungrouping detaches without deleting.
 - **Automation:** automated (generate + persist + edit; grouping logic).
-- **Coverage:** integration timeline/session tests; system planned (Stage 3).
+- **Coverage:** integration timeline/session tests. Automated by tests/system/test_uc_timeline.py::test_timeline_generates_and_persists_entries.
 - **Pre-release priority:** P2.
 
 ### UC-E03 - Build a highlight reel (and reel staleness)
@@ -300,7 +302,7 @@ A one-glance "what to walk before public" list is in the final section.
   4. Re-export one member clip, then re-open the reel.
 - **Expected:** the reel file lands in `.yuu-clip/reels/` with title cards from clip one-liners; unexported selections are skipped or offered for export first; re-exporting a member flips the reel's stale flag; burn-in re-encodes and is irreversible while a caption file can be regenerated.
 - **Automation:** automated (compile from exported clips; staleness flag flips) / packaged playback is manual.
-- **Coverage:** integration reel + staleness tests; system planned (Stage 3).
+- **Coverage:** integration reel + staleness tests. Automated by tests/system/test_uc_reel.py::test_reel_compiles_and_staleness_flips_on_member_reexport.
 - **Pre-release priority:** P1 - a headline output; worth one real end-to-end run.
 
 ---
@@ -318,7 +320,7 @@ A one-glance "what to walk before public" list is in the final section.
   5. Link a Person to a Character (see UC-D02).
 - **Expected:** a staleness warning shows when clips were last scored with different contexts; re-score injects the context and averages assigned-context weight overrides; a linked character's lore and boost feed scoring only for clips where that person speaks; "Last scored with" reflects the contexts used.
 - **Automation:** automated (assign + re-score reads the context back; stubbed LLM).
-- **Coverage:** integration context/character tests; system planned (Stage 3).
+- **Coverage:** integration context/character tests. Automated by tests/system/test_uc_context_rescore.py::test_assign_context_then_rescore_injects_context.
 - **Pre-release priority:** P1 - the main quality lever; the re-score-mode and staleness behavior is easy to get subtly wrong.
 
 ### UC-F02 - Track layouts: create, edit, delete
@@ -327,7 +329,7 @@ A one-glance "what to walk before public" list is in the final section.
 - **Steps:** open Manage Layouts; create a layout (name, 1-8 tracks, per-track role/transcribe/weight); edit a name; delete one (confirmation modal).
 - **Expected:** a new layout is selectable in the analyze dropdown; edits save; delete confirms then removes.
 - **Automation:** automated.
-- **Coverage:** integration/ui track-layout tests.
+- **Coverage:** integration/ui track-layout tests. Automated by tests/ui/test_ui_analyze.py::TestProfileManager::test_empty_layout_name_shows_inline_error.
 - **Pre-release priority:** P2.
 
 ### UC-F03 - Scoring configuration: content presets, weights, hot-words, sensitive terms
@@ -339,7 +341,7 @@ A one-glance "what to walk before public" list is in the final section.
   3. Settings -> Sensitive Content; add a Privacy Term and a Censor Word (Exact / Ignore case / Close spelling); watch the instant rescan and the Flagged chip.
 - **Expected:** a preset sets weights + starter hot-words + the LLM steer; hot-words show as pills and apply a bounded once-per-clip boost; sensitive terms only warn (never change scores) and rescan instantly with no LLM call; each hot-word/term is Global or context-scoped.
 - **Automation:** automated (weights, hot-word matching, sensitive rescan are pure logic).
-- **Coverage:** integration scoring-config tests; js hot-word/sensitive match tests.
+- **Coverage:** integration scoring-config tests; js hot-word/sensitive match tests. Automated by tests/integration/test_config.py::TestUiConfig::test_patch_config_accepts_known_content_preset.
 - **Pre-release priority:** P2 - strong automated coverage; presets worth a quick eyeball.
 
 ### UC-F04 - Vertical / Shorts export with auto-framing
@@ -351,7 +353,7 @@ A one-glance "what to walk before public" list is in the final section.
   3. Export.
 - **Expected:** output is 1080x1920; the framing choice is saved on the clip; sources already narrower than 9:16 are letterboxed, not cropped; auto-frame suggests a crop you confirm before exporting.
 - **Automation:** automated (9:16 export + framing path runs on the fixture).
-- **Coverage:** integration vertical-export tests; system planned (Stage 3).
+- **Coverage:** integration vertical-export tests. Automated by tests/system/test_uc_vertical_export.py::test_vertical_preset_exports_1080x1920.
 - **Pre-release priority:** P1 - a distinct render path; worth confirming the real output geometry.
 
 ### UC-F05 - Vision "What's on screen" (image analysis)
@@ -363,7 +365,7 @@ A one-glance "what to walk before public" list is in the final section.
   3. (Optional) enable Auto-describe silent clips (Advanced AI options); tick Include frame analysis on a recording re-score.
 - **Expected:** the summary lands in a "What's on screen" card on the correct clip even if you navigated away, and feeds the scorer prompt as context without setting the score by itself; it never runs automatically during analysis; auto-describe only replaces the template one-liner on top silent clips and never redoes a clip that already has a description.
 - **Automation:** automated / golden.
-- **Coverage:** the wiring (cancel/return-to-right-clip, stubbed vision model) via the js vision cancel-wiring test + integration vision tests; a real vision model is golden-only.
+- **Coverage:** the wiring (cancel/return-to-right-clip, stubbed vision model) via the js vision cancel-wiring test + integration vision tests; a real vision model is golden-only. Automated by tests/integration/test_vision.py::TestVisualBlock::test_scorer_feeds_vision_summary_into_prompt.
 - **Pre-release priority:** P2 - opt-in, and the tricky wiring is already unit-covered.
 
 ---
@@ -380,7 +382,7 @@ A one-glance "what to walk before public" list is in the final section.
   4. (First run) choose "Restore from a backup instead" in the wizard.
 - **Expected:** the backup zip carries the DB, settings, contexts, and custom sounds but not the source videos/exports/proxies/reels (stays small); restore rebuilds the project; missing-folder relink lets clips play again; folders left blank stay marked missing rather than guessed.
 - **Automation:** automated (backup/restore roundtrip; relink logic).
-- **Coverage:** integration backup/restore tests; system planned (Stage 3).
+- **Coverage:** integration backup/restore tests. Automated by tests/integration/test_backup.py::test_backup_contains_project_state.
 - **Pre-release priority:** P1 - data-safety feature; a broken restore is a trust-losing bug.
 
 ### UC-G02 - Confirmations, log download, status, notification sounds
@@ -393,7 +395,7 @@ A one-glance "what to walk before public" list is in the final section.
   4. Settings -> Notification sounds; opt in to an event, Preview, and confirm the cue fires on completion (Stop sound button appears).
 - **Expected:** all destructive actions use the app modal; log downloads non-empty and username-redacted; status returns `any_running`/`active_jobs` correctly; sound cues are off by default and only fire for opted-in events.
 - **Automation:** automated / manual-only.
-- **Coverage:** confirmations/status/log via ui confirmation/log tests + integration status tests; sound playback is manual-only.
+- **Coverage:** confirmations/status/log via ui confirmation/log tests + integration status tests; sound playback is manual-only. Automated by tests/integration/test_analyze.py::TestStatus::test_status_idle.
 - **Pre-release priority:** P2 - mostly automated; the packaged Reveal-in-folder is covered under UC-G03.
 
 ### UC-G03 - Desktop shell lifecycle (packaged)

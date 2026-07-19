@@ -295,7 +295,37 @@ yuu-dev test-all            # every server-free tier in one go: js + unit + inte
 yuu-dev test-ui --changed   # dev default: tests around the diff + smoke
 yuu-dev test-ui --smoke     # ~6-test backstop only, quickest sanity check
 yuu-dev test-ui             # full suite (all tests/ui/test_ui_*.py) - see cadence above
+yuu-dev test-system         # full-stack system tier (tests/system); real pipeline + TestClient, needs ffmpeg
 ```
+
+### System tier (`tests/system/`) - full-stack use-case tests
+
+A fifth tier drives the **real** analyze pipeline (`pipeline.analyze_one`, the CLI's
+`_analyze_one`/`_run_scoring` path) against a tiny ffmpeg-generated fixture video, then
+exercises the rest of a use case through the FastAPI `TestClient` - one test per
+automatable use case in `docs/dev/USE_CASES.md`. Only two seams are stubbed
+(`transcribe/whisper_runner.transcribe_track` and the `scoring.llm_client` backend);
+energy/scenes/laugh/visual scoring, the DB, routes, ffmpeg cut/encode, and SRT sidecars
+all run for real. It needs ffmpeg on PATH (guard-skips otherwise) and no live server.
+
+- Run it with `yuu-dev test-system` (writes `test-system-last.log` +
+  `-summary.log`, mirroring test-api). It is a **pre-release gate, not a per-edit
+  check**, and is deliberately excluded from `test-api`'s default selection (which stays
+  ~1 min). `scripts/test-system.ps1` is a thin wrapper over the same command.
+- Determinism: no real models/network, generated (not committed) fixture video, fixed
+  transcript, exact-match assertions on what we control (durations, file existence, flag
+  booleans, sidecar contents). The stubs and fixture live in `tests/system/conftest.py`
+  and `tests/system/_stubs.py`.
+
+### Adding or changing a user-facing feature (use-case catalog)
+
+Any new user-facing feature must (1) add or update a use case in `docs/dev/USE_CASES.md`
+with an `Automation` tag, (2) for an `automated`/`golden` use case, add or update a
+`tests/system/` test (or another real test) and end the `Coverage` line with an
+`Automated by <pytest node id>` reference, or justify `manual-only`, and (3) add its row
+to `docs/dev/testing/installed-app-checklist.md`. `tests/unit/test_use_case_catalog.py`
+enforces those links - it fails if an automated use case cites no real pytest node id or
+a cited node id no longer exists.
 
 Run `yuu-dev test-js` after editing any `static/*.js` that has (or should have) a
 `tests/js/` counterpart. A JS helper's pure logic belongs in `tests/js/` (import the
