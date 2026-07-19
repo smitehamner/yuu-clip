@@ -150,7 +150,16 @@ def compute_target_video_kbps(target_size_mb: float, duration_s: float, audio_kb
 def resolve_video_kbps(preset: ExportPreset, duration_s: float) -> float:
     """Video bitrate for a size-capped (target_size_mb) preset, or raise
     ClipTooLongForPresetError with a plain-English message when the clip is too
-    long to fit the target above MIN_VIDEO_KBPS."""
+    long to fit the target above MIN_VIDEO_KBPS.
+
+    A non-positive duration is rejected first: it divides by zero, and a negative
+    one produces a negative bitrate that would otherwise trip the size check and
+    report a crossed-over trim as "this clip is too long".
+    """
+    if duration_s <= 0:
+        raise ValueError(
+            "These trim points leave no clip to export - the end lands at or before the start."
+        )
     video_kbps = compute_target_video_kbps(preset.target_size_mb, duration_s, preset.audio_kbps)
     if video_kbps < MIN_VIDEO_KBPS:
         size_label = f"{preset.target_size_mb:g} MB"

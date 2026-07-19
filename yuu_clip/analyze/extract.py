@@ -245,7 +245,16 @@ def _verify_export_duration(ffprobe: str, output_path: Path, expected_s: float) 
     Stream-copy keyframe seeking can overshoot the requested length slightly, so we
     allow generous slack. A result far longer than requested means the trim arguments
     were not applied - fail loudly rather than hand back a multi-hour file.
+
+    An empty requested window is always a caller bug, and the fixed tolerance floor
+    would wave it through (ffmpeg answers `-t 0` with a keyframe-sized fragment and
+    exit 0, which is well under the floor) - so reject it before probing at all.
     """
+    if expected_s <= 0:
+        raise RuntimeError(
+            f"Export requested an empty {expected_s:.0f}s window - the clip's trim "
+            f"points leave nothing to cut. Output left at {output_path}."
+        )
     actual_s = _probe_duration_s(ffprobe, output_path)
     if actual_s is None:
         return

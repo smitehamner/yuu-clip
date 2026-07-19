@@ -74,6 +74,19 @@ class TestBitrateMath:
         with pytest.raises(ClipTooLongForPresetError, match="too long to fit under 2 MB"):
             resolve_video_kbps(preset, duration_s=120.0)
 
+    def test_zero_duration_is_rejected_before_dividing_by_it(self):
+        preset = ExportPreset(name="discord-10mb", label="Discord", container="mp4", target_size_mb=10.0, audio_kbps=128)
+        with pytest.raises(ValueError, match="leave no clip"):
+            resolve_video_kbps(preset, duration_s=0.0)
+
+    def test_negative_duration_does_not_report_the_clip_as_too_long(self):
+        # A crossed-over trim yields a negative bitrate, which trips the size floor and
+        # would otherwise blame clip length - the opposite of the real problem.
+        preset = ExportPreset(name="discord-10mb", label="Discord", container="mp4", target_size_mb=10.0, audio_kbps=128)
+        with pytest.raises(ValueError, match="leave no clip") as exc_info:
+            resolve_video_kbps(preset, duration_s=-10.0)
+        assert "too long" not in str(exc_info.value)
+
     def test_floor_is_exclusive_boundary(self):
         # duration chosen so video_kbps lands just at MIN_VIDEO_KBPS - Fails when < floor.
         # total_kbps = target*8192/duration; solve duration so video_kbps == MIN_VIDEO_KBPS - 1

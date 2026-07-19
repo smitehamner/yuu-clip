@@ -17,6 +17,7 @@ import typer
 from yuu_clip.config import run_ffmpeg
 from yuu_clip.console import BYTES_PER_MB, console
 from yuu_clip.export.naming import DEFAULT_EXPORT_NAME_TEMPLATE, export_base_stem
+from yuu_clip.export.window import EMPTY_WINDOW_MESSAGE, export_window_ms
 from yuu_clip.log import get_logger
 
 if TYPE_CHECKING:
@@ -379,7 +380,15 @@ def _finalize_export(cand, session, video_path: Path, output: Path, config, *,
 
     from yuu_clip.analyze.extract import export_clip, export_clip_with_preset
 
-    start_ms, end_ms = _compute_export_window(cand)
+    start_ms, end_ms = export_window_ms(cand)
+    # A row saved before the timing route validated its offsets (or edited via the
+    # CLI) can still carry a crossed-over trim. ffmpeg answers a zero-length request
+    # with a keyframe-sized fragment and exit 0, so this would otherwise be recorded
+    # as a successful export of a fraction-of-a-second file.
+    if end_ms <= start_ms:
+        console.print(f"  [red]Export failed: {EMPTY_WINDOW_MESSAGE}[/red]")
+        log.error("Export refused: clip_id=%s has an empty trim window (%d-%d ms)", cand.id, start_ms, end_ms)
+        raise typer.Exit(1)
     try:
         clip_dest = output if not title_card else output.with_suffix(".clip_tmp" + output.suffix)
         if preset is not None:
@@ -448,22 +457,6 @@ def _finalize_export(cand, session, video_path: Path, output: Path, config, *,
         for tmp_path in (subtitle_path, subtitle_track_path):
             if tmp_path and tmp_path.exists():
                 tmp_path.unlink(missing_ok=True)
-
-
-def _compute_export_window(cand) -> tuple[int, int]:
-    """Apply the user's start/end offsets and clamp to the source duration.
-
-    Returns ms relative to the source file passed to export_clip. For a split
-    segment, cand.start_ms/end_ms/video.duration_ms are all segment-relative, but
-    video.path always points at the untrimmed parent file - so segment_start_s is
-    added back in after clamping against the (segment-relative) duration.
-    """
-    start_ms = max(0, cand.start_ms + int((cand.start_offset or 0.0) * 1000))
-    end_ms   = cand.end_ms + int((cand.end_offset or 0.0) * 1000)
-    if cand.video.duration_ms:
-        end_ms = min(end_ms, cand.video.duration_ms)
-    segment_offset_ms = int((cand.video.segment_start_s or 0.0) * 1000)
-    return start_ms + segment_offset_ms, end_ms + segment_offset_ms
 
 
 def _resolve_audio_stream_index(session, cand) -> Optional[int]:

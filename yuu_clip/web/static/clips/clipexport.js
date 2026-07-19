@@ -394,7 +394,10 @@ export async function confirmExport() {
       body: JSON.stringify({start_offset: trimStart, end_offset: trimEnd}),
     }).catch(err => { showToast(`Failed to save trim: ${err.message}`, 'error'); return null; });
     if (!timingRes || !timingRes.ok) {
-      if (timingRes) showToast('Failed to save trim points', 'error');
+      if (timingRes) {
+        const detail = formatApiError(await timingRes.json().catch(() => ({})));
+        showToast(detail || 'Failed to save trim points', 'error');
+      }
       return;
     }
   }

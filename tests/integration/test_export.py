@@ -356,24 +356,53 @@ class TestComputeExportWindow:
         )
 
     def test_non_segment_video_unaffected(self):
-        from yuu_clip.export.render import _compute_export_window
+        from yuu_clip.export.window import export_window_ms
         cand = self._cand(10_000, 20_000, duration_ms=600_000, segment_start_s=None)
-        assert _compute_export_window(cand) == (10_000, 20_000)
+        assert export_window_ms(cand) == (10_000, 20_000)
 
     def test_split_segment_adds_segment_offset(self):
-        from yuu_clip.export.render import _compute_export_window
+        from yuu_clip.export.window import export_window_ms
         # Segment starts at 300s into the parent; clip is 10-20s into the segment.
         cand = self._cand(10_000, 20_000, duration_ms=120_000, segment_start_s=300.0)
-        assert _compute_export_window(cand) == (310_000, 320_000)
+        assert export_window_ms(cand) == (310_000, 320_000)
 
     def test_split_segment_clamp_uses_segment_relative_duration(self):
-        from yuu_clip.export.render import _compute_export_window
+        from yuu_clip.export.window import export_window_ms
         # end_ms would exceed the 120s segment before the offset is added; clamp
         # against the segment-relative duration, then shift into parent coordinates.
         cand = self._cand(100_000, 150_000, duration_ms=120_000, segment_start_s=300.0)
-        start_ms, end_ms = _compute_export_window(cand)
+        start_ms, end_ms = export_window_ms(cand)
         assert start_ms == 400_000
         assert end_ms == 420_000  # clamped to 120_000 (segment end) + 300_000 offset
+
+
+class TestEmptyTrimWindow:
+    """Offsets that cross over each other leave nothing to cut. ffmpeg answers a
+    zero-length request with a keyframe-sized fragment and exit 0, so an unguarded
+    empty window is recorded as a *successful* export of a ~0.4s file."""
+
+    def _cand(self, start_offset, end_offset):
+        return SimpleNamespace(
+            start_ms=60_000, end_ms=80_000,
+            start_offset=start_offset, end_offset=end_offset,
+            video=SimpleNamespace(duration_ms=600_000, segment_start_s=None),
+        )
+
+    def test_offsets_that_cancel_out_are_empty(self):
+        from yuu_clip.export.window import window_is_empty
+        assert window_is_empty(self._cand(10.0, -10.0)) is True
+
+    def test_offsets_that_cross_over_are_empty(self):
+        from yuu_clip.export.window import window_is_empty
+        assert window_is_empty(self._cand(0.0, -30.0)) is True
+
+    def test_ordinary_trim_is_not_empty(self):
+        from yuu_clip.export.window import window_is_empty
+        assert window_is_empty(self._cand(1.0, -1.0)) is False
+
+    def test_untrimmed_clip_is_not_empty(self):
+        from yuu_clip.export.window import window_is_empty
+        assert window_is_empty(self._cand(0.0, 0.0)) is False
 
 
 class TestVerifyExportDuration:
@@ -392,6 +421,20 @@ class TestVerifyExportDuration:
         from yuu_clip.analyze import extract
         monkeypatch.setattr(extract, "_probe_duration_s", lambda ffprobe, path: None)
         extract._verify_export_duration("ffprobe", Path("out.mkv"), expected_s=30.0)
+
+    def test_zero_length_request_is_rejected_not_waved_through(self, monkeypatch):
+        # The real failure: ffmpeg returns a ~0.4s keyframe fragment for `-t 0`, which
+        # sits well under the 5s tolerance floor and would otherwise pass as success.
+        from yuu_clip.analyze import extract
+        monkeypatch.setattr(extract, "_probe_duration_s", lambda ffprobe, path: 0.4)
+        with pytest.raises(RuntimeError, match="empty"):
+            extract._verify_export_duration("ffprobe", Path("out.mkv"), expected_s=0.0)
+
+    def test_negative_length_request_is_rejected(self, monkeypatch):
+        from yuu_clip.analyze import extract
+        monkeypatch.setattr(extract, "_probe_duration_s", lambda ffprobe, path: 3.0)
+        with pytest.raises(RuntimeError, match="empty"):
+            extract._verify_export_duration("ffprobe", Path("out.mkv"), expected_s=-10.0)
 
 
 class TestShareDeleteMediaServing:

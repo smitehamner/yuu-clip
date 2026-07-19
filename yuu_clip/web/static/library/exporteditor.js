@@ -460,7 +460,11 @@ async function _edSaveEdits() {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ start_offset: _edStartOffset, end_offset: _edEndOffset }),
   }).catch(() => null);
-  if (!timingRes || !timingRes.ok) { showToast('Failed to save trim', 'error'); return false; }
+  if (!timingRes || !timingRes.ok) {
+    const detail = timingRes ? formatApiError(await timingRes.json().catch(() => ({}))) : '';
+    showToast(detail || 'Failed to save trim', 'error');
+    return false;
+  }
 
   if (exportPresetIsVertical(_edPreset)) {
     const framingRes = await fetch(`/api/clips/${_edClipId}/framing`, {

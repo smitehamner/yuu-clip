@@ -13,6 +13,7 @@ from fastapi import APIRouter, HTTPException
 
 from yuu_clip.db.models import Video
 from yuu_clip.export.paths import all_sidecar_paths, clip_export_row_files
+from yuu_clip.export.window import EMPTY_WINDOW_MESSAGE, window_is_empty
 from yuu_clip.log import get_logger
 from yuu_clip.scoring.dedup import DUPLICATE_TAG
 from yuu_clip.web.deps import ProjectContext
@@ -160,12 +161,21 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
 
     @router.patch("/api/clips/{clip_id}/timing")
     def update_clip_timing(clip_id: int, body: ClipTimingUpdate):
-        """Set start_offset and end_offset (seconds) on a clip."""
+        """Set start_offset and end_offset (seconds) on a clip.
+
+        Rejects a trim whose offsets cross over each other. The export dialog's
+        trim fields are free text, so this is reachable by typing (e.g. -20 into
+        the End box of a 20s clip); left unchecked it reaches ffmpeg as a
+        zero-length cut, which succeeds and yields a fraction-of-a-second file.
+        """
         db = ctx.get_db()
         try:
             clip = require_clip(db, clip_id)
             clip.start_offset = body.start_offset
             clip.end_offset   = body.end_offset
+            if window_is_empty(clip):
+                db.rollback()
+                raise HTTPException(400, EMPTY_WINDOW_MESSAGE)
             clip.trim_edited_at = datetime.now(timezone.utc)
             db.commit()
             # Invalidate the cached preview so the next request reflects the new timing.
