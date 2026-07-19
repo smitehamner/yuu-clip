@@ -9,7 +9,18 @@ $ErrorActionPreference = 'Stop'
 
 $root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent  # repo root (script lives in scripts/windows-release/)
 
-# ── 0. Bump version if requested ─────────────────────────────────────────────
+# ── 0. Warn if working tree is dirty ────────────────────────────────────────
+# Runs BEFORE the version bump: the bump commits pyproject.toml + the electron
+# manifests, so checking afterwards means you only learn the tree was dirty once
+# there is already a commit to unwind.
+$dirty = git -C $root status --porcelain
+if ($dirty) {
+    Write-Warning "Git working tree is dirty. Commit or stash changes before releasing."
+    $ans = Read-Host "Continue anyway? (y/N)"
+    if ($ans -notmatch '^[Yy]') { exit 1 }
+}
+
+# ── 1. Bump version if requested ─────────────────────────────────────────────
 if ($Version -eq "") {
     $pyprojectCurrent = Get-Content "$root\pyproject.toml" -Raw
     if ($pyprojectCurrent -match 'version\s*=\s*"([^"]+)"') { $currentVer = $Matches[1] } else { $currentVer = "?" }
@@ -41,14 +52,6 @@ if ($Version -ne "") {
     git -C $root add pyproject.toml electron/package.json electron/package-lock.json
     git -C $root commit -m "Bump version to $Version"
     Write-Host "Committed version bump."
-}
-
-# ── 1. Warn if working tree is dirty ────────────────────────────────────────
-$dirty = git -C $root status --porcelain
-if ($dirty) {
-    Write-Warning "Git working tree is dirty. Commit or stash changes before releasing."
-    $ans = Read-Host "Continue anyway? (y/N)"
-    if ($ans -notmatch '^[Yy]') { exit 1 }
 }
 
 # ── 2. Read version from pyproject.toml ─────────────────────────────────────
