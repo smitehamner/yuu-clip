@@ -177,7 +177,11 @@ Before sharing, install and smoke-test in a secondary Windows user account or a 
 - [ ] Configure an LLM model path in Settings, rescore - LLM scores appear
 - [ ] Click X while analysis is in progress - "Cancel?" dialog appears
 - [ ] Click X when idle - app closes immediately
-- [ ] Uninstall via Add/Remove Programs - app removed, `Videos\yuu-clip\` data survives
+- [ ] Install the next build over this one - the downloaded `.gguf` under
+      `%LOCALAPPDATA%\yuu-clip\models\` and the venv both survive, and LLM scoring still
+      works without re-downloading anything
+- [ ] Uninstall via Add/Remove Programs - app removed, `%LOCALAPPDATA%\yuu-clip\` gone,
+      `Videos\yuu-clip\` data survives
 
 ### Deferred packaged-app checks (run once, before public distribution)
 
@@ -252,10 +256,18 @@ Reference for both you and users. Included as `INSTALLED-FILES.txt` in the app d
 |------|----------|-----------------------|
 | `%LOCALAPPDATA%\Programs\yuu-clip\` | Electron app (NSIS managed) | Yes |
 | `%LOCALAPPDATA%\yuu-clip\venv\` | Python venv (created on first launch) | Yes - custom NSIS step |
+| `%LOCALAPPDATA%\yuu-clip\models\` | Downloaded `.gguf` AI models (multi-GB) | Yes - custom NSIS step |
 | `%APPDATA%\yuu-clip\` | App settings, track layouts, config | Yes |
 | `%USERPROFILE%\Videos\yuu-clip\` | Your videos DB, clips, exports, logs | **No - never auto-deleted** |
+| `%USERPROFILE%\.cache\huggingface\` | Whisper / speaker model weights | **No - shared HF cache** |
 
 After uninstall, a dialog reminds the user that `Videos\yuu-clip\` was not removed and they can delete it manually if they want.
+
+"Removed on uninstall" means a **real** uninstall only. Installing a new version over an
+old one runs the old uninstaller with `--updated`, and `customUnInstall` gates every
+`RMDir` on `$isDeleteAppData` so upgrades keep the downloaded models and the provisioned
+venv. Before that gate existed, every upgrade silently deleted the user's `.gguf` model
+and the app then reported "The set-up local model file is missing".
 
 ---
 

@@ -78,9 +78,20 @@
 
 ; Custom uninstall: remove our desktop shortcut (electron-builder won't, since its
 ; own creation is disabled) plus runtime directories not tracked by the installer.
+;
+; The runtime dirs are gated on $isDeleteAppData - a global the uninstall section
+; sets just above this macro's insertion point. It is "1" only for a real uninstall
+; (or an explicit --delete-app-data); on an UPGRADE the installer runs the old
+; uninstaller with --updated and it stays "0". Without that gate every upgrade wiped
+; $LOCALAPPDATA\yuu-clip, which holds the downloaded .gguf models (a ~4.7 GB
+; re-download) and the provisioned venv (which ensureVenv/decidePrebuiltEnvAction is
+; designed to reuse when the bundled version still matches). electron-builder guards
+; its own APPDATA deletion the same way.
 !macro customUnInstall
   WinShell::UninstShortcut "$newDesktopLink"
   Delete "$newDesktopLink"
-  RMDir /r "$LOCALAPPDATA\yuu-clip"
-  RMDir /r "$LOCALAPPDATA\yuu-clip-updater"
+  ${if} $isDeleteAppData == "1"
+    RMDir /r "$LOCALAPPDATA\yuu-clip"
+    RMDir /r "$LOCALAPPDATA\yuu-clip-updater"
+  ${endif}
 !macroend
