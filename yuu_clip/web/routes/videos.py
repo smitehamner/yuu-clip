@@ -22,6 +22,7 @@ from yuu_clip.db.models import (
     Transcript,
     TranscriptSegment,
     Video,
+    VisualActivity,
     latest_track_transcript,
 )
 from yuu_clip.export.naming import DEFAULT_EXPORT_NAME_TEMPLATE
@@ -669,7 +670,8 @@ def _register_video_data_routes(router: APIRouter, ctx: ProjectContext) -> None:
             if locked:
                 raise locked_files_error(locked)
 
-            # AudioEnergy and SceneBoundary have no Python-level cascade; delete explicitly
+            # AudioEnergy, SceneBoundary, and VisualActivity have no Python-level
+            # cascade; delete explicitly
             track_ids = [t.id for t in video.audio_tracks]
             if track_ids:
                 db.query(AudioEnergy).filter(
@@ -677,6 +679,9 @@ def _register_video_data_routes(router: APIRouter, ctx: ProjectContext) -> None:
                 ).delete(synchronize_session=False)
             db.query(SceneBoundary).filter(
                 SceneBoundary.video_id == video_id
+            ).delete(synchronize_session=False)
+            db.query(VisualActivity).filter(
+                VisualActivity.video_id == video_id
             ).delete(synchronize_session=False)
 
             source_path = video.path

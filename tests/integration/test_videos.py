@@ -339,6 +339,23 @@ class TestDelete:
         r = client.delete("/api/videos/99999")
         assert r.status_code == 404
 
+    def test_delete_video_with_visual_activity_rows(self, client, project_dir):
+        """A recording scored with motion detection leaves VisualActivity rows -
+        the FK to videos.id has no ORM cascade, so the route must delete them
+        explicitly or the final DELETE FROM videos violates the FK constraint."""
+        from yuu_clip.db.models import VisualActivity, make_session
+        vid_id = self._vid_id(client)
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            db.add(VisualActivity(video_id=vid_id, timecode_ms=0, intensity=1.5))
+            db.add(VisualActivity(video_id=vid_id, timecode_ms=1000, intensity=2.0))
+            db.commit()
+        finally:
+            db.close()
+        r = client.delete(f"/api/videos/{vid_id}")
+        assert r.status_code == 200
+        assert r.json()["deleted"] == vid_id
+
 
 class TestDeleteVideoDuringAnalysis:
     """Removing a recording while it is being analyzed must 409 - the ingest
