@@ -244,6 +244,19 @@ class TestModelGrouping:
         self._open_with_catalog(page, [_model(installed=False, active=False)])
         assert page.locator("#s-llamacpp-recommended [data-act='download-gguf']").count() == 1
 
+    def test_active_but_missing_file_shows_missing_badge_and_redownload(self, page: Page):
+        # The config still points at this model but its backing file is gone: it must
+        # surface as a recoverable "File missing" state with a re-download, not a plain
+        # "Active" badge + inert "in use" note (the confusing state from the VM run).
+        self._open_with_catalog(page, [
+            _model(id="txt", display_name="Broken Text", active=True, installed=False),
+        ])
+        assert page.locator("#s-llamacpp-recommended .rec-model-badge.missing").count() == 1
+        assert page.locator("#s-llamacpp-recommended .rec-model-badge.active").count() == 0
+        assert page.locator("#s-llamacpp-recommended [data-act='download-gguf']").count() == 1
+        summary = page.locator("#s-llm-current-summary")
+        assert "file missing" in summary.inner_text().lower()
+
 
 @skip_no_server
 class TestGgufUseRouting:

@@ -58,9 +58,12 @@ function _updateCurrentModelSummary() {
   if (!active) { el.style.display = 'none'; return; }
   const backend = _modelCatalogInfo.backend;
   const label = _BACKEND_LABELS[backend] || backend;
+  const missingNote = active.installed
+    ? ''
+    : ` <span class="rec-model-note warn">- file missing, re-download below</span>`;
   el.innerHTML =
     `Currently using: <strong>${escHtml(active.display_name)}</strong> ` +
-    `<span class="settings-note">(${escHtml(label)})</span>`;
+    `<span class="settings-note">(${escHtml(label)})</span>${missingNote}`;
   el.style.display = '';
 }
 
@@ -111,6 +114,9 @@ function _modelMetaLine(m) {
 }
 
 function _modelBadge(m) {
+  // Active but the file is gone: config still points here, so surface it as a
+  // recoverable "file missing" state rather than a plain "Active".
+  if (m.active && !m.installed) return `<span class="rec-model-badge missing">File missing</span>`;
   if (m.active) return `<span class="rec-model-badge active">Active</span>`;
   if (m.installed) return `<span class="rec-model-badge">Downloaded</span>`;
   return '';
@@ -134,7 +140,8 @@ function _recModelHtml(m, backend, kind) {
 }
 
 // One-click surface for local .gguf models: download when missing, "Use this
-// model" when the file is already on disk, and a plain "in use" note when active.
+// model" when the file is already on disk, a plain "in use" note when active, and a
+// re-download when active but the backing file has gone missing.
 // The raw path boxes (Advanced disclosure) stay as the manual fallback.
 function _llamacppActions(m) {
   if (!m.gguf_url) return '';
@@ -142,7 +149,12 @@ function _llamacppActions(m) {
     return `<a href="${escHtml(m.gguf_url)}" target="_blank" rel="noopener">Download page</a>`;
   }
   const parts = [];
-  if (m.active) {
+  if (m.active && !m.installed) {
+    // Config points here but the file is gone - offer a re-download so this
+    // active-but-broken state is recoverable without hand-editing the path.
+    parts.push(`<span class="rec-model-note warn">File missing - re-download to restore it.</span>`);
+    parts.push(`<button type="button" class="btn-secondary" data-act="download-gguf">Re-download</button>`);
+  } else if (m.active) {
     parts.push(`<span class="rec-model-note">In use for local scoring.</span>`);
   } else if (m.installed) {
     parts.push(`<button type="button" class="btn-secondary" data-act="use-gguf">Use this model</button>`);
