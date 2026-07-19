@@ -44,11 +44,25 @@ jobs:
           python -m mypy > mypy.out || true
           python -m mypy_baseline filter < mypy.out
 
-  test-api:
+  # One Python job per test tier (separate status checks, run in parallel). Each tier
+  # is its own `yuu-dev` command; fail-fast is off so one red tier does not mask the
+  # others. All three share the same heavy [dev] install (the pip cache amortizes it)
+  # because the unit tier still imports yuu_clip modules that pull the ML stack, and
+  # the integration/system tiers exercise the real pipeline. The ui (Playwright) tier
+  # stays out of CI - it needs a live server + seeded project - and test-golden stays
+  # out too: it is env-gated on real Whisper + a local .gguf and would only ever skip.
+  pytest:
+    name: pytest (${{ matrix.tier }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        tier: [unit, integration, system]
     steps:
       - uses: actions/checkout@v4
-      # A few pipeline/export paths shell out to ffmpeg, so it must be on PATH.
+      # The integration and system tiers shell out to ffmpeg (cut/encode, the
+      # generated system-tier fixture video); installing it for the unit tier too
+      # keeps the matrix uniform at negligible cost.
       - name: Install FFmpeg
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - uses: actions/setup-python@v5
@@ -69,8 +83,8 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]" -c requirements.lock
-      - name: Unit + integration tests
-        run: python -m yuu_clip.dev test-api
+      - name: ${{ matrix.tier }} tier
+        run: python -m yuu_clip.dev test-${{ matrix.tier }}
 
   test-js:
     runs-on: ubuntu-latest
@@ -82,7 +96,21 @@ jobs:
           cache: npm
       - run: npm ci
       # The JS unit tier that `yuu-dev test-js` wraps (vitest + happy-dom over
-      # tests/js/). Node-only, sub-minute - no Python env needed to run it. The ui
-      # (Playwright) tier stays out of CI: it drives a live server + seeded project.
+      # tests/js/). Node-only, sub-minute - no Python env needed to run it.
       - name: JS unit tests (vitest)
         run: npm run test:js
+
+  test-electron:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      # The Electron wrapper's node --test suite (pure-unit; sub-second). No install
+      # needed - the tests require only node builtins + committed source. The opt-in
+      # boot smoke test (YUU_SMOKE=1) stays off here: it needs a real Electron + a
+      # python that can import yuu_clip, neither present on this runner.
+      - name: Electron wrapper unit tests (node --test)
+        run: npm test
+        working-directory: electron
