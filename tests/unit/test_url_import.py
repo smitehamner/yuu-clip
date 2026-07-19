@@ -310,7 +310,7 @@ class TestSubprocessSseTracksActiveJob:
         from yuu_clip.web.sse import subprocess_sse
 
         ctx = SimpleNamespace(
-            analyze_proc=None, analyze_cancelled=False, active_jobs=0, import_cmd="queued",
+            analyze_proc=None, active_jobs=0, import_cmd="queued",
             subprocess_procs=set(), counted_procs=set(),
         )
         observed = []
@@ -332,7 +332,7 @@ class TestSubprocessSseTracksActiveJob:
     def test_active_jobs_untouched_when_not_tracked(self, tmp_path: Path):
         from yuu_clip.web.sse import subprocess_sse
 
-        ctx = SimpleNamespace(analyze_proc=None, analyze_cancelled=False, active_jobs=0, subprocess_procs=set())
+        ctx = SimpleNamespace(analyze_proc=None, active_jobs=0, subprocess_procs=set())
 
         async def drive():
             response = await subprocess_sse([sys.executable, "-c", "print('hi')"], tmp_path, ctx)

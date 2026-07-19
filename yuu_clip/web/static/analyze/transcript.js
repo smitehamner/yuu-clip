@@ -403,16 +403,20 @@ async function _renameSpeakerFromLine(speakerId, name, videoId) {
 // the dot menu's rename field duplicates. Prefills the speaker's raw name (empty when
 // unnamed) so the placeholder invites a real name rather than editing the "Speaker N"
 // fallback. On commit, _renameSpeakerFromLine reloads the transcript, replacing the label.
-async function startRenameSpeaker(label) {
+export async function startRenameSpeaker(label) {
   if (label.classList.contains('editing')) return;
   const speakerId = parseInt(label.dataset.speakerId, 10);
   const videoId = parseInt(label.dataset.videoId, 10);
   if (!speakerId || !videoId) return;
+  // Claim the label BEFORE the await: the speaker fetch is uncached on first use, and
+  // a second click during it would otherwise pass the guard too, appending a second
+  // input and capturing `original` from the already-blanked label (so a later Escape
+  // restored an empty name).
+  const original = label.textContent;
+  label.classList.add('editing');
   const speakers = await _getVideoSpeakers(videoId);
   const cur = speakers.find(s => s.id === speakerId);
-  const original = label.textContent;
   const prevName = cur && cur.name ? cur.name : '';
-  label.classList.add('editing');
   label.textContent = '';
 
   const input = document.createElement('input');

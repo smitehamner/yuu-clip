@@ -1636,23 +1636,25 @@ class TestSseCommandCleared:
                 list(resp.iter_lines())
             assert ctx.analyze_cmd is sentinel_cmd, "score run must not clear analyze_cmd"
 
-    def test_analyze_cancelled_flag_not_triggered_by_score(self, project_dir):
-        """analyze_cancelled=True must not cause score SSE to emit '[Analysis cancelled]' (Bug 1)."""
+    def test_score_after_a_cancel_does_not_report_itself_as_cancelled(self, project_dir):
+        """A prior cancel must not leak a cancel message into an unrelated job (Bug 1).
 
+        Jobs with no cancel button (score, export, retranscribe) pass no
+        cancel_flag_attr to subprocess_sse precisely so this can't happen. Asserts the
+        behaviour rather than the mechanism, so it keeps its meaning if the plumbing
+        changes again.
+        """
         from fastapi.testclient import TestClient
 
         from yuu_clip.web.app import create_app
 
         app = create_app(project_dir)
         with TestClient(app) as tc:
-            ctx = app.state.ctx
-            ctx.analyze_cancelled = True  # stale flag from a previous cancel
+            tc.post("/api/analyze/cancel")  # a real prior cancel
             with tc.stream("GET", "/api/score") as resp:
                 lines = list(resp.iter_lines())
-            # Flag must be consumed only by analyze runs - score must leave it or ignore it
             assert "[Analysis cancelled]" not in " ".join(lines)
-            # Flag should remain True since score did not consume it
-            assert ctx.analyze_cancelled is True
+            assert "cancelled" not in " ".join(lines).lower()
 
 
 # ---------------------------------------------------------------------------
@@ -1681,7 +1683,13 @@ class TestSseOutputPaths:
         data_values = [_json.loads(ln.removeprefix("data: ")) for ln in lines if ln.startswith("data: ")]
         assert "__DONE__" in data_values
 
-    def test_failed_subprocess_emits_error_and_done(self, project_dir):
+    def test_failed_subprocess_emits_error_and_failure_done(self, project_dir):
+        """A non-zero analyze exit must end with the FAILURE done sentinel.
+
+        The bare "__DONE__" string is the frontend's success signal (jobs.js routes it
+        to onDone), so emitting it here made a crashed analysis render as
+        "Analysis complete - 0 clips found" with the success chime.
+        """
         import json as _json
         import sys
 
@@ -1694,7 +1702,70 @@ class TestSseOutputPaths:
             app.state.ctx.analyze_cmd = [sys.executable, "-c", "raise SystemExit(1)"]
             lines = self._stream_lines(tc, "/api/analyze/events")
         data_values = [_json.loads(ln.removeprefix("data: ")) for ln in lines if ln.startswith("data: ")]
-        assert any("[Error:" in v for v in data_values)
+        assert any(isinstance(v, str) and "[Error:" in v for v in data_values)
+        assert "__DONE__" not in data_values
+        done = [v for v in data_values if isinstance(v, dict) and v.get("type") == "__DONE__"]
+        assert len(done) == 1
+        assert done[0]["ok"] is False
+        assert done[0]["error"]
+
+    def test_failed_job_replays_failure_done_to_a_reattaching_client(self, project_dir):
+        """The reattach path (already-finished job) must report failure too.
+
+        A page refreshed after the analysis died replays the buffer and then the
+        sentinel; the bare string there was the same false-success bug on the
+        reconnect branch.
+        """
+        import json as _json
+        import sys
+
+        from fastapi.testclient import TestClient
+
+        from yuu_clip.web.app import create_app
+
+        app = create_app(project_dir)
+        with TestClient(app) as tc:
+            app.state.ctx.analyze_cmd = [sys.executable, "-c", "raise SystemExit(3)"]
+            self._stream_lines(tc, "/api/analyze/events")
+            # Second connect: no queued command, so this replays the finished job.
+            lines = self._stream_lines(tc, "/api/analyze/events")
+        data_values = [_json.loads(ln.removeprefix("data: ")) for ln in lines if ln.startswith("data: ")]
+        assert "__DONE__" not in data_values
+        done = [v for v in data_values if isinstance(v, dict) and v.get("type") == "__DONE__"]
+        assert len(done) == 1
+        assert done[0]["ok"] is False
+
+    def test_cancelled_job_emits_the_plain_done_sentinel(self, project_dir):
+        """A user cancel is not a failure - it keeps the plain sentinel.
+
+        Matches subprocess_sse's cancel branch (which leaves failed=False), so a
+        reattached client sees a clean end rather than an error toast for something
+        the user asked for.
+        """
+        import asyncio
+        import json as _json
+
+        from fastapi.testclient import TestClient
+
+        from yuu_clip.web.analyze_job import AnalyzeJob
+        from yuu_clip.web.app import create_app
+
+        app = create_app(project_dir)
+        with TestClient(app):
+            job = AnalyzeJob(["unused"], project_dir)
+            job.cancelled = True
+            job.returncode = 1
+            job.done = True
+            job.buffer = ["[Analysis cancelled]"]
+
+            async def _collect():
+                return [chunk async for chunk in job._stream()]
+
+            chunks = asyncio.run(_collect())
+        data_values = [
+            _json.loads(c.removeprefix("data: ").strip())
+            for c in chunks if c.startswith("data: ")
+        ]
         assert "__DONE__" in data_values
 
 # ---------------------------------------------------------------------------
@@ -1717,7 +1788,7 @@ class TestAnalyzeCancelSideEffects:
             tc.post("/api/analyze/cancel")
             assert ctx.analyze_cmd is None
 
-    def test_cancel_sets_cancelled_flag_when_proc_running(self, project_dir):
+    def test_cancel_kills_the_whole_process_tree_when_proc_running(self, project_dir):
         from unittest.mock import AsyncMock, MagicMock, patch
 
         from fastapi.testclient import TestClient
@@ -1736,7 +1807,6 @@ class TestAnalyzeCancelSideEffects:
                 ctx = app.state.ctx
                 ctx.analyze_proc = mock_proc
                 tc.post("/api/analyze/cancel")
-                assert ctx.analyze_cancelled is True
                 # cancel must kill the whole tree, not orphan the ffmpeg grandchild
                 assert any(c.args[0][0] == "taskkill" for c in run.call_args_list)
 

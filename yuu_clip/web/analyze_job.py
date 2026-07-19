@@ -22,7 +22,7 @@ from fastapi.responses import StreamingResponse
 
 from yuu_clip.log import get_logger
 from yuu_clip.web.sse import (
-    _SSE_DONE_SENTINEL,
+    _done_event,
     new_session_kwargs,
     terminate_process_tree_async,
 )
@@ -59,6 +59,10 @@ class AnalyzeJob:
         self.subscribers: set[asyncio.Queue] = set()
         self.done = False
         self.cancelled = False
+        # Drives the terminal SSE sentinel's ok flag. A user cancel is deliberately NOT
+        # a failure (it keeps the plain sentinel, matching subprocess_sse's cancel
+        # branch); a non-zero exit or a broken output pump is.
+        self.failed = False
         self.returncode: Optional[int] = None
         self._pump_task: Optional[asyncio.Task] = None
         # Set/cleared by POST /api/analyze/pause|resume - mirrors the pause flag
@@ -99,11 +103,13 @@ class AnalyzeJob:
                 self._emit("[Analysis cancelled]")
             elif self.returncode != 0:
                 _log.error("Analyze subprocess exited with code %d (%s)", self.returncode, job_desc)
+                self.failed = True
                 self._emit(f"[Error: subprocess exited with code {self.returncode}]")
             else:
                 _log.info("Analyze subprocess completed successfully (%s)", job_desc)
         except Exception:
             _log.exception("Analyze output pump failed (%s)", job_desc)
+            self.failed = True
             self._emit("[Error: analysis output stream failed]")
         finally:
             self.done = True
@@ -128,6 +134,18 @@ class AnalyzeJob:
     def sse_response(self) -> StreamingResponse:
         return StreamingResponse(self._stream(), media_type="text/event-stream")
 
+    def _done_payload(self) -> str:
+        """The terminal sentinel for every subscriber, live or reattached.
+
+        Shares sse._done_event with the subprocess_sse jobs so both job families
+        speak one wire format - the frontend decodes the failure form in exactly one
+        place (jobs.js isDoneSentinel/doneError).
+        """
+        return _done_event(
+            ok=not self.failed,
+            error="The analysis did not finish - check the log for details.",
+        )
+
     async def _stream(self) -> AsyncGenerator[str, None]:
         # Snapshot the buffer and register as a subscriber atomically - no await
         # between the two lines means the pump cannot interleave, so every line is
@@ -141,12 +159,12 @@ class AnalyzeJob:
             for line in replay:
                 yield f"data: {json.dumps(line)}\n\n"
             if already_done:
-                yield f"data: {json.dumps(_SSE_DONE_SENTINEL)}\n\n"
+                yield self._done_payload()
                 return
             while True:
                 item = await queue.get()
                 if item is _QUEUE_DONE:
-                    yield f"data: {json.dumps(_SSE_DONE_SENTINEL)}\n\n"
+                    yield self._done_payload()
                     return
                 yield f"data: {json.dumps(item)}\n\n"
         finally:

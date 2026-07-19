@@ -1,5 +1,7 @@
 // Feature-map - Settings optional-package install controls.
 //   API: routes/analyze.py (install status/POST) · Tests: tests/ui/test_ui_settings.py
+import { isDoneSentinel, doneError } from '../core/jobs.js';
+
 // ── optional-package installs ────────────────────────────────────────────────
 // Only two install actions remain (packaging-strategy overhaul, Wave 3): Pyannote
 // (the advanced, token-gated alternative to the default SpeechBrain speaker-labels
@@ -46,7 +48,10 @@ async function installPackage(slug) {
       for (const line of lines) {
         if (!line.startsWith('data: ')) continue;
         const msg = JSON.parse(line.slice(6));
-        if (msg === '__DONE__') {
+        if (isDoneSentinel(msg)) {
+          // A failed pip install exits non-zero: fall through to the catch's failure
+          // status rather than reporting "Installed".
+          if (doneError(msg)) throw new Error(doneError(msg));
           status.textContent = '✓ Installed';
           status.style.color = 'var(--green)';
           btn.textContent = 'Reinstall';

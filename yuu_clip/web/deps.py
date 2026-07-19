@@ -61,7 +61,6 @@ class ProjectContext:
         self.demo_cmd:          list[str] | None = None
         self.import_cmd:        list[str] | None = None
         self.analyze_proc:      object | None    = None  # asyncio.subprocess.Process
-        self.analyze_cancelled: bool             = False
         self.import_cancelled:  bool             = False
         # Set by the frame-analysis cancel endpoint so subprocess_sse emits the
         # cancel message (not a generic error) when the killed subprocess exits.

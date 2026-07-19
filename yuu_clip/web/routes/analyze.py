@@ -473,7 +473,6 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         # re-runs) and any queued-but-unlaunched command.
         proc = ctx.analyze_proc
         if proc is not None and proc.returncode is None:
-            ctx.analyze_cancelled = True
             await terminate_process_tree_async(proc)
         if proc is not None:
             # Release the killed subprocess's job accounting NOW. Its SSE generator's

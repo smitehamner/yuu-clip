@@ -396,6 +396,23 @@ function endJobUI() {
   }, 2000);
 }
 
+// ── done-sentinel decoding ────────────────────────────────────────────────────
+// The terminal SSE payload has two forms (see web/sse.py::_done_event): the bare
+// string "__DONE__" for success, and {type:'__DONE__', ok:false, error} for a job
+// that ended in failure. Every reader must understand BOTH - a reader that only
+// tests the string reports a failed job as a completed one and logs the object as
+// "[object Object]". These two helpers are the single place that knows the shape;
+// import them rather than hand-rolling the check.
+function isDoneSentinel(msg) {
+  return msg === '__DONE__' || (!!msg && typeof msg === 'object' && msg.type === '__DONE__');
+}
+
+// The failure message for a done sentinel, or null when it signals success.
+function doneError(msg) {
+  if (!msg || typeof msg !== 'object' || msg.ok !== false) return null;
+  return msg.error || 'The job did not finish - check the log for details.';
+}
+
 // ── SSE transport ─────────────────────────────────────────────────────────────
 // Low-level SSE reader using fetch + ReadableStream so non-200 HTTP responses
 // can be read for their error detail (EventSource.onerror cannot do this).
@@ -433,15 +450,11 @@ function _openSSE(url, onLine, onDone, onError, opts = {}) {
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue;
           const msg = JSON.parse(line.slice(6));
-          const isDone = msg === '__DONE__' || (msg && typeof msg === 'object' && msg.type === '__DONE__');
-          if (isDone) {
-            // A failure sentinel ({type:'__DONE__', ok:false}) means the job ended in
-            // error - route it to onError so callers never report a failed job as done.
-            if (msg && typeof msg === 'object' && msg.ok === false) {
-              onError(msg.error || 'The job did not finish - check the log for details.');
-            } else {
-              onDone(msg);
-            }
+          if (isDoneSentinel(msg)) {
+            // A failure sentinel means the job ended in error - route it to onError so
+            // callers never report a failed job as done.
+            const failure = doneError(msg);
+            if (failure) onError(failure); else onDone(msg);
             return;
           }
           onLine(msg);
@@ -598,6 +611,7 @@ export {
   INGEST_STEPS, SCORE_STEPS, FRAMES_STEPS, JOB_STAGES, parseProgress, _driveStepFromMarker,
   startJobUI, updateJobUI, endJobUI, applyJobBlockedState, _stepPillLabel, _renderStepPill, _tickJobTimer,
   _setPausedUIFromStatus, togglePauseJob, _pollThermalStatus,
+  isDoneSentinel, doneError,
   _openSSE, streamSSE, _setActiveStream, _clearActiveStream, _supersedeActiveStream, _abortActiveStream,
   _blockedByAnalyze, _waitWhileAnalyzePaused,
   setJobCancel, cancelJob,

@@ -587,7 +587,16 @@ use track 0 as combined and mark the rest unlabeled without prompting.
 `POST /api/analyze/cancel` calls `job.cancel()` on `ctx.analyze_job`, which sets
 `job.cancelled = True` and terminates the process tree; the job's pump emits a
 `[Analysis cancelled]` message to SSE subscribers after the process exits. The
-legacy `ctx.analyze_proc` path (flag: `ctx.analyze_cancelled`) is also covered.
+legacy `ctx.analyze_proc` path (export/score/retranscribe/stage re-runs) is also
+terminated, and its job accounting released synchronously via `release_counted_job`.
+
+Those `subprocess_sse` jobs deliberately pass **no** `cancel_flag_attr`, so they emit
+the generic error line rather than a cancel message. This is not an oversight: the
+frontend closes its stream the instant it POSTs cancel, so the abandoned generator's
+flag-consuming branch only runs on GC - a per-job cancel flag would stay set and leak
+a spurious "[Cancelled]" into the *next* job (see
+`test_score_after_a_cancel_does_not_report_itself_as_cancelled`). Only jobs whose
+stream survives the cancel (URL import, frame analysis) carry a flag.
 
 ### SpeechBrain poisons transformers.pipeline (import order)
 Importing `speechbrain` before `transformers.pipeline` is first resolved makes that

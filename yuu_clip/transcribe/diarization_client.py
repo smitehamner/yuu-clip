@@ -259,7 +259,21 @@ def _prune_small_clusters(
         nearest = max(survivors, key=lambda s: float(np.dot(vector, centroids[s])))
         if 1.0 - float(np.dot(vector, centroids[nearest])) <= max_merge_distance:
             pruned[labels_arr == label] = nearest
-    return pruned
+    return _densify_labels(pruned)
+
+
+def _densify_labels(labels):
+    """Renumber labels to a contiguous 0..n-1 range, preserving their order.
+
+    Folding a middle cluster away leaves a hole (survivors {0, 2}), and these integers
+    become speaker names downstream (SPEAKER_NN), so the user would see "Speaker 1,
+    Speaker 3". Pure renumbering - it never merges two labels.
+    """
+    import numpy as np
+
+    labels_arr = np.asarray(labels, dtype=int)
+    dense = {old: new for new, old in enumerate(sorted({int(v) for v in labels_arr}))}
+    return np.array([dense[int(v)] for v in labels_arr], dtype=int)
 
 
 def _merge_turns(window_times: list[tuple[float, float]], labels) -> list[tuple[float, float, str]]:

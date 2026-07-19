@@ -64,6 +64,40 @@ class TestPruneSmallClusters:
         pruned = _prune_small_clusters(emb, labels, min_seconds=100, max_merge_distance=1.0, hop_s=1.0)
         assert set(pruned.tolist()) == {0, 1, 2}
 
+    def test_surviving_labels_are_renumbered_without_gaps(self):
+        """Pruning a MIDDLE cluster must not leave a hole in the numbering.
+
+        Labels become speaker names downstream (_merge_turns / _cluster_centroids format
+        them as SPEAKER_NN), so surviving {0, 2} would surface to the user as
+        "Speaker 1, Speaker 3" with Speaker 2 missing.
+        """
+        # Three clusters; the middle one (label 1) is a single window close to A, so it
+        # is pruned and folded into 0, leaving raw survivors {0, 2}.
+        emb = _emb([
+            [1, 0], [1, 0], [1, 0],
+            [0.99, 0.01],
+            [0, 1], [0, 1], [0, 1],
+        ])
+        labels = np.array([0, 0, 0, 1, 2, 2, 2])
+        pruned = _prune_small_clusters(emb, labels, min_seconds=3, max_merge_distance=0.5, hop_s=1.0)
+        assert sorted(set(pruned.tolist())) == [0, 1]
+        # Order is preserved: the old-0 windows keep the lower number, old-2 the higher.
+        assert pruned[0] == 0
+        assert pruned[3] == 0  # the folded fragment went to A
+        assert pruned[4] == 1
+
+    def test_renumbering_keeps_a_kept_distant_fragment_distinct(self):
+        """Densifying must not merge anything - a gap-filling renumber only."""
+        emb = _emb([
+            [1, 0], [1, 0], [1, 0],
+            [0.707, 0.707],
+            [0, 1], [0, 1], [0, 1],
+        ])
+        labels = np.array([0, 0, 0, 1, 2, 2, 2])
+        pruned = _prune_small_clusters(emb, labels, min_seconds=3, max_merge_distance=0.15, hop_s=1.0)
+        assert sorted(set(pruned.tolist())) == [0, 1, 2]
+        assert len(set(pruned.tolist())) == 3  # still three distinct voices
+
     def test_speech_time_uses_hop_not_window_count(self):
         # Cluster B has 2 windows. At hop 0.75 that is 1.5 s (< 2 s floor) so it is
         # pruned; at hop 2.0 it is 4 s (>= floor) so it survives. B ~ A so the gate lets

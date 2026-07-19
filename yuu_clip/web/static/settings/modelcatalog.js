@@ -6,6 +6,7 @@
 //   API: routes/llm.py, routes/config.py (capabilities/tiers) · Tests: tests/ui/test_ui_model_catalog.py, tests/ui/test_ui_settings.py
 import { escHtml } from '../core/format.js';
 import { showToast } from '../core/utils.js';
+import { isDoneSentinel, doneError } from '../core/jobs.js';
 
 // ── model catalog (recommended text + vision models) ────────────────────────
 // Loaded once per session. Fills the recommended model lists; the capabilities
@@ -350,12 +351,11 @@ async function downloadGgufModel(modelId) {
         const msg = JSON.parse(line.slice(6));
         // The subprocess exiting non-zero (a failed download) arrives as the
         // object form of the done sentinel; the bare string is success only.
-        if (msg && typeof msg === 'object' && msg.type === '__DONE__') {
-          if (msg.ok === false) _failGgufDownload(modelId, 'Download failed - check your connection and try again.');
+        if (isDoneSentinel(msg)) {
+          if (doneError(msg)) _failGgufDownload(modelId, 'Download failed - check your connection and try again.');
           else await _finishGgufDownload(modelId);
           return;
         }
-        if (msg === '__DONE__') { await _finishGgufDownload(modelId); return; }
         const pct = _parseGgufPct(msg);
         if (pct != null && _ggufDownload && _ggufDownload.modelId === modelId) {
           _ggufDownload.pct = pct;
@@ -393,8 +393,10 @@ async function _finishGgufDownload(modelId) {
   showToast('Local model ready - now active for LLM scoring.', 'success');
 }
 
+// Idempotent: the 1s reconnect poll can overlap itself across its awaits, so a
+// second caller must not re-toast a failure the first already reported.
 function _failGgufDownload(modelId, message) {
-  if (_ggufDownload && _ggufDownload.modelId !== modelId) return;
+  if (!_ggufDownload || _ggufDownload.modelId !== modelId) return;
   _teardownGgufDownload();
   _restoreGgufCard(modelId);
   showToast(message, 'error');
@@ -444,7 +446,14 @@ async function _pollGgufDownload(modelId) {
   try { status = await fetch('/api/llm/download-status').then(r => r.json()); }
   catch { return; }
   if (status && status.downloading) return; // still running
-  await _finishGgufDownload(modelId);
+  // "No longer downloading" is NOT "succeeded": the server clears that registry key
+  // in a finally, so a failed download, or one cancelled in another window, looks
+  // identical here. Confirm the file actually landed before declaring success -
+  // otherwise this reported "Local model ready" for a model that is not on disk.
+  await refreshModelCatalog();
+  const model = (_modelCatalog || []).find(x => x.id === modelId);
+  if (model && model.installed) await _finishGgufDownload(modelId);
+  else _failGgufDownload(modelId, 'Download failed - check your connection and try again.');
 }
 
 // ── model readiness ──────────────────────────────────────────────────────────
@@ -596,9 +605,10 @@ async function prefetchModel(slug, tierId) {
       for (const line of lines) {
         if (!line.startsWith('data: ')) continue;
         const msg = JSON.parse(line.slice(6));
-        if (msg === '__DONE__') {
-          log.textContent += '✓ Ready.\n';
-          _renderCapabilityTiers();
+        if (isDoneSentinel(msg)) {
+          const failure = doneError(msg);
+          log.textContent += failure ? `✗ ${failure}\n` : '✓ Ready.\n';
+          if (!failure) _renderCapabilityTiers();
           return;
         }
         log.textContent += msg + '\n';
