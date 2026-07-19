@@ -467,11 +467,26 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         if job is not None and not job.done:
             _log.warning("Analysis cancelled by user")
             await job.cancel()
-        # Also cover the pre-1.x subprocess path and any queued-but-unlaunched command.
+        # Also cover the subprocess_sse path (export/score/reel/retranscribe/stage
+        # re-runs) and any queued-but-unlaunched command.
         proc = ctx.analyze_proc
         if proc is not None and proc.returncode is None:
             ctx.analyze_cancelled = True
             await terminate_process_tree_async(proc)
+        if proc is not None:
+            # Release the killed subprocess's job accounting NOW. Its SSE generator's
+            # finally would otherwise do this, but the frontend closes its stream the
+            # instant it POSTs cancel (jobs.js _supersedeActiveStream), so Starlette
+            # never aclose()s the abandoned async generator - the cleanup would then
+            # wait on non-deterministic GC finalization and the busy flags latch
+            # (analyze_running / active_jobs stuck on with no subprocess alive).
+            # release_counted_job is idempotent, so the generator's own later finally
+            # can still run without double-counting.
+            from yuu_clip.web.sse import release_counted_job
+            release_counted_job(ctx, proc)
+            ctx.subprocess_procs.discard(proc)
+            if ctx.analyze_proc is proc:
+                ctx.analyze_proc = None
         ctx.analyze_cmd = None
         ctx.analyze_pending_filename = None
         ctx.analyze_pending_video_id = None

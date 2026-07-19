@@ -311,7 +311,7 @@ class TestSubprocessSseTracksActiveJob:
 
         ctx = SimpleNamespace(
             analyze_proc=None, analyze_cancelled=False, active_jobs=0, import_cmd="queued",
-            subprocess_procs=set(),
+            subprocess_procs=set(), counted_procs=set(),
         )
         observed = []
 

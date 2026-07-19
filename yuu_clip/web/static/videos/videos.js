@@ -808,14 +808,38 @@ function reextractVideoRun(id) {
   );
 }
 
+// Reuse the canonical Whisper <option> copy from the clip retranscribe modal (always
+// in the DOM) so the whole-recording picker can't drift from it - test_ui_terminology
+// guards the five static lists; this clones one rather than adding a sixth.
+function _whisperModelOptionsHtml(selected) {
+  const src = document.getElementById('retranscribe-model');
+  if (!src) return '';
+  return Array.from(src.options).map(o =>
+    `<option value="${escHtml(o.value)}"${o.value === selected ? ' selected' : ''}>${escHtml(o.textContent)}</option>`,
+  ).join('');
+}
+
 function retranscribeVideoRun(id) {
   if (_blockedByAnalyze('re-transcribe this recording')) return;
   const video = AppState.videos.find(v => v.id === id);
   const name = video ? video.filename : id;
+  showConfirm(
+    'Re-transcribe recording?',
+    `Re-run speech-to-text for <strong>${escHtml(name)}</strong> with the chosen model. ` +
+    `Existing clips are kept but flagged for a re-score.` +
+    `<div class="field" style="margin-top:12px">` +
+    `<label for="video-retx-model">Whisper model</label>` +
+    `<select id="video-retx-model">${_whisperModelOptionsHtml('large-v3')}</select></div>`,
+    'Re-transcribe',
+    () => _startVideoRetranscribe(id, name, document.getElementById('video-retx-model')?.value || 'large-v3'),
+  );
+}
+
+function _startVideoRetranscribe(id, name, model) {
   openLog();
-  appendLog(`Re-transcribing: ${name}`);
+  appendLog(`Re-transcribing: ${name} (${model})`);
   streamSSE(
-    `/api/videos/${id}/retranscribe`,
+    `/api/videos/${id}/retranscribe?model=${encodeURIComponent(model)}`,
     async () => {
       await loadVideos();
       if (AppState.activeVideoId === id) await selectVideo(id);
@@ -1003,6 +1027,7 @@ export {
   _applyVideoFilters, _renderVideoList,
   setVideoSearch, setVideoSort, toggleVideoSortDir, toggleVideoFilter,
   openVideoActionsModal,
+  retranscribeVideoRun, _whisperModelOptionsHtml,
 };
 
 document.getElementById('detail').addEventListener('click', _handleDetailClick);

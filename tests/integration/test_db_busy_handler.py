@@ -92,6 +92,25 @@ def test_other_operational_error_returns_500(client):
     assert "busy" not in r.json()["detail"].lower()
 
 
+def test_unhandled_exception_returns_json_detail_not_opaque_500(project_dir):
+    """B3/W1: a route that raises a plain exception must return JSON with a `detail`,
+    not FastAPI's bare plaintext "Internal Server Error" - which the UI can't parse,
+    surfacing as "Unknown error (no details from server)" (the opaque delete toast)."""
+    from fastapi.testclient import TestClient
+
+    from yuu_clip.web.app import create_app
+
+    app = create_app(project_dir)
+    _add_raising_route(app, "/api/_test_boom", RuntimeError("disk exploded"))
+    # raise_server_exceptions=False so the ServerErrorMiddleware re-raise (for server
+    # logging) doesn't propagate into the test - we want the client-facing response.
+    with TestClient(app, raise_server_exceptions=False) as tc:
+        r = tc.get("/api/_test_boom")
+    assert r.status_code == 500
+    detail = r.json()["detail"]
+    assert "RuntimeError" in detail and "disk exploded" in detail
+
+
 def test_clip_status_route_survives_a_transient_lock(client, monkeypatch):
     # End-to-end wiring proof: the first commit in the request raises "database is
     # locked"; the route's with_write_retry re-runs on a fresh session and succeeds,

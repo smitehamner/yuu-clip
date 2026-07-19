@@ -87,6 +87,17 @@ class ProjectContext:
         # Count of in-process SSE jobs currently streaming (rescore, timeline, summarize).
         self.active_jobs:      int              = 0
 
+        # subprocess_sse jobs (export/score/reel/retranscribe/...) that currently
+        # hold an active_jobs increment, keyed by the proc object. A cancel can
+        # release a job's slot deterministically (see routes/analyze.py cancel and
+        # sse.release_counted_job) instead of waiting on the SSE generator's finally,
+        # which only runs when the abandoned async generator is garbage-collected -
+        # the client closes its stream the instant it POSTs cancel, so Starlette
+        # never aclose()s it. Membership makes the release idempotent: cancel and the
+        # generator's own later cleanup can both fire without the counter latching
+        # high or going negative.
+        self.counted_procs:    set              = set()
+
         # LRU cache of on-disk clip preview files keyed by clip_id. Scoped to this
         # context so concurrent create_app() instances (e.g. in tests) never share state.
         self.preview_cache: OrderedDict[int, Path] = OrderedDict()

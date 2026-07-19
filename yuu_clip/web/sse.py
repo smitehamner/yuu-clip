@@ -124,6 +124,20 @@ async def terminate_process_tree_async(proc) -> None:
     terminate_process_tree(proc)
 
 
+def release_counted_job(ctx, proc) -> None:
+    """Idempotently drop *proc*'s ``active_jobs`` slot.
+
+    Both the subprocess_sse stream's own ``finally`` and the cancel endpoint call
+    this for the same proc; membership in ``ctx.counted_procs`` gates the decrement
+    so whichever runs first releases the slot and the second is a harmless no-op -
+    the counter can never latch high (cancel didn't wait on GC) or go negative
+    (the late generator finalization didn't double-decrement).
+    """
+    if proc is not None and proc in ctx.counted_procs:
+        ctx.counted_procs.discard(proc)
+        ctx.active_jobs -= 1
+
+
 async def subprocess_sse(
     cmd: list[str],
     cwd: Path,
@@ -160,8 +174,7 @@ async def subprocess_sse(
     """
 
     async def _generate() -> AsyncGenerator[str, None]:
-        if track_active_job and ctx is not None:
-            ctx.active_jobs += 1
+        proc = None
         try:
             _log.debug("Launching subprocess: %s", " ".join(str(c) for c in cmd))
             proc = await asyncio.create_subprocess_exec(
@@ -176,6 +189,11 @@ async def subprocess_sse(
             if ctx is not None:
                 ctx.analyze_proc = proc
                 ctx.subprocess_procs.add(proc)
+                # Counted only once the proc exists and is registered, so the cancel
+                # endpoint can release this exact proc's slot idempotently.
+                if track_active_job:
+                    ctx.counted_procs.add(proc)
+                    ctx.active_jobs += 1
             try:
                 async for raw_line in proc.stdout:
                     text = raw_line.decode("utf-8", errors="replace").rstrip()
@@ -224,6 +242,6 @@ async def subprocess_sse(
             yield _done_event(ok=False, error="This job could not start - check the log for details.")
         finally:
             if track_active_job and ctx is not None:
-                ctx.active_jobs -= 1
+                release_counted_job(ctx, proc)
 
     return StreamingResponse(_generate(), media_type="text/event-stream")

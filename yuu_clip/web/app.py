@@ -203,6 +203,22 @@ def create_app(project_dir: Path) -> FastAPI:
             content={"detail": "A database error occurred. Check the log for details."},
         )
 
+    @app.exception_handler(Exception)
+    async def _unhandled_error(request: Request, exc: Exception):
+        # FastAPI's default 500 returns a bare plaintext "Internal Server Error" body,
+        # which the UI cannot parse a detail from - so a failed action (e.g. Remove
+        # Recording) showed the opaque "Unknown error (no details from server)". Return
+        # JSON with a detail naming the exception type so the toast is actionable and the
+        # real traceback is always logged. More specific handlers (HTTPException,
+        # OperationalError) still win; this only catches the otherwise-unhandled 500s.
+        _log.error(
+            "Unhandled error on %s %s", request.method, request.url.path, exc_info=exc
+        )
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"{type(exc).__name__}: {exc}. Check the log for details."},
+        )
+
     @app.get("/", response_class=HTMLResponse)
     async def index():
         return FileResponse(_HERE / "static" / "index.html")

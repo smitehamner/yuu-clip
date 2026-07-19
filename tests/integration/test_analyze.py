@@ -1740,6 +1740,54 @@ class TestAnalyzeCancelSideEffects:
                 # cancel must kill the whole tree, not orphan the ffmpeg grandchild
                 assert any(c.args[0][0] == "taskkill" for c in run.call_args_list)
 
+    def test_cancel_releases_subprocess_job_state_without_waiting_on_generator(self, project_dir):
+        """B3/W1: cancel must deterministically release a subprocess_sse job's busy
+        state. The frontend closes its SSE stream the instant it POSTs cancel, so the
+        abandoned generator's finally only runs on GC finalization - if cancel relied
+        on it, /api/status would keep reporting analyze_running/active_jobs with no
+        subprocess alive (the latch the user hit)."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from fastapi.testclient import TestClient
+
+        from yuu_clip.web import sse
+        from yuu_clip.web.app import create_app
+        from yuu_clip.web.sse import release_counted_job
+
+        app = create_app(project_dir)
+        # Mirror the state subprocess_sse establishes for a running export/score/reel.
+        mock_proc = MagicMock()
+        mock_proc.returncode = None
+        mock_proc.pid = 12345
+        mock_proc.wait = AsyncMock(return_value=0)
+        with patch.object(sse.sys, "platform", "win32"), \
+             patch.object(sse.subprocess, "run"):
+            with TestClient(app) as tc:
+                ctx = app.state.ctx
+                ctx.analyze_proc = mock_proc
+                ctx.subprocess_procs.add(mock_proc)
+                ctx.counted_procs.add(mock_proc)
+                ctx.active_jobs += 1
+
+                busy = tc.get("/api/status").json()
+                assert busy["analyze_running"] is True and busy["any_running"] is True
+
+                tc.post("/api/analyze/cancel")
+
+                # Released immediately, not left for GC of the abandoned generator.
+                assert ctx.active_jobs == 0
+                assert ctx.analyze_proc is None
+                assert mock_proc not in ctx.subprocess_procs
+                idle = tc.get("/api/status").json()
+                assert idle["analyze_running"] is False
+                assert idle["any_running"] is False
+                assert idle["active_jobs"] == 0
+
+                # The abandoned generator's finally still fires later; it must be a
+                # no-op, never driving active_jobs negative.
+                release_counted_job(ctx, mock_proc)
+                assert ctx.active_jobs == 0
+
 
 # ---------------------------------------------------------------------------
 # Export validation
