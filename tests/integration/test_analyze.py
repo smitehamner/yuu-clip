@@ -2460,15 +2460,35 @@ class TestMeasuredRates:
         finally:
             db.close()
 
-    def test_different_model_excluded(self, project_dir):
+    def test_different_model_excludes_transcribe_only(self, project_dir):
+        """The Whisper model keys the transcribe stage only. A medium + large-v3
+        pair leaves one 'medium' transcribe sample (below the trust threshold), but
+        the model-independent Extract stage pools both samples across models."""
         from yuu_clip.web.routes.analyze import _measured_rates
         db = self._db(project_dir)
         try:
-            _seed_run(db, model="medium", stages=[{"name": "Extract", "seconds": 36.0}])
-            _seed_run(db, model="large-v3", stages=[{"name": "Extract", "seconds": 36.0}])
+            _seed_run(db, model="medium", stages=[
+                {"name": "Transcribe", "seconds": 300.0}, {"name": "Extract", "seconds": 36.0}])
+            _seed_run(db, model="large-v3", stages=[
+                {"name": "Transcribe", "seconds": 900.0}, {"name": "Extract", "seconds": 36.0}])
             db.commit()
-            # Only one "medium" sample - below the trust threshold
-            assert "extract" not in _measured_rates(db, "medium", True)
+            rates = _measured_rates(db, "medium", True)
+            assert "transcribe" not in rates  # only one "medium" transcribe sample
+            assert rates["extract"] == pytest.approx(0.01)  # pooled across models
+        finally:
+            db.close()
+
+    def test_score_stage_pools_across_models(self, project_dir):
+        """The combined energy+scenes+LLM 'Score' stage is model-independent, so its
+        samples pool across Whisper models - the fix for LLM scoring appearing to
+        change with the Whisper model."""
+        from yuu_clip.web.routes.analyze import _measured_rates
+        db = self._db(project_dir)
+        try:
+            _seed_run(db, model="tiny", stages=[{"name": "Score", "seconds": 360.0}])
+            _seed_run(db, model="base", stages=[{"name": "Score", "seconds": 360.0}])
+            db.commit()
+            assert _measured_rates(db, "small", True)["score"] == pytest.approx(0.1)
         finally:
             db.close()
 
@@ -2595,6 +2615,24 @@ class TestComputeTimeEstimateMeasured:
             energy = next(s for s in result["steps"] if s["name"].startswith("Audio energy"))
             scene = next(s for s in result["steps"] if s["name"].startswith("Scene detection"))
             llm = next(s for s in result["steps"] if s["name"] == "LLM scoring")
+            assert llm["seconds"] == pytest.approx(600.0 - energy["seconds"] - scene["seconds"])
+        finally:
+            db.close()
+
+    def test_llm_scoring_grounded_regardless_of_whisper_model(self, project_dir):
+        """LLM scoring must not vary with the Whisper model. Score-stage history
+        recorded under 'tiny'/'base' grounds a 'small' estimate the same way."""
+        from yuu_clip.web.routes.analyze import _compute_time_estimate
+        db = self._db(project_dir)
+        try:
+            _seed_run(db, model="tiny", stages=[{"name": "Score", "seconds": 600.0}])
+            _seed_run(db, model="base", stages=[{"name": "Score", "seconds": 600.0}])
+            db.commit()
+            result = _compute_time_estimate(self._req(model="small"), db)
+            energy = next(s for s in result["steps"] if s["name"].startswith("Audio energy"))
+            scene = next(s for s in result["steps"] if s["name"].startswith("Scene detection"))
+            llm = next(s for s in result["steps"] if s["name"] == "LLM scoring")
+            assert result["source"] == "measured"
             assert llm["seconds"] == pytest.approx(600.0 - energy["seconds"] - scene["seconds"])
         finally:
             db.close()

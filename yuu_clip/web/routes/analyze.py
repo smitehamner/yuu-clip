@@ -116,15 +116,22 @@ _STAGE_NAME_TO_KEY = {
     "Summarize":  "summarize",
     "Score":      "score",
 }
+# Only Whisper transcription speed depends on the chosen model; every other stage
+# (extract, speaker labels, summarize, and the combined energy+scenes+LLM "score")
+# runs the same regardless of it, so their samples pool across models. Keying them
+# on the model was what made LLM scoring appear to change with the Whisper model.
+_MODEL_DEPENDENT_KEYS = frozenset({"transcribe"})
 _MEASURED_SAMPLE_LIMIT = 10  # most-recent completed runs considered
 _MEASURED_MIN_SAMPLES  = 2   # matching samples required before trusting the median
 
 
 def _measured_rates(db, model: str, has_gpu: bool) -> dict[str, float]:
     """Median seconds-of-processing per second-of-video, per pipeline stage,
-    from the last _MEASURED_SAMPLE_LIMIT completed runs whose recorded model
-    and device match the requested run - a model or device change would
-    otherwise poison the estimate with an unrelated speed.
+    from the last _MEASURED_SAMPLE_LIMIT completed runs on the requested device.
+
+    Device (GPU vs CPU) changes every stage's speed, so it always filters. The
+    Whisper model only filters the transcribe stage (_MODEL_DEPENDENT_KEYS); the
+    other stages are model-independent and pool their samples across models.
 
     A stage key is only returned once at least _MEASURED_MIN_SAMPLES matching
     runs recorded it; callers fall back to the static formula otherwise.
@@ -147,14 +154,17 @@ def _measured_rates(db, model: str, has_gpu: bool) -> dict[str, float]:
             stages = run["stages"]
         except (TypeError, ValueError, KeyError):
             continue  # malformed/legacy run_json - skip, never raise
-        if settings.get("model") != model or bool(device.get("has_gpu")) != has_gpu:
+        if bool(device.get("has_gpu")) != has_gpu:
             continue
+        model_matches = settings.get("model") == model
         duration_s = duration_ms / 1000
         for stage in stages:
             key = _STAGE_NAME_TO_KEY.get(stage.get("name"))
             seconds = stage.get("seconds")
             if key is None or not isinstance(seconds, (int, float)) or seconds < 0:
                 continue
+            if key in _MODEL_DEPENDENT_KEYS and not model_matches:
+                continue  # transcription speed is Whisper-model-specific
             samples.setdefault(key, []).append(seconds / duration_s)
 
     return {
@@ -780,9 +790,10 @@ def _compute_time_estimate(req: EstimateRequest, db=None, warn_hours: float = 2.
     n_tracks = max(1, req.audio_tracks)
     transcribe_tracks = req.transcribe_tracks if req.transcribe_tracks is not None else max(1, n_tracks // 2)
 
-    # Medians from the creator's own past runs, keyed to this exact model+device so a
-    # different model/CPU-vs-GPU choice can't poison the numbers. None of the individual
-    # step formulas below are touched unless a matching measured rate exists for them.
+    # Medians from the creator's own past runs on this device. Transcription speed is
+    # keyed to the exact model; the model-independent stages (extract/summarize/score)
+    # pool across models. None of the individual step formulas below are touched unless
+    # a matching measured rate exists for them.
     measured = _measured_rates(db, req.model, req.has_gpu) if db is not None else {}
     used_measured = False
 
