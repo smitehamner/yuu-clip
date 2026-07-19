@@ -137,11 +137,13 @@ Wanted before distributing beyond friends/trusted users.
   different backends are never compared) was kept, so a re-add is mostly restoring the
   client class, the config enum value, and the Settings/token UI.
 
-- [ ] **Transcript & speaker editing UX revisit** *(deferred, behavior OK today)* - the
-  current transcript/speaker editing flow works but is clunkier than it should be. Concrete
-  ask from real use: be able to **name or rename a speaker directly from a clip or video
-  transcript**, not only reassign an individual line to an existing speaker. Scope a fuller
-  editing pass when this area is next touched.
+- [ ] **Transcript & speaker editing UX - fuller pass** *(deferred, behavior OK today)* -
+  the concrete ask (**name or rename a speaker directly from a clip or video transcript**)
+  shipped: the speaker name label in the transcript is now click-to-rename, and every
+  floating menu caps its height so the dot menu's rename field can no longer fall off-screen.
+  What remains deferred is the broader smoother-editing pass over the transcript/speaker
+  surface - scope it fresh when this area is next touched (candidates surfaced during R1:
+  per-line menu polish, whole-recording speaker management, bulk line moves, caption fixes).
 
 - [ ] **Sidebar grouping for split segments** *(speculative)* - a collapsible parent row
   "session.mkv (3 segments)" with indented children, as an alternative to the flat list.

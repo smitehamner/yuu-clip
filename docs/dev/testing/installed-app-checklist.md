@@ -57,7 +57,7 @@ spot-check. If time is short, the P0 rows are the release gate.
 | UC | Pri | Check | Pass |
 |----|-----|-------|------|
 | [UC-D01](../USE_CASES.md#uc-d01---retranscribe-captions-refresh) | P2 | Retranscribe (clip/recording) with a chosen model refreshes the excerpt + SRT; recording-level flags clips for re-score; speaker labels reused. | [ ] |
-| [UC-D02](../USE_CASES.md#uc-d02---diarize-name-speakers-export-with-captions) | P1 | Name speakers + colors; Suggest names accept/dismiss; Fix names applies only on Apply (marks overlaps for re-score); borderline voice match stays unnamed until confirmed; Promote to Person flows a rename to every recording; export carries names into captions. | [ ] |
+| [UC-D02](../USE_CASES.md#uc-d02---diarize-name-speakers-export-with-captions) | P1 | Name speakers + colors; rename a speaker inline by clicking its name label in the transcript; Suggest names accept/dismiss; Fix names applies only on Apply (marks overlaps for re-score); borderline voice match stays unnamed until confirmed; Promote to Person flows a rename to every recording; export carries names into captions. | [ ] |
 
 ## Section E - Aggregate views
 

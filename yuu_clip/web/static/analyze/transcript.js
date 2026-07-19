@@ -45,13 +45,24 @@ export function renderTranscriptLines(lines, opts) {
   if (!Array.isArray(lines) || !lines.length) {
     return '<div class="transcript-empty">No transcript available.</div>';
   }
+  // Show the per-line speaker dot on every line of a diarized transcript - including
+  // ones the user set to Unassigned - so an unassigned line keeps a control to
+  // reattribute it. A plain (never-diarized) transcript has no speakers, so no dots.
+  const diarized = videoId != null && lines.some(l => l.speaker_id != null);
   let prevSpeaker = null;
   const rows = lines.map(line => {
     const showSpeaker = line.speaker && line.speaker !== prevSpeaker;
     prevSpeaker = line.speaker;
     const colorAttr = line.color ? ` style="color:${escHtml(line.color)}"` : '';
+    // The speaker name label doubles as a rename control (same gate as the dot):
+    // click "Speaker 1" and type the real name. Read-only transcripts (no videoId)
+    // keep a plain label.
+    const nameEditable = videoId != null && line.speaker_id != null;
+    const nameEditAttrs = nameEditable
+      ? ` data-speaker-id="${line.speaker_id}" data-video-id="${videoId}" role="button" tabindex="0" title="Click to rename this speaker"`
+      : '';
     const speaker = showSpeaker
-      ? `<div class="tline-speaker"${colorAttr}>${escHtml(line.speaker)}</div>`
+      ? `<div class="tline-speaker${nameEditable ? ' editable' : ''}"${colorAttr}${nameEditAttrs}>${escHtml(line.speaker)}</div>`
       : '';
     const clock = _clock(line.start_ms);
     const seekS = (line.start_ms || 0) / 1000 + offsetS;
@@ -62,10 +73,11 @@ export function renderTranscriptLines(lines, opts) {
     // display_color is always set server-side; var(--muted) is a defensive fallback so
     // no hardcoded hex ever ships (no-hardcoded-colors rule).
     const dotColor = line.color ? escHtml(line.color) : 'var(--muted)';
-    const spkName = line.speaker ? escHtml(line.speaker) : 'this speaker';
-    const spk = (videoId != null && line.speaker_id != null)
+    const spkName = line.speaker ? escHtml(line.speaker) : 'Unassigned';
+    const spkIdAttr = line.speaker_id != null ? line.speaker_id : '';
+    const spk = (diarized && line.seg_id != null)
       ? `<button class="tline-spk${line.speaker_edited ? ' edited' : ''}"
-                 data-seg-id="${line.seg_id}" data-speaker-id="${line.speaker_id}" data-video-id="${videoId}"
+                 data-seg-id="${line.seg_id}" data-speaker-id="${spkIdAttr}" data-video-id="${videoId}"
                  title="${line.speaker_edited ? 'Reassigned by you - ' : ''}${spkName} - click to change or rename"
                  aria-label="Change or rename speaker">
            <span class="tline-spk-dot" style="background:${dotColor}"></span></button>`
@@ -292,9 +304,11 @@ async function _openSpeakerMenu(chip) {
   menu.className = 'spk-menu';
   menu.innerHTML = `
     <div class="spk-menu-head">Attribute this line to</div>
-    ${items}
-    <button class="spk-menu-item" data-reassign="">Unassigned</button>
-    <button class="spk-menu-item spk-menu-new">+ New speaker</button>
+    <div class="spk-menu-list">
+      ${items}
+      <button class="spk-menu-item" data-reassign="">Unassigned</button>
+      <button class="spk-menu-item spk-menu-new">+ New speaker</button>
+    </div>
     <div class="spk-menu-sep"></div>
     <div class="spk-menu-head">Name ${escHtml(cur ? cur.display_name : 'this speaker')}</div>
     <div class="spk-menu-rename">
@@ -383,6 +397,51 @@ async function _renameSpeakerFromLine(speakerId, name, videoId) {
   } catch (_) {
     showToast('Could not save speaker name', 'error');
   }
+}
+
+// Inline rename straight from the transcript's speaker label - the discoverable path
+// the dot menu's rename field duplicates. Prefills the speaker's raw name (empty when
+// unnamed) so the placeholder invites a real name rather than editing the "Speaker N"
+// fallback. On commit, _renameSpeakerFromLine reloads the transcript, replacing the label.
+async function startRenameSpeaker(label) {
+  if (label.classList.contains('editing')) return;
+  const speakerId = parseInt(label.dataset.speakerId, 10);
+  const videoId = parseInt(label.dataset.videoId, 10);
+  if (!speakerId || !videoId) return;
+  const speakers = await _getVideoSpeakers(videoId);
+  const cur = speakers.find(s => s.id === speakerId);
+  const original = label.textContent;
+  const prevName = cur && cur.name ? cur.name : '';
+  label.classList.add('editing');
+  label.textContent = '';
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'tline-speaker-input';
+  input.maxLength = 60;
+  input.placeholder = 'Name this speaker...';
+  input.value = prevName;
+  label.appendChild(input);
+  input.focus();
+  input.select();
+
+  let settled = false;
+  const finish = (commit) => {
+    if (settled) return;
+    settled = true;
+    const next = input.value.trim();
+    if (commit && next !== prevName) {
+      _renameSpeakerFromLine(speakerId, next, videoId);
+    } else {
+      label.classList.remove('editing');
+      label.textContent = original;
+    }
+  };
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+    else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+  });
+  input.addEventListener('blur', () => finish(true));
 }
 
 function _refreshAfterSpeakerChange(videoId, affectedClipIds) {
@@ -478,6 +537,15 @@ document.addEventListener('DOMContentLoaded', () => {
       const row = e.target.closest('.tline');
       if (row) { _toggleLineSelection(row); return; }
     }
+    const spkLabel = e.target.closest && e.target.closest('.tline-speaker.editable');
+    if (spkLabel) {
+      // Select mode owns clicks on the recording transcript while a bulk move is being
+      // built - don't hijack one into a rename there. Clip transcripts have no select mode.
+      const inView = spkLabel.closest('#video-transcript-view');
+      if (inView && inView.classList.contains('select-mode')) return;
+      startRenameSpeaker(spkLabel);
+      return;
+    }
     const spk = e.target.closest && e.target.closest('.tline-spk');
     if (spk) { e.stopPropagation(); _openSpeakerMenu(spk); return; }
     const text = e.target.closest && e.target.closest('.tline-text.editable');
@@ -491,6 +559,8 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   detail.addEventListener('keydown', e => {
     if (e.key !== 'Enter' && e.key !== ' ') return;
+    const spkLabel = e.target.closest && e.target.closest('.tline-speaker.editable');
+    if (spkLabel && !spkLabel.classList.contains('editing')) { e.preventDefault(); startRenameSpeaker(spkLabel); return; }
     const text = e.target.closest && e.target.closest('.tline-text.editable');
     if (text && !text.classList.contains('editing')) { e.preventDefault(); startEditCaption(text); }
   });

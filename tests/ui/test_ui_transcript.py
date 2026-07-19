@@ -122,6 +122,35 @@ class TestClipTranscriptSpeakerMenu:
         expect(menu.locator(".spk-menu-new")).to_have_count(1)
         expect(menu.locator(".spk-menu-name")).to_be_visible()
 
+    def test_speaker_name_label_is_a_rename_affordance(self, page: Page):
+        # R1: rename a speaker straight from the transcript, on the clip surface too -
+        # the name label itself is the control, not just the dot menu.
+        self._route(page)
+        select_first_video_and_clip(page)
+        label = page.locator("#clip-transcript-view .tline-speaker.editable").first
+        expect(label).to_have_text("Yuu")
+        expect(label).to_have_attribute("role", "button")
+
+    def test_unassigned_line_keeps_its_dot(self, page: Page):
+        # An Unassigned line has no speaker_id; its dot must still render (with an empty
+        # speaker id) so the line can be reattributed - otherwise it is a dead end.
+        mixed = {"lines": [
+            {"start_ms": 0, "end_ms": 2000, "speaker": "Yuu", "speaker_id": 1,
+             "speaker_edited": False, "color": "#4fc3f7", "text": "a", "seg_id": 11},
+            {"start_ms": 2000, "end_ms": 4000, "speaker": None, "speaker_id": None,
+             "speaker_edited": True, "color": None, "text": "b", "seg_id": 12},
+        ]}
+        page.route("**/api/clips/*/transcript", lambda route: route.fulfill(
+            status=200, content_type="application/json", body=json.dumps(mixed)))
+        page.route("**/api/videos/*/speakers", lambda route: route.fulfill(
+            status=200, content_type="application/json", body=json.dumps(self._SPEAKERS)))
+        select_first_video_and_clip(page)
+        dots = page.locator("#clip-transcript-view .tline-spk")
+        expect(dots).to_have_count(2)
+        expect(dots.nth(1)).to_have_attribute("data-speaker-id", "")
+        dots.nth(1).click()
+        expect(page.locator(".spk-menu")).to_be_visible()
+
 
 @skip_no_server
 class TestVideoTranscript:
@@ -254,3 +283,32 @@ class TestTranscriptSpeakerEditing:
         assert body["seg_ids"] == [101]
         assert body["target_speaker_id"] == 2
         assert req_info.value.url.endswith("/api/speakers/1/reassign-segments")
+
+    def test_rename_from_label_puts_new_name(self, page: Page):
+        page.route(
+            "**/api/videos/*/transcript",
+            lambda route: route.fulfill(status=200, content_type="application/json",
+                                        body=json.dumps(_VIDEO_LINES_SPK)),
+        )
+        page.route(
+            "**/api/videos/*/speakers",
+            lambda route: route.fulfill(status=200, content_type="application/json",
+                                        body=json.dumps(_TWO_SPEAKERS)),
+        )
+        page.route(
+            "**/api/speakers/1",
+            lambda route: route.fulfill(status=200, content_type="application/json",
+                                        body=json.dumps({"id": 1, "is_named": True,
+                                                         "display_name": "Hamner"})),
+        )
+        self._open_full_transcript(page)
+
+        page.locator("#video-transcript-view .tline-speaker.editable").first.click()
+        editor = page.locator("#video-transcript-view .tline-speaker.editing .tline-speaker-input")
+        expect(editor).to_be_visible()
+        editor.fill("Hamner")
+        with page.expect_request(
+            lambda r: r.url.endswith("/api/speakers/1") and r.method == "PUT"
+        ) as req_info:
+            editor.press("Enter")
+        assert req_info.value.post_data_json["name"] == "Hamner"

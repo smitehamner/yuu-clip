@@ -261,7 +261,7 @@ A one-glance "what to walk before public" list is in the final section.
   1. Open the Speakers card; play each voice sample; type real names; pick colors.
   2. Try Suggest names (LLM + voice similarity) and accept/dismiss a suggestion.
   3. Fix names on the transcript card (Whisper "You" -> "Yuu"); review grouped matches; Apply.
-  4. Reattribute a single transcript line via its speaker dot.
+  4. Reattribute a single transcript line via its speaker dot, or rename its speaker inline by clicking the speaker name label in the transcript.
   5. Promote a named speaker to a Person; open People to rename/merge/split; confirm a "Same person?" suggestion on a new recording.
   6. Export a clip with captions.
 - **Expected:** names appear in clip transcripts and exported captions and survive re-analysis; borderline voice matches show a "Might be {name}" prompt and stay unnamed until confirmed (never silently mislabel); Fix names changes nothing until Apply and flows through the caption-edit path (overlapping clips marked for re-score); a Person's rename/recolor flows to every recording.

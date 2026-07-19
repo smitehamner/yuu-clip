@@ -350,6 +350,11 @@ button.section-toggle-btn:not(.active):hover { color: var(--text); background: v
 .tline.cc-pickable { cursor: pointer; }
 .tline.cc-pickable:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); border-radius: 4px; }
 .tline-speaker { margin-top: 8px; font-size: 11px; font-weight: 600; color: var(--accent-text); }
+.tline-speaker.editable { display: inline-block; cursor: pointer; border-radius: 4px; padding: 0 4px; transition: background .12s; }
+.tline-speaker.editable:hover { background: var(--border); text-decoration: underline; }
+.tline-speaker.editing { padding: 0; background: none; cursor: default; }
+.tline-speaker-input { font-size: 11px; font-weight: 600; font-family: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--accent); border-radius: 4px; padding: 1px 5px; min-width: 130px; }
+.tline-speaker-input:focus { outline: none; }
 .tline-play { flex-shrink: 0; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; padding: 0; font-size: 8px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface); color: var(--accent); cursor: pointer; align-self: center; transition: background .12s; }
 .tline-play:hover { background: var(--border); }
 .tline-time { flex-shrink: 0; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 40px; }
@@ -359,7 +364,14 @@ button.section-toggle-btn:not(.active):hover { color: var(--text); background: v
 .tline-spk-dot { width: 9px; height: 9px; border-radius: 50%; display: block; transition: transform .12s; }
 .tline-spk.edited { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .tline-spk.edited::after { content: "\270E"; position: absolute; top: -6px; right: -6px; font-size: 9px; color: var(--accent); }
-.spk-menu { position: fixed; z-index: 5000; min-width: 200px; max-width: 260px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-menu); padding: 6px; font-size: 13px; }
+/* Floating menus must cap their height and scroll: a diarization can produce dozens
+   of speakers, and an uncapped menu grows past the viewport and clips its footer
+   (the rename field) off-screen with no way to reach it. Enforced across every
+   floating menu by tests/unit/test_static_menu_heights.py. */
+.spk-menu { position: fixed; z-index: 5000; min-width: 200px; max-width: 260px; max-height: calc(100vh - 16px); overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-menu); padding: 6px; font-size: 13px; }
+/* The reassignment list is the only variable-length part - scroll it, not the whole
+   menu, so the "Name this speaker" footer stays visible however many speakers exist. */
+.spk-menu-list { max-height: 42vh; overflow-y: auto; }
 .spk-menu-head { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); padding: 4px 6px 2px; }
 .spk-menu-item { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 6px; border: none; border-radius: 5px; background: none; color: var(--text); cursor: pointer; font-size: 13px; }
 .spk-menu-item:hover { background: var(--border); }
@@ -379,7 +391,7 @@ button.section-toggle-btn:not(.active):hover { color: var(--text); background: v
 .colorpicker-trigger { width: 30px; height: 30px; flex: 0 0 auto; padding: 0; border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; background: var(--surface); }
 .colorpicker-trigger.is-empty { background-image: linear-gradient(45deg, var(--border) 25%, transparent 25%, transparent 75%, var(--border) 75%), linear-gradient(45deg, var(--border) 25%, transparent 25%, transparent 75%, var(--border) 75%); background-size: 10px 10px; background-position: 0 0, 5px 5px; }
 .colorpicker-trigger:focus-visible { outline: none; box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent); }
-.colorpicker-pop { position: absolute; top: calc(100% + 6px); left: 0; z-index: 5000; display: none; width: 216px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-menu); padding: 10px; }
+.colorpicker-pop { position: absolute; top: calc(100% + 6px); left: 0; z-index: 5000; display: none; width: 216px; max-height: calc(100vh - 16px); overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-menu); padding: 10px; }
 .colorpicker-pop.open { display: block; }
 .colorpicker-hexrow { display: flex; align-items: center; gap: 4px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); padding: 0 8px; }
 .colorpicker-hexrow:focus-within { border-color: var(--accent); }
@@ -673,7 +685,7 @@ kbd { background: var(--surface); border: 1px solid var(--border); border-radius
 
 /* ── hamburger menu ── */
 .hamburger-wrap { position: relative; }
-.hamburger-menu { position: absolute; right: 0; top: calc(100% + 6px); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); min-width: 180px; box-shadow: var(--shadow-menu); z-index: 300; display: none; flex-direction: column; padding: 4px 0; }
+.hamburger-menu { position: absolute; right: 0; top: calc(100% + 6px); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); min-width: 180px; max-height: calc(100vh - 16px); overflow-y: auto; box-shadow: var(--shadow-menu); z-index: 300; display: none; flex-direction: column; padding: 4px 0; }
 .hamburger-menu.open { display: flex; }
 .hamburger-item { display: flex; align-items: center; gap: 10px; padding: 9px 14px; font-size: 13px; color: var(--text); cursor: pointer; background: none; border: none; text-align: left; text-decoration: none; transition: background .1s; width: 100%; }
 .hamburger-icon { flex: 0 0 1.25em; text-align: center; font-size: 14px; line-height: 1; }
