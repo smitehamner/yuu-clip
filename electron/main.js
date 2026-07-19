@@ -453,9 +453,24 @@ function registerWizardIPC(wizardWin) {
 
 }
 
-// The "Starting YuuClip…" spinner shown while the backend boots.
-function loadingScreenUrl() {
-  const loadingHtml = `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:#12121e;color:#d8d8e8;text-align:center"><style>@keyframes spin{to{transform:rotate(360deg)}}</style><div><div style="width:32px;height:32px;border:3px solid #1e1e30;border-top-color:#5b8ef0;border-radius:50%;animation:spin 0.65s linear infinite;margin:0 auto 14px"></div><h3 style="margin:0 0 6px;font-size:14px;color:#e8e8f8">Starting YuuClip…</h3><p id="status" style="margin:0;color:#9090a8;font-size:12px">Waiting for backend</p></div></body></html>`;
+// The "Starting YuuClip…" spinner shown while the backend boots. When
+// frameless, it draws the same custom titlebar + minimize button as the venv
+// setup window (showVenvSetupWindow) instead of the native OS header; that path
+// reuses venv-preload's venvAPI.minimize, so a frameless caller must load
+// venv-preload.js and wire the 'venv:minimize' channel.
+function loadingScreenUrl(frameless = false) {
+  const chromeStyle = frameless ? `<style>
+    .titlebar{position:fixed;top:0;left:0;right:0;height:28px;-webkit-app-region:drag}
+    .min-btn{position:fixed;top:0;right:0;width:32px;height:28px;-webkit-app-region:no-drag;display:flex;align-items:center;justify-content:center;color:#87879f;font-size:14px;cursor:pointer;user-select:none}
+    .min-btn:hover{color:#e8e8f8;background:#1e1e30}
+  </style>` : '';
+  const chromeMarkup = frameless
+    ? `<div class="titlebar"></div><div class="min-btn" id="minBtn" title="Minimize">-</div>`
+    : '';
+  const chromeScript = frameless
+    ? `<script>var b=document.getElementById('minBtn');if(b)b.onclick=function(){if(window.venvAPI&&window.venvAPI.minimize)window.venvAPI.minimize();};</script>`
+    : '';
+  const loadingHtml = `<!DOCTYPE html><html><head>${chromeStyle}</head><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:#12121e;color:#d8d8e8;text-align:center"><style>@keyframes spin{to{transform:rotate(360deg)}}</style>${chromeMarkup}<div><div style="width:32px;height:32px;border:3px solid #1e1e30;border-top-color:#5b8ef0;border-radius:50%;animation:spin 0.65s linear infinite;margin:0 auto 14px"></div><h3 style="margin:0 0 6px;font-size:14px;color:#e8e8f8">Starting YuuClip…</h3><p id="status" style="margin:0;color:#9090a8;font-size:12px">Waiting for backend</p></div>${chromeScript}</body></html>`;
   return `data:text/html;charset=utf-8,${encodeURIComponent(loadingHtml)}`;
 }
 
@@ -471,11 +486,20 @@ function showWizardLoadingScreen(win) {
 // wizardWin so the same startup teardown closes it once the main window opens.
 function showStartupLoadingWindow() {
   const win = new BrowserWindow({
-    width: 480, height: 400, resizable: false, title: 'YuuClip',
+    width: 480, height: 400, resizable: false, frame: false, minimizable: true,
+    title: 'YuuClip',
     icon: path.join(__dirname, 'assets', 'icon.png'),
-    webPreferences: { contextIsolation: true, nodeIntegration: false },
+    webPreferences: {
+      contextIsolation: true, nodeIntegration: false,
+      preload: path.join(__dirname, 'venv-preload.js'),
+    },
   });
-  win.loadURL(loadingScreenUrl());
+  ipcMain.removeAllListeners('venv:minimize');
+  ipcMain.on('venv:minimize', () => {
+    if (!win.isDestroyed()) win.minimize();
+  });
+  win.on('closed', () => ipcMain.removeAllListeners('venv:minimize'));
+  win.loadURL(loadingScreenUrl(true));
   wizardWin = win;
   return win;
 }
