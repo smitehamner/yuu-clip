@@ -23,9 +23,18 @@ vi.mock('../../../yuu_clip/web/static/core/ui.js', async (importActual) => {
   return { ...actual, showConfirm: vi.fn((t, b, l, onConfirm) => onConfirm()) };
 });
 
+// confirmExport reports a bad trim through showToast - spy on it without
+// disturbing the reveal/copy helpers the other cases in this file drive for real.
+vi.mock('../../../yuu_clip/web/static/core/utils.js', async (importActual) => {
+  const actual = await importActual();
+  return { ...actual, showToast: vi.fn() };
+});
+
 import { showConfirm } from '../../../yuu_clip/web/static/core/ui.js';
+import { showToast } from '../../../yuu_clip/web/static/core/utils.js';
 import {
   _revealClipExport, _copyClipExportPaths, _handleExportFormatAction,
+  trimInputError, confirmExport,
 } from '../../../yuu_clip/web/static/clips/clipexport.js';
 
 const exportFilesResponse = (files) => ({ ok: true, json: async () => ({ files }) });
@@ -111,5 +120,74 @@ describe('_handleExportFormatAction delete', () => {
 
     expect(showConfirm).toHaveBeenCalledTimes(1);
     expect(showConfirm.mock.calls[0][0]).toBe('Delete this format?');
+  });
+});
+
+describe('trimInputError', () => {
+  // The trim fields are free text. An unparseable value used to skip the timing
+  // save silently, so the clip exported with its previously-saved trim and the
+  // user was never told their typed value had been discarded.
+  beforeEach(() => { AppState.activeClipData = { start_ms: 60_000 }; });
+
+  it('accepts a blank field as "no trim"', () => {
+    expect(trimInputError('', '')).toBe('');
+  });
+
+  it('accepts signed-seconds offsets', () => {
+    expect(trimInputError('+2.5', '-1')).toBe('');
+  });
+
+  it('accepts an absolute M:SS timestamp', () => {
+    expect(trimInputError('1:05', '1:30')).toBe('');
+  });
+
+  it('names the Start field and echoes what was typed', () => {
+    expect(trimInputError('abc', '+0.0')).toBe(
+      'Start trim "abc" isn\'t a time - use +2.5, -1, or 1:23.',
+    );
+  });
+
+  it('names the End field when only that one is bad', () => {
+    expect(trimInputError('+0.0', 'two seconds')).toBe(
+      'End trim "two seconds" isn\'t a time - use +2.5, -1, or 1:23.',
+    );
+  });
+});
+
+describe('confirmExport with an unparseable trim', () => {
+  function seedExportModal(startValue, endValue) {
+    document.body.innerHTML = `
+      <select id="export-captions"><option value="softsub" selected>softsub</option></select>
+      <select id="export-container"><option value="" selected></option></select>
+      <select id="export-preset"><option value="" selected></option></select>
+      <input id="export-trim-start" value="${startValue}">
+      <input id="export-trim-end" value="${endValue}">
+      <input type="checkbox" id="export-retranscribe">
+      <select id="export-retranscribe-model"><option value="large-v3" selected>large-v3</option></select>
+      <input type="checkbox" id="export-speaker-labels" checked>
+      <input type="checkbox" id="export-title-card">
+      <div id="export-settings-modal" class="visible"></div>`;
+  }
+
+  it('tells the user instead of silently exporting the saved trim', async () => {
+    seedExportModal('abc', '+0.0');
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    await confirmExport();
+
+    expect(showToast).toHaveBeenCalledWith(
+      'Start trim "abc" isn\'t a time - use +2.5, -1, or 1:23.', 'error',
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('leaves the dialog open so the bad field can be corrected', async () => {
+    seedExportModal('abc', '+0.0');
+    vi.stubGlobal('fetch', vi.fn());
+
+    await confirmExport();
+
+    expect(document.getElementById('export-settings-modal').classList.contains('visible')).toBe(true);
   });
 });

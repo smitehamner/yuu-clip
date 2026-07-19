@@ -373,6 +373,18 @@ export function closeExportModal() {
   if (opener?.focus) opener.focus();
 }
 
+// The trim fields are free text. A blank one means "no trim" (parses to 0), but
+// anything else that fails to parse is a typo the user needs told about - it used
+// to skip the save silently and export the clip's previously-saved trim instead.
+export function trimInputError(startRaw, endRaw) {
+  for (const [label, raw] of [['Start', startRaw], ['End', endRaw]]) {
+    if (isNaN(_parseTimingOffset(raw))) {
+      return `${label} trim "${String(raw).trim()}" isn't a time - use +2.5, -1, or 1:23.`;
+    }
+  }
+  return '';
+}
+
 export async function confirmExport() {
   const id        = _exportClipId;
   const captions  = document.getElementById('export-captions').value;
@@ -380,26 +392,34 @@ export async function confirmExport() {
   const embedSubs = captions === 'softsub';
   const container = document.getElementById('export-container').value;
   const preset    = document.getElementById('export-preset').value;
-  const trimStart = _parseTimingOffset(document.getElementById('export-trim-start').value);
-  const trimEnd   = _parseTimingOffset(document.getElementById('export-trim-end').value);
+  const trimStartRaw = document.getElementById('export-trim-start').value;
+  const trimEndRaw   = document.getElementById('export-trim-end').value;
   const retx      = document.getElementById('export-retranscribe').checked;
   const retxModel = document.getElementById('export-retranscribe-model').value;
   const speakerLabels = document.getElementById('export-speaker-labels').checked;
   const titleCard = document.getElementById('export-title-card').checked;
+
+  // Checked before the modal closes so the offending field is still on screen.
+  const trimError = trimInputError(trimStartRaw, trimEndRaw);
+  if (trimError) {
+    showToast(trimError, 'error');
+    return;
+  }
   closeExportModal();
 
-  if (!isNaN(trimStart) && !isNaN(trimEnd)) {
-    const timingRes = await fetch(`/api/clips/${id}/timing`, {
-      method: 'PATCH', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({start_offset: trimStart, end_offset: trimEnd}),
-    }).catch(err => { showToast(`Failed to save trim: ${err.message}`, 'error'); return null; });
-    if (!timingRes || !timingRes.ok) {
-      if (timingRes) {
-        const detail = formatApiError(await timingRes.json().catch(() => ({})));
-        showToast(detail || 'Failed to save trim points', 'error');
-      }
-      return;
+  const timingRes = await fetch(`/api/clips/${id}/timing`, {
+    method: 'PATCH', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      start_offset: _parseTimingOffset(trimStartRaw),
+      end_offset: _parseTimingOffset(trimEndRaw),
+    }),
+  }).catch(err => { showToast(`Failed to save trim: ${err.message}`, 'error'); return null; });
+  if (!timingRes || !timingRes.ok) {
+    if (timingRes) {
+      const detail = formatApiError(await timingRes.json().catch(() => ({})));
+      showToast(detail || 'Failed to save trim points', 'error');
     }
+    return;
   }
 
   if (window.exportPresetIsVertical(preset)) {
