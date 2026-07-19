@@ -21,48 +21,36 @@ Implemented-but-unverified surfaces and latent traps to close before distributio
 ### Packaged-app VM run findings (2026-07-19, v0.1.23)
 
 First real clean-VM packaged run. The native-file-protocol surface (previously the
-headline unverified item here) was **verified working** and closed. The immediate /
-easy subset was fixed the same day (reel timebase mismatch + false-success reporting,
-DB-locked -> clear 503, CLI log-line leak, Getting-Started modal X/scroll, HF symlink
-warning, empty wizard Optional section). What remains below is the deferred set; full
-triage with repro detail is in the private planning workspace
-(`PACKAGED-APP-FINDINGS-2026-07-19.md`).
+headline unverified item here) was **verified working** and closed. Shipped since:
+the immediate/easy subset (reel timebase mismatch + false-success reporting, DB-locked
+-> clear 503, CLI log-line leak, Getting-Started modal X/scroll, HF symlink warning,
+empty wizard Optional section); **retry-on-locked for lightweight writes** so
+approve/reject and speaker-merge succeed during a long analyze instead of failing; and
+**recovery for the active-but-missing model state**. What remains below is the deferred
+set; full triage with repro detail is in the private planning workspace
+(`PACKAGED-APP-FINDINGS-2026-07-19.md` + `PACKAGED-APP-FIXES-PLAN.md`).
 
 - [ ] **Speaker over-clustering on real party-chat audio** - a ~2-5 person recording was
   split into ~26 speakers. The default SpeechBrain thresholds are still too eager on this
   footage (revisits the earlier speaker-clustering tuning). Re-tune / evaluate against the
-  offending recording as a fixture.
+  offending recording as a fixture. Experiment-driven; needs the real recording + models.
 
 - [ ] **Stale single-job lock falsely blocks export** - after an analyze + reel build,
   export was refused with "another job is running" when none was; a page refresh cleared
-  it. Points at frontend in-flight/job state that latches (backend `active_jobs` is
-  released in a finally), so this needs its own repro after the reel-failure fix landed.
+  it. Audited (2026-07-19): the job-state flags are correctly balanced, no backend leak
+  found - likely a transient busy state or a symptom of the now-fixed false-success bug.
+  Re-verify on the VM after the reel fix; only chase it if it reproduces.
 
-- [ ] **Missing model file leaves an unrecoverable Settings state** - if an installed
-  model's backing file disappears, Settings still shows it installed/active while Analyze
-  and frame extraction correctly report it missing, and there is no easy re-download.
-  Drive the Settings "installed" state off a real on-disk existence check and offer
-  re-download when the file is gone.
-
-- [ ] **Let lightweight writes interleave during analyze** - the DB-locked case now
-  returns a clear 503 (was an opaque 500), but approve/reject and speaker-merge can still
-  fail outright during a long analyze. The pipeline is deliberately sequential for heavy
-  DB writes; quick user writes should still get through (short transactions / retry on
-  `database is locked` / a small write queue) rather than 503-ing for the job's duration.
-
-- [ ] **Model-download UX in Settings is fragile** - clicking Save during a model
-  download closes the progress view and can wedge re-download ("download in progress").
-  Give Settings downloads the same progress bar the automatic feature-model downloads use,
-  consider autosave-on-download so the user need not sit in the window, and confirm/allow
-  parallel text + voice model downloads.
+- [ ] **Model-download UX in Settings is fragile** - a Save (catalog re-render) destroys
+  the in-flight download's progress bar/Cancel while the server keeps downloading, and a
+  re-click 409s invisibly. Reframed after investigation: the server ALREADY persists the
+  model path on download and gguf/whisper/speaker already download in parallel, so this is
+  a frontend reconnect rework - on catalog render, re-attach a progress view for any
+  in-flight download (via `/api/llm/download-status`), reload config on completion, and
+  drop the misleading "Save to apply" prompt.
 
 - [ ] **Header is crowded during analyze** - give analyze progress its own dedicated row
   instead of packing it into the header.
-
-- [ ] **Toast pile-up and a message center** - DB-contention error toasts accumulate.
-  Autoclose error toasts after a configurable delay (today only non-error toasts
-  autoclose) and persist user-facing messages to a reviewable "User messages" surface
-  reachable from the hamburger menu. (Partly moot once lightweight writes interleave.)
 
 - [ ] **Minimum window-size / responsive review** - the window is freely resizable; at
   1024x768 controls overflow their bounds. Enforce a sane minimum window size and/or let
