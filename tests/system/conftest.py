@@ -80,7 +80,7 @@ def fixture_video(tmp_path_factory: pytest.TempPathFactory) -> Path:
 # ---------------------------------------------------------------------------
 
 @pytest.fixture(autouse=True)
-def system_stubs(monkeypatch: pytest.MonkeyPatch) -> None:
+def system_stubs(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> None:
     """Install the two stubbed seams for every system test.
 
     ``transcribe_track`` is patched at its home module (ingest imports it lazily
@@ -88,7 +88,13 @@ def system_stubs(monkeypatch: pytest.MonkeyPatch) -> None:
     seam is patched by swapping the ``llamacpp`` backend class the real
     ``make_client`` factory looks up, so all AI-privacy gating still runs. The
     active transcript is reset so an override in one test never leaks into another.
+
+    The ``golden`` test opts out: it exists precisely to run *real* Whisper + a
+    real local LLM, so stubbing those two seams would defeat its purpose.
     """
+    if request.node.get_closest_marker("golden"):
+        return
+
     import yuu_clip.scoring.llm_client as llm_client
     import yuu_clip.transcribe.whisper_runner as whisper_runner
 

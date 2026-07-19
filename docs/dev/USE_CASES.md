@@ -11,8 +11,10 @@ reuse or renumber a retired ID.
 
 **Status of the surrounding plan (`e2e-use-cases/INDEX.md`):** Stage 1 (this catalog)
 and Stage 2 (the installed-app checklist) are authored; Stage 3 (the `tests/system/`
-full-stack tier) and Stage 6 (the drift-guard meta-test) are built. Stage 4 (the opt-in
-golden real-models path) and Stage 5 (the Electron boot smoke test) are not built yet.
+full-stack tier), Stage 4 (the opt-in golden real-models path,
+`tests/system/test_golden_path.py`, `yuu-dev test-golden`), Stage 5 (the Electron boot
+smoke test, `electron/test/smoke.test.js`, `YUU_SMOKE=1 npm test`), and Stage 6 (the
+drift-guard meta-test) are all built.
 The installed-app manual checklist derived from this catalog lives at
 [testing/installed-app-checklist.md](testing/installed-app-checklist.md). Every
 `automated`/`golden` use case's `Coverage` line now ends with an `Automated by
@@ -96,7 +98,7 @@ A one-glance "what to walk before public" list is in the final section.
   6. Try `+ Analyze` again mid-run.
 - **Expected:** estimate updates when model/layout change; on start the panel closes and pills advance in step with real progress; the recording appears in the sidebar immediately with a live stage spinner and survives a page refresh; a second analyze is blocked with a clear "another job is running" message; on completion the pills clear and clips are listed.
 - **Automation:** automated (drive the real `cli/_pipeline` analyze path against the fixture with Whisper + LLM stubbed) / golden (real models on a spoken clip).
-- **Coverage:** integration pipeline tests; ui analyze/progress tests; golden planned (Stage 4). Automated by tests/system/test_uc_analyze_review_export_play.py::test_analyze_produces_scored_clips.
+- **Coverage:** integration pipeline tests; ui analyze/progress tests; golden real-models path in tests/system/test_golden_path.py::test_golden_path_real_models (opt-in, `yuu-dev test-golden`). Automated by tests/system/test_uc_analyze_review_export_play.py::test_analyze_produces_scored_clips.
 - **Pre-release priority:** P0 - the spine of the product; walk it once on real footage with real models.
 
 ### UC-B02 - Orient to the results
@@ -147,7 +149,7 @@ A one-glance "what to walk before public" list is in the final section.
   3. When it finishes, the player appears in the detail panel; press Space to play.
 - **Expected:** Quick export (no re-encode) finishes in about 1-5 s; a real MKV lands in `.yuu-clip/exports/` with an SRT sidecar alongside; the player plays it (in the packaged app via the `yuu-media://` protocol) and shows captions.
 - **Automation:** automated (export writes a real file + sidecar; assert existence and duration) / golden.
-- **Coverage:** integration export tests; ui export tests; native-protocol playback is packaged-only (packaged-app-verification.md section E); golden planned (Stage 4). Automated by tests/system/test_uc_analyze_review_export_play.py::test_approve_then_export_writes_file_and_sidecar.
+- **Coverage:** integration export tests; ui export tests; native-protocol playback is packaged-only (packaged-app-verification.md section E); golden real-models path in tests/system/test_golden_path.py::test_golden_path_real_models (opt-in). Automated by tests/system/test_uc_analyze_review_export_play.py::test_approve_then_export_writes_file_and_sidecar.
 - **Pre-release priority:** P0 - core loop; and packaged playback via `yuu-media://` has no headless coverage (seek/Range, path-traversal refusal).
 
 ### UC-B06 - Bulk review and export
@@ -407,8 +409,8 @@ A one-glance "what to walk before public" list is in the final section.
   3. Quit while a job is running; then quit cleanly and relaunch.
   4. Install a newer build (schema advanced vs same schema).
 - **Expected:** quit confirms/cancels cleanly and leaves NO orphan `python.exe` / `llama-server.exe` (check Task Manager); relaunch after a clean quit opens straight to the main UI (no wizard); a schema-advancing update opens the wizard in `update` mode preserving project/config; a same-schema bump goes straight to the app.
-- **Automation:** manual-only; the Electron smoke test (Stage 5, planned) will assert boot + `/api/status` + clean shutdown / no orphan python.
-- **Coverage:** packaged-app-verification.md sections H and I; electron smoke test planned (Stage 5).
+- **Automation:** manual-only; the Electron smoke test (Stage 5, `electron/test/smoke.test.js`, opt-in `YUU_SMOKE=1`) asserts boot + `/api/status` + the UI document + clean shutdown / no orphan python. It cannot cover the update-mode wizard, Reveal-in-folder, or native playback - those stay a human walk.
+- **Coverage:** packaged-app-verification.md sections H and I; electron smoke test electron/test/smoke.test.js (opt-in boot + no-orphan-python backstop).
 - **Pre-release priority:** P0 - orphaned processes are the packaging failure mode no pytest suite can catch.
 
 ---

@@ -32,6 +32,8 @@ API_LOG = REPO_ROOT / "test-api-last.log"
 API_SUMMARY = REPO_ROOT / "test-api-last-summary.log"
 SYSTEM_LOG = REPO_ROOT / "test-system-last.log"
 SYSTEM_SUMMARY = REPO_ROOT / "test-system-last-summary.log"
+GOLDEN_LOG = REPO_ROOT / "test-golden-last.log"
+GOLDEN_SUMMARY = REPO_ROOT / "test-golden-last-summary.log"
 UI_LOG = REPO_ROOT / "test-ui-last.log"
 UI_SUMMARY = REPO_ROOT / "test-ui-last-summary.log"
 UI_TESTS_DIR = REPO_ROOT / "tests" / "ui"
@@ -70,15 +72,23 @@ def _run_tiers_code(
     detailed: bool,
     log: Path,
     summary: Path,
+    marker: Optional[str] = None,
 ) -> int:
     """Run one or more pytest tier directories, tee to a log, and return pytest's code.
 
     An explicit target (a file/nodeid in ``pytest_args``) replaces the default tier
-    selection and runs in process; otherwise the named tiers run under xdist.
+    selection and runs in process; otherwise the named tiers run under xdist. A
+    *marker* expression (``-m ...``) is applied to the default tier selection only,
+    so an explicit target can still reach an otherwise-deselected test.
     """
     console.print(f"Log: {log}")
     targets, extras = _split_passthrough(pytest_args)
-    selection = targets if targets else [*tiers, "-n", "auto"]
+    if targets:
+        selection = targets
+    else:
+        selection = [*tiers, "-n", "auto"]
+        if marker:
+            selection += ["-m", marker]
     cmd = [sys.executable, *_pytest(selection, detailed), *extras]
     code, output = run_and_tee(cmd, REPO_ROOT, pytest_env())
     print_summary(write_run_logs(output, log, summary))
@@ -92,8 +102,9 @@ def _run_tiers(
     detailed: bool,
     log: Path,
     summary: Path,
+    marker: Optional[str] = None,
 ) -> None:
-    raise typer.Exit(_run_tiers_code(tiers, pytest_args, detailed, log, summary))
+    raise typer.Exit(_run_tiers_code(tiers, pytest_args, detailed, log, summary, marker))
 
 
 @app.command("test-unit", context_settings={"ignore_unknown_options": True})
@@ -133,8 +144,55 @@ def test_system(
     against a generated fixture video (Whisper + LLM stubbed) plus the FastAPI
     TestClient. Needs ffmpeg on PATH (guard-skips otherwise); no live server. This
     is a pre-release gate, not a per-edit check - it is deliberately excluded from
-    test-api's default selection."""
-    _run_tiers(["tests/system"], pytest_args, detailed, SYSTEM_LOG, SYSTEM_SUMMARY)
+    test-api's default selection.
+
+    The opt-in `golden` real-models test is excluded here (`-m "not golden"`); run
+    it separately with `yuu-dev test-golden`."""
+    _run_tiers(["tests/system"], pytest_args, detailed, SYSTEM_LOG, SYSTEM_SUMMARY,
+               marker="not golden")
+
+
+@app.command("test-golden", context_settings={"ignore_unknown_options": True})
+def test_golden(
+    detailed: bool = typer.Option(False, "--detailed", help="Per-test -v output."),
+    pytest_args: Optional[List[str]] = typer.Argument(None),
+) -> None:
+    """Run ONLY the opt-in golden path (tests/system, `-m golden`): the core loop on
+    a real clip with real Whisper + a real local LLM.
+
+    It is env-gated (YUU_GOLDEN_CLIP + YUU_GOLDEN_LLM_MODEL) and skips - never fails
+    - when an input, ffmpeg, the Whisper model, or a runnable local LLM is missing.
+    Because a skip means it did NOT actually exercise the real models, this command
+    prints the skip reason prominently so a human is never misled into thinking the
+    golden path ran when it only skipped."""
+    # -rfEs so the short summary carries the skip *reason* (the default -r fE omits
+    # skips); the banner below reads it back out of the log.
+    args = [*(pytest_args or []), "-rfEs"]
+    code = _run_tiers_code(["tests/system"], args, detailed, GOLDEN_LOG,
+                           GOLDEN_SUMMARY, marker="golden")
+    _announce_golden_outcome(GOLDEN_LOG)
+    raise typer.Exit(code)
+
+
+def _announce_golden_outcome(log: Path) -> None:
+    """Print a loud banner distinguishing 'the golden path actually ran' from 'it
+    skipped', with the skip reason, so a skip is never mistaken for a real run."""
+    text = log.read_text(encoding="utf-8", errors="replace") if log.exists() else ""
+    # pytest's short summary: "SKIPPED [1] path:line: <reason>" - grab the reason.
+    reasons = re.findall(r"^SKIPPED\b.*?:\d+:\s*(.+)$", text, re.MULTILINE)
+    console.print("")
+    if reasons:
+        console.print("[yellow]" + "=" * 68 + "[/yellow]")
+        console.print("[yellow]GOLDEN PATH SKIPPED - it did NOT run the real models.[/yellow]")
+        for reason in reasons:
+            console.print(f"[yellow]  reason: {reason.strip()}[/yellow]")
+        console.print("[yellow]Set YUU_GOLDEN_CLIP + YUU_GOLDEN_LLM_MODEL and ensure ffmpeg +[/yellow]")
+        console.print("[yellow]a runnable local llama-server are present, then re-run.[/yellow]")
+        console.print("[yellow]" + "=" * 68 + "[/yellow]")
+    elif "1 passed" in text or " passed" in text:
+        console.print("[green]" + "=" * 68 + "[/green]")
+        console.print("[green]GOLDEN PATH RAN with real Whisper + a real local LLM.[/green]")
+        console.print("[green]" + "=" * 68 + "[/green]")
 
 
 @app.command("test-all")

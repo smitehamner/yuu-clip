@@ -295,7 +295,8 @@ yuu-dev test-all            # every server-free tier in one go: js + unit + inte
 yuu-dev test-ui --changed   # dev default: tests around the diff + smoke
 yuu-dev test-ui --smoke     # ~6-test backstop only, quickest sanity check
 yuu-dev test-ui             # full suite (all tests/ui/test_ui_*.py) - see cadence above
-yuu-dev test-system         # full-stack system tier (tests/system); real pipeline + TestClient, needs ffmpeg
+yuu-dev test-system         # full-stack system tier (tests/system, -m "not golden"); real pipeline + TestClient, needs ffmpeg
+yuu-dev test-golden         # opt-in real-models path only (tests/system, -m golden); real Whisper + real LLM, env-gated
 ```
 
 ### System tier (`tests/system/`) - full-stack use-case tests
@@ -316,6 +317,17 @@ all run for real. It needs ffmpeg on PATH (guard-skips otherwise) and no live se
   transcript, exact-match assertions on what we control (durations, file existence, flag
   booleans, sidecar contents). The stubs and fixture live in `tests/system/conftest.py`
   and `tests/system/_stubs.py`.
+- **Golden path (opt-in, real models).** `tests/system/test_golden_path.py` (marked
+  `golden`) is the one test that runs **real** faster-whisper `tiny` + a **real** local
+  LLM end to end - the wiring proof behind UC-B01 / UC-B05 the stubbed tier can't give.
+  It is **excluded from every default run** (`test-system` runs `-m "not golden"`); run it
+  with `yuu-dev test-golden` / `scripts/test-golden.ps1`. It is env-gated
+  (`YUU_GOLDEN_CLIP` = a short spoken clip, `YUU_GOLDEN_LLM_MODEL` = a real text `.gguf`)
+  and **skips - never fails** - when an input, ffmpeg, the Whisper model, or a runnable
+  local llama-server is missing. A skip means the real models did NOT run, so
+  `yuu-dev test-golden` prints a loud banner with the skip reason; do not read a skip as a
+  pass. It asserts structure only (a clip exists, transcript non-empty, a description is
+  present, an export file lands), never exact model output.
 
 ### Adding or changing a user-facing feature (use-case catalog)
 
@@ -377,6 +389,22 @@ cd electron; npm test        # node --test, no dependencies, ~0.2s
 
 Run it only after changing files under `electron/` (e.g. `main.js`,
 `gpu-detect.js`) - skip it for pure Python/web-UI changes.
+
+Almost all of these are pure-unit (import a module, assert its logic). The one
+exception is **`electron/test/smoke.test.js`** (e2e-use-cases Stage 5 / UC-G03): it
+boots the **real** desktop shell (`electron main.js`) against a throwaway userData,
+waits for the embedded server on `/api/status`, confirms the UI document loads with a
+known root control, then asks the app to quit and asserts it leaves **no orphan
+`python.exe`** - the packaging failure mode the pytest suites can't see. It is heavy
+(a real Electron + Python boot, ~10 s) and **opt-in**: it skips unless `YUU_SMOKE=1`,
+so plain `npm test` stays ~0.2 s. When enabled it also skips (with a clear reason) off
+Windows, without the Electron runtime, without a python that can import `yuu_clip`, or
+when port 8080 is already busy (stop any dev server first). It relies on main.js's
+`YUU_SMOKE_BACKEND_PYTHON` seam: with that env var set, `ensureVenv()` is skipped and
+the backend spawns with the supplied interpreter - the only way to boot the shell from
+an unpackaged dev checkout (and handy for running the desktop shell against a dev venv
+without building an installer). Run it with `YUU_SMOKE=1 npm test` (ensure
+`ELECTRON_RUN_AS_NODE` is not set in your shell).
 
 ## Current focus
 

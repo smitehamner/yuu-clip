@@ -59,6 +59,16 @@ let activeGgufController = null;  // AbortController for the .gguf download
 // Python discovery
 // ---------------------------------------------------------------------------
 
+// The interpreter that runs the backend. Normally the provisioned venv python;
+// YUU_SMOKE_BACKEND_PYTHON overrides it so a dev/CI smoke test (or a developer)
+// can boot the real desktop shell against an already-set-up interpreter without
+// building an installer - the only way to exercise this startup path unpackaged,
+// where ensureVenv's pip-from-wheelhouse fallback can't provision a venv. Paired
+// with the ensureVenv short-circuit below.
+function backendPython() {
+  return process.env.YUU_SMOKE_BACKEND_PYTHON || VENV_PYTHON;
+}
+
 function findPython() {
   if (app.isPackaged) {
     if (fs.existsSync(BUNDLED_PYTHON)) {
@@ -715,6 +725,13 @@ function readPrebuiltEnvVersion(resourcesDir) {
 // reuse it when the version already matches, or fall back to pip-from-wheelhouse
 // (dev/unpackaged builds, which don't carry the archive).
 async function ensureVenv() {
+  // Smoke/dev boot: the backend interpreter is supplied ready-to-run, so there is
+  // no venv to provision - skip straight to spawnBackend (which uses the same
+  // override). See backendPython().
+  if (process.env.YUU_SMOKE_BACKEND_PYTHON) {
+    logSetup(`Venv setup skipped - using supplied backend python ${backendPython()}`);
+    return;
+  }
   const resourcesDir = process.resourcesPath || path.join(__dirname, '..', 'dist');
   const envArchive = path.join(resourcesDir, 'prebuilt-env.tar.gz');
   const envArchivePresent = fs.existsSync(envArchive);
@@ -956,8 +973,9 @@ function spawnBackend(port) {
     env.YUU_CLIP_LLAMA_SERVER_DIR = BUNDLED_LLAMA_SERVER_DIR;
   }
 
-  logSetup(`Spawning backend: ${VENV_PYTHON} ${args.join(' ')}`);
-  pyProc = spawn(VENV_PYTHON, args, {
+  const python = backendPython();
+  logSetup(`Spawning backend: ${python} ${args.join(' ')}`);
+  pyProc = spawn(python, args, {
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
     env,
