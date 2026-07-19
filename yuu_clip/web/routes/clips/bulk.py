@@ -26,7 +26,7 @@ from yuu_clip.web.routes.clips.schemas import (
     BulkStatusUpdate,
 )
 from yuu_clip.web.routes.clips.serialize import _parse_clip_ids
-from yuu_clip.web.routes.common import missing_ids
+from yuu_clip.web.routes.common import missing_ids, with_write_retry
 
 _log = get_logger(__name__)
 
@@ -39,25 +39,28 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
             raise HTTPException(400, f"status must be one of: {' | '.join(_VALID_STATUSES)}")
         if not body.clip_ids:
             raise HTTPException(400, "clip_ids must not be empty")
-        db = ctx.get_db()
-        try:
-            clips = db.query(ClipCandidate).filter(ClipCandidate.id.in_(body.clip_ids)).all()
-            found_ids = {c.id for c in clips}
-            previous = {c.id: c.status for c in clips}
-            for clip in clips:
-                clip.status = body.status
-            db.commit()
-            missing = missing_ids(body.clip_ids, found_ids)
-            _log.info(
-                "Bulk status update: %d clip(s) set to %s, %d missing",
-                len(clips), body.status, len(missing),
-            )
-            return {
-                "updated": sorted(found_ids), "status": body.status, "missing": missing,
-                "previous": previous,
-            }
-        finally:
-            db.close()
+
+        def _op():
+            db = ctx.get_db()
+            try:
+                clips = db.query(ClipCandidate).filter(ClipCandidate.id.in_(body.clip_ids)).all()
+                found_ids = {c.id for c in clips}
+                previous = {c.id: c.status for c in clips}
+                for clip in clips:
+                    clip.status = body.status
+                db.commit()
+                missing = missing_ids(body.clip_ids, found_ids)
+                _log.info(
+                    "Bulk status update: %d clip(s) set to %s, %d missing",
+                    len(clips), body.status, len(missing),
+                )
+                return {
+                    "updated": sorted(found_ids), "status": body.status, "missing": missing,
+                    "previous": previous,
+                }
+            finally:
+                db.close()
+        return with_write_retry(_op)
 
     @router.post("/api/clips/bulk-status-restore")
     def bulk_restore_clip_status(body: BulkStatusRestore):
@@ -71,18 +74,21 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
         for item in body.updates:
             if item.status not in _VALID_STATUSES:
                 raise HTTPException(400, f"status must be one of: {' | '.join(_VALID_STATUSES)}")
-        db = ctx.get_db()
-        try:
-            by_id = {item.id: item.status for item in body.updates}
-            clips = db.query(ClipCandidate).filter(ClipCandidate.id.in_(by_id)).all()
-            for clip in clips:
-                clip.status = by_id[clip.id]
-            db.commit()
-            found_ids = {c.id for c in clips}
-            _log.info("Bulk status restore (undo): %d clip(s) reverted", len(clips))
-            return {"restored": sorted(found_ids), "missing": missing_ids(list(by_id), found_ids)}
-        finally:
-            db.close()
+
+        def _op():
+            db = ctx.get_db()
+            try:
+                by_id = {item.id: item.status for item in body.updates}
+                clips = db.query(ClipCandidate).filter(ClipCandidate.id.in_(by_id)).all()
+                for clip in clips:
+                    clip.status = by_id[clip.id]
+                db.commit()
+                found_ids = {c.id for c in clips}
+                _log.info("Bulk status restore (undo): %d clip(s) reverted", len(clips))
+                return {"restored": sorted(found_ids), "missing": missing_ids(list(by_id), found_ids)}
+            finally:
+                db.close()
+        return with_write_retry(_op)
 
     @router.post("/api/clips/bulk-delete")
     def bulk_delete_clips(body: BulkClipIds):

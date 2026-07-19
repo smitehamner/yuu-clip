@@ -37,6 +37,7 @@ from yuu_clip.web.routes.common import (
     rebuild_video_excerpts,
     reject_if_busy,
     sse_response,
+    with_write_retry,
 )
 
 _log = get_logger(__name__)
@@ -379,28 +380,45 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         target's name surfaces everywhere. Guards self-merge and cross-recording merges.
         """
         from yuu_clip.subtitles import refresh_export_sidecars
+
+        # Retried unit = the merge + excerpt rebuild + commit only. The post-commit
+        # sidecar refresh and response build run afterwards in a fresh session, so a
+        # committed merge is never replayed (a replay would 404 on the deleted source).
+        def _op():
+            db = ctx.get_db()
+            try:
+                if speaker_id == target_id:
+                    raise HTTPException(400, "Cannot merge a speaker into itself")
+                source = db.get(Speaker, speaker_id)
+                target = db.get(Speaker, target_id)
+                if not source or not target:
+                    raise HTTPException(404, "Speaker not found")
+                if source.video_id != target.video_id:
+                    raise HTTPException(400, "Speakers belong to different recordings")
+                video_id = target.video_id
+                _merge_speaker_into(db, source, target)
+                refreshed = rebuild_video_excerpts(db, video_id)
+                edited_at = datetime.now(timezone.utc)
+                affected = db.query(ClipCandidate).filter_by(video_id=video_id).all()
+                for clip in affected:
+                    clip.transcript_edited_at = edited_at
+                db.commit()
+                return video_id, [c.id for c in affected], refreshed
+            finally:
+                db.close()
+
+        video_id, affected_ids, refreshed = with_write_retry(_op)
+
         db = ctx.get_db()
         try:
-            if speaker_id == target_id:
-                raise HTTPException(400, "Cannot merge a speaker into itself")
-            source = db.get(Speaker, speaker_id)
-            target = db.get(Speaker, target_id)
-            if not source or not target:
-                raise HTTPException(404, "Speaker not found")
-            if source.video_id != target.video_id:
-                raise HTTPException(400, "Speakers belong to different recordings")
-            video_id = target.video_id
-            _merge_speaker_into(db, source, target)
-            refreshed = rebuild_video_excerpts(db, video_id)
-            edited_at = datetime.now(timezone.utc)
-            affected = db.query(ClipCandidate).filter_by(video_id=video_id).all()
-            for clip in affected:
-                clip.transcript_edited_at = edited_at
-            db.commit()
-            for clip in affected:
-                refresh_export_sidecars(clip, ctx.export_dir, ctx.config.export_name_template)
+            for clip_id in affected_ids:
+                clip = db.get(ClipCandidate, clip_id)
+                if clip is not None:
+                    refresh_export_sidecars(clip, ctx.export_dir, ctx.config.export_name_template)
             _log.info("Merged speaker %d into %d (video %d); refreshed %d clip excerpt(s)",
                       speaker_id, target_id, video_id, refreshed)
+            target = db.get(Speaker, target_id)
+            assert target is not None  # the merge just committed into it
             samples = _speaker_samples(db, [target.id])
             return _speaker_dict(target, samples.get(target.id))
         finally:

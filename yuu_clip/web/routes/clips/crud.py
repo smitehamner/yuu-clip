@@ -28,7 +28,7 @@ from yuu_clip.web.routes.clips.schemas import (
     TagsBody,
 )
 from yuu_clip.web.routes.clips.serialize import _clip_dict, _normalize_tags
-from yuu_clip.web.routes.common import require_clip
+from yuu_clip.web.routes.common import require_clip, with_write_retry
 
 _log = get_logger(__name__)
 
@@ -176,14 +176,20 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
     def set_clip_status(clip_id: int, body: StatusUpdate):
         if body.status not in _VALID_STATUSES:
             raise HTTPException(400, f"status must be one of: {' | '.join(_VALID_STATUSES)}")
-        db = ctx.get_db()
-        try:
-            clip = require_clip(db, clip_id)
-            clip.status = body.status
-            db.commit()
-            return {"id": clip_id, "status": body.status}
-        finally:
-            db.close()
+
+        # Retry-wrapped: approve/reject is the most common action during a long analyze,
+        # where the write can briefly miss the single SQLite lock. Re-running is
+        # idempotent (setting the same status again), with no post-commit side effects.
+        def _op():
+            db = ctx.get_db()
+            try:
+                clip = require_clip(db, clip_id)
+                clip.status = body.status
+                db.commit()
+                return {"id": clip_id, "status": body.status}
+            finally:
+                db.close()
+        return with_write_retry(_op)
 
     @router.get("/api/clips/{clip_id}/export-files")
     def clip_export_files(clip_id: int):

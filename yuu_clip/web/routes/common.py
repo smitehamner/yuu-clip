@@ -8,16 +8,58 @@ from __future__ import annotations
 import importlib.util
 import json as json_lib
 import re
+import time
 from contextlib import asynccontextmanager
-from typing import Iterable, Optional
+from typing import Callable, Iterable, Optional, TypeVar
 
 from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
+from sqlalchemy.exc import OperationalError
 
 from yuu_clip.db.models import ClipCandidate, Transcript, TranscriptSegment, Video
 from yuu_clip.log import get_logger
 
 _log = get_logger(__name__)
+
+_T = TypeVar("_T")
+_WRITE_RETRY_ATTEMPTS = 5
+_WRITE_RETRY_DELAY_S = 0.2
+
+
+def _is_locked_error(exc: OperationalError) -> bool:
+    text = str(getattr(exc, "orig", exc)).lower()
+    return "locked" in text or "busy" in text
+
+
+def with_write_retry(
+    operation: Callable[[], _T],
+    *,
+    attempts: int = _WRITE_RETRY_ATTEMPTS,
+    delay: float = _WRITE_RETRY_DELAY_S,
+) -> _T:
+    """Run *operation* and retry it on a SQLite "database is locked" error.
+
+    *operation* must be a self-contained unit that opens its own session, writes,
+    and commits (see the lightweight-write routes) - it is re-run from scratch on
+    each attempt, so a transient failure to grab the single SQLite write lock (while
+    a long analyze/score subprocess holds it) succeeds on a later try instead of
+    failing. Only lock/busy OperationalErrors are retried; every other error -
+    including HTTPException guards - propagates immediately, and the final locked
+    failure re-raises (the app's OperationalError handler turns it into a 503).
+
+    The caller must ensure re-running is idempotent: keep the retried unit's own
+    query+mutate+commit together and do any post-commit side effects (sidecar
+    refresh, etc.) outside it, so a committed write is never replayed.
+    """
+    for attempt in range(attempts):
+        try:
+            return operation()
+        except OperationalError as exc:
+            if not _is_locked_error(exc) or attempt == attempts - 1:
+                raise
+            _log.info("DB locked - retrying write (attempt %d/%d)", attempt + 1, attempts)
+            time.sleep(delay)
+    raise AssertionError("unreachable")  # loop either returns or raises
 
 _SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
 
