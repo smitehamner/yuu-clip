@@ -46,6 +46,21 @@
 
 <!-- @@include regions/header.html -->
 
+<!-- Dedicated analyze/job progress row - a full-width strip below the header, shown
+     only while a long-running job runs (jobs.js toggles .visible). Kept out of the
+     header so analyze progress no longer competes with the nav for horizontal space. -->
+<div class="job-status" id="job-status">
+  <div class="spinner" role="status" aria-label="Processing"></div>
+  <div class="job-steps" id="job-steps"></div>
+  <span class="gpu-temp-readout" id="job-gpu-temp" style="display:none"></span>
+  <span class="paused-badge" id="job-paused-badge" style="display:none"
+        title="Paused - will hold before the next video">&#9208; Paused</span>
+  <button class="btn" id="btn-pause-job"
+          style="padding:2px 10px;font-size:12px;display:none">Pause after current video</button>
+  <button class="btn" id="btn-cancel-job"
+          style="padding:2px 10px;font-size:12px;display:none">Cancel</button>
+</div>
+
 <!-- Background local-model download banner (first-run-friction Stage 4). Non-blocking
      top-of-app chrome; content + visibility are driven by modeldownload.js. -->
 <div id="model-download-banner" class="model-download-banner" role="status" aria-live="polite" style="display:none"></div>

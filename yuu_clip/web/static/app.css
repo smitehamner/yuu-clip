@@ -24,15 +24,20 @@ header h1,
 }
 
 /* ── header ── */
-header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+/* flex-wrap so a cramped window drops the right-side controls to a second line
+   instead of overflowing the viewport (the page body must never scroll sideways). */
+header { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; }
 header h1 { font-size: 18px; font-weight: 700; letter-spacing: .5px; color: var(--accent-text);
   background: linear-gradient(100deg, var(--accent2), var(--accent));
   -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
 .brand { display: flex; align-items: center; gap: 8px; }
 .brand-logo { border-radius: 5px; object-fit: cover; flex-shrink: 0; }
 
-/* job status pill */
-.job-status { display: none; align-items: center; flex-wrap: wrap; gap: 8px; background: var(--surface-raised); border: 1px solid var(--border); border-radius: 20px; padding: 4px 12px 4px 8px; font-size: 12px; color: var(--text); margin-right: auto; min-width: 0; }
+/* Analyze/job progress row - a dedicated full-width strip below the header, shown
+   only while a long-running job is active (jobs.js toggles .visible). flex-shrink:0
+   so it keeps its height in the column layout; flex-wrap so the step pills spill to
+   a second line on a narrow window rather than overflowing. */
+.job-status { display: none; align-items: center; flex-wrap: wrap; gap: 8px; background: var(--surface-raised); border-bottom: 1px solid var(--border); padding: 6px 16px; font-size: 12px; color: var(--text); flex-shrink: 0; min-width: 0; }
 .job-status.visible { display: flex; }
 .spinner { width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; flex-shrink: 0; }
 @keyframes spin { to { transform: rotate(360deg); } }

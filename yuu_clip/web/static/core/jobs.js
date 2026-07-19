@@ -135,7 +135,6 @@ function startJobUI(stepDefs, jobLabel, cancellable = false, pausable = false) {
       return `<span class="step" id="step-${i}"${title}>${s.label}</span>`;
     }).join('');
   document.getElementById('job-status').classList.add('visible');
-  document.getElementById('header-spacer').style.display = 'none';
   document.querySelectorAll('#btn-analyze,#btn-score').forEach(b => b.disabled = true);
   const analyzeBtn = document.getElementById('btn-analyze');
   if (analyzeBtn) analyzeBtn.title = 'A job is already running';
@@ -387,7 +386,6 @@ function endJobUI() {
   _jobHideTimer = setTimeout(() => {
     _jobHideTimer = null;
     document.getElementById('job-status').classList.remove('visible');
-    document.getElementById('header-spacer').style.display = '';
     document.querySelectorAll('#btn-analyze,#btn-score').forEach(b => b.disabled = false);
     const analyzeBtn = document.getElementById('btn-analyze');
     if (analyzeBtn) analyzeBtn.title = '';

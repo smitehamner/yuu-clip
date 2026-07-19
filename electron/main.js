@@ -1108,6 +1108,7 @@ function registerMediaProtocol() {
 function createWindow(port) {
   mainWindow = new BrowserWindow({
     width: 1280, height: 900,
+    minWidth: 1024, minHeight: 700,
     title: 'YuuClip',
     icon: path.join(__dirname, 'assets', 'icon.png'),
     webPreferences: {
