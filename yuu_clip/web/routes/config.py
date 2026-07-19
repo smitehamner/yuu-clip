@@ -79,6 +79,7 @@ class ConfigPatch(BaseModel):
     huggingface_token:            Optional[str]   = None
     speaker_match_threshold:      Optional[float] = None
     speaker_cluster_threshold:    Optional[float] = None
+    speaker_min_cluster_seconds:  Optional[float] = None
     project_voice_match_threshold: Optional[float] = None
     # Export
     export_name_template:         Optional[str]   = None
@@ -121,7 +122,7 @@ _CONFIG_FIELDS = (
     "visual_candidate_mode", "visual_dedup_overlap", "visual_candidate_cap",
     "visual_peak_threshold",
     "diarization_backend", "huggingface_token", "speaker_match_threshold",
-    "speaker_cluster_threshold", "project_voice_match_threshold",
+    "speaker_cluster_threshold", "speaker_min_cluster_seconds", "project_voice_match_threshold",
     "export_name_template",
     "title_card_bg_color", "title_card_font_color", "title_card_scale",
     "title_card_template", "title_card_duration_s",
@@ -280,6 +281,7 @@ _CONFIG_PATCH_RULES: list[tuple[str, object]] = [
     ("huggingface_token",            lambda v: v.strip()),
     ("speaker_match_threshold",      _range_validator(0.0, 1.0, "speaker_match_threshold")),
     ("speaker_cluster_threshold",    _range_validator(0.0, 1.0, "speaker_cluster_threshold")),
+    ("speaker_min_cluster_seconds",  _range_validator(0.0, 120.0, "speaker_min_cluster_seconds")),
     ("project_voice_match_threshold", _range_validator(0.0, 1.0, "project_voice_match_threshold")),
     ("export_name_template",         _export_name_template_validator),
     ("title_card_bg_color",          _hex_color_validator("title_card_bg_color")),

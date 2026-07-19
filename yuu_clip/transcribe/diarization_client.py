@@ -86,9 +86,12 @@ _SB_WINDOW_S = 1.5   # embedding window length
 _SB_HOP_S = 0.75     # step between windows
 _SB_BATCH = 32       # windows per encoder forward pass
 # Cosine-distance threshold above which two windows are treated as different
-# speakers. Tuned conservatively on real recordings; distinct voices sit well
-# above ~0.5 cosine distance, same-voice windows well below.
-_SB_DISTANCE_THRESHOLD = 0.55
+# speakers. Fallback for Config.speaker_cluster_threshold; keep the two in step.
+# Raised to 0.85 (W2) - on mixed single-track audio a lower distance shatters one
+# speaker into dozens of fragments (see config.speaker_cluster_threshold).
+_SB_DISTANCE_THRESHOLD = 0.85
+# Fallback for Config.speaker_min_cluster_seconds (post-consolidation noise prune).
+_SB_MIN_CLUSTER_SECONDS = 10.0
 # Voice-activity floor: a window is "speech" when its RMS is above both an
 # absolute silence floor and a margin below the track's median window level.
 _SB_ABS_FLOOR_DB = -55.0
@@ -206,6 +209,57 @@ def _consolidate_labels(embeddings, labels, similarity_threshold: float):
     ).fit_predict(np.asarray(centroids))
     old_to_new = {old: int(new) for old, new in zip(unique, merged)}
     return np.array([old_to_new[int(value)] for value in labels], dtype=int)
+
+
+def _prune_small_clusters(
+    embeddings, labels, min_seconds: float, max_merge_distance: float,
+    hop_s: float = _SB_HOP_S,
+):
+    """Fold noise/overlap fragments into a real voice, dropping speaker clusters that own
+    too little speech to be a genuine speaker.
+
+    A cluster owning < *min_seconds* of speech is reassigned to its nearest surviving
+    centroid, but ONLY when that centroid is within *max_merge_distance* (cosine) - the
+    same distance the within-recording clustering used. A tiny fragment with no
+    close-enough survivor is a distinct brief voice and is kept as its own cluster. This
+    keeps behavior monotonic in the grouping distance: a lower distance yields more (or
+    equal) speakers, never a collapse. Without the gate, a low distance shatters mixed
+    "crowd" audio into one dominant blended cluster plus many tiny fragments, and an
+    ungated prune would fold every fragment into the crowd - reporting one speaker for a
+    room full of people.
+
+    Speech time is approximated as window_count * hop_s (each active window advances the
+    timeline by one hop). An absolute-seconds floor generalizes across recording lengths
+    where a percentage would delete a genuine minor speaker on a long recording. Guards:
+    a non-positive floor disables the prune, and the last surviving cluster is never
+    removed (all-below-floor returns the labels unchanged).
+    """
+    import numpy as np
+
+    if min_seconds <= 0:
+        return np.asarray(labels, dtype=int)
+    labels_arr = np.asarray(labels, dtype=int)
+    unique, counts = np.unique(labels_arr, return_counts=True)
+    survivors = [int(u) for u, c in zip(unique, counts) if c * hop_s >= min_seconds]
+    if len(survivors) == len(unique) or not survivors:
+        return labels_arr
+
+    array = np.asarray(embeddings, dtype=np.float64)
+    centroids = {}
+    for label in survivors:
+        mean = array[labels_arr == label].mean(axis=0)
+        norm = np.linalg.norm(mean)
+        centroids[label] = mean / norm if norm > 0 else mean
+
+    pruned = labels_arr.copy()
+    for label in (int(u) for u in unique if int(u) not in survivors):
+        mean = array[labels_arr == label].mean(axis=0)
+        norm = np.linalg.norm(mean)
+        vector = mean / norm if norm > 0 else mean
+        nearest = max(survivors, key=lambda s: float(np.dot(vector, centroids[s])))
+        if 1.0 - float(np.dot(vector, centroids[nearest])) <= max_merge_distance:
+            pruned[labels_arr == label] = nearest
+    return pruned
 
 
 def _merge_turns(window_times: list[tuple[float, float]], labels) -> list[tuple[float, float, str]]:
@@ -362,15 +416,23 @@ class SpeechBrainDiarizationClient(DiarizationClient):
             else _SB_DISTANCE_THRESHOLD
         )
         raw_labels = _cluster_labels(embeddings, cluster_threshold)
-        labels = _consolidate_labels(embeddings, raw_labels, self._config.speaker_match_threshold)
+        consolidated = _consolidate_labels(embeddings, raw_labels, self._config.speaker_match_threshold)
+        min_seconds = (
+            self._config.speaker_min_cluster_seconds
+            if self._config.speaker_min_cluster_seconds is not None
+            else _SB_MIN_CLUSTER_SECONDS
+        )
+        labels = _prune_small_clusters(embeddings, consolidated, min_seconds, cluster_threshold)
         window_times = [(start / sample_rate, end / sample_rate) for start, end in active_bounds]
         turns = _merge_turns(window_times, labels)
         centroids = _cluster_centroids(embeddings, labels)
         raw_count = len({int(value) for value in raw_labels})
+        consolidated_count = len({int(value) for value in consolidated})
         _log.info(
             "SpeechBrain diarization: %d active window(s) -> %d turn(s); %d raw cluster(s) "
-            "consolidated to %d speaker(s)",
-            len(active_bounds), len(turns), raw_count, len(centroids),
+            "-> %d consolidated -> %d speaker(s) after pruning clusters under %.0fs",
+            len(active_bounds), len(turns), raw_count, consolidated_count,
+            len(centroids), min_seconds,
         )
         return turns, centroids
 

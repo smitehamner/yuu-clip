@@ -53,6 +53,7 @@ Most lookups only need this table: the authoritative user-facing term, the code 
 | Suggested speaker name | `source='inferred'`, `confirmed=False` | LLM-proposed name awaiting Accept/Dismiss |
 | Speaker labels | `diarization_backend` | The feature: transcripts show who is speaking - not "diarization" in UI |
 | Speaker detection | `rediarizeVideo`, speechbrain | The action that powers speaker labels |
+| Minimum speaking time | `speaker_min_cluster_seconds` | Settings knob: a voice speaking fewer than N seconds is folded into the nearest speaker as noise/crosstalk (0 = off) |
 | Voiceprint | `Speaker.voiceprint` | Internal voice embedding - never user-facing |
 | Clip | `ClipCandidate` | A proposed highlight moment - never "clip candidate" in UI |
 | Clip status | `status` | `pending` → **Unreviewed**, `approved` → Approved, `rejected` → Rejected |

@@ -626,7 +626,17 @@ class Config:
     # averaged centroids used for matching, so this is deliberately looser (a distance)
     # than speaker_match_threshold (a similarity). After clustering, fragments of one
     # voice are re-merged by a consolidation pass keyed on speaker_match_threshold.
-    speaker_cluster_threshold: float = 0.55
+    # Raised 0.55 -> 0.85 (W2, 2026-07-19): on mixed single-track audio (the common
+    # shape) 0.55 shattered a ~3-person recording into 168 fragments; 0.85 keeps distinct
+    # dominant voices separated across a 4-clip real-audio sweep while collapsing the
+    # blended-embedding scatter. Above ~0.90 distinct dominant voices start merging.
+    speaker_cluster_threshold: float = 0.85
+    # SpeechBrain only: after clustering + consolidation, any speaker cluster owning fewer
+    # than this many seconds of speech is treated as a noise/overlap fragment and its
+    # windows are reassigned to the nearest surviving voice. An absolute-seconds floor
+    # generalizes across clip lengths (a percentage would delete a genuine minor speaker
+    # on a long VOD). 0 disables the prune. The last surviving cluster is never removed.
+    speaker_min_cluster_seconds: float = 10.0
     # THIRD, strictest threshold (keep it distinct from the two above): cosine
     # similarity above which a recording's Speaker is proposed as the same project-wide
     # Person as an existing ProjectVoice exemplar. A wrong cross-recording merge

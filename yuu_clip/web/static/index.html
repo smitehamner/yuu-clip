@@ -403,9 +403,16 @@
       <div class="settings-row">
         <div class="settings-col">
           <label class="settings-label" for="s-speaker-cluster-threshold">Voice grouping</label>
-          <div class="settings-note">How readily two moments of speech are treated as <em>different</em> people within one recording. Lower splits into more speakers; higher merges more together. 0.55 is the default. If one person keeps getting split into many speakers, raise it.</div>
+          <div class="settings-note">How readily two moments of speech are treated as <em>different</em> people within one recording. Lower splits into more speakers; higher merges more together. 0.85 is the default. If one person keeps getting split into many speakers, raise it; if two people are being merged, lower it.</div>
         </div>
         <input class="settings-input" id="s-speaker-cluster-threshold" type="number" min="0" max="1" step="0.05" style="max-width:100px">
+      </div>
+      <div class="settings-row">
+        <div class="settings-col">
+          <label class="settings-label" for="s-speaker-min-cluster-seconds">Minimum speaking time</label>
+          <div class="settings-note">A voice that speaks for fewer than this many seconds in a recording is treated as background noise or crosstalk and folded into the nearest speaker. Raise it if you still get spurious extra speakers; lower it (or set 0 to turn it off) to keep every brief voice. 10 seconds is the default.</div>
+        </div>
+        <input class="settings-input" id="s-speaker-min-cluster-seconds" type="number" min="0" max="120" step="1" style="max-width:100px">
       </div>
     </div>
     <!-- shared fields (shown whenever a backend is selected) -->

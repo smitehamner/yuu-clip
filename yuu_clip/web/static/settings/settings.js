@@ -244,7 +244,8 @@ function _applySpeakerFields(cfg) {
   _setFieldVal('s-diarization-backend', diarBackend);
   _onDiarizationBackendChange(diarBackend);
   _setFieldVal('s-speaker-match-threshold', (cfg.speaker_match_threshold ?? 0.75).toFixed(2));
-  _setFieldVal('s-speaker-cluster-threshold', (cfg.speaker_cluster_threshold ?? 0.55).toFixed(2));
+  _setFieldVal('s-speaker-cluster-threshold', (cfg.speaker_cluster_threshold ?? 0.85).toFixed(2));
+  _setFieldVal('s-speaker-min-cluster-seconds', String(cfg.speaker_min_cluster_seconds ?? 10));
   _setFieldVal('s-project-voice-match-threshold', (cfg.project_voice_match_threshold ?? 0.80).toFixed(2));
 }
 
@@ -671,6 +672,7 @@ async function saveSettings() {
     diarization_backend:        getVal('s-diarization-backend'),
     speaker_match_threshold:    getNum('s-speaker-match-threshold', parseFloat),
     speaker_cluster_threshold:  getNum('s-speaker-cluster-threshold', parseFloat),
+    speaker_min_cluster_seconds: getNum('s-speaker-min-cluster-seconds', parseFloat),
     project_voice_match_threshold: getNum('s-project-voice-match-threshold', parseFloat),
     scene_detection_mode:       getVal('s-scene-mode'),
     visual_candidate_mode:      getVal('s-visual-mode'),

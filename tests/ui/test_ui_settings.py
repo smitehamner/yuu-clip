@@ -1020,3 +1020,16 @@ class TestSpeakerClusterThreshold:
         self._open_settings(page)
         page.evaluate("_onDiarizationBackendChange('null')")
         expect(page.locator("#s-speaker-cluster-threshold")).to_be_hidden()
+
+    def test_min_cluster_seconds_shown_for_speechbrain(self, page: Page):
+        self._open_settings(page)
+        page.evaluate("_onDiarizationBackendChange('speechbrain')")
+        field = page.locator("#s-speaker-min-cluster-seconds")
+        expect(field).to_be_visible()
+        expect(field).to_have_attribute("type", "number")
+        expect(field).to_have_attribute("min", "0")
+
+    def test_min_cluster_seconds_hidden_when_off(self, page: Page):
+        self._open_settings(page)
+        page.evaluate("_onDiarizationBackendChange('null')")
+        expect(page.locator("#s-speaker-min-cluster-seconds")).to_be_hidden()

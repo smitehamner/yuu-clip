@@ -273,7 +273,7 @@ class TestUiConfig:
         assert client.patch("/api/config", json={"speaker_match_threshold": 1.0}).status_code == 200
 
     def test_get_config_includes_speaker_cluster_threshold_default(self, client):
-        assert client.get("/api/config").json()["speaker_cluster_threshold"] == 0.55
+        assert client.get("/api/config").json()["speaker_cluster_threshold"] == 0.85
 
     def test_patch_config_updates_speaker_cluster_threshold(self, client):
         r = client.patch("/api/config", json={"speaker_cluster_threshold": 0.7})
@@ -283,6 +283,21 @@ class TestUiConfig:
     def test_patch_config_cluster_threshold_out_of_range_returns_400(self, client):
         assert client.patch("/api/config", json={"speaker_cluster_threshold": 1.5}).status_code == 400
         assert client.patch("/api/config", json={"speaker_cluster_threshold": -0.1}).status_code == 400
+
+    def test_get_config_includes_speaker_min_cluster_seconds_default(self, client):
+        assert client.get("/api/config").json()["speaker_min_cluster_seconds"] == 10.0
+
+    def test_patch_config_updates_speaker_min_cluster_seconds(self, client):
+        r = client.patch("/api/config", json={"speaker_min_cluster_seconds": 5})
+        assert r.status_code == 200
+        assert r.json()["speaker_min_cluster_seconds"] == 5
+
+    def test_patch_config_min_cluster_seconds_zero_disables_prune(self, client):
+        assert client.patch("/api/config", json={"speaker_min_cluster_seconds": 0}).status_code == 200
+
+    def test_patch_config_min_cluster_seconds_out_of_range_returns_400(self, client):
+        assert client.patch("/api/config", json={"speaker_min_cluster_seconds": 500}).status_code == 400
+        assert client.patch("/api/config", json={"speaker_min_cluster_seconds": -1}).status_code == 400
 
     def test_patch_config_accepts_speechbrain_backend(self, client):
         r = client.patch("/api/config", json={"diarization_backend": "speechbrain"})
