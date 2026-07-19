@@ -46,9 +46,12 @@ class AnalyzeJob:
     reconnecting SSE clients."""
 
     def __init__(self, cmd: list[str], cwd: Path, *, filename: Optional[str] = None,
-                 video_id: Optional[int] = None) -> None:
+                 video_id: Optional[int] = None, env: Optional[dict] = None) -> None:
         self.cmd = cmd
         self.cwd = cwd
+        # Overlaid on the parent environment at spawn (see sse.consuming_subprocess_env):
+        # carries HuggingFace offline mode once the models are cached.
+        self.env = env
         self.filename = filename
         self.video_id = video_id
         self.proc: Optional[asyncio.subprocess.Process] = None
@@ -77,6 +80,7 @@ class AnalyzeJob:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
             cwd=str(self.cwd),
+            env=self.env,
             **new_session_kwargs(),
         )
         _log.info("Analyze subprocess started (pid %s): %s", self.proc.pid, self.filename or self.cmd)

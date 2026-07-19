@@ -1021,4 +1021,9 @@ def _video_dict(video: Video, stats: dict) -> dict:
         # yuu-media:// URL for direct native playback instead of proxying bytes
         # through this HTTP server (plain-browser dev mode ignores this field).
         "source_path": str(Path(video.path).resolve()),
+        # Whether the source recording is still on disk. The file is the user's own
+        # and lives outside the project, so it can be moved/deleted at any time; the
+        # UI shows a "Recording file not found" notice instead of a <video> that
+        # would just fail to load.
+        "source_exists": Path(video.path).exists(),
     }

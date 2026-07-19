@@ -19,6 +19,28 @@ class TestVideos:
         assert data[0]["clip_count"] == 3
         assert data[0]["approved"] == 1
 
+    # The source recording lives outside the project, so the user can move or delete
+    # it at any time; the UI keys its "Recording file not found" notice off this flag
+    # rather than rendering a <video> that just fails to load.
+    def test_source_exists_reflects_the_file_on_disk(self, client, tmp_path):
+        from yuu_clip.db.models import Video
+
+        ctx = client.app.state.ctx
+        real_file = tmp_path / "session.mkv"
+        real_file.write_bytes(b"not really video, but it is on disk")
+
+        def set_path(path: str) -> dict:
+            db = ctx.get_db()
+            try:
+                db.query(Video).first().path = path
+                db.commit()
+            finally:
+                db.close()
+            return client.get("/api/videos").json()[0]
+
+        assert set_path(str(real_file))["source_exists"] is True
+        assert set_path(str(tmp_path / "moved-away.mkv"))["source_exists"] is False
+
     def test_list_clips_for_video(self, client):
         vid_id = client.get("/api/videos").json()[0]["id"]
         r = client.get(f"/api/videos/{vid_id}/clips")

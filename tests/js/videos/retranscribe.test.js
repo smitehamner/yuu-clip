@@ -32,11 +32,17 @@ import {
   retranscribeVideoRun, _whisperModelOptionsHtml,
 } from '../../../yuu_clip/web/static/videos/videos.js';
 
+// The picker preselects the project's configured model (DOC-CLAIMS row 6: the default
+// Whisper model is "base"), so /api/config is stubbed rather than hit for real.
+let configResponse = { whisper_model: 'medium' };
+
 beforeEach(() => {
   confirmCalls.length = 0;
   streamCalls.length = 0;
+  configResponse = { whisper_model: 'medium' };
   AppState.videos = [{ id: 7, filename: 'session.mkv' }];
   AppState.activeVideoId = null;
+  globalThis.fetch = vi.fn(() => Promise.resolve({ json: () => Promise.resolve(configResponse) }));
 });
 
 describe('_whisperModelOptionsHtml', () => {
@@ -50,29 +56,40 @@ describe('_whisperModelOptionsHtml', () => {
 });
 
 describe('retranscribeVideoRun', () => {
-  it('prompts with a model picker instead of starting immediately', () => {
-    retranscribeVideoRun(7);
+  it('prompts with a model picker instead of starting immediately', async () => {
+    await retranscribeVideoRun(7);
     expect(confirmCalls).toHaveLength(1);
     expect(confirmCalls[0].okLabel).toBe('Re-transcribe');
     expect(confirmCalls[0].body).toContain('id="video-retx-model"');
     expect(streamCalls).toHaveLength(0); // nothing runs until confirmed
   });
 
-  it('sends the chosen model to the retranscribe endpoint on confirm', () => {
-    retranscribeVideoRun(7);
+  it('preselects the configured Whisper model', async () => {
+    await retranscribeVideoRun(7);
+    expect(confirmCalls[0].body).toContain('<option value="medium" selected>');
+  });
+
+  it('falls back to base when no model is configured', async () => {
+    configResponse = {};
+    await retranscribeVideoRun(7);
+    expect(confirmCalls[0].body).toContain('<option value="base" selected>');
+  });
+
+  it('sends the chosen model to the retranscribe endpoint on confirm', async () => {
+    await retranscribeVideoRun(7);
     // Reproduce showConfirm's DOM injection so the callback can read the select
     // (the real showConfirm leaves the body in the DOM while onOk runs).
     const host = document.createElement('div');
     host.innerHTML = confirmCalls[0].body;
     document.body.appendChild(host);
-    host.querySelector('#video-retx-model').value = 'medium';
+    host.querySelector('#video-retx-model').value = 'small';
     confirmCalls[0].onOk();
-    expect(streamCalls).toEqual(['/api/videos/7/retranscribe?model=medium']);
+    expect(streamCalls).toEqual(['/api/videos/7/retranscribe?model=small']);
   });
 
-  it('falls back to large-v3 when the picker is unexpectedly absent', () => {
-    retranscribeVideoRun(7);
+  it('falls back to the configured model when the picker is unexpectedly absent', async () => {
+    await retranscribeVideoRun(7);
     confirmCalls[0].onOk(); // no DOM injection - select missing
-    expect(streamCalls).toEqual(['/api/videos/7/retranscribe?model=large-v3']);
+    expect(streamCalls).toEqual(['/api/videos/7/retranscribe?model=medium']);
   });
 });

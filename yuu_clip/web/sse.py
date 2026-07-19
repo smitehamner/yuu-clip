@@ -124,6 +124,23 @@ async def terminate_process_tree_async(proc) -> None:
     terminate_process_tree(proc)
 
 
+def consuming_subprocess_env(ctx) -> dict[str, str]:
+    """Environment for a subprocess launched with a ProjectContext.
+
+    Passing a ctx marks the job as one that CONSUMES models (analyze, score, export,
+    retranscribe, rediarize, reel), so once the models are cached it inherits
+    HuggingFace offline mode - no per-load Hub round-trip and no HF_TOKEN warning in
+    the UI log. The model download/prefetch routes deliberately pass no ctx, so they
+    stay online and can still fetch; keep it that way when adding one.
+    """
+    env = dict(os.environ)
+    config = getattr(ctx, "config", None)  # absent on the tests' lightweight ctx doubles
+    if config is not None:
+        from yuu_clip.hf_cache import hf_offline_env
+        env.update(hf_offline_env(config))
+    return env
+
+
 def release_counted_job(ctx, proc) -> None:
     """Idempotently drop *proc*'s ``active_jobs`` slot.
 
@@ -182,6 +199,7 @@ async def subprocess_sse(
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
                 cwd=str(cwd),
+                env=consuming_subprocess_env(ctx),
                 **new_session_kwargs(),
             )
             assert proc.stdout

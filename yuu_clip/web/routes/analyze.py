@@ -329,10 +329,12 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         from yuu_clip.web.analyze_job import AnalyzeJob
 
         if ctx.analyze_cmd:
+            from yuu_clip.web.sse import consuming_subprocess_env
             job = AnalyzeJob(
                 ctx.analyze_cmd, ctx.project_dir,
                 filename=ctx.analyze_pending_filename,
                 video_id=ctx.analyze_pending_video_id,
+                env=consuming_subprocess_env(ctx),
             )
             ctx.analyze_job = job
             ctx.analyze_cmd = None

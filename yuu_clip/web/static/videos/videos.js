@@ -185,6 +185,9 @@ function _videoItemLi(v, analyzingName, inSession) {
     : llmUsable
     ? `<div class="meta" style="margin-top:2px;color:var(--warning)" title="LLM scoring failed for ${plural(errCount, 'clip')} - re-score to retry">&#9888; ${plural(errCount, 'scoring error')}</div>`
     : `<div class="meta" style="margin-top:2px;color:var(--muted)" title="These clips were scored before a language model was set up - set one up, then re-score for LLM scoring and descriptions">Scored without a language model</div>`;
+  const missingSourceBadge = v.source_exists === false
+    ? `<div class="meta" style="margin-top:2px;color:var(--warning)" title="The source recording file is missing from disk - playback and export stay unavailable until it is put back">&#9888; Recording file not found</div>`
+    : '';
   const checkbox = selectable
     ? `<input type="checkbox" class="session-select-box" aria-label="Select for grouping" ${window.SessionUI.selected.has(v.id) ? 'checked' : ''}>`
     : '';
@@ -200,6 +203,7 @@ function _videoItemLi(v, analyzingName, inSession) {
           ? `<span class="spinner" style="display:inline-block;vertical-align:middle"></span> <span style="color:var(--accent)">${escHtml(_fmtVideoStatus(v.status))}…</span>`
           : `${v.approved} approved &middot; ${v.exported} exported &middot; ${_fmtVideoStatus(v.status)}`}</div>
         ${errBadge}
+        ${missingSourceBadge}
         ${scoreBar}
       </div>
     </div>`;
@@ -396,26 +400,49 @@ function _renderImportedFromLine(video) {
       </div>`;
 }
 
+// The source recording lives outside the project, so the user can move, rename, or
+// delete it at any time. Rendering the <video> then leaves a bare broken player with
+// a browser-level error, so say what happened, where the file was, and what survives.
+function _missingSourceHtml(video) {
+  const path = video.source_path || video.path || '';
+  return `
+    <div class="missing-source" role="status">
+      <div class="missing-source-title">Recording file not found</div>
+      <p class="missing-source-body">
+        YuuClip can't find this recording's file, so it can't be played or exported.
+        It was most likely moved, renamed, or deleted. Your clips, transcript, and
+        scores are all still here - put the file back in place to restore playback.
+      </p>
+      <div class="missing-source-path" title="${escHtml(path)}">${escHtml(path)}</div>
+    </div>`;
+}
+
 function renderVideoDetail(video, savedTimeline) {
   AppState.activeVideoData = video;
   const eb = (isEdited) => isEdited ? `<span class="edited-badge">edited</span>` : '';
-  document.getElementById('player-area').innerHTML =
-    `<div style="position:relative">
+  // Only an explicit false means "gone" - an older payload without the field must
+  // still get a player rather than a false alarm.
+  const sourceMissing = video.source_exists === false;
+  document.getElementById('player-area').innerHTML = sourceMissing
+    ? _missingSourceHtml(video)
+    : `<div style="position:relative">
        <video id="recording-preview-video" controls preload="metadata" aria-label="Recording preview" style="display:block;width:100%;max-height:var(--player-max-height, 42vh);object-fit:contain;background:#000"></video>
        <span id="recording-preview-badge" role="status" style="display:none;position:absolute;top:8px;left:8px;background:rgba(0,0,0,.7);color:var(--on-scrim);font-size:11px;padding:3px 8px;border-radius:4px"></span>
      </div>`;
-  setupRecordingPreview(
-    document.getElementById('recording-preview-video'),
-    document.getElementById('recording-preview-badge'),
-    video.id,
-    {
-      autoBuild: false,
-      isCurrent: () => AppState.activeVideoId === video.id,
-      startS: video.segment_start_s,
-      endS: video.segment_end_s,
-      sourcePath: video.source_path,
-    },
-  );
+  if (!sourceMissing) {
+    setupRecordingPreview(
+      document.getElementById('recording-preview-video'),
+      document.getElementById('recording-preview-badge'),
+      video.id,
+      {
+        autoBuild: false,
+        isCurrent: () => AppState.activeVideoId === video.id,
+        startS: video.segment_start_s,
+        endS: video.segment_end_s,
+        sourcePath: video.source_path,
+      },
+    );
+  }
   document.getElementById('detail').innerHTML = `
     <div><div class="detail-type-badge video-badge">&#127916; Recording</div></div>
 
@@ -819,19 +846,25 @@ function _whisperModelOptionsHtml(selected) {
   ).join('');
 }
 
-function retranscribeVideoRun(id) {
+async function retranscribeVideoRun(id) {
   if (_blockedByAnalyze('re-transcribe this recording')) return;
   const video = AppState.videos.find(v => v.id === id);
   const name = video ? video.filename : id;
+  // Preselect the project's configured speech-to-text model (same source and 'base'
+  // fallback as the re-analyze path above) rather than a hardcoded one, so the picker
+  // honours Settings instead of silently disagreeing with it.
+  let cfg = {};
+  try { cfg = await fetch('/api/config').then(r => r.json()); } catch { /* static fallback below */ }
+  const defaultModel = cfg.whisper_model || 'base';
   showConfirm(
     'Re-transcribe recording?',
     `Re-run speech-to-text for <strong>${escHtml(name)}</strong> with the chosen model. ` +
     `Existing clips are kept but flagged for a re-score.` +
     `<div class="field" style="margin-top:12px">` +
     `<label for="video-retx-model">Whisper model</label>` +
-    `<select id="video-retx-model">${_whisperModelOptionsHtml('large-v3')}</select></div>`,
+    `<select id="video-retx-model">${_whisperModelOptionsHtml(defaultModel)}</select></div>`,
     'Re-transcribe',
-    () => _startVideoRetranscribe(id, name, document.getElementById('video-retx-model')?.value || 'large-v3'),
+    () => _startVideoRetranscribe(id, name, document.getElementById('video-retx-model')?.value || defaultModel),
   );
 }
 
@@ -1028,6 +1061,7 @@ export {
   setVideoSearch, setVideoSort, toggleVideoSortDir, toggleVideoFilter,
   openVideoActionsModal,
   retranscribeVideoRun, _whisperModelOptionsHtml,
+  _missingSourceHtml,
 };
 
 document.getElementById('detail').addEventListener('click', _handleDetailClick);
