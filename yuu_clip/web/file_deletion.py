@@ -74,12 +74,6 @@ def locking_processes(path: Path) -> list[str]:
 
 
 def _rm_locking_processes(path: Path) -> list[str]:
-    # Redundant with the caller's guard, but mypy narrows platform only on a local
-    # sys.platform check: without this the win32-only ctypes.WinDLL below is flagged
-    # when mypy runs under a non-Windows platform (e.g. the Linux CI runner).
-    if sys.platform != "win32":
-        return []
-
     import ctypes
     from ctypes import wintypes
 

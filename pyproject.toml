@@ -122,6 +122,13 @@ yuu_clip = ["web/static/*", "web/static/fonts/*", "web/static/help/*", "web/stat
 # an error in code you just touched). Annotate as-you-touch: when editing a function,
 # add types and clear any baseline entry it resolves. See CLAUDE.md.
 python_version = "3.12"
+# yuu-clip ships Windows-only (bundled python.exe / .exe runtimes), so pin mypy's
+# platform to win32 regardless of the host OS. Without this, the CI runner (Linux)
+# analyzes win32-only stdlib (ctypes.WinDLL, etc.) as missing and reports errors the
+# Windows-generated baseline can't contain - the baseline must be produced under the
+# same platform mypy checks under. Regenerate the baseline with `yuu-dev typecheck
+# --sync` (also win32 via this setting).
+platform = "win32"
 files = ["yuu_clip"]
 ignore_missing_imports = true
 # mypy-baseline matches on message text, not line numbers, so these help it stay
