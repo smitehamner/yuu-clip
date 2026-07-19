@@ -301,25 +301,108 @@ class TestGgufUseRouting:
         assert page.eval_on_selector("#s-llm-vision-model-path", "el => el.value") == ""
 
 
+def _route_download_status_idle(page: Page) -> None:
+    """A download-status body reporting nothing in flight - consulted on every
+    catalog render (the re-attach signal), so it must be stubbed for determinism."""
+    page.route("**/api/llm/download-status", lambda route: route.fulfill(
+        content_type="application/json",
+        body='{"downloading":false,"downloading_model_id":null,"whisper_downloading":false,'
+             '"speaker_downloading":false,"whisper_cached":true,"speaker_cached":true,'
+             '"speaker_available":true,"pending_model_id":""}'))
+
+
 @skip_no_server
 class TestGgufDownloadUI:
-    """Stage 7: the one-click .gguf download drives a determinate bar and, on
-    completion, fills the (advanced) path fields so a Save activates the model.
-    The download endpoint is stubbed so no real multi-GB fetch runs."""
+    """W3/B6: the one-click .gguf download's progress lives in module state, not the
+    card DOM, so it survives a Save/re-render; on completion the server has already
+    persisted the model path, so we reload config and the model is active with NO
+    Save. The download endpoint is stubbed so no real multi-GB fetch runs."""
 
-    def test_successful_download_fills_path_and_shows_done(self, page: Page):
-        models = [_model(id="txt", gguf_filename="a.gguf", gguf_path="/models/a.gguf")]
-        page.route("**/api/llm/catalog", lambda route: route.fulfill(
-            content_type="application/json", body=_catalog_body(models)))
+    def _route_catalog_activating(self, page: Page) -> None:
+        """Catalog reports the model missing first, then active after the post-
+        download refresh - mirroring the backend flipping state once it is set."""
+        calls = {"n": 0}
+
+        def _handle(route):
+            calls["n"] += 1
+            active = calls["n"] > 1
+            models = [_model(
+                id="txt", gguf_filename="a.gguf", gguf_path="/models/a.gguf",
+                installed=active, active=active,
+            )]
+            route.fulfill(content_type="application/json", body=_catalog_body(models))
+
+        page.route("**/api/llm/catalog", _handle)
+
+    def test_successful_download_activates_without_save(self, page: Page):
+        self._route_catalog_activating(page)
+        _route_download_status_idle(page)
+        cleared = {"n": 0}
+        page.route("**/api/llm/download-status/clear", lambda route: (
+            cleared.__setitem__("n", cleared["n"] + 1),
+            route.fulfill(content_type="application/json",
+                          body='{"pending_model_id":"","downloading":false}'),
+        )[-1])
         _open_settings(page)
         sse_body = 'data: "Downloading A Model - a.gguf: 50% (2.3/4.7 GB)"\n\ndata: "__DONE__"\n\n'
         page.route("**/api/llm/gguf/download*", lambda route: route.fulfill(
             status=200, content_type="text/event-stream", body=sse_body))
         page.click("#s-llamacpp-recommended [data-act='download-gguf']")
+        # The advanced path field is filled (so a later Save can't clobber it)...
         page.wait_for_function(
             "document.querySelector('#s-llm-model-path').value === '/models/a.gguf'", timeout=3000)
-        log = page.locator("#s-llamacpp-recommended [data-gguf-log]").inner_text()
-        assert "Done" in log
+        # ...the card flips to the active state (download button gone)...
+        page.wait_for_selector("#s-llamacpp-recommended .rec-model.active", timeout=3000)
+        assert page.locator("#s-llamacpp-recommended [data-act='download-gguf']").count() == 0
+        # ...and the running server's config was reloaded (no Save needed): the
+        # active card is only rendered after that reload completes.
+        assert cleared["n"] == 1
+
+    def test_progress_survives_catalog_rerender(self, page: Page):
+        models = [_model(id="txt", gguf_filename="a.gguf", gguf_path="/models/a.gguf")]
+        page.route("**/api/llm/catalog", lambda route: route.fulfill(
+            content_type="application/json", body=_catalog_body(models)))
+        _route_download_status_idle(page)
+        _open_settings(page)
+        # Hold the download open so it stays in flight across the re-render.
+        pending: dict = {}
+        page.route("**/api/llm/gguf/download*", lambda route: pending.setdefault("route", route))
+        page.click("#s-llamacpp-recommended [data-act='download-gguf']")
+        page.wait_for_selector("#s-llamacpp-recommended [data-gguf-cancel]", state="visible", timeout=3000)
+        # A catalog re-render (what a Save does) rebuilds the cards. The in-flight
+        # download must re-attach its progress + Cancel to the new card, not vanish.
+        page.evaluate("window.refreshModelCatalog()")
+        page.wait_for_selector("#s-llamacpp-recommended [data-gguf-cancel]", state="visible", timeout=3000)
+        assert page.locator("#s-llamacpp-recommended [data-act='download-gguf']").is_disabled()
+        pending["route"].fulfill(status=200, content_type="text/event-stream", body='data: "__DONE__"\n\n')
+
+    def test_text_download_and_whisper_banner_show_together(self, page: Page):
+        # Goal: a text (.gguf card) download and a voice/whisper (banner) download
+        # render progress at the same time - they are separate DOM regions and
+        # separate server download keys, so neither serializes the other.
+        page.route("**/api/config", lambda route: route.fulfill(
+            content_type="application/json",
+            body='{"model_prefetch_disabled":false,"whisper_model":"base"}'))
+        page.route("**/api/llm/download-status", lambda route: route.fulfill(
+            content_type="application/json",
+            body='{"downloading":false,"downloading_model_id":null,"whisper_downloading":false,'
+                 '"speaker_downloading":false,"whisper_cached":false,"speaker_cached":true,'
+                 '"speaker_available":true,"pending_model_id":""}'))
+        models = [_model(id="txt", gguf_filename="a.gguf", gguf_path="/models/a.gguf")]
+        page.route("**/api/llm/catalog", lambda route: route.fulfill(
+            content_type="application/json", body=_catalog_body(models)))
+        whisper_pending: list = []
+        page.route("**/api/whisper/prefetch", lambda route: whisper_pending.append(route))
+        gguf_pending: dict = {}
+        page.route("**/api/llm/gguf/download*", lambda route: gguf_pending.setdefault("route", route))
+        # Boot runs initModelPrefetch against the stubs -> the whisper banner starts.
+        _open_settings(page)
+        page.wait_for_selector('#model-download-banner .mdl-row[data-mdl-kind="whisper"]', timeout=8000)
+        page.click("#s-llamacpp-recommended [data-act='download-gguf']")
+        page.wait_for_selector("#s-llamacpp-recommended [data-gguf-cancel]", state="visible", timeout=3000)
+        # Both are in flight and visible simultaneously.
+        assert page.locator('#model-download-banner .mdl-row[data-mdl-kind="whisper"]').is_visible()
+        assert page.locator("#s-llamacpp-recommended [data-gguf-cancel]").is_visible()
 
 
 @skip_no_server

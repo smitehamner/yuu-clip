@@ -83,6 +83,11 @@ function _renderRecommendedModels(containerId, backend) {
     _modelGroupHtml('Image analysis (vision) models',
       'Optional - let YuuClip look at frames and describe what is on screen.', visionModels, backend, 'vision');
   _wireModelCards(el);
+  // A re-render (Save, or reopening Settings) rebuilds these cards, so an
+  // in-flight download's progress bar/Cancel would vanish while the server keeps
+  // downloading. Re-attach a progress view to whichever card now stands for the
+  // downloading model so it survives the re-render.
+  _reattachGgufProgress();
 }
 
 function _modelGroupHtml(title, intro, models, backend, kind) {
@@ -99,7 +104,7 @@ function _modelGroupHtml(title, intro, models, backend, kind) {
 function _wireModelCards(el) {
   el.querySelectorAll('.rec-model').forEach(card => {
     const modelId = card.getAttribute('data-model-id');
-    card.querySelector('[data-act="download-gguf"]')?.addEventListener('click', () => downloadGgufModel(modelId, card));
+    card.querySelector('[data-act="download-gguf"]')?.addEventListener('click', () => downloadGgufModel(modelId));
     card.querySelector('[data-act="use-gguf"]')?.addEventListener('click', () => _useGgufModel(modelId));
   });
 }
@@ -169,16 +174,27 @@ function _llamacppActions(m) {
 // activates it - no re-download. A vision entry fills the vision model + mmproj
 // projector fields; a text entry fills the text model field. The two buckets
 // are independent config keys, so one must never overwrite the other.
-function _applyModelPaths(m) {
+// The (advanced) path field id(s) a catalog entry maps to, and the paths to fill
+// them with. A vision entry fills the vision model + mmproj projector fields; a
+// text entry fills the text model field. The two buckets are independent config
+// keys, so one must never overwrite the other.
+function _modelPathFields(m) {
   const isVision = Array.isArray(m.kinds) && m.kinds.includes('vision');
+  const fields = {};
   if (isVision) {
-    const visionEl = document.getElementById('s-llm-vision-model-path');
-    if (visionEl && m.gguf_path) visionEl.value = m.gguf_path;
-    const projEl = document.getElementById('s-llm-mmproj-path');
-    if (projEl && m.mmproj_path) projEl.value = m.mmproj_path;
-  } else {
-    const pathEl = document.getElementById('s-llm-model-path');
-    if (pathEl && m.gguf_path) pathEl.value = m.gguf_path;
+    if (m.gguf_path) fields['s-llm-vision-model-path'] = m.gguf_path;
+    if (m.mmproj_path) fields['s-llm-mmproj-path'] = m.mmproj_path;
+  } else if (m.gguf_path) {
+    fields['s-llm-model-path'] = m.gguf_path;
+  }
+  return fields;
+}
+
+function _applyModelPaths(m) {
+  const fields = _modelPathFields(m);
+  for (const [id, value] of Object.entries(fields)) {
+    const el = document.getElementById(id);
+    if (el) el.value = value;
   }
   window._checkSettingsDirty();
 }
@@ -193,10 +209,22 @@ function _useGgufModel(modelId) {
 // ── one-click local (.gguf) download ────────────────────────────────────────
 // Server-owned download (POST /api/llm/gguf/download) for a recommended local
 // model (text, or vision + its mmproj projector), so llama.cpp gets a one-click
-// flow instead of only a "Download page" link. SSE + Cancel-via-abort stream;
-// on success the server has written the model (and projector) path(s), so we
-// point the path fields at them, refresh the readiness line, and prompt a Save.
-let _ggufAbort = null;
+// flow instead of only a "Download page" link. The download subprocess writes
+// the model (and projector) path(s) into config.json itself, so on completion we
+// only need to reload the running server's config - no Save.
+//
+// Progress is tracked in module state, NOT bound to the card DOM node: a Save (or
+// any catalog re-render) rebuilds the cards, so we repaint the progress view onto
+// whichever card currently stands for the downloading model (see
+// _reattachGgufProgress). /api/llm/download-status is the reconnect signal for a
+// download this page isn't streaming (started before a full re-render lost the
+// handle, or in another window).
+let _ggufDownload = null; // { modelId, abort, pct, poll } while a download runs
+
+function _ggufCard(modelId) {
+  const container = document.getElementById('s-llamacpp-recommended');
+  return container ? container.querySelector(`.rec-model[data-model-id="${CSS.escape(modelId)}"]`) : null;
+}
 
 // The CLI prints "Downloading <name> - <file>: NN% (x/y GB)" lines; pull the
 // percentage out to drive a determinate bar. Vision entries stream two files in
@@ -245,27 +273,67 @@ function _setGgufCancel(card, show, onCancel) {
   }
 }
 
-async function downloadGgufModel(modelId, card) {
+// Paint the current _ggufDownload state onto its card. Safe to call repeatedly and
+// after a re-render (it re-derives the card each time), which is what lets progress
+// survive a Save. Cancel shows only when we hold the stream (a reconnect poll has
+// no abort handle, so it can't cancel a download owned by another window).
+function _renderGgufProgress() {
+  if (!_ggufDownload) return;
+  const card = _ggufCard(_ggufDownload.modelId);
+  if (!card) return;
+  const progress = card.querySelector('[data-gguf-progress]');
   const log = card.querySelector('[data-gguf-log]');
   const button = card.querySelector('[data-act="download-gguf"]');
-  const progress = card.querySelector('[data-gguf-progress]');
-  if (!log) return;
-  const model = (_modelCatalog || []).find(x => x.id === modelId);
-  log.style.display = 'block';
-  log.textContent = 'Starting download - this can take several minutes...\n';
   if (progress) progress.style.display = '';
-  _setGgufProgress(card, null);
+  _setGgufProgress(card, _ggufDownload.pct);
   if (button) { button.disabled = true; button.textContent = 'Downloading...'; }
+  if (log && !log.textContent) {
+    log.style.display = 'block';
+    log.textContent = 'Downloading - this can take several minutes...\n';
+  }
+  _setGgufCancel(card, !!_ggufDownload.abort, () => _cancelGgufDownload());
+}
+
+function _appendGgufLog(msg) {
+  if (!_ggufDownload) return;
+  const card = _ggufCard(_ggufDownload.modelId);
+  const log = card && card.querySelector('[data-gguf-log]');
+  if (!log) return;
+  log.style.display = 'block';
+  log.textContent += msg + '\n';
+  log.scrollTop = log.scrollHeight;
+}
+
+// Reset a card to its idle state after a cancel (the model was not installed, so
+// it returns to a plain Download action).
+function _restoreGgufCard(modelId) {
+  const card = _ggufCard(modelId);
+  if (!card) return;
+  _setGgufCancel(card, false);
+  const progress = card.querySelector('[data-gguf-progress]');
+  if (progress) progress.style.display = 'none';
+  const log = card.querySelector('[data-gguf-log]');
+  if (log) { log.textContent = ''; log.style.display = 'none'; }
+  const button = card.querySelector('[data-act="download-gguf"]');
+  if (button) {
+    const model = (_modelCatalog || []).find(x => x.id === modelId);
+    button.disabled = false;
+    button.textContent = (model && model.active && !model.installed) ? 'Re-download' : 'Download now';
+  }
+}
+
+async function downloadGgufModel(modelId) {
+  if (_ggufDownload) return; // one .gguf download at a time (the server 409s a second)
   const controller = new AbortController();
-  _ggufAbort = controller;
-  _setGgufCancel(card, true, () => { controller.abort(); });
+  _ggufDownload = { modelId, abort: controller, pct: null, poll: null };
+  _renderGgufProgress();
   try {
     const resp = await fetch(`/api/llm/gguf/download?model_id=${encodeURIComponent(modelId)}`,
                              { method: 'POST', signal: controller.signal });
     if (!resp.ok) {
       let detail = '';
       try { detail = (await resp.json()).detail || ''; } catch { detail = await resp.text(); }
-      log.textContent += `✗ ${detail || 'Download could not start.'}\n`;
+      _failGgufDownload(modelId, detail || 'Download could not start.');
       return;
     }
     const reader = resp.body.getReader();
@@ -280,28 +348,103 @@ async function downloadGgufModel(modelId, card) {
       for (const line of lines) {
         if (!line.startsWith('data: ')) continue;
         const msg = JSON.parse(line.slice(6));
-        if (msg === '__DONE__') {
-          _setGgufProgress(card, 100);
-          log.textContent += '✓ Done - model selected. Save to apply.\n';
-          if (model) _applyModelPaths(model);
-          _updateLlmCapabilities();
+        // The subprocess exiting non-zero (a failed download) arrives as the
+        // object form of the done sentinel; the bare string is success only.
+        if (msg && typeof msg === 'object' && msg.type === '__DONE__') {
+          if (msg.ok === false) _failGgufDownload(modelId, 'Download failed - check your connection and try again.');
+          else await _finishGgufDownload(modelId);
           return;
         }
+        if (msg === '__DONE__') { await _finishGgufDownload(modelId); return; }
         const pct = _parseGgufPct(msg);
-        if (pct != null) _setGgufProgress(card, pct);
-        log.textContent += msg + '\n';
-        log.scrollTop = log.scrollHeight;
+        if (pct != null && _ggufDownload && _ggufDownload.modelId === modelId) {
+          _ggufDownload.pct = pct;
+          _renderGgufProgress();
+        }
+        _appendGgufLog(msg);
       }
     }
   } catch (err) {
-    if (err && err.name === 'AbortError') log.textContent += '■ Download cancelled.\n';
-    else log.textContent += '✗ Download failed - check your connection and try again.\n';
-  } finally {
-    _ggufAbort = null;
-    _setGgufCancel(card, false);
-    if (progress) progress.style.display = 'none';
-    if (button) { button.disabled = false; button.textContent = 'Download now'; }
+    // A user cancel aborts the fetch; _cancelGgufDownload already tore down the UI.
+    if (!(err && err.name === 'AbortError')) {
+      _failGgufDownload(modelId, 'Download failed - check your connection and try again.');
+    }
   }
+}
+
+// The download subprocess already persisted the model path(s) to config.json, so
+// completion just reloads the running server's config (no Save) and refreshes the
+// catalog so the model shows Active at once. We also mirror the applied path into
+// the advanced field(s) and re-baseline them, so a later Save can't clobber the
+// freshly-downloaded path with a stale (empty) field.
+async function _finishGgufDownload(modelId) {
+  if (!_ggufDownload || _ggufDownload.modelId !== modelId) return;
+  const model = (_modelCatalog || []).find(x => x.id === modelId);
+  _appendGgufLog('Done - the model is ready.');
+  _teardownGgufDownload();
+  if (model && window.markModelPathsApplied) window.markModelPathsApplied(_modelPathFields(model));
+  // Reuse the boot flow's config-reload endpoint: it calls ctx.reload_config() so
+  // the just-written llm_model_path takes effect in the running server.
+  await fetch('/api/llm/download-status/clear', { method: 'POST' }).catch(() => {});
+  _updateLlmCapabilities();
+  _renderCapabilityTiers();
+  await refreshModelCatalog();
+  if (window.refreshServerState) window.refreshServerState();
+  showToast('Local model ready - now active for LLM scoring.', 'success');
+}
+
+function _failGgufDownload(modelId, message) {
+  if (_ggufDownload && _ggufDownload.modelId !== modelId) return;
+  _teardownGgufDownload();
+  _restoreGgufCard(modelId);
+  showToast(message, 'error');
+}
+
+function _cancelGgufDownload() {
+  const dl = _ggufDownload;
+  if (!dl) return;
+  const { modelId, abort } = dl;
+  if (abort) abort.abort(); // disconnect -> server terminates the download subprocess
+  _teardownGgufDownload();
+  _restoreGgufCard(modelId);
+  showToast('Download cancelled.', 'info');
+}
+
+function _teardownGgufDownload() {
+  if (_ggufDownload && _ggufDownload.poll) clearInterval(_ggufDownload.poll);
+  _ggufDownload = null;
+}
+
+// Re-attach a progress view after a re-render. A live in-page download repaints
+// straight from module state (its stream is still updating _ggufDownload). Failing
+// that, consult /api/llm/download-status: if the server is still downloading a
+// model this page isn't streaming, show an indeterminate reconnect view and poll
+// until it finishes, then refresh so the model activates.
+function _reattachGgufProgress() {
+  if (_ggufDownload) { _renderGgufProgress(); return; }
+  fetch('/api/llm/download-status')
+    .then(r => r.json())
+    .then(status => {
+      if (_ggufDownload || !status || !status.downloading || !status.downloading_model_id) return;
+      _reconnectGgufDownload(status.downloading_model_id);
+    })
+    .catch(() => {});
+}
+
+function _reconnectGgufDownload(modelId) {
+  if (_ggufDownload) return;
+  const poll = setInterval(() => _pollGgufDownload(modelId), 1000);
+  _ggufDownload = { modelId, abort: null, pct: null, poll };
+  _renderGgufProgress();
+}
+
+async function _pollGgufDownload(modelId) {
+  if (!_ggufDownload || _ggufDownload.modelId !== modelId) return;
+  let status;
+  try { status = await fetch('/api/llm/download-status').then(r => r.json()); }
+  catch { return; }
+  if (status && status.downloading) return; // still running
+  await _finishGgufDownload(modelId);
 }
 
 // ── model readiness ──────────────────────────────────────────────────────────

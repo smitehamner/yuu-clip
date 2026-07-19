@@ -78,6 +78,21 @@ function _checkSettingsDirty() {
   if (btn) btn.disabled = !anyDirty;
 }
 
+// After a one-click model download, the server has already persisted the model
+// path(s) to config.json and reloaded them, so the model is active with no Save.
+// Reflect that in the open form: set the (advanced) path field(s) to the applied
+// value AND re-baseline them so they don't read as a pending edit - otherwise a
+// later Save would send the stale (empty) field and clobber the good path.
+function markModelPathsApplied(pathsById) {
+  for (const [id, value] of Object.entries(pathsById)) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    el.value = value;
+    _settingsOriginal[id] = value;
+  }
+  _checkSettingsDirty();
+}
+
 function _scrollToSettingsSection(sectionId) {
   const panel = document.getElementById('settings-panel');
   const section = document.getElementById(sectionId);
@@ -870,5 +885,5 @@ document.addEventListener('DOMContentLoaded', () => {
 export {
   openSettings, closeSettings, applyTheme, applyAccent,
   _onDiarizationBackendChange, _updateDiarizationStatus,
-  _scrollToSettingsSection, _checkSettingsDirty,
+  _scrollToSettingsSection, _checkSettingsDirty, markModelPathsApplied,
 };

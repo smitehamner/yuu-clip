@@ -113,7 +113,7 @@ import {
 import {
   openSettings, closeSettings, applyTheme, applyAccent,
   _onDiarizationBackendChange, _updateDiarizationStatus,
-  _scrollToSettingsSection, _checkSettingsDirty,
+  _scrollToSettingsSection, _checkSettingsDirty, markModelPathsApplied,
 } from './settings/settings.js';
 import {
   _updateExportNameTemplatePreview, _updateTitleCardPreview,
@@ -537,6 +537,10 @@ window._onDiarizationBackendChange = _onDiarizationBackendChange;
 window._updateDiarizationStatus = _updateDiarizationStatus;
 window._scrollToSettingsSection = _scrollToSettingsSection;
 window._checkSettingsDirty = _checkSettingsDirty;
+// markModelPathsApplied is read as window.* by modelcatalog.js (the .gguf
+// download completion) - the same window-shim convention as _checkSettingsDirty,
+// kept off a direct import to avoid a settings <-> modelcatalog cycle.
+window.markModelPathsApplied = markModelPathsApplied;
 // settings-previews.js - _updateExportNameTemplatePreview and
 // _updateTitleCardPreview are read as window.* by settings.js's
 // _applyExportFields (already-ESM, but its own migration predates this one and
