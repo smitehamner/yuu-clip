@@ -24,37 +24,24 @@ First real clean-VM packaged run. The native-file-protocol surface (previously t
 headline unverified item here) was **verified working** and closed. Shipped since:
 the immediate/easy subset (reel timebase mismatch + false-success reporting, DB-locked
 -> clear 503, CLI log-line leak, Getting-Started modal X/scroll, HF symlink warning,
-empty wizard Optional section); **retry-on-locked for lightweight writes** so
-approve/reject and speaker-merge succeed during a long analyze instead of failing; and
-**recovery for the active-but-missing model state**. What remains below is the deferred
-set; full triage with repro detail is in the private planning workspace
-(`PACKAGED-APP-FINDINGS-2026-07-19.md` + `PACKAGED-APP-FIXES-PLAN.md`).
-
-- [ ] **Speaker over-clustering on real party-chat audio** - a ~2-5 person recording was
-  split into ~26 speakers. The default SpeechBrain thresholds are still too eager on this
-  footage (revisits the earlier speaker-clustering tuning). Re-tune / evaluate against the
-  offending recording as a fixture. Experiment-driven; needs the real recording + models.
+empty wizard Optional section); retry-on-locked for lightweight writes so
+approve/reject and speaker-merge succeed during a long analyze instead of failing;
+recovery for the active-but-missing model state; a speaker-clustering re-tune (raised
+cluster distance + a distance-gated small-cluster prune); the model-download progress
+view now survives a Settings Save/re-render instead of vanishing; analyze progress has
+its own dedicated header row and the window has a sane minimum size; and speaker names
+are click-to-rename directly from a transcript, with every floating menu (speaker/
+kebab/color-picker) now height-capped so a rename field can no longer fall off-screen.
+Full triage with repro detail is in the private planning workspace
+(`PACKAGED-APP-FINDINGS-2026-07-19.md` + `PACKAGED-APP-FIXES-PLAN.md`, both closed out
+except the two items below).
 
 - [ ] **Stale single-job lock falsely blocks export** - after an analyze + reel build,
   export was refused with "another job is running" when none was; a page refresh cleared
   it. Audited (2026-07-19): the job-state flags are correctly balanced, no backend leak
   found - likely a transient busy state or a symptom of the now-fixed false-success bug.
-  Re-verify on the VM after the reel fix; only chase it if it reproduces.
-
-- [ ] **Model-download UX in Settings is fragile** - a Save (catalog re-render) destroys
-  the in-flight download's progress bar/Cancel while the server keeps downloading, and a
-  re-click 409s invisibly. Reframed after investigation: the server ALREADY persists the
-  model path on download and gguf/whisper/speaker already download in parallel, so this is
-  a frontend reconnect rework - on catalog render, re-attach a progress view for any
-  in-flight download (via `/api/llm/download-status`), reload config on completion, and
-  drop the misleading "Save to apply" prompt.
-
-- [ ] **Header is crowded during analyze** - give analyze progress its own dedicated row
-  instead of packing it into the header.
-
-- [ ] **Minimum window-size / responsive review** - the window is freely resizable; at
-  1024x768 controls overflow their bounds. Enforce a sane minimum window size and/or let
-  cramped layouts wrap. Not urgent, but do before wider distribution.
+  Re-verify on the next VM/packaged run now that the reel and DB-retry fixes have
+  shipped; only chase further if it still reproduces.
 
 - [ ] **Retire the prose-regex progress fallback** - the analyze/score pipeline now emits
   a structured `@@PROGRESS` marker (`pipeline/progress.py`) alongside the human
