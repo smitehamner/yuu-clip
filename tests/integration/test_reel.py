@@ -65,8 +65,11 @@ class TestDemoEventsSSE:
         ctx = client.app.state.ctx
         ctx.demo_cmd = [sys.executable, "-c", "import sys; sys.exit(3)"]
         messages = _drain_sse(client)
-        assert any("exited with code 3" in m for m in messages)
-        assert messages[-1] == "__DONE__"
+        assert any(isinstance(m, str) and "exited with code 3" in m for m in messages)
+        # A non-zero exit ends with the failure sentinel, not a bare "__DONE__", so the
+        # frontend routes it to its error path instead of reporting the reel complete.
+        done = messages[-1]
+        assert isinstance(done, dict) and done["type"] == "__DONE__" and done["ok"] is False
         assert ctx.demo_cmd is None
 
 

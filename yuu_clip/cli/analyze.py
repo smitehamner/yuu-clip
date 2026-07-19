@@ -157,7 +157,11 @@ def analyze(
         _wait_while_paused(proj_dir)
         analyze_one(video_path, session, config, audio_dir, opts, proxy_dir=proxy_dir)
 
-    console.print("\n[bold green]Done![/bold green]  Run [cyan]yuuclip status[/cyan] to review your clips.\n")
+    # The "run yuuclip status" hint is CLI-only guidance; the web UI drives its own
+    # completion (SSE __DONE__ + job pills), so suppress it on --no-interact runs where
+    # it would just leak a stray CLI line into the in-app log.
+    if not no_interact:
+        console.print("\n[bold green]Done![/bold green]  Run [cyan]yuuclip status[/cyan] to review your clips.\n")
 
 
 @app.command()

@@ -17,6 +17,7 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy.exc import OperationalError
 
 from yuu_clip._build_info import BUILD_DATE as _BUILD_DATE
 from yuu_clip.contexts import seed_builtin_contexts
@@ -180,6 +181,27 @@ def create_app(project_dir: Path) -> FastAPI:
 
     app = FastAPI(title="yuu-clip", version="0.1.0", lifespan=lifespan)
     app.state.ctx = ctx  # expose for tests and diagnostics
+
+    @app.exception_handler(OperationalError)
+    async def _db_operational_error(request: Request, exc: OperationalError):
+        # SQLite is single-writer. While an analyze/score subprocess holds the write
+        # lock past busy_timeout, a normal user write (approve/reject, speaker merge,
+        # caption edit) raises "database is locked" - which without this surfaced as an
+        # opaque 500 ("Unknown error (no details from server)"). Turn just that case into
+        # an actionable 503; any other OperationalError stays a logged 500.
+        detail = str(getattr(exc, "orig", exc)).lower()
+        if "locked" in detail or "busy" in detail:
+            _log.warning("DB busy on %s %s - returning 503", request.method, request.url.path)
+            return JSONResponse(
+                status_code=503,
+                content={"detail": "The database is busy right now - an analysis or "
+                                   "another job is writing to it. Wait a moment and try again."},
+            )
+        _log.error("Database error on %s %s", request.method, request.url.path, exc_info=exc)
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "A database error occurred. Check the log for details."},
+        )
 
     @app.get("/", response_class=HTMLResponse)
     async def index():

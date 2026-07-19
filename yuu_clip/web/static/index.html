@@ -1343,8 +1343,11 @@
 
 <!-- Getting Started modal -->
 <div class="modal-bg" id="getting-started-modal">
-  <div class="modal" style="max-width:520px">
-    <h3>Getting Started</h3>
+  <div class="modal" id="getting-started-modal-panel" style="max-width:520px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <h3 style="margin:0">Getting Started</h3>
+      <button class="btn ghost" style="padding:4px 8px" id="getting-started-x-btn" aria-label="Close">&#x2715;</button>
+    </div>
 
     <div style="margin:0 0 16px;padding:10px 12px;border:1px solid color-mix(in srgb, var(--accent) 40%, transparent);border-radius:8px;background:color-mix(in srgb, var(--accent) 8%, transparent);font-size:13px;line-height:1.6;color:var(--text)">
       <strong>Baseline scoring is working.</strong> Transcription and the core scoring - laughter, excitement, keywords, scene and on-screen action - run right now, and clips get a short template description. Setting up a local language model is the normal next step: a one-click download that adds written AI descriptions, session summaries, and a smarter read on scoring. See <em>Settings &rarr; Capabilities</em> to set one up and check what's active.

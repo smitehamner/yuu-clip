@@ -36,15 +36,18 @@ class TestSubprocessSseLaunchFailure:
 
     def test_failed_launch_emits_error_and_done(self, tmp_path: Path):
         # A bad executable / ENOENT on sys.executable raises out of
-        # create_subprocess_exec; the client must still get an error line and the
-        # __DONE__ sentinel so endJobUI runs and the job pill clears.
+        # create_subprocess_exec; the client must still get an error line and a
+        # failure __DONE__ sentinel so endJobUI runs, the job pill clears, and the
+        # frontend reports the job as failed rather than complete.
         payloads = self._drive(["nonexistent-binary"], tmp_path, FileNotFoundError("no such file"))
         assert any(isinstance(p, str) and p.startswith("[Error:") for p in payloads)
-        assert "__DONE__" in payloads
+        done = payloads[-1]
+        assert isinstance(done, dict) and done["type"] == "__DONE__" and done["ok"] is False
 
     def test_done_sentinel_is_last(self, tmp_path: Path):
         payloads = self._drive(["nonexistent-binary"], tmp_path, OSError("resource limit"))
-        assert payloads[-1] == "__DONE__"
+        done = payloads[-1]
+        assert isinstance(done, dict) and done["type"] == "__DONE__" and done["ok"] is False
 
     def test_active_job_counter_restored_after_failed_launch(self, tmp_path: Path):
         from yuu_clip.web import sse

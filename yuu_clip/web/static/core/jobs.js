@@ -436,7 +436,16 @@ function _openSSE(url, onLine, onDone, onError, opts = {}) {
           if (!line.startsWith('data: ')) continue;
           const msg = JSON.parse(line.slice(6));
           const isDone = msg === '__DONE__' || (msg && typeof msg === 'object' && msg.type === '__DONE__');
-          if (isDone) { onDone(msg); return; }
+          if (isDone) {
+            // A failure sentinel ({type:'__DONE__', ok:false}) means the job ended in
+            // error - route it to onError so callers never report a failed job as done.
+            if (msg && typeof msg === 'object' && msg.ok === false) {
+              onError(msg.error || 'The job did not finish - check the log for details.');
+            } else {
+              onDone(msg);
+            }
+            return;
+          }
           onLine(msg);
         }
       }

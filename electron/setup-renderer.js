@@ -122,18 +122,26 @@ function renderGpuLine(s) {
 
 function renderCudaSlot(s) {
   const el = document.getElementById('cuda-slot');
-  if (s.gpu.vendor !== 'nvidia') { el.innerHTML = ''; return; }
+  // Show the "Optional" section header only when it has a visible row; an empty
+  // titled section (e.g. on a non-NVIDIA machine, where CUDA is the only optional
+  // item) reads as a load error.
+  const setSlot = (html) => {
+    el.innerHTML = html;
+    const section = document.getElementById('optional-section');
+    if (section) section.style.display = html ? '' : 'none';
+  };
+  if (s.gpu.vendor !== 'nvidia') { setSlot(''); return; }
   if (s.cudaLibsInstalled || s.cuda.available) {
-    el.innerHTML = row('cuda', 'ok', '✓', 'Faster transcription ready',
-      'The CUDA support libraries are available - transcription runs on your NVIDIA GPU.');
+    setSlot(row('cuda', 'ok', '✓', 'Faster transcription ready',
+      'The CUDA support libraries are available - transcription runs on your NVIDIA GPU.'));
     return;
   }
-  el.innerHTML = row('cuda', 'warn', '○', 'Faster transcription (optional)',
+  setSlot(row('cuda', 'warn', '○', 'Faster transcription (optional)',
     `Your NVIDIA GPU can transcribe much faster than the CPU. This one-time install ` +
     `adds the CUDA support libraries (cuBLAS + cuDNN, ~1 GB). You can keep using this ` +
     `window while it runs. (LLM scoring already uses your GPU - this only speeds up transcription.)`,
     `<button class="sm" id="install-btn-cuda-libs" data-install="cuda-libs">Speed up transcription (~1 GB)</button>
-     <div class="pull-msg" id="install-msg-cuda-libs"></div>`);
+     <div class="pull-msg" id="install-msg-cuda-libs"></div>`));
 }
 
 function renderGgufDownloadSlot(s) {

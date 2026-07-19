@@ -12,7 +12,12 @@ let _gettingStartedOpener = null;
 export function openGettingStartedModal() {
   _gettingStartedOpener = document.activeElement;
   document.getElementById('getting-started-modal').classList.add('visible');
-  setTimeout(() => document.querySelector('#getting-started-modal .btn')?.focus(), 50);
+  // Reset the scroll and focus the header X (not the bottom Close button): focusing a
+  // control at the end of this tall modal scrolled it into view, so it opened at the
+  // bottom instead of the top.
+  const panel = document.getElementById('getting-started-modal-panel');
+  if (panel) panel.scrollTop = 0;
+  setTimeout(() => document.getElementById('getting-started-x-btn')?.focus(), 50);
 }
 export function closeGettingStartedModal() {
   document.getElementById('getting-started-modal').classList.remove('visible');
@@ -270,6 +275,7 @@ function _wireModalBgDismissals() {
 
 function _wireModalButtons() {
   document.getElementById('getting-started-close-btn').addEventListener('click', () => closeGettingStartedModal());
+  document.getElementById('getting-started-x-btn').addEventListener('click', () => closeGettingStartedModal());
   document.getElementById('help-modal-close-btn').addEventListener('click', () => closeHelpModal());
   document.getElementById('about-modal-close-btn').addEventListener('click', () => closeAboutModal());
   document.getElementById('glossary-modal-close-btn').addEventListener('click', () => closeGlossaryModal());

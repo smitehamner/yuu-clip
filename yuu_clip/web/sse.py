@@ -31,6 +31,21 @@ _log = get_logger(__name__)
 _SSE_DONE_SENTINEL = "__DONE__"
 
 
+def _done_event(*, ok: bool = True, error: str = "") -> str:
+    """The terminal SSE completion payload.
+
+    Success stays the bare ``"__DONE__"`` string, so the many plain-sentinel
+    consumers keep working unchanged. A failure carries the object form
+    ``{"type": "__DONE__", "ok": false, "error": ...}``; the frontend routes that
+    to its error handler instead of the success handler, so a subprocess that
+    exits non-zero can no longer report the job as complete.
+    """
+    if ok:
+        return f"data: {json.dumps(_SSE_DONE_SENTINEL)}\n\n"
+    payload = {"type": _SSE_DONE_SENTINEL, "ok": False, "error": error}
+    return f"data: {json.dumps(payload)}\n\n"
+
+
 def new_session_kwargs() -> dict:
     """Launch kwargs that isolate a subprocess so its whole tree can be killed.
 
@@ -167,6 +182,7 @@ async def subprocess_sse(
                     _log.debug("[subprocess] %s", text)
                     yield f"data: {json.dumps(text)}\n\n"
                 await proc.wait()
+                failed = False
                 if cancel_flag_attr and ctx is not None and getattr(ctx, cancel_flag_attr, False):
                     setattr(ctx, cancel_flag_attr, False)
                     _log.info("Subprocess (pid %s) cancelled by user", proc.pid)
@@ -178,9 +194,13 @@ async def subprocess_sse(
                         " ".join(str(c) for c in cmd),
                     )
                     yield f"data: {json.dumps(f'[Error: subprocess exited with code {proc.returncode}]')}\n\n"
+                    failed = True
                 else:
                     _log.info("Subprocess (pid %s) completed successfully", proc.pid)
-                yield f"data: {json.dumps(_SSE_DONE_SENTINEL)}\n\n"
+                yield _done_event(
+                    ok=not failed,
+                    error="This job did not finish - check the log for details.",
+                )
             finally:
                 if proc.returncode is None:
                     await terminate_process_tree_async(proc)
@@ -201,7 +221,7 @@ async def subprocess_sse(
             # AnalyzeJob._pump - log it and emit an error line + the done sentinel.
             _log.exception("Subprocess stream failed: %s", " ".join(str(c) for c in cmd))
             yield f"data: {json.dumps('[Error: could not start subprocess]')}\n\n"
-            yield f"data: {json.dumps(_SSE_DONE_SENTINEL)}\n\n"
+            yield _done_event(ok=False, error="This job could not start - check the log for details.")
         finally:
             if track_active_job and ctx is not None:
                 ctx.active_jobs -= 1

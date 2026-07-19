@@ -271,6 +271,7 @@ def _build_xfade_cmd(
     output: Path,
     per_cut_transitions: list[str],
     trans_dur: float,
+    fps: float = 30.0,
 ) -> list[str]:
     """Build an ffmpeg command that re-encodes segments with xfade/acrossfade transitions.
 
@@ -278,6 +279,13 @@ def _build_xfade_cmd(
     transition name per cut. Callers that want a single uniform transition
     pass a list of the same value repeated; callers that want random
     transitions pass a list built by sampling the pool with rng.choice per cut.
+
+    Every input is first normalized to one timebase, frame rate, pixel format
+    and audio format via a per-input filter chain: xfade/acrossfade reject
+    inputs whose timebases differ (a title card at 1/1000 vs a clip at 1/30000
+    fails with "timebases do not match", producing a 0-byte reel), so this
+    normalization is what lets clips with mixed source timebases/frame rates be
+    stitched at all.
     """
     n = len(segments)
     assert n == len(durations)
@@ -286,6 +294,14 @@ def _build_xfade_cmd(
     inputs: list[str] = []
     for seg in segments:
         inputs += ["-i", str(seg)]
+
+    norm: list[str] = []
+    for i in range(n):
+        norm.append(f"[{i}:v]fps={fps},settb=AVTB,setsar=1,format=yuv420p[v{i}]")
+        norm.append(
+            f"[{i}:a]aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,"
+            f"asettb=AVTB[a{i}]"
+        )
 
     v_chain: list[str] = []
     a_chain: list[str] = []
@@ -296,22 +312,24 @@ def _build_xfade_cmd(
         offset = max(0.0, cumulative - (i + 1) * trans_dur)
         t = per_cut_transitions[i]
 
-        in_v = f"[x{i-1}]" if i > 0 else f"[{i}:v]"
-        out_v = f"[x{i}]" if i < n - 2 else "[vout]"
+        in_v = f"[xv{i-1}]" if i > 0 else "[v0]"
+        out_v = f"[xv{i}]" if i < n - 2 else "[vout]"
         v_chain.append(
-            f"{in_v}[{i+1}:v]xfade=transition={t}"
+            f"{in_v}[v{i+1}]xfade=transition={t}"
             f":duration={trans_dur}:offset={offset:.3f}{out_v}"
         )
 
-        in_a = f"[ca{i-1}]" if i > 0 else f"[{i}:a]"
-        out_a = f"[ca{i}]" if i < n - 2 else "[aout]"
-        a_chain.append(f"{in_a}[{i+1}:a]acrossfade=d={trans_dur}{out_a}")
+        in_a = f"[xa{i-1}]" if i > 0 else "[a0]"
+        out_a = f"[xa{i}]" if i < n - 2 else "[aout]"
+        a_chain.append(f"{in_a}[a{i+1}]acrossfade=d={trans_dur}{out_a}")
 
-    filter_complex = ";".join(v_chain + a_chain)
     if n == 1:
-        # The loop above builds zero filter entries, which would produce an
-        # empty -filter_complex and fail. Use passthrough filters instead.
-        filter_complex = "[0:v]copy[vout];[0:a]acopy[aout]"
+        # A single segment produces zero transitions; pass the normalized streams
+        # through so -filter_complex is never empty.
+        chain = ["[v0]copy[vout]", "[a0]acopy[aout]"]
+    else:
+        chain = v_chain + a_chain
+    filter_complex = ";".join(norm + chain)
 
     return [
         "ffmpeg", "-y", "-loglevel", "error",
@@ -331,11 +349,12 @@ def _compile_xfade(
     output: Path,
     transition: str,
     trans_dur: float,
+    fps: float = 30.0,
 ) -> None:
     """Re-encode with xfade/acrossfade transitions between every segment pair."""
     n = len(segments)
     transitions = [transition] * max(0, n - 1)
-    run_ffmpeg(_build_xfade_cmd(segments, durations, output, transitions, trans_dur))
+    run_ffmpeg(_build_xfade_cmd(segments, durations, output, transitions, trans_dur, fps))
 
 
 def _compile_xfade_random(
@@ -345,11 +364,12 @@ def _compile_xfade_random(
     pool: list[str],
     trans_dur: float,
     rng,
+    fps: float = 30.0,
 ) -> None:
     """Like _compile_xfade but picks a different transition at each cut."""
     n = len(segments)
     transitions = [rng.choice(pool) for _ in range(max(0, n - 1))]
-    run_ffmpeg(_build_xfade_cmd(segments, durations, output, transitions, trans_dur))
+    run_ffmpeg(_build_xfade_cmd(segments, durations, output, transitions, trans_dur, fps))
 
 
 def _select_clip_export_file(clip, video, export_dir: Path, name_template: str) -> Optional[Path]:
@@ -492,9 +512,9 @@ def compile_demo(
             if transition == "none":
                 _compile_concat(segments, output)
             elif transition == "random":
-                _compile_xfade_random(segments, durations, output, _RANDOM_POOL, trans_dur, _random)
+                _compile_xfade_random(segments, durations, output, _RANDOM_POOL, trans_dur, _random, clip_fps)
             else:
-                _compile_xfade(segments, durations, output, transition, trans_dur)
+                _compile_xfade(segments, durations, output, transition, trans_dur, clip_fps)
             size_mb = output.stat().st_size / (1024 * 1024)
             _log.info("Reel encode complete: %s (%.1f MB)", output.name, size_mb)
             print("Encode complete.", flush=True)

@@ -913,6 +913,16 @@ class TestBuildXfadeCmd:
         assert "[vout]" in cmd
         assert "[aout]" in cmd
 
+    def test_inputs_are_timebase_normalized(self):
+        # Every input is normalized to one timebase / fps / audio format before
+        # xfade, so clips with mixed source timebases don't fail the encode with
+        # "timebases do not match" (which produced a 0-byte reel).
+        cmd = self._build(2, [5.0, 5.0])
+        fc = cmd[cmd.index("-filter_complex") + 1]
+        assert fc.count("setsar=1") == 2      # one video normalization per input
+        assert fc.count("asettb=AVTB") == 2   # one audio normalization per input
+        assert "fps=" in fc
+
 
 class TestFfmpegPath:
     """_ffmpeg_path converts backslash paths to forward slashes for FFmpeg."""
