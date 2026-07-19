@@ -30,12 +30,22 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: pyproject.toml
-      # mypy analyzes the yuu_clip sources directly (ignore_missing_imports), so the
-      # heavy [dev] ML stack is not needed here. Pin to the pyproject range so a new
-      # mypy release cannot turn main red on its own (its new checks would be "new"
-      # errors vs the committed baseline).
-      - run: pip install "mypy>=1.8,<2.0" "mypy-baseline>=0.7,<1.0"
+          cache-dependency-path: |
+            requirements.lock
+            pyproject.toml
+      # Install the full [dev] ML stack (like the pytest jobs, same pip cache). mypy
+      # must analyze against the SAME third-party types a developer's venv provides:
+      # with the stack absent, torch/transformers/... resolve to Any and mypy emits a
+      # different (smaller) error set than local, so the locally-generated baseline
+      # (`yuu-dev typecheck --sync`) can never match a lean CI run. Installing the
+      # stack keeps the baseline reproducible from any dev machine. The lock pins the
+      # heavy base deps so a new transitive release can't turn main red on its own;
+      # mypy/mypy-baseline stay pinned to the pyproject range for the same reason.
+      - name: Install project with dev extras
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]" -c requirements.lock
+          pip install "mypy>=1.8,<2.0" "mypy-baseline>=0.7,<1.0"
       - name: Type check (fail only on new errors vs mypy-baseline.txt)
         # mypy exits non-zero whenever it finds any error (all baselined ones
         # included), so tolerate its exit and let mypy-baseline be the gate: it drops
