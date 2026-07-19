@@ -101,16 +101,19 @@ jobs:
         run: npm run test:js
 
   test-electron:
-    runs-on: ubuntu-latest
+    # The Electron wrapper is a Windows-only layer: constants.js resolves Windows
+    # env vars (LOCALAPPDATA/APPDATA/USERPROFILE) and .exe paths at module load, so
+    # its node --test suite must run on Windows - on Linux those env vars are unset
+    # and every test crashes at import. This mirrors the app's only target OS.
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      # The Electron wrapper's node --test suite (pure-unit; sub-second). No install
-      # needed - the tests require only node builtins + committed source. The opt-in
-      # boot smoke test (YUU_SMOKE=1) stays off here: it needs a real Electron + a
-      # python that can import yuu_clip, neither present on this runner.
+      # Pure-unit (sub-second); no install needed - the tests require only node
+      # builtins + committed source. The opt-in boot smoke test (YUU_SMOKE=1) stays
+      # off here: it needs a real Electron + a python that can import yuu_clip.
       - name: Electron wrapper unit tests (node --test)
         run: npm test
         working-directory: electron
