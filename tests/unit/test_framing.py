@@ -158,3 +158,13 @@ class TestEnsureFaceModel:
 
         assert not model_path.exists()
         assert not model_path.with_name(model_path.name + ".part").exists()
+
+    def test_prefetch_face_model_delegates_to_ensure(self, monkeypatch, tmp_path):
+        """prefetch_face_model is the boot-time background prefetch entry point
+        (initModelPrefetch) - it must reuse the same lazy-download path as
+        first-use, not a second implementation."""
+        framing_mod, model_path = self._patch_path(monkeypatch, tmp_path)
+        calls = []
+        monkeypatch.setattr(framing_mod, "_ensure_face_model", lambda: calls.append(1) or model_path)
+        framing_mod.prefetch_face_model()
+        assert calls == [1]

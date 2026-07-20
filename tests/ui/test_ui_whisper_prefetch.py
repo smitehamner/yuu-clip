@@ -2,13 +2,13 @@
 (first-run-friction Stage 6).
 
 On boot, initModelPrefetch reads /api/config and /api/llm/download-status; for each
-always-needed analysis model (speech + speaker) that is missing and not already
-downloading, and only when prefetch is not disabled, it streams the model's prefetch
-endpoint into a stacking top-of-app banner row. When the LLM handoff and both prefetches
-run, up to three banners STACK (one row each). Before starting an analysis while the
-speech model is downloading, analyze.js shows a heads-up confirm. When the pipeline
-reaches transcription before the model is ready, the Transcribe step pill shows a
-"waiting" status.
+always-needed analysis model (speech, speaker, audio-event, face-detector) that is
+missing and not already downloading, and only when prefetch is not disabled, it
+streams the model's prefetch endpoint into a stacking top-of-app banner row. When the
+LLM handoff and every prefetch run, banners STACK (one row each, up to five). Before
+starting an analysis while the speech model is downloading, analyze.js shows a
+heads-up confirm. When the pipeline reaches transcription before the model is ready,
+the Transcribe step pill shows a "waiting" status.
 
 Every fetch the asserted render awaits is stubbed (hermetic-stubbing rule). The banner
 tests register their stubs and then re-navigate (_reboot_against_stubs) so boot.js runs
@@ -47,6 +47,12 @@ def _route_download_status(page: Page, **fields) -> None:
         "speaker_downloading": False,
         "speaker_cached": False,
         "speaker_available": True,
+        "audio_event_downloading": False,
+        "audio_event_cached": False,
+        "audio_event_available": False,
+        "face_detector_downloading": False,
+        "face_detector_cached": False,
+        "face_detector_available": False,
         "model_prefetch_disabled": False,
     }
     body.update(fields)
@@ -102,6 +108,30 @@ class TestModelPrefetchBanner:
         # Only the speaker banner - the cached speech model must not start one.
         assert page.locator('.mdl-row[data-mdl-kind="whisper"]').count() == 0
 
+    def test_audio_event_banner_appears_when_missing_and_enabled(self, page: Page):
+        _route_config(page, prefetch_disabled=False)
+        _route_download_status(
+            page, whisper_cached=True, speaker_cached=True,
+            audio_event_available=True, audio_event_cached=False,
+        )
+        _hold(page, "**/api/models/prefetch*", [])
+
+        _reboot_against_stubs(page)
+        page.wait_for_selector('#model-download-banner .mdl-row[data-mdl-kind="audio_event"]', timeout=8000)
+        assert "audio-event" in page.locator('.mdl-row[data-mdl-kind="audio_event"]').inner_text().lower()
+
+    def test_face_detector_banner_appears_when_missing_and_available(self, page: Page):
+        _route_config(page, prefetch_disabled=False)
+        _route_download_status(
+            page, whisper_cached=True, speaker_cached=True,
+            face_detector_available=True, face_detector_cached=False,
+        )
+        _hold(page, "**/api/models/prefetch*", [])
+
+        _reboot_against_stubs(page)
+        page.wait_for_selector('#model-download-banner .mdl-row[data-mdl-kind="face_detector"]', timeout=8000)
+        assert "face-detector" in page.locator('.mdl-row[data-mdl-kind="face_detector"]').inner_text().lower()
+
     def test_no_banner_when_prefetch_disabled(self, page: Page):
         _route_config(page, prefetch_disabled=True)
         _route_download_status(page, whisper_cached=False, speaker_cached=False)
@@ -112,6 +142,8 @@ class TestModelPrefetchBanner:
         assert page.locator("#model-download-banner").is_hidden()
 
     def test_no_banner_when_models_already_cached(self, page: Page):
+        # audio_event/face_detector default to _available=False in
+        # _route_download_status, so this also covers "unavailable" for them.
         _route_config(page, prefetch_disabled=False)
         _route_download_status(page, whisper_cached=True, speaker_cached=True)
         _reboot_against_stubs(page)

@@ -1,14 +1,17 @@
 """Auto-framing suggestion for vertical (9:16) exports via MediaPipe face detection.
 
-Optional feature: `mediapipe` (Apache-2.0) is installed on demand from Settings.
-Everything that touches it imports it lazily, so this module loads fine without
-the package - only `suggest_crop_x` (which the route calls behind an
-`importlib.util.find_spec` gate) requires it to be present.
+`mediapipe` (Apache-2.0) is a bundled core dependency, not installed on demand
+from Settings. Everything that touches it still imports it lazily, so this
+module loads fine even if the package were ever missing - only `suggest_crop_x`
+(which the route calls behind an `importlib.util.find_spec` gate) requires it to
+be present.
 
 The MediaPipe wheel that installs on current Python ships only the Tasks API
 (`mediapipe.tasks.python.vision.FaceDetector`), which needs a model asset - the
 ~230 KB BlazeFace short-range model, downloaded to the user cache on first use
-(same "downloads on first use" pattern as the laugh scorer's model).
+(same "downloads on first use" pattern as the laugh scorer's model; also
+prefetchable in the background alongside Whisper/SpeechBrain - see
+`prefetch_face_model()`).
 
 The detector samples a handful of frames across a clip's window, finds the median
 face position, and converts that to a `crop_x` (0-1) that centers the 9:16 crop on
@@ -119,6 +122,13 @@ def _ensure_face_model() -> Path:
         raise
     _log.info("Face-detector model ready (%.1f KB)", path.stat().st_size / 1024)
     return path
+
+
+def prefetch_face_model() -> None:
+    """Download the BlazeFace model now, for the boot-time background prefetch
+    flow (initModelPrefetch) -- the same lazy fetch `_ensure_face_model` does on
+    first use of Auto-frame on faces."""
+    _ensure_face_model()
 
 
 def _make_detector():

@@ -20,7 +20,10 @@ from yuu_clip.web.sse import subprocess_sse
 
 # Only these slugs may be prefetched - becomes a subprocess argument, so an
 # allowlist keeps a stray query param from running arbitrary CLI input.
-_PREFETCHABLE_SLUGS = frozenset({"speaker", "audio_event", "embeddings"})
+# face_detector is boot-prefetch-only (initModelPrefetch) - the Capabilities tier
+# never offers it as a manual "Download now" button, since the BlazeFace asset is
+# ~230 KB / near-instant (see _vertical_framing_tier in routes/llm.py).
+_PREFETCHABLE_SLUGS = frozenset({"speaker", "audio_event", "embeddings", "face_detector"})
 
 
 def make_router(ctx: ProjectContext) -> APIRouter:

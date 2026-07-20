@@ -29,11 +29,14 @@ from yuu_clip.web.sse import subprocess_sse
 # Logical keys for background downloads in ctx.model_downloads (the shared
 # "a required model is downloading" registry the download banners and the
 # analyze coordination both read). Stage 4 = the local LLM; Stage 6 = the speech
-# model (whisper) and the speaker-labeling model (registered by routes/models.py's
-# prefetch under this same slug, so download-status can surface it here).
+# model (whisper), the speaker-labeling model, the audio-event model, and the
+# face-detector model (the latter three registered by routes/models.py's
+# prefetch under this same slug, so download-status can surface them here).
 _LLM_DOWNLOAD_KEY = "llm"
 _WHISPER_DOWNLOAD_KEY = "whisper"
 _SPEAKER_DOWNLOAD_KEY = "speaker"
+_AUDIO_EVENT_DOWNLOAD_KEY = "audio_event"
+_FACE_DETECTOR_DOWNLOAD_KEY = "face_detector"
 
 
 # Headroom beyond the model's own on-disk size - a .gguf download writes to a
@@ -493,18 +496,23 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     @router.get("/api/llm/download-status")
     def download_status():
         # One read surface for every in-flight required-model download, so the
-        # download banners (llm + speech + speaker) and the analyze-start
-        # coordination read from the same place, not a second overlapping endpoint.
+        # download banners (llm + speech + speaker + audio-event + face-detector)
+        # and the analyze-start coordination read from the same place, not a
+        # second overlapping endpoint.
+        from yuu_clip.analyze.framing import face_model_cached
+        from yuu_clip.scoring.audio_event import AudioEventScorer, audio_event_model_cached
         from yuu_clip.transcribe.diarization_client import (
             make_diarization_client,
             speechbrain_model_cached,
         )
         from yuu_clip.transcribe.transcriber import make_transcriber
 
-        # Only prefetch the speaker model when its backend can actually run (the
-        # package is installed and speaker labels aren't turned off) - otherwise the
-        # boot prefetch would kick off a download for a feature that can't use it.
+        # Only prefetch the speaker/audio-event model when its backend can actually
+        # run (the package is installed and the feature isn't turned off) -
+        # otherwise the boot prefetch would kick off a download for a feature that
+        # can't use it.
         speaker_available = make_diarization_client(ctx.config).available()[0]
+        audio_event_available = AudioEventScorer(ctx.config).is_available()
         return {
             "pending_model_id": ctx.config.pending_local_model or "",
             "downloading": _LLM_DOWNLOAD_KEY in ctx.model_downloads,
@@ -515,6 +523,12 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             "speaker_downloading": _SPEAKER_DOWNLOAD_KEY in ctx.model_downloads,
             "speaker_cached": speechbrain_model_cached(),
             "speaker_available": speaker_available,
+            "audio_event_downloading": _AUDIO_EVENT_DOWNLOAD_KEY in ctx.model_downloads,
+            "audio_event_cached": audio_event_model_cached(ctx.config.scorer_laugh_model_id),
+            "audio_event_available": audio_event_available,
+            "face_detector_downloading": _FACE_DETECTOR_DOWNLOAD_KEY in ctx.model_downloads,
+            "face_detector_cached": face_model_cached(),
+            "face_detector_available": module_findable("mediapipe"),
             "model_prefetch_disabled": bool(ctx.config.model_prefetch_disabled),
         }
 

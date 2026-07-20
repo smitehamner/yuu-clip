@@ -20,6 +20,7 @@ _PREFETCH_DESCRIPTIONS: dict[str, str] = {
     "speaker": "the speaker model (~80 MB) so speaker labels can run",
     "audio_event": "the audio-event model (~350 MB) so laughter/action-sound detection can run",
     "embeddings": "the embeddings model (~130 MB) so smart similarity matching can run",
+    "face_detector": "the face-detector model (~230 KB) so Auto-frame on faces can run",
 }
 
 
@@ -33,11 +34,14 @@ def _fetch(slug: str, config) -> None:
     elif slug == "embeddings":
         from yuu_clip.scoring.similarity import prefetch_embeddings_model
         prefetch_embeddings_model()
+    elif slug == "face_detector":
+        from yuu_clip.analyze.framing import prefetch_face_model
+        prefetch_face_model()
 
 
 @app.command("prefetch-model")
 def prefetch_model_cmd(
-    slug: str = typer.Argument(..., help="Which Tier-B model to download: speaker, audio_event, or embeddings"),
+    slug: str = typer.Argument(..., help="Which model to download: speaker, audio_event, embeddings, or face_detector"),
     project: Optional[Path] = typer.Option(None, "-p", "--project", help="Project directory (default: cwd)"),
 ) -> None:
     """Download one Tier-B model now, instead of waiting for its feature's first use."""

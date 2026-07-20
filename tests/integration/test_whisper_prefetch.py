@@ -29,6 +29,8 @@ from yuu_clip.web.routes import models as models_route
 
 _WHISPER_KEY = "whisper"
 _SPEAKER_KEY = "speaker"
+_AUDIO_EVENT_KEY = "audio_event"
+_FACE_DETECTOR_KEY = "face_detector"
 
 
 def _set_cached(monkeypatch, value: bool):
@@ -189,6 +191,51 @@ class TestDownloadStatusWhisper:
         finally:
             ctx.model_downloads.pop(_SPEAKER_KEY, None)
 
+    def test_reports_audio_event_download_in_progress(self, client: TestClient, monkeypatch):
+        import yuu_clip.scoring.audio_event as audio_event_mod
+
+        _force_not_cached(monkeypatch)
+        monkeypatch.setattr(audio_event_mod.AudioEventScorer, "availability", lambda self: (True, ""))
+        monkeypatch.setattr(audio_event_mod, "audio_event_model_cached", lambda model_id: False)
+        ctx = client.app.state.ctx
+        ctx.model_downloads[_AUDIO_EVENT_KEY] = "audio_event"
+        try:
+            data = client.get("/api/llm/download-status").json()
+            assert data["audio_event_downloading"] is True
+            assert data["audio_event_cached"] is False
+            assert data["audio_event_available"] is True
+        finally:
+            ctx.model_downloads.pop(_AUDIO_EVENT_KEY, None)
+
+    def test_reports_audio_event_unavailable_when_deps_missing(self, client: TestClient, monkeypatch):
+        import yuu_clip.scoring.audio_event as audio_event_mod
+
+        monkeypatch.setattr(audio_event_mod.AudioEventScorer, "availability", lambda self: (False, "no deps"))
+        data = client.get("/api/llm/download-status").json()
+        assert data["audio_event_available"] is False
+
+    def test_reports_face_detector_download_in_progress(self, client: TestClient, monkeypatch):
+        import yuu_clip.analyze.framing as framing_mod
+
+        monkeypatch.setattr(framing_mod, "face_model_cached", lambda: False)
+        ctx = client.app.state.ctx
+        ctx.model_downloads[_FACE_DETECTOR_KEY] = "face_detector"
+        try:
+            data = client.get("/api/llm/download-status").json()
+            assert data["face_detector_downloading"] is True
+            assert data["face_detector_cached"] is False
+            assert data["face_detector_available"] is True
+        finally:
+            ctx.model_downloads.pop(_FACE_DETECTOR_KEY, None)
+
+    def test_reports_face_detector_cached(self, client: TestClient, monkeypatch):
+        import yuu_clip.analyze.framing as framing_mod
+
+        monkeypatch.setattr(framing_mod, "face_model_cached", lambda: True)
+        data = client.get("/api/llm/download-status").json()
+        assert data["face_detector_cached"] is True
+        assert data["face_detector_downloading"] is False
+
 
 # -- speaker prefetch reuses /api/models/prefetch, registering the "speaker" key -
 
@@ -211,6 +258,29 @@ class TestSpeakerPrefetchRegistration:
         # Registered while the stream builds, cleared once the response returns.
         assert captured["registered"] == "speaker"
         assert _SPEAKER_KEY not in ctx.model_downloads
+
+
+# -- face-detector prefetch reuses /api/models/prefetch (boot-prefetch only - -
+# never a manual "Download now" button, see _vertical_framing_tier) --------------
+
+class TestFaceDetectorPrefetchRegistration:
+    def test_prefetch_registers_then_clears_the_slug_key(self, client, monkeypatch):
+        from starlette.responses import PlainTextResponse
+
+        ctx = client.app.state.ctx
+        captured = {}
+
+        async def fake_sse(cmd, *args, **kwargs):
+            captured["cmd"] = cmd
+            captured["registered"] = ctx.model_downloads.get(_FACE_DETECTOR_KEY)
+            return PlainTextResponse("ok")
+
+        monkeypatch.setattr(models_route, "subprocess_sse", fake_sse)
+        resp = client.post("/api/models/prefetch", params={"slug": "face_detector"})
+        assert resp.status_code == 200, resp.text
+        assert captured["cmd"][1:5] == ["-m", "yuu_clip.cli", "prefetch-model", "face_detector"]
+        assert captured["registered"] == "face_detector"
+        assert _FACE_DETECTOR_KEY not in ctx.model_downloads
 
 
 # -- CLI: prefetch-whisper command --------------------------------------------

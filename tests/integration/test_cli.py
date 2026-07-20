@@ -99,6 +99,15 @@ class TestPrefetchModel:
         assert result.exit_code == 0, result.output
         assert calls == [1]
 
+    def test_face_detector_slug_calls_the_blazeface_prefetcher(self, tmp_path, monkeypatch):
+        (tmp_path / ".yuu-clip").mkdir()
+        from yuu_clip.analyze import framing
+        calls = []
+        monkeypatch.setattr(framing, "prefetch_face_model", lambda: calls.append(1))
+        result = runner.invoke(app, ["prefetch-model", "face_detector", "--project", str(tmp_path)])
+        assert result.exit_code == 0, result.output
+        assert calls == [1]
+
     def test_download_failure_exits_nonzero_with_a_friendly_message(self, tmp_path, monkeypatch):
         """An offline machine must fail cleanly with a readable message, not a
         raw traceback - the message becomes the last SSE line the UI shows."""

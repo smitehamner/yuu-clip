@@ -1,9 +1,10 @@
 // Feature-map - Background model-download handoffs + in-app progress banners
 //   (first-run-friction Stages 4 + 6). On boot two independent background
 //   downloads can start: the local LLM the wizard queued (config.pending_local_model)
-//   and the analysis-model prefetch - speech + speaker (unless model_prefetch_disabled). Each
-//   renders its own dismissible row inside #model-download-banner, so when both run
-//   the banners STACK rather than fight for one slot. Non-blocking chrome: it uses
+//   and the analysis-model prefetch - speech, speaker, audio-event, and
+//   face-detector (unless model_prefetch_disabled). Each renders its own
+//   dismissible row inside #model-download-banner, so when several run the
+//   banners STACK rather than fight for one slot. Non-blocking chrome: it uses
 //   the low-level _openSSE transport with its own per-kind stream handle (NOT
 //   _activeES, which the single job header owns).
 //   API: routes/llm.py (/api/llm/download-status[/clear], /api/llm/gguf/download,
@@ -54,6 +55,26 @@ const _KINDS = {
     onSuccess: async () => {},
     onCancel: async () => {},
   },
+  audio_event: {
+    downloadUrl: () => `/api/models/prefetch?slug=audio_event`,
+    progressText: 'Downloading the audio-event model in the background - you can keep working.',
+    failureText: 'Audio-event model download failed - it will download the first time you analyze.',
+    offlineText: 'No internet - the audio-event model will download the first time you analyze.',
+    successToast: 'Audio-event model ready.',
+    cancelToast: 'Audio-event model download stopped - it will download the first time you analyze.',
+    onSuccess: async () => {},
+    onCancel: async () => {},
+  },
+  face_detector: {
+    downloadUrl: () => `/api/models/prefetch?slug=face_detector`,
+    progressText: 'Downloading the face-detector model in the background - you can keep working.',
+    failureText: 'Face-detector model download failed - it will download the first time you use Auto-frame on faces.',
+    offlineText: 'No internet - the face-detector model will download the first time you use Auto-frame on faces.',
+    successToast: 'Face-detector model ready.',
+    cancelToast: 'Face-detector model download stopped - it will download the first time you use Auto-frame on faces.',
+    onSuccess: async () => {},
+    onCancel: async () => {},
+  },
 };
 
 // kind -> {es, sawError, lastPct}. lastPct feeds the analyze-start heads-up.
@@ -83,9 +104,10 @@ export async function initModelDownload() {
   _startDownload('llm', _KINDS.llm.downloadUrl(status.pending_model_id));
 }
 
-// Default-ON background prefetch of the always-needed analysis models (the speech
-// model and the speaker-labeling model), unless the wizard opted out. Each starts
-// only when it is missing and not already downloading; banners stack.
+// Default-ON background prefetch of the always-needed analysis models (speech,
+// speaker labels, audio-event detection, and the face-detector used by
+// Auto-frame on faces), unless the wizard opted out. Each starts only when it is
+// missing and not already downloading; banners stack.
 export async function initModelPrefetch() {
   let cfg;
   try {
@@ -100,10 +122,16 @@ export async function initModelPrefetch() {
   if (!status.whisper_cached && !status.whisper_downloading) {
     _startDownload('whisper', _KINDS.whisper.downloadUrl());
   }
-  // speaker_available guards against prefetching a model whose backend can't run
-  // (package not installed, or speaker labels turned off).
+  // *_available guards against prefetching a model whose backend can't run
+  // (package not installed, or the feature turned off in Settings).
   if (status.speaker_available && !status.speaker_cached && !status.speaker_downloading) {
     _startDownload('speaker', _KINDS.speaker.downloadUrl());
+  }
+  if (status.audio_event_available && !status.audio_event_cached && !status.audio_event_downloading) {
+    _startDownload('audio_event', _KINDS.audio_event.downloadUrl());
+  }
+  if (status.face_detector_available && !status.face_detector_cached && !status.face_detector_downloading) {
+    _startDownload('face_detector', _KINDS.face_detector.downloadUrl());
   }
 }
 
