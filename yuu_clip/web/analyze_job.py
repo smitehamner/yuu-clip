@@ -21,6 +21,7 @@ from typing import AsyncGenerator, Optional
 from fastapi.responses import StreamingResponse
 
 from yuu_clip.log import get_logger
+from yuu_clip.pipeline.progress import parse_progress
 from yuu_clip.web.sse import (
     _done_event,
     new_session_kwargs,
@@ -33,12 +34,40 @@ _log = get_logger(__name__)
 # Distinct from the wire-level _SSE_DONE_SENTINEL sent to the browser.
 _QUEUE_DONE = object()
 
-# Cap on the replay buffer. A reattaching page replays the whole buffer up front; an
-# unbounded one (e.g. a run that logged tens of thousands of lines) makes that replay
-# so large the browser's fetch reader can throw mid-stream, breaking the reconnect.
-# Generous enough that a normal run keeps all its stage headers - the real defence is
-# not emitting spam in the first place (llama.cpp verbose off, speaker consolidation).
+# Overall retention cap on the in-memory buffer (see _replay_lines below for what a
+# reconnecting client actually gets replayed, which is far smaller). Still bounded so
+# an extreme run can't grow this list forever.
 _MAX_BUFFER_LINES = 5000
+
+# How much plain scrollback a fresh reconnect replays, on top of the progress markers
+# _replay_lines always includes. The browser's own log panel caps its DOM to ~500
+# lines (utils.js _MAX_LOG_LINES) and the job-step pills are driven entirely off
+# @@PROGRESS markers, not prose - so a reconnect needs only a handful of recent lines
+# for scrollback context, not the whole multi-thousand-line buffer. Keeping this small
+# is what avoids a burst of appendLog()+reflow calls (see utils.js's _MAX_LOG_LINES
+# comment) every time a page opens or refreshes mid-run.
+_REPLAY_TAIL_LINES = 10
+
+
+def _replay_lines(buffer: list[str]) -> list[str]:
+    """Trim a reconnect's replay to what the client can actually use.
+
+    A fresh SSE connection needs two things to render correctly, not the full
+    buffer: the latest @@PROGRESS marker per stage (to restore the step pills -
+    jobs.js's _activateStep marks every earlier step "done" when a later one
+    activates, so only the newest marker per stage matters, however far back it
+    was emitted) and a small tail of ordinary lines for scrollback. Markers are
+    never shown as log text (jobs.js filters them before appendLog), so including
+    old ones costs nothing on screen - only the tail size affects visible scrollback.
+    """
+    tail_start = max(0, len(buffer) - _REPLAY_TAIL_LINES)
+    latest_marker_idx: dict[str, int] = {}
+    for i, line in enumerate(buffer):
+        marker = parse_progress(line)
+        if marker is not None:
+            latest_marker_idx[marker["stage"]] = i
+    marker_indices = sorted(idx for idx in latest_marker_idx.values() if idx < tail_start)
+    return [buffer[i] for i in marker_indices] + buffer[tail_start:]
 
 
 class AnalyzeJob:
@@ -151,7 +180,7 @@ class AnalyzeJob:
         # between the two lines means the pump cannot interleave, so every line is
         # delivered exactly once (replayed OR queued, never both, never dropped).
         queue: asyncio.Queue = asyncio.Queue()
-        replay = list(self.buffer)
+        replay = _replay_lines(self.buffer)
         already_done = self.done
         if not already_done:
             self.subscribers.add(queue)

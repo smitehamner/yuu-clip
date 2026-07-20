@@ -52,6 +52,29 @@ class TestAnalyzeJobBroadcast:
         assert "beta" in replay
         assert "__DONE__" in replay
 
+    def test_replay_trims_a_long_buffer_to_the_latest_marker_per_stage_plus_a_tail(self):
+        # A reconnect shouldn't replay the whole buffer - just enough to restore the
+        # step pills (the latest @@PROGRESS marker per stage, however far back it
+        # was emitted) plus a small tail of ordinary lines for scrollback.
+        from yuu_clip.pipeline.progress import Stage, format_progress
+        from yuu_clip.web.analyze_job import _REPLAY_TAIL_LINES, _replay_lines
+
+        buffer = ["noise 0", format_progress(Stage.EXTRACT, done=1, total=1)]
+        buffer += [f"noise {i}" for i in range(1, 20)]
+        buffer.append(format_progress(Stage.TRANSCRIBE, done=3, total=10))
+        buffer += [f"tail {i}" for i in range(_REPLAY_TAIL_LINES - 1)]
+
+        replay = _replay_lines(buffer)
+
+        assert len(replay) < len(buffer)
+        # The stale extract marker survives outside the tail window (pill state),
+        # but the plain noise lines around it are dropped.
+        assert format_progress(Stage.EXTRACT, done=1, total=1) in replay
+        assert "noise 5" not in replay
+        # Everything inside the tail window - including the more recent transcribe
+        # marker - is kept verbatim.
+        assert replay[-_REPLAY_TAIL_LINES:] == buffer[-_REPLAY_TAIL_LINES:]
+
     def test_emit_caps_buffer_to_most_recent_lines(self, tmp_path):
         # An unbounded buffer makes the reconnect replay so large the browser's
         # fetch reader can throw mid-stream; _emit keeps only the most recent lines.
