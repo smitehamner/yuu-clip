@@ -1,7 +1,7 @@
 import { AppState } from '../core/state.js';
 import { escHtml, formatApiError } from '../core/format.js';
 import { PanelNav } from '../core/panelnav.js';
-import { setupRecordingPreview } from '../core/preview.js';
+import { setupRecordingPreview, releaseVideoRespectingPip } from '../core/preview.js';
 import { openLog, showToast } from '../core/utils.js';
 import { streamSSE, setJobCancel } from '../core/jobs.js';
 import { renderPlayer, renderDetail, _reloadClipList } from '../clips/clips.js';
@@ -186,8 +186,10 @@ function _edTeardown() {
   if (videoEl) {
     videoEl.removeEventListener('loadedmetadata', _edOnMetadata);
     videoEl.removeEventListener('timeupdate', _edOnTimeUpdate);
-    try { videoEl.pause(); } catch (_) { /* ignore */ }
-    videoEl.src = '';
+    releaseVideoRespectingPip(videoEl, () => {
+      try { videoEl.pause(); } catch (_) { /* ignore */ }
+      videoEl.src = '';
+    });
   }
   _edClipId = null;
   _edClip   = null;

@@ -15,7 +15,7 @@
 import { AppState } from '../core/state.js';
 import { formatApiError } from '../core/format.js';
 import { PanelNav } from '../core/panelnav.js';
-import { setupRecordingPreview } from '../core/preview.js';
+import { setupRecordingPreview, releaseVideoRespectingPip } from '../core/preview.js';
 import { showToast } from '../core/utils.js';
 import { selectClip, _reloadClipList } from './clips.js';
 
@@ -291,8 +291,10 @@ function _teardownClipCreatePanel() {
   const video = document.getElementById('clipcreate-preview-video');
   if (video) {
     if (_ccPlaybackGuard) video.removeEventListener('timeupdate', _ccPlaybackGuard);
-    try { video.pause(); } catch (_) { /* ignore */ }
-    video.src = '';
+    releaseVideoRespectingPip(video, () => {
+      try { video.pause(); } catch (_) { /* ignore */ }
+      video.src = '';
+    });
   }
   _ccPlaybackGuard = null;
   _ccVideoId    = null;

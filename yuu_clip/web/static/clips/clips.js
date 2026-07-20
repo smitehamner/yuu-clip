@@ -16,6 +16,7 @@ import {
 } from '../core/jobs.js';
 import { gateOnCapability } from '../settings/modelcatalog.js';
 import { loadVideos, _clipsListUrl } from '../videos/videos.js';
+import { deferPlayerRebuildForPip } from '../core/preview.js';
 
 // ── clip list & filtering ─────────────────────────────────────────────────────────────────────
 function _applyFilters() {
@@ -370,6 +371,9 @@ async function refreshClipDetail(id) {
 
 // ── player ────────────────────────────────────────────────────────────────────
 function renderPlayer(url, captionsUrl, clipId) {
+  // Leave a native PiP window alone: skip rebuilding #player-area (which would detach
+  // its <video> and close PiP) and re-apply this selection once the user exits PiP.
+  if (deferPlayerRebuildForPip(() => renderPlayer(url, captionsUrl, clipId))) return;
   const area = document.getElementById('player-area');
   const autoplay = localStorage.getItem('yuuclip-autoplay') === 'true';
   const loopClip = localStorage.getItem('yuuclip-loop-clip') === 'true';

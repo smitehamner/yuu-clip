@@ -10,6 +10,52 @@
 // simply falls back to HTTP for that one request.
 import { streamSSE } from './jobs.js';
 
+// ── Picture-in-Picture safety (B23/B24) ───────────────────────────────────────
+// Detaching a <video>, or clearing its src, while the browser holds it in native
+// Picture-in-Picture closes the still-visible PiP window the user explicitly asked
+// to keep. These helpers defer that disruptive work until the user actually exits
+// PiP (the `leavepictureinpicture` event), matching the reel-modal pattern (B23).
+
+export function _isPipElement(vid) {
+  return !!vid && document.pictureInPictureElement === vid;
+}
+
+// Run `teardown` now, or - if `vid` is the active PiP element - defer it until the
+// user leaves PiP so its playback is not cut short. Used by the editing-tool
+// preview panels and the reel modals.
+export function releaseVideoRespectingPip(vid, teardown) {
+  if (_isPipElement(vid)) {
+    vid.addEventListener('leavepictureinpicture', teardown, { once: true });
+  } else {
+    teardown();
+  }
+}
+
+let _pipDeferredPlayerRebuild = null;
+
+// The main #player-area is fully rebuilt (via innerHTML) on every clip/recording
+// selection, which detaches its <video> and kills any active PiP window. Per the
+// B24 owner decision, PiP is left alone entirely: when the area currently holds the
+// active PiP element, the caller skips its rebuild and registers it here; only the
+// latest queued rebuild is applied, and only once the user exits PiP, so the main
+// pane catches up to the current selection then. Returns true when the caller must
+// skip its own rebuild, false to rebuild normally.
+export function deferPlayerRebuildForPip(rebuild) {
+  const pip = document.pictureInPictureElement;
+  const area = document.getElementById('player-area');
+  if (!pip || !area || !area.contains(pip)) return false;
+  const alreadyQueued = _pipDeferredPlayerRebuild !== null;
+  _pipDeferredPlayerRebuild = rebuild;
+  if (!alreadyQueued) {
+    pip.addEventListener('leavepictureinpicture', () => {
+      const pending = _pipDeferredPlayerRebuild;
+      _pipDeferredPlayerRebuild = null;
+      pending?.();
+    }, { once: true });
+  }
+  return true;
+}
+
 export function _buildMediaUrl(videoId, kind, absPath) {
   if (window.electronAPI?.mediaProtocol && absPath) {
     const normalized = absPath.replace(/\\/g, '/');

@@ -6,7 +6,7 @@ import {
 } from '../core/format.js';
 import { collapsibleCard, showToast, netErrMsg, revealInFolder, _syncSortDirBtn, openLog, appendLog } from '../core/utils.js';
 import { showConfirm, openFieldEditModal, openDiffModal, showKebab, openActionsModal } from '../core/ui.js';
-import { setupRecordingPreview } from '../core/preview.js';
+import { setupRecordingPreview, deferPlayerRebuildForPip } from '../core/preview.js';
 import {
   streamSSE, setJobCancel, cancelJob, _blockedByAnalyze, _stepPillLabel,
   _jobStepDefs, _activeStepIdx, _jobStartTime,
@@ -423,26 +423,33 @@ function renderVideoDetail(video, savedTimeline) {
   // Only an explicit false means "gone" - an older payload without the field must
   // still get a player rather than a false alarm.
   const sourceMissing = video.source_exists === false;
-  document.getElementById('player-area').innerHTML = sourceMissing
-    ? _missingSourceHtml(video)
-    : `<div style="position:relative">
-       <video id="recording-preview-video" controls preload="metadata" aria-label="Recording preview" style="display:block;width:100%;max-height:var(--player-max-height, 42vh);object-fit:contain;background:#000"></video>
-       <span id="recording-preview-badge" role="status" style="display:none;position:absolute;top:8px;left:8px;background:rgba(0,0,0,.7);color:var(--on-scrim);font-size:11px;padding:3px 8px;border-radius:4px"></span>
-     </div>`;
-  if (!sourceMissing) {
-    setupRecordingPreview(
-      document.getElementById('recording-preview-video'),
-      document.getElementById('recording-preview-badge'),
-      video.id,
-      {
-        autoBuild: false,
-        isCurrent: () => AppState.activeVideoId === video.id,
-        startS: video.segment_start_s,
-        endS: video.segment_end_s,
-        sourcePath: video.source_path,
-      },
-    );
-  }
+  // Rebuilding #player-area detaches its <video> and closes any active PiP window.
+  // While the player holds the active PiP element, leave it alone (B24 owner decision)
+  // and re-apply this recording's player once the user exits PiP; the rest of the
+  // detail pane below still updates so the sidebar selection reflects immediately.
+  const buildPlayerArea = () => {
+    document.getElementById('player-area').innerHTML = sourceMissing
+      ? _missingSourceHtml(video)
+      : `<div style="position:relative">
+         <video id="recording-preview-video" controls preload="metadata" aria-label="Recording preview" style="display:block;width:100%;max-height:var(--player-max-height, 42vh);object-fit:contain;background:#000"></video>
+         <span id="recording-preview-badge" role="status" style="display:none;position:absolute;top:8px;left:8px;background:rgba(0,0,0,.7);color:var(--on-scrim);font-size:11px;padding:3px 8px;border-radius:4px"></span>
+       </div>`;
+    if (!sourceMissing) {
+      setupRecordingPreview(
+        document.getElementById('recording-preview-video'),
+        document.getElementById('recording-preview-badge'),
+        video.id,
+        {
+          autoBuild: false,
+          isCurrent: () => AppState.activeVideoId === video.id,
+          startS: video.segment_start_s,
+          endS: video.segment_end_s,
+          sourcePath: video.source_path,
+        },
+      );
+    }
+  };
+  if (!deferPlayerRebuildForPip(buildPlayerArea)) buildPlayerArea();
   document.getElementById('detail').innerHTML = `
     <div><div class="detail-type-badge video-badge">&#127916; Recording</div></div>
 

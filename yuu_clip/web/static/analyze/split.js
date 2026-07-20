@@ -3,7 +3,7 @@
 import { AppState } from '../core/state.js';
 import { PanelNav } from '../core/panelnav.js';
 import { escHtml, plural, formatApiError } from '../core/format.js';
-import { setupRecordingPreview } from '../core/preview.js';
+import { setupRecordingPreview, releaseVideoRespectingPip } from '../core/preview.js';
 import { showToast, netErrMsg, openLog, appendLog } from '../core/utils.js';
 import { showConfirm } from '../core/ui.js';
 import { streamSSE, INGEST_STEPS, _waitWhileAnalyzePaused } from '../core/jobs.js';
@@ -171,8 +171,7 @@ export function closeSplitEditor() {
 
 function _teardownSplitEditor() {
   const previewEl = document.getElementById('split-preview-video');
-  previewEl.pause();
-  previewEl.src = '';
+  releaseVideoRespectingPip(previewEl, () => { previewEl.pause(); previewEl.src = ''; });
   document.getElementById('split-preview-wrap').style.display = 'none';
   const badge = document.getElementById('split-preview-badge');
   if (badge) badge.style.display = 'none';
