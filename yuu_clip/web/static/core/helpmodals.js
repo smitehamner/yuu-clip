@@ -278,6 +278,7 @@ function _wireModalButtons() {
   document.getElementById('getting-started-x-btn').addEventListener('click', () => closeGettingStartedModal());
   document.getElementById('help-modal-close-btn').addEventListener('click', () => closeHelpModal());
   document.getElementById('about-modal-close-btn').addEventListener('click', () => closeAboutModal());
+  document.getElementById('about-modal-x-btn').addEventListener('click', () => closeAboutModal());
   document.getElementById('glossary-modal-close-btn').addEventListener('click', () => closeGlossaryModal());
   document.getElementById('glossary-filter').addEventListener('input', e => _filterGlossary(e.target.value));
 }

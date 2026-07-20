@@ -871,6 +871,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const contextModal = document.getElementById('context-modal');
   contextModal?.addEventListener('click', e => { if (e.target === contextModal) closeContextManager(); });
   document.getElementById('context-close-btn')?.addEventListener('click', () => closeContextManager());
+  document.getElementById('context-manager-x-btn')?.addEventListener('click', () => closeContextManager());
   document.getElementById('context-new-btn')?.addEventListener('click', () => openNewContext());
   document.getElementById('context-save-btn')?.addEventListener('click', () => saveContext());
   document.getElementById('context-cancel-btn')?.addEventListener('click', () => cancelContextEdit());

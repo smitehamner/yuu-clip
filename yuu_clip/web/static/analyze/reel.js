@@ -752,6 +752,7 @@ function _wireBatchExportModal() {
   document.getElementById('batch-captions').addEventListener('change', e => _onBatchCaptionsChange(e.target.value));
   document.getElementById('batch-retranscribe').addEventListener('change', e => _onBatchRetranscribeChange(e.target.checked));
   document.getElementById('batch-cancel-btn').addEventListener('click', () => closeBatchExportModal());
+  document.getElementById('batch-export-x-btn').addEventListener('click', () => closeBatchExportModal());
   document.getElementById('batch-confirm-btn').addEventListener('click', () => confirmBatchExport());
 }
 

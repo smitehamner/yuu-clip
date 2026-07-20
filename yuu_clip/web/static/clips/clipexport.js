@@ -517,6 +517,7 @@ function _wireExportModal() {
   const modal = document.getElementById('export-settings-modal');
   modal.addEventListener('click', e => { if (e.target === modal) closeExportModal(); });
   document.getElementById('export-cancel-btn').addEventListener('click', () => closeExportModal());
+  document.getElementById('export-settings-x-btn').addEventListener('click', () => closeExportModal());
   document.getElementById('export-confirm-btn').addEventListener('click', () => confirmExport());
   document.getElementById('export-preset').addEventListener('change', e => _onExportPresetChange(e.target.value));
   document.getElementById('export-captions').addEventListener('change', () => _updateExportModeSummary());
