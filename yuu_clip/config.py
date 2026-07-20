@@ -544,6 +544,13 @@ class Config:
     #   large-v3: check https://huggingface.co/Systran/faster-whisper-large-v3/commits/main
     whisper_model_revision: Optional[str] = None
 
+    # Separate default model for export-time retranscription ("Retranscribe
+    # before export" in the Export and Batch Export dialogs, Settings ->
+    # Speech-to-text). Export is a better moment to spend more compute on
+    # transcript quality than the fast model used to keep initial analysis
+    # quick, so this is deliberately independent of whisper_model.
+    export_retranscribe_model: str = "large-v3"
+
     # First-run-friction Stage 6: the analysis models needed for every run (the
     # speech-to-text model and the speaker-labeling model) prefetch in the
     # background on first launch so the first analysis isn't a surprise wait. The

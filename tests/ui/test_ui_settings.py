@@ -87,6 +87,59 @@ class TestTranscriptionLanguageSelect:
 
 
 @skip_no_server
+class TestExportRetranscribeModelSetting:
+    """Settings -> Speech-to-text: export_retranscribe_model (B20), a separate
+    default model for "Retranscribe before export" in the Export and Batch
+    Export dialogs - independent of whisper_model (the analyze-time default).
+    Read-only: never clicks Save, so nothing persists to the live project's
+    config.json."""
+
+    def _open_settings(self, page: Page) -> None:
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
+        page.click("#btn-settings-header")
+        page.wait_for_selector("#settings-panel.visible", timeout=3000)
+        page.wait_for_function(
+            "document.getElementById('s-paths-display').textContent.trim().length > 0",
+            timeout=8000,
+        )
+
+    def test_field_renders_in_speech_to_text_section(self, page: Page):
+        self._open_settings(page)
+        section = page.locator("#settings-sec-stt")
+        expect(section.locator("#s-whisper-model")).to_be_visible()
+        expect(section.locator("#s-export-retranscribe-model")).to_be_visible()
+
+    def test_reflects_saved_config_value(self, page: Page):
+        self._open_settings(page)
+        saved = page.evaluate(
+            "() => fetch('/api/config').then(r => r.json())"
+            "  .then(d => d.export_retranscribe_model)"
+        )
+        assert page.locator("#s-export-retranscribe-model").input_value() == saved
+
+    def test_changing_it_marks_settings_dirty(self, page: Page):
+        self._open_settings(page)
+        expect(page.locator("#btn-settings-save")).to_be_disabled()
+        current = page.locator("#s-export-retranscribe-model").input_value()
+        new_value = "tiny" if current != "tiny" else "small"
+        page.select_option("#s-export-retranscribe-model", new_value)
+        expect(page.locator("#btn-settings-save")).to_be_enabled()
+        # Restore so the panel isn't left dirty for later tests.
+        page.select_option("#s-export-retranscribe-model", current)
+        expect(page.locator("#btn-settings-save")).to_be_disabled()
+
+    def test_independent_from_whisper_model_field(self, page: Page):
+        self._open_settings(page)
+        whisper_before = page.locator("#s-whisper-model").input_value()
+        current = page.locator("#s-export-retranscribe-model").input_value()
+        new_value = "tiny" if current != "tiny" else "small"
+        page.select_option("#s-export-retranscribe-model", new_value)
+        assert page.locator("#s-whisper-model").input_value() == whisper_before
+        page.select_option("#s-export-retranscribe-model", current)
+
+
+@skip_no_server
 class TestAiPrivacyMode:
     """The AI privacy radios (plan non-llm-tiers/07). Read-only: these manipulate the
     live DOM (radios, visibility) but never click Save - that would PATCH the real

@@ -11,8 +11,10 @@ CC-8: user-facing labels say "Recording(s)", never "Video(s)" (code keeps `video
 CC-10: counts pluralize via plural() - no "(s)" shorthand in user-facing strings.
 L4-3: the Scoring/Actions two-card row wraps on narrow layouts.
 M3-4 / L5-1: the speech-to-text model select is one concept everywhere - identical
-option copy across all five surfaces, "Caption model" label + large-v3 default on the
-three export/retranscribe surfaces.
+option copy across all six surfaces, "Caption model" label on the three
+export/retranscribe surfaces, and a static large-v3 default on the standalone
+Retranscribe Clip modal (the export-time pickers are driven by the
+export_retranscribe_model setting instead - see B20).
 """
 from __future__ import annotations
 
@@ -100,11 +102,12 @@ def test_detail_cards_row_wraps():
 CANONICAL_MODEL_OPTIONS = {m.id: m.option_text() for m in WHISPER_UI_MODELS}
 
 MODEL_SELECT_IDS = [
-    "s-whisper-model",            # Settings
-    "analyze-model",              # New Recording panel
-    "batch-retranscribe-model",   # Batch Export modal
-    "retranscribe-model",         # Retranscribe Clip modal
-    "export-retranscribe-model",  # Export Clip modal
+    "s-whisper-model",              # Settings - analyze-time transcription model
+    "s-export-retranscribe-model",  # Settings - export-time retranscription model (B20)
+    "analyze-model",                # New Recording panel
+    "batch-retranscribe-model",     # Batch Export modal
+    "retranscribe-model",           # Retranscribe Clip modal
+    "export-retranscribe-model",    # Export Clip modal
 ]
 
 
@@ -122,12 +125,12 @@ def test_model_select_option_copy_is_canonical(select_id: str):
     assert options == CANONICAL_MODEL_OPTIONS
 
 
-@pytest.mark.parametrize(
-    "select_id",
-    ["batch-retranscribe-model", "retranscribe-model", "export-retranscribe-model"],
-)
-def test_export_surface_model_default_is_large_v3(select_id: str):
-    selected = [value for value, attrs, _ in _select_options(select_id) if "selected" in attrs]
+def test_retranscribe_clip_model_default_is_large_v3():
+    # Only the standalone Retranscribe Clip modal keeps a static HTML default -
+    # batch-retranscribe-model and export-retranscribe-model are now driven by
+    # the export_retranscribe_model setting at modal-open time (B20), so their
+    # <option> markup carries no "selected" for a static-file test to see.
+    selected = [value for value, attrs, _ in _select_options("retranscribe-model") if "selected" in attrs]
     assert selected == ["large-v3"]
 
 

@@ -1343,6 +1343,140 @@ class TestSplitVideoTranscriptMigration:
         assert seg_tracks == []  # segment copies cascade-deleted with the segments
 
 
+class TestVideoRetranscribeStatus:
+    """GET /api/videos/{id}/retranscribe-status (B20) - the smart default behind
+    "Retranscribe before export" in both single-clip and batch export: checked
+    only when retranscribing would actually change something."""
+
+    def _video_id(self, client) -> int:
+        return client.get("/api/videos").json()[0]["id"]
+
+    def _add_transcript(self, project_dir, track_id: int, model_name: str) -> None:
+        from yuu_clip.db.models import Transcript, make_session
+
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            db.add(Transcript(audio_track_id=track_id, model_name=model_name))
+            db.commit()
+        finally:
+            db.close()
+
+    def test_no_transcript_yet_needs_retranscribe(self, client):
+        vid_id = self._video_id(client)
+        r = client.get(f"/api/videos/{vid_id}/retranscribe-status")
+        assert r.status_code == 200
+        body = r.json()
+        assert body["export_retranscribe_model"] == "large-v3"
+        assert body["needs_retranscribe"] is True
+
+    def test_matching_transcript_does_not_need_retranscribe(self, client, project_dir):
+        from yuu_clip.db.models import AudioTrack, make_session
+
+        vid_id = self._video_id(client)
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            track_id = db.query(AudioTrack).filter_by(video_id=vid_id).one().id
+        finally:
+            db.close()
+        self._add_transcript(project_dir, track_id, "large-v3")
+
+        r = client.get(f"/api/videos/{vid_id}/retranscribe-status")
+        assert r.json()["needs_retranscribe"] is False
+
+    def test_stale_model_needs_retranscribe(self, client, project_dir):
+        from yuu_clip.db.models import AudioTrack, make_session
+
+        vid_id = self._video_id(client)
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            track_id = db.query(AudioTrack).filter_by(video_id=vid_id).one().id
+        finally:
+            db.close()
+        self._add_transcript(project_dir, track_id, "tiny")
+
+        r = client.get(f"/api/videos/{vid_id}/retranscribe-status")
+        assert r.json()["needs_retranscribe"] is True
+
+    def test_newest_transcript_wins_over_stale_older_one(self, client, project_dir):
+        # A track can be retranscribed more than once - the comparison must use
+        # the latest row, not just any row with a matching model.
+        from yuu_clip.db.models import AudioTrack, make_session
+
+        vid_id = self._video_id(client)
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            track_id = db.query(AudioTrack).filter_by(video_id=vid_id).one().id
+        finally:
+            db.close()
+        self._add_transcript(project_dir, track_id, "large-v3")
+        self._add_transcript(project_dir, track_id, "tiny")  # newer, stale model
+
+        r = client.get(f"/api/videos/{vid_id}/retranscribe-status")
+        assert r.json()["needs_retranscribe"] is True
+
+    def test_every_do_transcribe_track_must_match(self, client, project_dir):
+        # A video can have more than one do_transcribe track (e.g. player voice +
+        # voice chat) - "matches" means nothing left to upgrade on ANY of them.
+        from yuu_clip.db.models import AudioTrack, make_session
+
+        vid_id = self._video_id(client)
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            first_track_id = db.query(AudioTrack).filter_by(video_id=vid_id).one().id
+            second_track = AudioTrack(
+                video_id=vid_id, stream_index=2, label="voice_chat", do_transcribe=True,
+            )
+            db.add(second_track)
+            db.commit()
+            second_track_id = second_track.id
+        finally:
+            db.close()
+        self._add_transcript(project_dir, first_track_id, "large-v3")
+        self._add_transcript(project_dir, second_track_id, "tiny")  # this one is stale
+
+        r = client.get(f"/api/videos/{vid_id}/retranscribe-status")
+        assert r.json()["needs_retranscribe"] is True
+
+    def test_non_transcribe_track_is_ignored(self, client, project_dir):
+        from yuu_clip.db.models import AudioTrack, make_session
+
+        vid_id = self._video_id(client)
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            main_track_id = db.query(AudioTrack).filter_by(video_id=vid_id).one().id
+            db.add(AudioTrack(
+                video_id=vid_id, stream_index=2, label="game_sounds", do_transcribe=False,
+            ))
+            db.commit()
+        finally:
+            db.close()
+        self._add_transcript(project_dir, main_track_id, "large-v3")
+
+        r = client.get(f"/api/videos/{vid_id}/retranscribe-status")
+        assert r.json()["needs_retranscribe"] is False
+
+    def test_respects_the_configured_export_model(self, client, project_dir):
+        vid_id = self._video_id(client)
+        client.patch("/api/config", json={"export_retranscribe_model": "small"})
+        from yuu_clip.db.models import AudioTrack, make_session
+
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            track_id = db.query(AudioTrack).filter_by(video_id=vid_id).one().id
+        finally:
+            db.close()
+        self._add_transcript(project_dir, track_id, "small")
+
+        r = client.get(f"/api/videos/{vid_id}/retranscribe-status")
+        body = r.json()
+        assert body["export_retranscribe_model"] == "small"
+        assert body["needs_retranscribe"] is False
+
+    def test_unknown_video_returns_404(self, client):
+        r = client.get("/api/videos/999999/retranscribe-status")
+        assert r.status_code == 404
+
+
 class TestSplitExportFileMigration:
     """Export/sidecar filenames embed the clip's start time, so migrating a clip's
     times on split/unsplit must rename its files or every export lookup misses them."""

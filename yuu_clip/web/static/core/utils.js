@@ -53,6 +53,28 @@ export function _diarizationNoteHtml(reason, settingsOnclick) {
     `display:inline-flex" onclick="${escHtml(settingsOnclick)}">Settings</button>`;
 }
 
+// ── export-time retranscribe default (B20) ─────────────────────────────────────
+// Single-clip export and batch export are both scoped to exactly one video, so
+// each can ask "does this video already have a transcript made with the
+// configured export model?" and default its "Retranscribe before export"
+// checkbox accordingly - checked only when retranscribing would actually
+// change something. (The highlight reel is out of scope: it can combine clips
+// from multiple videos transcribed with different models, so there's no single
+// answer - it keeps its own simple default.) Falls back to "nothing to gain"
+// (unchecked) on any error so a bad response never surprises the user with an
+// unwanted retranscribe.
+export async function _exportRetranscribeDefault(videoId) {
+  try {
+    const status = await fetch(`/api/videos/${videoId}/retranscribe-status`).then(r => r.json());
+    return {
+      model: status.export_retranscribe_model || 'large-v3',
+      needsRetranscribe: !!status.needs_retranscribe,
+    };
+  } catch {
+    return { model: 'large-v3', needsRetranscribe: false };
+  }
+}
+
 // ── log panel ─────────────────────────────────────────────────────────────────
 export function openLog() {
   const panel = document.getElementById('log-panel');

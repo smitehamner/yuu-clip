@@ -14,6 +14,7 @@ import { _isNewRecordingPanelOpen, _doCloseNewRecordingPanel } from '../analyze/
 // ── settings panel ────────────────────────────────────────────────────────────
 const _settingsFieldIds = [
   's-whisper-model','s-whisper-device','s-whisper-compute','s-whisper-language',
+  's-export-retranscribe-model',
   's-ai-privacy-value',
   's-llm-enabled','s-llm-model-path','s-llm-vision-model-path','s-llm-mmproj-path','s-llm-use-gpu',
   's-vision-enabled','s-vision-frames',
@@ -217,6 +218,7 @@ function _applySttFields(cfg) {
   _setFieldVal('s-whisper-device', cfg.whisper_device  || 'auto');
   _setFieldVal('s-whisper-compute',cfg.whisper_compute_type || 'int8');
   _setFieldVal('s-whisper-language', cfg.whisper_language || '');
+  _setFieldVal('s-export-retranscribe-model', cfg.export_retranscribe_model || 'large-v3');
 }
 
 function _applyLlmFields(cfg) {
@@ -642,6 +644,7 @@ async function saveSettings() {
     whisper_device:             getVal('s-whisper-device'),
     whisper_compute_type:       getVal('s-whisper-compute'),
     whisper_language:           getVal('s-whisper-language'),
+    export_retranscribe_model:  getVal('s-export-retranscribe-model'),
     ai_privacy_mode:            _currentPrivacyMode(),
     llm_enabled:                getChk('s-llm-enabled'),
     llm_model_path:             getVal('s-llm-model-path'),

@@ -109,6 +109,41 @@ def _register_video_read_routes(router: APIRouter, ctx: ProjectContext) -> None:
         finally:
             db.close()
 
+    @router.get("/api/videos/{video_id}/retranscribe-status")
+    def video_retranscribe_status(video_id: int):
+        """Whether this video's "Retranscribe before export" checkbox should
+        default on - single-clip export and batch export are both scoped to
+        exactly one video, so "does the export-time model beat what's already
+        transcribed" has one well-defined answer here (unlike the reel, which
+        can span videos transcribed with different models - out of scope).
+        """
+        db = ctx.get_db()
+        try:
+            video = db.get(Video, video_id)
+            if not video:
+                raise HTTPException(404, "Video not found")
+            export_model = ctx.config.export_retranscribe_model
+            return {
+                "export_retranscribe_model": export_model,
+                "needs_retranscribe": _video_needs_export_retranscribe(video, export_model),
+            }
+        finally:
+            db.close()
+
+
+def _video_needs_export_retranscribe(video: Video, export_model: str) -> bool:
+    """True when at least one do_transcribe track's current transcript wasn't
+    made with export_model - i.e. there's something to gain from retranscribing.
+    A track with no transcript yet counts as "differs" (nothing to lose either).
+    """
+    for track in video.audio_tracks:
+        if not track.do_transcribe:
+            continue
+        transcript = latest_track_transcript(track)
+        if transcript is None or transcript.model_name != export_model:
+            return True
+    return False
+
 
 def _register_split_and_edit_routes(router: APIRouter, ctx: ProjectContext) -> None:
     @router.post("/api/videos/{video_id}/split")

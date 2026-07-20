@@ -593,6 +593,72 @@ class TestExportModeSummary:
 
 
 # ---------------------------------------------------------------------------
+# Export modal - "Retranscribe before export" smart default (B20)
+# ---------------------------------------------------------------------------
+
+@skip_no_server
+class TestExportRetranscribeSmartDefault:
+    """Both single-clip export and batch export ask
+    GET /api/videos/{id}/retranscribe-status when they open, and default the
+    "Retranscribe before export" checkbox + model picker from its response -
+    mocked here so both branches (matches / differs) are deterministic
+    regardless of what the fixture video's transcript actually looks like."""
+
+    def _mock_status(self, page: Page, *, needs_retranscribe: bool, model: str = "large-v3"):
+        page.route(
+            "**/api/videos/*/retranscribe-status",
+            lambda route: route.fulfill(
+                status=200,
+                content_type="application/json",
+                body=json.dumps({
+                    "export_retranscribe_model": model,
+                    "needs_retranscribe": needs_retranscribe,
+                }),
+            ),
+        )
+
+    def test_single_clip_export_checked_when_stale(self, page: Page):
+        select_first_video_and_clip(page)
+        self._mock_status(page, needs_retranscribe=True, model="small")
+        page.evaluate("() => exportClip(AppState.activeClipId)")
+        page.wait_for_selector("#export-settings-modal.visible", timeout=3000)
+        expect(page.locator("#export-retranscribe")).to_be_checked()
+        assert page.locator("#export-retranscribe-model").input_value() == "small"
+        expect(page.locator("#export-retranscribe-model")).to_be_enabled()
+        page.evaluate("closeExportModal()")
+
+    def test_single_clip_export_unchecked_when_already_matching(self, page: Page):
+        select_first_video_and_clip(page)
+        self._mock_status(page, needs_retranscribe=False, model="large-v3")
+        page.evaluate("() => exportClip(AppState.activeClipId)")
+        page.wait_for_selector("#export-settings-modal.visible", timeout=3000)
+        expect(page.locator("#export-retranscribe")).not_to_be_checked()
+        assert page.locator("#export-retranscribe-model").input_value() == "large-v3"
+        expect(page.locator("#export-retranscribe-model")).to_be_disabled()
+        page.evaluate("closeExportModal()")
+
+    def test_batch_export_checked_when_stale(self, page: Page):
+        select_video_with_clips(page)
+        self._mock_status(page, needs_retranscribe=True, model="medium")
+        page.evaluate("() => openBatchExportModal(AppState.activeVideoId)")
+        page.wait_for_selector("#batch-export-modal.visible", timeout=3000)
+        expect(page.locator("#batch-retranscribe")).to_be_checked()
+        assert page.locator("#batch-retranscribe-model").input_value() == "medium"
+        expect(page.locator("#batch-retranscribe-model")).to_be_enabled()
+        page.evaluate("closeBatchExportModal()")
+
+    def test_batch_export_unchecked_when_already_matching(self, page: Page):
+        select_video_with_clips(page)
+        self._mock_status(page, needs_retranscribe=False, model="large-v3")
+        page.evaluate("() => openBatchExportModal(AppState.activeVideoId)")
+        page.wait_for_selector("#batch-export-modal.visible", timeout=3000)
+        expect(page.locator("#batch-retranscribe")).not_to_be_checked()
+        assert page.locator("#batch-retranscribe-model").input_value() == "large-v3"
+        expect(page.locator("#batch-retranscribe-model")).to_be_disabled()
+        page.evaluate("closeBatchExportModal()")
+
+
+# ---------------------------------------------------------------------------
 # Multi-select bulk clip actions
 # ---------------------------------------------------------------------------
 

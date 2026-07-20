@@ -803,6 +803,29 @@ class TestConfigPatchWhisperModel:
         r = client.patch("/api/config", json={"whisper_model": ""})
         assert r.status_code == 400
 
+
+class TestConfigPatchExportRetranscribeModel:
+    def test_default_is_large_v3(self, client):
+        assert client.get("/api/config").json()["export_retranscribe_model"] == "large-v3"
+
+    def test_valid_export_retranscribe_model_accepted(self, client):
+        r = client.patch("/api/config", json={"export_retranscribe_model": "small"})
+        assert r.status_code == 200
+        assert r.json()["export_retranscribe_model"] == "small"
+
+    def test_invalid_export_retranscribe_model_returns_400(self, client):
+        r = client.patch("/api/config", json={"export_retranscribe_model": "gpt-4o"})
+        assert r.status_code == 400
+
+    def test_independent_of_whisper_model(self, client):
+        client.patch("/api/config", json={"whisper_model": "tiny"})
+        client.patch("/api/config", json={"export_retranscribe_model": "large-v3"})
+        d = client.get("/api/config").json()
+        assert d["whisper_model"] == "tiny"
+        assert d["export_retranscribe_model"] == "large-v3"
+
+
+class TestConfigScenePatch:
     def test_scene_detection_mode_valid(self, client):
         r = client.patch("/api/config", json={"scene_detection_mode": "fast"})
         assert r.status_code == 200

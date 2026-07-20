@@ -24,6 +24,7 @@ class ConfigPatch(BaseModel):
     whisper_device:               Optional[str]   = None
     whisper_compute_type:         Optional[str]   = None
     whisper_language:             Optional[str]   = None
+    export_retranscribe_model:    Optional[str]   = None
     # AI privacy mode - none | local_only
     ai_privacy_mode:              Optional[str]   = None
     # LLM backend
@@ -104,6 +105,7 @@ class ConfigPatch(BaseModel):
 _CONFIG_FIELDS = (
     "ui_timeline_interval_seconds", "ui_timeline_interval_unit",
     "whisper_model", "whisper_device", "whisper_compute_type", "whisper_language",
+    "export_retranscribe_model",
     "model_prefetch_disabled",
     "ai_privacy_mode",
     "llm_backend", "llm_model_path", "llm_mmproj_path", "llm_vision_model_path", "llm_use_gpu",
@@ -239,6 +241,7 @@ _CONFIG_PATCH_RULES: list[tuple[str, object]] = [
     ("whisper_device",               _enum_validator({"cpu", "cuda", "auto"}, "whisper_device")),
     ("whisper_compute_type",         _enum_validator({"int8", "float16", "float32", "int8_float16"}, "whisper_compute_type")),
     ("whisper_language",             _whisper_language_validator),
+    ("export_retranscribe_model",    _whisper_model_validator),
     ("ai_privacy_mode",              _enum_validator({"none", "local_only"}, "ai_privacy_mode")),
     ("llm_backend",                  _enum_validator({"llamacpp"}, "llm_backend")),
     ("llm_model_path",               lambda v: v),

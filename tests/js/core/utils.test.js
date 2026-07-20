@@ -1,7 +1,39 @@
 // Pure / DOM-shell helpers in static/core/utils.js. Ported from test_ui_utils.py.
 // The setup file (tests/js/setup.js) seeds index.html's body so utils.js's
 // load-time listener wiring and the #log-lines element resolve.
-import { _diarizationReason, _diarizationNoteHtml, appendLog, clearLog, showToast } from '../../../yuu_clip/web/static/core/utils.js';
+import {
+  _diarizationReason, _diarizationNoteHtml, appendLog, clearLog, showToast,
+  _exportRetranscribeDefault,
+} from '../../../yuu_clip/web/static/core/utils.js';
+
+// _exportRetranscribeDefault (B20) - the smart on/off default behind
+// "Retranscribe before export" in both export modals. Pure fetch-and-shape
+// logic with no DOM, so it belongs here rather than in Playwright.
+describe('_exportRetranscribeDefault', () => {
+  it('passes through the model and needs_retranscribe from the API', async () => {
+    vi.stubGlobal('fetch', vi.fn((url) => {
+      expect(url).toBe('/api/videos/42/retranscribe-status');
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ export_retranscribe_model: 'small', needs_retranscribe: true }),
+      });
+    }));
+    expect(await _exportRetranscribeDefault(42)).toEqual({ model: 'small', needsRetranscribe: true });
+  });
+
+  it('unchecked when the video already matches the configured model', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({
+      ok: true,
+      json: async () => ({ export_retranscribe_model: 'large-v3', needs_retranscribe: false }),
+    })));
+    expect(await _exportRetranscribeDefault(42)).toEqual({ model: 'large-v3', needsRetranscribe: false });
+  });
+
+  it('falls back to unchecked / large-v3 on a network error, never a surprise retranscribe', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('offline'))));
+    expect(await _exportRetranscribeDefault(42)).toEqual({ model: 'large-v3', needsRetranscribe: false });
+  });
+});
 
 describe('_diarizationReason', () => {
   it('unavailable install reads "reinstall", not "Install" (SpeechBrain is bundled)', () => {

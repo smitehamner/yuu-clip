@@ -4,7 +4,7 @@
 import { AppState } from '../core/state.js';
 import { escHtml, plural, formatApiError } from '../core/format.js';
 import { showConfirm } from '../core/ui.js';
-import { openLog, appendLog, showToast, revealInFolder } from '../core/utils.js';
+import { openLog, appendLog, showToast, revealInFolder, _exportRetranscribeDefault } from '../core/utils.js';
 import { streamSSE, setJobCancel, _blockedByAnalyze } from '../core/jobs.js';
 import { loadVideos } from '../videos/videos.js';
 import { _renderExportModeSummary } from '../clips/clipexport.js';
@@ -575,7 +575,7 @@ function _onBatchRetranscribeChange(checked) {
   _updateBatchModeSummary();
 }
 
-export function openBatchExportModal(videoId) {
+export async function openBatchExportModal(videoId) {
   _batchExportOpener = document.activeElement;
   _batchExportVideoId = videoId;
   const video = AppState.videos.find(v => v.id === videoId);
@@ -586,10 +586,12 @@ export function openBatchExportModal(videoId) {
   document.getElementById('batch-skip-exported').checked = true;
   document.getElementById('batch-container').value = '';
   document.getElementById('batch-captions').value = 'softsub';
-  const retx = document.getElementById('batch-retranscribe');
-  retx.checked = false;
-  document.getElementById('batch-retranscribe-model').disabled = true;
-  _updateBatchModeSummary();
+  const retx      = document.getElementById('batch-retranscribe');
+  const retxModel = document.getElementById('batch-retranscribe-model');
+  const { model, needsRetranscribe } = await _exportRetranscribeDefault(videoId);
+  retxModel.value = model;
+  retx.checked = needsRetranscribe;
+  _onBatchRetranscribeChange(needsRetranscribe);
   document.getElementById('batch-export-modal').classList.add('visible');
   updateBatchEstimate();
   setTimeout(() => document.getElementById('batch-min-score')?.focus(), 50);

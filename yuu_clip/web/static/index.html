@@ -176,6 +176,19 @@
     </div>
     <div class="settings-row">
       <div class="settings-col">
+        <label class="settings-label" for="s-export-retranscribe-model">Export retranscription model</label>
+        <div class="settings-note">Used by "Retranscribe before export" in the Export and Batch Export dialogs - kept separate so you can spend more compute on quality at export time</div>
+      </div>
+      <select class="settings-select" id="s-export-retranscribe-model">
+        <option value="tiny">tiny - fastest, lowest quality (~75 MB download)</option>
+        <option value="base">base - fast, lower quality (~140 MB download)</option>
+        <option value="small">small - fast, decent quality (~465 MB download, ~1 GB VRAM)</option>
+        <option value="medium">medium - good balance (~1.5 GB download, ~2.8 GB VRAM)</option>
+        <option value="large-v3">large-v3 - best quality (~2.9 GB download, ~4.2 GB VRAM)</option>
+      </select>
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
         <label class="settings-label" for="s-whisper-language">Transcription language</label>
         <div class="settings-note">Auto-detect works for most recordings; set a language if detection gets it wrong. Takes effect on next analysis</div>
       </div>
@@ -1682,7 +1695,7 @@
         <option value="base">base - fast, lower quality (~140 MB download)</option>
         <option value="small">small - fast, decent quality (~465 MB download, ~1 GB VRAM)</option>
         <option value="medium">medium - good balance (~1.5 GB download, ~2.8 GB VRAM)</option>
-        <option value="large-v3" selected>large-v3 - best quality (~2.9 GB download, ~4.2 GB VRAM)</option>
+        <option value="large-v3">large-v3 - best quality (~2.9 GB download, ~4.2 GB VRAM)</option>
       </select>
     </div>
     <div id="batch-mode-summary" style="font-size:12px;border-top:1px solid var(--border);padding-top:10px;margin-bottom:14px"></div>
@@ -1975,7 +1988,7 @@
           <option value="base">base - fast, lower quality (~140 MB download)</option>
           <option value="small">small - fast, decent quality (~465 MB download, ~1 GB VRAM)</option>
           <option value="medium">medium - good balance (~1.5 GB download, ~2.8 GB VRAM)</option>
-          <option value="large-v3" selected>large-v3 - best quality (~2.9 GB download, ~4.2 GB VRAM)</option>
+          <option value="large-v3">large-v3 - best quality (~2.9 GB download, ~4.2 GB VRAM)</option>
         </select>
       </div>
       <div id="export-speaker-row" style="display:flex;align-items:center;gap:10px;padding-left:28px;opacity:.5">

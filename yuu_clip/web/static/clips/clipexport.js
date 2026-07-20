@@ -10,7 +10,7 @@ import { PanelNav } from '../core/panelnav.js';
 import { streamSSE, setJobCancel } from '../core/jobs.js';
 import {
   openLog, showToast, revealInFolder, copyText,
-  _diarizationNoteHtml, _diarizationReadiness,
+  _diarizationNoteHtml, _diarizationReadiness, _exportRetranscribeDefault,
 } from '../core/utils.js';
 import { showConfirm } from '../core/ui.js';
 import {
@@ -358,9 +358,12 @@ export async function exportClip(id) {
   document.getElementById('export-container').value = '';
   document.getElementById('export-trim-start').value = _fmtOffset(AppState.activeClipData?.start_offset);
   document.getElementById('export-trim-end').value   = _fmtOffset(AppState.activeClipData?.end_offset);
-  const retx = document.getElementById('export-retranscribe');
-  retx.checked = false;
-  document.getElementById('export-retranscribe-model').disabled = true;
+  const retx      = document.getElementById('export-retranscribe');
+  const retxModel = document.getElementById('export-retranscribe-model');
+  const { model, needsRetranscribe } = await _exportRetranscribeDefault(AppState.activeClipData?.video_id);
+  retxModel.value = model;
+  retx.checked = needsRetranscribe;
+  _onExportRetranscribeChange(needsRetranscribe);
   document.getElementById('export-title-card').checked = false;
   await _prefillExportCaptionStyle();
   await window.populateExportPresetSelect('');
