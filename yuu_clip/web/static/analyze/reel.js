@@ -174,9 +174,21 @@ export async function switchReelTab(tab) {
   }
 }
 
+// While a reel video is the active Picture-in-Picture element, closing its modal
+// must not tear it down - that would kill playback in the still-visible PiP window.
+// Defer the real teardown until the browser fires `leavepictureinpicture` (the user
+// actually exiting PiP), or run it immediately if PiP isn't active.
+function _teardownReelVideo(vid, teardown) {
+  if (document.pictureInPictureElement === vid) {
+    vid.addEventListener('leavepictureinpicture', teardown, { once: true });
+  } else {
+    teardown();
+  }
+}
+
 export function closeHighlightReelsModal() {
   const vid = document.getElementById('reels-video');
-  if (vid) { vid.pause(); vid.src = ''; }
+  if (vid) _teardownReelVideo(vid, () => { vid.pause(); vid.src = ''; });
   document.getElementById('highlight-reels-modal').classList.remove('visible');
   const opener = _reelsOpener;
   _reelsOpener = null;
@@ -474,9 +486,7 @@ function _updateReelPreviewNav() {
 
 export function closeReelPreview() {
   const vid = document.getElementById('reel-preview-video');
-  vid.pause();
-  vid.src = '';
-  vid.onended = null;
+  _teardownReelVideo(vid, () => { vid.pause(); vid.src = ''; vid.onended = null; });
   document.getElementById('reel-preview-modal').classList.remove('visible');
   const opener = _reelPreviewOpener;
   _reelPreviewOpener = null;
