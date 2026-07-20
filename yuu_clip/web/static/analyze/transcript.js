@@ -418,6 +418,7 @@ async function _renameSpeakerFromLine(speakerId, name, videoId, triggerEl) {
 // the dot menu's rename field duplicates. Prefills the speaker's raw name (empty when
 // unnamed) so the placeholder invites a real name rather than editing the "Speaker N"
 // fallback. On commit, _renameSpeakerFromLine reloads the transcript, replacing the label.
+// Matches startEditCaption pattern: explicit Save/Cancel buttons + Enter/Escape shortcuts.
 export async function startRenameSpeaker(label) {
   if (label.classList.contains('editing')) return;
   const speakerId = parseInt(label.dataset.speakerId, 10);
@@ -440,27 +441,37 @@ export async function startRenameSpeaker(label) {
   input.maxLength = 60;
   input.placeholder = 'Name this speaker...';
   input.value = prevName;
-  label.appendChild(input);
+
+  const actions = document.createElement('div');
+  actions.className = 'tline-edit-actions';
+  const save = document.createElement('button');
+  save.className = 'btn primary';
+  save.textContent = 'Save';
+  const cancel = document.createElement('button');
+  cancel.className = 'btn ghost';
+  cancel.textContent = 'Cancel';
+  actions.append(save, cancel);
+
+  label.append(input, actions);
   input.focus();
   input.select();
 
-  let settled = false;
-  const finish = (commit) => {
-    if (settled) return;
-    settled = true;
+  const restore = (text) => { label.classList.remove('editing'); label.textContent = text; };
+
+  cancel.onclick = () => restore(original);
+  input.onkeydown = ev => {
+    if (ev.key === 'Escape') { ev.preventDefault(); restore(original); }
+    else if (ev.key === 'Enter') { ev.preventDefault(); save.click(); }
+  };
+  save.onclick = async () => {
     const next = input.value.trim();
-    if (commit && next !== prevName) {
-      _renameSpeakerFromLine(speakerId, next, videoId, input);
+    if (next !== prevName) {
+      save.disabled = cancel.disabled = true;
+      await _renameSpeakerFromLine(speakerId, next, videoId, input);
     } else {
-      label.classList.remove('editing');
-      label.textContent = original;
+      restore(original);
     }
   };
-  input.addEventListener('keydown', e => {
-    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
-    else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
-  });
-  input.addEventListener('blur', () => finish(true));
 }
 
 function _refreshAfterSpeakerChange(videoId, affectedClipIds) {
