@@ -113,6 +113,14 @@ Wanted before distributing beyond friends/trusted users.
   styles, and the color-literal guard already globs the partials, so there is no safety
   gap). Do it when a region is being edited anyway, not as a blind sweep.
 
+- [ ] **Retire the "wipe the DB freely" schema convention and add real migrations.** So far
+  every schema change (new column/table) has been handled by telling the sole dev user to
+  delete/rebuild `project.db` - fine pre-release when the only affected DB is the author's
+  own, but once real users have their own analyzed libraries a schema change must not
+  silently 500 (`no such column: ...`) or require them to lose their work. Add a migration
+  mechanism (Alembic, or a minimal hand-rolled versioned-migrations table) before the public
+  flip, and convert past ad hoc column additions into the first migration set.
+
 ---
 
 ## 3 - Larger / speculative features
