@@ -16,7 +16,7 @@ import shutil
 import unicodedata
 from pathlib import Path
 from typing import Optional
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from yuu_clip.log import get_logger
 
@@ -26,6 +26,18 @@ ALLOWED_HOSTS = frozenset({
     "youtube.com", "www.youtube.com", "youtu.be",
     "twitch.tv", "www.twitch.tv",
 })
+
+_YOUTUBE_WATCH_HOSTS = frozenset({"youtube.com", "www.youtube.com"})
+_YOUTUBE_SHORT_HOST = "youtu.be"
+_TWITCH_HOSTS = frozenset({"twitch.tv", "www.twitch.tv"})
+
+# What survives query-param stripping: a video id (watch pages only) and a
+# timestamp. Everything else - list/index/pp/si on YouTube, tt_medium/tt_content
+# and the rest on Twitch - is playlist/tracking cruft that yt-dlp doesn't need
+# and that can trip a 403 on download (see UX-BUG-HUNT-2026-07-19 B5).
+_YOUTUBE_WATCH_KEEP_PARAMS = frozenset({"v", "t", "start"})
+_YOUTUBE_SHORT_KEEP_PARAMS = frozenset({"t", "start"})
+_TWITCH_KEEP_PARAMS = frozenset({"t"})
 
 # Videos over 1080p are skipped - smaller files, faster downloads, and no need
 # for a quality picker in v1 (see roadmap plan 08's locked decisions).
@@ -39,6 +51,51 @@ _SIDECAR_SUFFIX = ".yuuclip-source.json"
 
 class ImportUrlError(ValueError):
     """A user-facing error - the message is safe to show as-is (no stack trace)."""
+
+
+def _filter_query_params(query: str, keep: frozenset) -> str:
+    if not query:
+        return ""
+    params = parse_qs(query, keep_blank_values=True)
+    filtered = {key: values for key, values in params.items() if key in keep}
+    return urlencode(filtered, doseq=True)
+
+
+def normalize_import_url(url: str) -> str:
+    """Clean up a pasted YouTube/Twitch link before validation.
+
+    Self-heals the two common paste shapes that would otherwise be rejected or
+    fail downstream (see UX-BUG-HUNT-2026-07-19 B5): a missing/`http://` scheme
+    is upgraded to `https://`, and playlist/tracking query params
+    (`list`/`index`/`pp`/`si` on YouTube, `tt_medium`/etc. on Twitch) are
+    stripped while a video id and/or timestamp are kept. A URL whose host
+    still doesn't resolve to a supported site is returned with only the
+    scheme fixed, so validate_import_url can reject it with its normal
+    "unsupported" message.
+    """
+    candidate = (url or "").strip()
+    if not candidate:
+        return candidate
+
+    if candidate.startswith("http://"):
+        candidate = "https://" + candidate[len("http://"):]
+    elif "://" not in candidate:
+        candidate = f"https://{candidate}"
+
+    parsed = urlparse(candidate)
+    host = parsed.netloc.lower()
+
+    if host in _YOUTUBE_WATCH_HOSTS:
+        keep_params = _YOUTUBE_WATCH_KEEP_PARAMS
+    elif host == _YOUTUBE_SHORT_HOST:
+        keep_params = _YOUTUBE_SHORT_KEEP_PARAMS
+    elif host in _TWITCH_HOSTS:
+        keep_params = _TWITCH_KEEP_PARAMS
+    else:
+        return urlunparse(parsed._replace(scheme="https"))
+
+    cleaned_query = _filter_query_params(parsed.query, keep_params)
+    return urlunparse(parsed._replace(scheme="https", netloc=host, query=cleaned_query))
 
 
 def validate_import_url(url: str) -> None:

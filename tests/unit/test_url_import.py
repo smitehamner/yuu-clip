@@ -45,6 +45,68 @@ class TestValidateImportUrl:
 
 
 # ---------------------------------------------------------------------------
+# normalize_import_url
+# ---------------------------------------------------------------------------
+
+class TestNormalizeImportUrl:
+    def test_no_scheme_gets_https_prepended(self):
+        from yuu_clip.url_import import normalize_import_url
+        assert normalize_import_url("www.youtube.com/watch?v=abc123") == (
+            "https://www.youtube.com/watch?v=abc123"
+        )
+
+    def test_http_scheme_upgraded_to_https(self):
+        from yuu_clip.url_import import normalize_import_url
+        assert normalize_import_url("http://www.youtube.com/watch?v=abc123") == (
+            "https://www.youtube.com/watch?v=abc123"
+        )
+
+    def test_youtube_playlist_context_params_are_stripped(self):
+        from yuu_clip.url_import import normalize_import_url
+        url = (
+            "https://www.youtube.com/watch?v=_43Ei9eQVww"
+            "&list=PL2aBZuCeDwlSoxUrYsYWZr6NBTTKGir8U&index=3&pp=iAQB"
+        )
+        assert normalize_import_url(url) == "https://www.youtube.com/watch?v=_43Ei9eQVww"
+
+    def test_youtube_timestamp_is_kept(self):
+        from yuu_clip.url_import import normalize_import_url
+        url = "https://www.youtube.com/watch?v=abc123&list=PL1&t=90"
+        assert normalize_import_url(url) == "https://www.youtube.com/watch?v=abc123&t=90"
+
+    def test_youtu_be_short_link_keeps_path_drops_tracking_keeps_timestamp(self):
+        from yuu_clip.url_import import normalize_import_url
+        assert normalize_import_url("https://youtu.be/abc123?si=xyz&t=42") == (
+            "https://youtu.be/abc123?t=42"
+        )
+
+    def test_twitch_tracking_params_are_stripped_timestamp_kept(self):
+        from yuu_clip.url_import import normalize_import_url
+        url = "https://www.twitch.tv/videos/123456789?tt_medium=article&tt_content=clip&t=01h02m03s"
+        assert normalize_import_url(url) == (
+            "https://www.twitch.tv/videos/123456789?t=01h02m03s"
+        )
+
+    def test_already_clean_url_is_unchanged(self):
+        from yuu_clip.url_import import normalize_import_url
+        url = "https://www.youtube.com/watch?v=abc123"
+        assert normalize_import_url(url) == url
+
+    @pytest.mark.parametrize("url", [
+        "https://vimeo.com/12345",
+        "https://evil.com/youtube.com",
+        "not a url at all",
+        "javascript:alert(1)",
+        "https://www.youtube.com.evil.com/watch",
+    ])
+    def test_unsupported_host_is_passed_through_for_validation_to_reject(self, url):
+        from yuu_clip.url_import import ImportUrlError, normalize_import_url, validate_import_url
+        normalized = normalize_import_url(url)
+        with pytest.raises(ImportUrlError):
+            validate_import_url(normalized)
+
+
+# ---------------------------------------------------------------------------
 # inspect_url
 # ---------------------------------------------------------------------------
 

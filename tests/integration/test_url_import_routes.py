@@ -35,6 +35,30 @@ class TestImportUrlRoutes:
         assert body["title"] == "Great Clip"
         assert body["already_imported"] is False
 
+    def test_inspect_normalizes_playlist_url_before_lookup(self, client):
+        info = {"title": "Great Clip", "id": "vid1"}
+        messy_url = (
+            "https://www.youtube.com/watch?v=vid1&list=PL123&index=3&pp=iAQB"
+        )
+        with mock.patch("yt_dlp.YoutubeDL", return_value=self._mock_ydl(info)) as ydl_cls:
+            r = client.post("/api/import-url/inspect", json={"url": messy_url})
+        assert r.status_code == 200
+        called_url = ydl_cls.return_value.__enter__.return_value.extract_info.call_args[0][0]
+        assert called_url == "https://www.youtube.com/watch?v=vid1"
+
+    def test_inspect_flags_already_imported_when_stored_url_is_normalized(self, client):
+        from yuu_clip.db.models import Video, make_session
+        db = make_session(client.app.state.ctx.db_path)
+        db.add(Video(path="x", filename="dup.mkv", status="done", source_url="https://youtu.be/dup1"))
+        db.commit()
+        db.close()
+
+        info = {"title": "Dup", "id": "dup1"}
+        with mock.patch("yt_dlp.YoutubeDL", return_value=self._mock_ydl(info)):
+            r = client.post("/api/import-url/inspect", json={"url": "youtu.be/dup1?si=abc"})
+        assert r.status_code == 200
+        assert r.json()["already_imported"] is True
+
     def test_inspect_flags_already_imported(self, client):
         from yuu_clip.db.models import Video, make_session
         db = make_session(client.app.state.ctx.db_path)
@@ -66,6 +90,14 @@ class TestImportUrlRoutes:
         assert r.status_code == 200
         assert r.json()["status"] == "started"
         assert client.app.state.ctx.import_cmd is not None
+
+    def test_start_normalizes_url_before_queuing(self, client):
+        messy_url = "www.youtube.com/watch?v=vid1&list=PL123&index=3"
+        r = client.post("/api/import-url/start", json={"url": messy_url})
+        assert r.status_code == 200
+        cmd = client.app.state.ctx.import_cmd
+        assert "https://www.youtube.com/watch?v=vid1" in cmd
+        assert not any("list=" in arg for arg in cmd)
 
     def test_events_without_start_returns_400(self, client):
         r = client.get("/api/import-url/events")

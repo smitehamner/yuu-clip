@@ -17,7 +17,12 @@ from pydantic import BaseModel
 from yuu_clip.config import project_downloads_dir
 from yuu_clip.db.models import Video
 from yuu_clip.log import get_logger
-from yuu_clip.url_import import ImportUrlError, inspect_url, validate_import_url
+from yuu_clip.url_import import (
+    ImportUrlError,
+    inspect_url,
+    normalize_import_url,
+    validate_import_url,
+)
 from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.sse import subprocess_sse, terminate_process_tree_async
 
@@ -34,14 +39,15 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     @router.post("/api/import-url/inspect")
     def inspect(req: ImportUrlRequest):
         """Fetch metadata for a Twitch/YouTube link without downloading it."""
+        url = normalize_import_url(req.url)
         try:
-            info = inspect_url(req.url)
+            info = inspect_url(url)
         except ImportUrlError as e:
             raise HTTPException(400, str(e))
 
         db = ctx.get_db()
         try:
-            existing = db.query(Video).filter(Video.source_url == req.url).first()
+            existing = db.query(Video).filter(Video.source_url == url).first()
         finally:
             db.close()
 
@@ -54,17 +60,18 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     @router.post("/api/import-url/start")
     def start(req: ImportUrlRequest):
         """Validate the link and queue the download command for the SSE stream."""
+        url = normalize_import_url(req.url)
         try:
-            validate_import_url(req.url)
+            validate_import_url(url)
         except ImportUrlError as e:
             raise HTTPException(400, str(e))
         project_downloads_dir(ctx.project_dir)  # ensure it exists before the subprocess starts
         cmd = [
-            sys.executable, "-m", "yuu_clip.cli", "import-url", req.url,
+            sys.executable, "-m", "yuu_clip.cli", "import-url", url,
             "--project", str(ctx.project_dir),
         ]
         ctx.import_cmd = cmd
-        _log.info("URL import queued: %s", req.url)
+        _log.info("URL import queued: %s", url)
         return {"status": "started"}
 
     @router.get("/api/import-url/events")
