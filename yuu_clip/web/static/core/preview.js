@@ -80,8 +80,23 @@ export function _buildMediaUrl(videoId, kind, absPath) {
 //   sourcePath        : the recording's absolute path (video.source_path from the
 //                       already-fetched video record) - only used to build the
 //                       Electron native-protocol URL; ignored in browser-dev mode
+// videoEl may be a persistent element reused across recordings (Split Editor,
+// Export preset editor), so a stale track from a previous recording must be
+// cleared before adding the current one's.
+function _setRecordingCaptionsTrack(videoEl, videoId) {
+  videoEl.querySelectorAll('track[data-captions-track]').forEach(t => t.remove());
+  const track = document.createElement('track');
+  track.kind = 'captions';
+  track.label = 'Captions';
+  track.default = true;
+  track.src = `/api/videos/${videoId}/captions.vtt`;
+  track.dataset.captionsTrack = 'true';
+  videoEl.appendChild(track);
+}
+
 export function setupRecordingPreview(videoEl, badgeEl, videoId, { autoBuild = false, isCurrent = () => true, startS = null, endS = null, sourcePath = null } = {}) {
   videoEl.src = _buildMediaUrl(videoId, 'source', sourcePath);
+  _setRecordingCaptionsTrack(videoEl, videoId);
   if (startS != null) {
     videoEl.addEventListener('loadedmetadata', () => { try { videoEl.currentTime = startS; } catch (_) {} }, { once: true });
   }

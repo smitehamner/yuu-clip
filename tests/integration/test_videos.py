@@ -2085,6 +2085,102 @@ class TestCaptionsVtt:
         assert r.status_code == 404
 
 
+class TestVideoCaptionsVtt:
+    """/api/videos/{id}/captions.vtt - the full-recording player's <track> source (B15)."""
+
+    def _seed_video_transcript(self, project_dir: Path, segment_start_s: float | None = None) -> int:
+        from yuu_clip.db.models import AudioTrack, Transcript, TranscriptSegment, Video, make_session
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            video = db.query(Video).first()
+            if segment_start_s is not None:
+                video.segment_start_s = segment_start_s
+            track = db.query(AudioTrack).filter_by(video_id=video.id).first()
+            tx = Transcript(audio_track_id=track.id, model_name="base")
+            db.add(tx)
+            db.flush()
+            db.add(TranscriptSegment(transcript_id=tx.id, start_ms=1_000, end_ms=2_000, text="hello world"))
+            db.commit()
+            return video.id
+        finally:
+            db.close()
+
+    def test_404_for_unknown_video(self, client):
+        r = client.get("/api/videos/99999/captions.vtt")
+        assert r.status_code == 404
+
+    def test_404_when_no_transcript(self, client):
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        r = client.get(f"/api/videos/{vid_id}/captions.vtt")
+        assert r.status_code == 404
+
+    def test_returns_webvtt_when_transcript_exists(self, client, project_dir):
+        video_id = self._seed_video_transcript(project_dir)
+        r = client.get(f"/api/videos/{video_id}/captions.vtt")
+        assert r.status_code == 200
+        assert r.headers["content-type"].startswith("text/vtt")
+        body = r.text
+        assert body.startswith("WEBVTT")
+        assert "00:00:01.000 --> 00:00:02.000" in body
+        assert "hello world" in body
+
+    def test_split_segment_cue_times_shifted_to_parent_timeline(self, client, project_dir):
+        """A split segment's transcript is stored segment-relative, but its player
+        streams the full parent file positioned via segment_start_s - so cues must
+        be shifted by that offset to line up with the video's actual playback time."""
+        video_id = self._seed_video_transcript(project_dir, segment_start_s=10.0)
+        r = client.get(f"/api/videos/{video_id}/captions.vtt")
+        assert r.status_code == 200
+        assert "00:00:11.000 --> 00:00:12.000" in r.text
+
+
+class TestVideoCaptionsSrt:
+    """subtitles.video_captions_srt (pure logic, no DB) - the source the route above wraps."""
+
+    def _track(self, label, do_transcribe, segments):
+        import datetime
+        tx = SimpleNamespace(created_at=datetime.datetime(2024, 1, 1), segments=segments)
+        return SimpleNamespace(id=1, label=label, do_transcribe=do_transcribe, transcripts=[tx])
+
+    def _seg(self, start_ms, end_ms, text):
+        return SimpleNamespace(start_ms=start_ms, end_ms=end_ms, text=text)
+
+    def test_no_transcribed_tracks_raises(self):
+        from yuu_clip.subtitles import video_captions_srt
+        video = SimpleNamespace(audio_tracks=[], segment_start_s=None)
+        with pytest.raises(ValueError):
+            video_captions_srt(video)
+
+    def test_tracks_with_no_transcript_yet_raises(self):
+        from yuu_clip.subtitles import video_captions_srt
+        track = SimpleNamespace(id=1, label="combined", do_transcribe=True, transcripts=[])
+        video = SimpleNamespace(audio_tracks=[track], segment_start_s=None)
+        with pytest.raises(ValueError):
+            video_captions_srt(video)
+
+    def test_no_segment_start_leaves_times_unshifted(self):
+        from yuu_clip.subtitles import video_captions_srt
+        seg = self._seg(1_000, 2_000, "hello")
+        video = SimpleNamespace(audio_tracks=[self._track("combined", True, [seg])], segment_start_s=None)
+        srt = video_captions_srt(video)
+        assert "00:00:01,000 --> 00:00:02,000" in srt
+
+    def test_zero_segment_start_leaves_times_unshifted(self):
+        from yuu_clip.subtitles import video_captions_srt
+        seg = self._seg(1_000, 2_000, "hello")
+        video = SimpleNamespace(audio_tracks=[self._track("combined", True, [seg])], segment_start_s=0.0)
+        srt = video_captions_srt(video)
+        assert "00:00:01,000 --> 00:00:02,000" in srt
+
+    def test_segment_start_shifts_cue_times_onto_parent_timeline(self):
+        from yuu_clip.subtitles import video_captions_srt
+        seg = self._seg(1_000, 2_000, "hello")
+        video = SimpleNamespace(audio_tracks=[self._track("combined", True, [seg])], segment_start_s=30.0)
+        srt = video_captions_srt(video)
+        assert "00:00:31,000 --> 00:00:32,000" in srt
+        assert "00:00:01,000 --> 00:00:02,000" not in srt
+
+
 class TestDeleteClipExport:
     def _first_clip(self, client):
         vid_id = client.get("/api/videos").json()[0]["id"]

@@ -364,18 +364,13 @@ def refresh_export_sidecars(clip, exports_dir: Path, name_template: str) -> list
     return export_srt_sidecars(clip, exports_dir, base)
 
 
-def export_video_transcript_srt(video, output_path: Path) -> Path:
-    """
-    Write a full-video SRT file to *output_path* using all transcribed tracks.
+def _video_transcript_groups(video) -> dict[str, list[SubLine]]:
+    """Per-track SubLine groups for a whole recording's transcript, in the
+    transcript's own native timing: absolute from the start of the video for a
+    plain recording, or segment-relative (0 = segment start) for a split segment -
+    same origin as TranscriptSegment.start_ms / end_ms in either case.
 
-    Timestamps are absolute from the start of the video (same origin as
-    TranscriptSegment.start_ms / end_ms), so the file can be fed back in as
-    --subtitle-source when re-importing the same recording.
-
-    Single transcribed track -> plain SRT (no speaker prefix).
-    Multiple tracks -> merged SRT with [Speaker] prefixes.
-
-    Returns *output_path*.  Raises ValueError if there is no transcript data.
+    Raises ValueError if there is no transcript data.
     """
     transcribed_tracks = [t for t in video.audio_tracks if t.do_transcribe and t.label != "game_sounds"]
     if not transcribed_tracks:
@@ -395,15 +390,54 @@ def export_video_transcript_srt(video, output_path: Path) -> Path:
 
     if not groups:
         raise ValueError("No transcript segments found for this recording")
+    return groups
 
+
+def _groups_to_srt(groups: dict[str, list[SubLine]]) -> str:
+    """Single transcribed track -> plain SRT (no speaker prefix).
+    Multiple tracks -> merged SRT with [Speaker] prefixes."""
     if len(groups) == 1:
         _, lines = next(iter(groups.items()))
-        srt = lines_to_srt(lines)
-    else:
-        srt = lines_to_srt(_merge_with_speakers(groups))
+        return lines_to_srt(lines)
+    return lines_to_srt(_merge_with_speakers(groups))
 
-    output_path.write_text(srt, encoding="utf-8")
+
+def export_video_transcript_srt(video, output_path: Path) -> Path:
+    """
+    Write a full-video SRT file to *output_path* using all transcribed tracks.
+
+    Timestamps are absolute from the start of the video (same origin as
+    TranscriptSegment.start_ms / end_ms), so the file can be fed back in as
+    --subtitle-source when re-importing the same recording.
+
+    Returns *output_path*.  Raises ValueError if there is no transcript data.
+    """
+    output_path.write_text(_groups_to_srt(_video_transcript_groups(video)), encoding="utf-8")
     return output_path
+
+
+def video_captions_srt(video) -> str:
+    """SRT text for a whole recording's <track> captions element.
+
+    Built from the same transcribed-track data as ``video_transcript_lines``
+    (the "Full transcript" card's data source). A split segment's transcript is
+    stored segment-relative (0 = segment start), but its player streams the full
+    parent source file positioned via ``segment_start_s`` rather than a
+    separately-trimmed stream (see ``setupRecordingPreview``) - so cue times are
+    shifted by that same offset here to land on the right point in the player's
+    actual timeline. A plain recording has no ``segment_start_s`` (offset 0), so
+    this is a no-op for the common case.
+
+    Raises ValueError if there is no transcript data.
+    """
+    offset_ms = int((video.segment_start_s or 0.0) * 1000)
+    groups = _video_transcript_groups(video)
+    if offset_ms:
+        groups = {
+            label: [line._replace(start_ms=line.start_ms + offset_ms, end_ms=line.end_ms + offset_ms) for line in lines]
+            for label, lines in groups.items()
+        }
+    return _groups_to_srt(groups)
 
 
 def merged_srt_lines(clip) -> list[SubLine]:

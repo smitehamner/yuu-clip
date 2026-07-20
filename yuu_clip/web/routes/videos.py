@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 from sqlalchemy import case, func, select
 
@@ -31,7 +32,7 @@ from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.file_deletion import delete_files, locked_files_error
 from yuu_clip.web.media import media_file_response
-from yuu_clip.web.routes.common import active_job, json_list, sse_response
+from yuu_clip.web.routes.common import active_job, json_list, srt_to_vtt, sse_response
 
 _log = get_logger(__name__)
 
@@ -647,6 +648,25 @@ def _register_video_data_routes(router: APIRouter, ctx: ProjectContext) -> None:
                 "lines": video_transcript_lines(video),
                 "seek_offset_s": video.segment_start_s or 0.0,
             }
+        finally:
+            db.close()
+
+    @router.get("/api/videos/{video_id}/captions.vtt")
+    def video_captions_vtt(video_id: int):
+        """Convert the whole recording's transcript to WebVTT for the recording
+        player's <track> element - works identically for source and proxy playback
+        since captions are keyed to the transcript, not the video stream."""
+        from yuu_clip.subtitles import video_captions_srt
+        db = ctx.get_db()
+        try:
+            video = db.get(Video, video_id)
+            if not video:
+                raise HTTPException(404, "Video not found")
+            try:
+                srt = video_captions_srt(video)
+            except ValueError:
+                raise HTTPException(404, "No transcript found for this recording")
+            return PlainTextResponse(srt_to_vtt(srt), media_type="text/vtt")
         finally:
             db.close()
 
