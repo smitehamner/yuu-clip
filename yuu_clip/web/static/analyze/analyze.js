@@ -330,8 +330,12 @@ function _renderSubtitleSourcePicker(info) {
   opts.push(`<option value="__pick-srt__">Choose SRT file&#8230;</option>`);
   el.innerHTML = `<label for="analyze-subtitle-source">Captions</label>
     <select id="analyze-subtitle-source">${opts.join('')}</select>`;
-  document.getElementById('analyze-subtitle-source')
-    .addEventListener('change', e => _onSubtitleSourceChange(e.target));
+  const sel = document.getElementById('analyze-subtitle-source');
+  if (info.srt_sidecar) {
+    sel.value = info.srt_sidecar;
+    sel.dataset.prev = info.srt_sidecar;
+  }
+  sel.addEventListener('change', e => _onSubtitleSourceChange(e.target));
 }
 
 // Add (or update) the "External SRT: name" option for an arbitrary picked/recorded

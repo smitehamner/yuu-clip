@@ -77,7 +77,7 @@ class TestDemoModal:
         expect(select).to_be_visible()
         values = select.locator("option").evaluate_all("opts => opts.map(o => o.value)")
         assert values == ["none", "sidecar", "burnin"]
-        assert select.input_value() == "none"
+        assert select.input_value() == "sidecar"
 
     def test_export_button_hidden_until_unexported_clips(self, page: Page):
         page.goto(LIVE_URL)

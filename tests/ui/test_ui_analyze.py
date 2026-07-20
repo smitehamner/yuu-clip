@@ -105,6 +105,15 @@ class TestAnalyzeModal:
         expect(select).to_be_visible()
         expect(select.locator("option[value='__pick-srt__']")).to_have_text("Choose SRT file…")
 
+    def test_captions_default_to_sidecar_when_present(self, page: Page):
+        page.goto(LIVE_URL)
+        self._open_panel(page)
+        page.evaluate(
+            "_renderSubtitleSourcePicker({srt_sidecar: 'C:\\\\clips\\\\session.srt', subtitle_streams: []})"
+        )
+        select = page.locator("#analyze-subtitle-source")
+        assert select.input_value() == r"C:\clips\session.srt"
+
     def test_start_analyze_button_disabled_on_open(self, page: Page):
         page.goto(LIVE_URL)
         self._open_panel(page)

@@ -585,7 +585,7 @@ export function openBatchExportModal(videoId) {
   document.getElementById('batch-min-score-val').textContent = '0%';
   document.getElementById('batch-skip-exported').checked = true;
   document.getElementById('batch-container').value = '';
-  document.getElementById('batch-captions').value = 'none';
+  document.getElementById('batch-captions').value = 'softsub';
   const retx = document.getElementById('batch-retranscribe');
   retx.checked = false;
   document.getElementById('batch-retranscribe-model').disabled = true;

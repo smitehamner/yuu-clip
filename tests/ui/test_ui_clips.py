@@ -584,6 +584,13 @@ class TestExportModeSummary:
         expect(summary).to_contain_text("Precise export")
         page.evaluate("closeBatchExportModal()")
 
+    def test_batch_export_captions_default_to_softsub(self, page: Page):
+        select_video_with_clips(page)
+        page.evaluate("() => openBatchExportModal(AppState.activeVideoId)")
+        page.wait_for_selector("#batch-export-modal.visible", timeout=3000)
+        assert page.locator("#batch-captions").input_value() == "softsub"
+        page.evaluate("closeBatchExportModal()")
+
 
 # ---------------------------------------------------------------------------
 # Multi-select bulk clip actions
