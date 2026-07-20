@@ -1270,19 +1270,20 @@ maintained: **Dark** (default), **Light**, and **High contrast**.
 ### Accent colour
 
 The highlight colour (buttons, links, selected items), chosen in Settings → UI
-independently of the base **Theme**. Two variants ship: **Default** (purple) and
-**Blue**.
+independently of the base **Theme**. Eight variants ship: **Default** (cyan),
+**Red**, **Orange**, **Yellow**, **Green**, **Blue**, **Purple**, and **Pink**.
 
 - **Code:** `data-accent` attribute on `<html>`; per-theme accent blocks in
-  `app.css` (`html[data-accent="blue"]` plus theme-scoped overrides overriding
-  only the accent-family tokens `--accent`, `--accent-text`, `--accent2`,
-  `--on-accent`); `applyAccent()` in `settings.js`; localStorage key
-  `yuuclip-accent`; parallel `ACCENTS` list in `tests/test_ui_theme.py`
+  `shared/tokens.css` (`html[data-accent="blue"]` plus theme-scoped overrides
+  overriding the accent-family tokens `--accent`, `--accent-text`, `--accent2`,
+  `--on-accent`, plus a small `--bg` tint toward `--accent` via `color-mix()`);
+  `applyAccent()` in `settings.js`; localStorage key `yuuclip-accent`; parallel
+  `ACCENTS` list in `tests/ui/test_ui_theme.py`
 - **Do not call it:** "theme" (it is orthogonal to the theme - a second, separate
   choice)
 - **Notes:** Because one accent value cannot clear WCAG AA on both dark and light
   surfaces, each accent variant is tuned per base theme. Every (theme, accent)
-  combination is contrast-checked in `tests/test_ui_theme.py`.
+  combination is contrast-checked in `tests/ui/test_ui_theme.py`.
 
 ---
 

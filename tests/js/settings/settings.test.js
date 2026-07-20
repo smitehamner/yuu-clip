@@ -27,7 +27,7 @@ describe('theme switcher', () => {
 describe('accent switcher', () => {
   it('the Settings select lists every accent', () => {
     const values = [...document.querySelectorAll('#s-accent option')].map((o) => o.value);
-    expect(values).toEqual(['default', 'blue']);
+    expect(values).toEqual(['default', 'red', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink']);
   });
   it('applying a non-default accent sets the attribute and persists it', () => {
     applyAccent('blue');

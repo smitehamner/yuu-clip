@@ -31,7 +31,7 @@ THEMES = ["dark", "light", "high-contrast"]
 # Every theme block must override each of these - a theme that inherits a
 # color from the dark defaults is almost certainly an unreadable accident.
 COLOR_TOKENS = [
-    "--bg", "--bg-deep", "--surface", "--surface-raised", "--selection",
+    "--bg", "--bg-base", "--bg-deep", "--surface", "--surface-raised", "--selection",
     "--border", "--text", "--muted", "--text-secondary",
     "--accent", "--accent-text", "--accent2", "--on-accent",
     "--highlight", "--on-highlight",

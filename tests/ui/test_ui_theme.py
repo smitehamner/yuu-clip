@@ -28,21 +28,42 @@ THEMES = ["dark", "light", "high-contrast"]
 # Accent variants are orthogonal to the base theme (data-accent on <html>). The
 # AA contract must hold for every (theme, accent) pairing, so the contrast tests
 # below run the full product.
-ACCENTS = ["default", "blue"]
+ACCENTS = ["default", "red", "orange", "yellow", "green", "blue", "purple", "pink"]
 
 _CONTRAST_JS = """
 (pair) => {
-  const styles = getComputedStyle(document.documentElement);
-  const resolve = v => v.startsWith('--') ? styles.getPropertyValue(v).trim() : v;
-  const lum = c => {
-    const m = c.match(/^#([0-9a-f]{6})$/i);
-    if (!m) throw new Error(`not a 6-digit hex token: ${c}`);
-    const [r, g, b] = [0, 2, 4]
-      .map(i => parseInt(m[1].slice(i, i + 2), 16) / 255)
-      .map(v => v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+  // Some accent-tinted tokens (e.g. --bg on a data-accent variant) are declared as
+  // color-mix(...) rather than a plain hex literal. getComputedStyle on a CUSTOM
+  // property returns the declared value verbatim - color-mix() is only evaluated
+  // when the browser computes a real CSS property - so resolve every value (token
+  // or literal) through a probe element's `color`, which the engine always
+  // resolves to an rgb()/rgba() string regardless of the original syntax.
+  const resolveRgb = v => {
+    const probe = document.createElement('div');
+    probe.style.color = v.startsWith('--') ? `var(${v})` : v;
+    document.body.appendChild(probe);
+    const rgb = getComputedStyle(probe).color;
+    probe.remove();
+    return rgb;
+  };
+  const lum = colorString => {
+    // Chromium serializes a plain hex/rgb() color as legacy rgb(0-255, 0-255, 0-255),
+    // but a color-mix() result (higher precision than 8-bit) as the CSS Color 4
+    // predefined-color-function form color(srgb 0-1 0-1 0-1) - both are handled.
+    const rgbMatch = colorString.match(/^rgba?\\(\\s*([\\d.]+)\\s*,\\s*([\\d.]+)\\s*,\\s*([\\d.]+)\\s*(?:,.*)?\\)$/);
+    const colorFnMatch = colorString.match(/^color\\(srgb\\s+([\\d.]+)\\s+([\\d.]+)\\s+([\\d.]+)/);
+    let r, g, b;
+    if (rgbMatch) {
+      [r, g, b] = rgbMatch.slice(1, 4).map(v => Number(v) / 255);
+    } else if (colorFnMatch) {
+      [r, g, b] = colorFnMatch.slice(1, 4).map(Number);
+    } else {
+      throw new Error(`not a resolvable color: ${colorString}`);
+    }
+    [r, g, b] = [r, g, b].map(v => v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
     return 0.2126 * r + 0.7152 * g + 0.0722 * b;
   };
-  const [l1, l2] = [lum(resolve(pair[0])), lum(resolve(pair[1]))];
+  const [l1, l2] = [lum(resolveRgb(pair[0])), lum(resolveRgb(pair[1]))];
   return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
 }
 """
