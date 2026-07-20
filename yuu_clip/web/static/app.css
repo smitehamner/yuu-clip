@@ -57,6 +57,8 @@ header h1 { font-size: 18px; font-weight: 700; letter-spacing: .5px; color: var(
 .gpu-temp-readout { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; background: var(--border); color: var(--muted); white-space: nowrap; flex-shrink: 0; }
 .gpu-temp-readout.warn  { background: color-mix(in srgb, var(--warning) 20%, transparent); color: var(--warning); }
 .gpu-temp-readout.pause { background: color-mix(in srgb, var(--warn-hot) 20%, transparent); color: var(--warn-hot); }
+.gpu-warning-chip { font-size: 12px; font-weight: 600; padding: 5px 10px; border-radius: 10px; border: none; cursor: pointer; background: color-mix(in srgb, var(--warning) 20%, transparent); color: var(--warning); white-space: nowrap; flex-shrink: 0; }
+.gpu-warning-chip:hover { background: color-mix(in srgb, var(--warning) 32%, transparent); }
 .header-spacer { margin-right: auto; }
 
 /* primary nav: destination buttons (People / World Contexts / Highlight Reels)

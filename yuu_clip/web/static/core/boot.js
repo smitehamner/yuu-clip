@@ -13,6 +13,7 @@ import { reattachAnalysis } from '../analyze/analyze.js';
 import { openGettingStartedModal } from './helpmodals.js';
 import { initModelDownload, initModelPrefetch } from '../settings/modeldownload.js';
 import { _renderClips, _syncKindChips } from '../clips/clips.js';
+import { renderGpuWarningChip } from './gpustatus.js';
 
 // ── accessibility init ────────────────────────────────────────────────────────
 document.querySelectorAll('.modal-bg').forEach((bg, i) => {
@@ -45,6 +46,7 @@ fetch('/api/status').then(r => r.json()).then(d => {
   AppState.exportDir = d.export_dir || null;
   AppState.reelsDir = d.reels_dir || null;
   AppState.canReveal = !!d.can_reveal;
+  renderGpuWarningChip(d);
   // Reconnect to an analysis that was already running when this page loaded
   // (e.g. after a refresh) - the subprocess survives independently of the stream.
   if (d.analyze_filename) reattachAnalysis(d.analyze_filename, d.analyze_paused);
@@ -78,6 +80,10 @@ async function refreshServerState() {
     window._prereqs = prereqs;
     _applyPrereqWarnings(prereqs);
   } catch { /* keep the last known prereqs */ }
+  try {
+    const status = await fetch('/api/status').then(r => r.json());
+    renderGpuWarningChip(status);
+  } catch { /* keep the last known chip state */ }
   _renderClips();  // basic-description chip + vision frames
 }
 window.refreshServerState = refreshServerState;

@@ -192,6 +192,74 @@ class TestPickGpuDevice:
         assert pick_gpu_device("bin") is None
 
 
+class TestGpuOffloadAvailable:
+    """gpu_offload_available - the header GPU-warning chip's mismatch probe.
+
+    Deliberately does NOT fall back to a bare PATH lookup (unlike
+    resolve_server_binary) - only a packaged build's bundled dir
+    (YUU_CLIP_LLAMA_SERVER_DIR) or an explicitly configured path count, so a
+    passive /api/status poll never triggers a surprise subprocess spawn on a
+    dev/CI machine that merely happens to have an unrelated llama-server on PATH.
+    """
+
+    def _run(self, monkeypatch, stdout):
+        class _Result:
+            def __init__(self):
+                self.stdout = stdout
+
+        monkeypatch.setattr(srv.subprocess, "run", lambda *a, **k: _Result())
+
+    def test_device_found_via_env_dir_returns_true(self, monkeypatch, tmp_path):
+        (tmp_path / srv._server_exe_name()).write_bytes(b"bin")
+        monkeypatch.setenv(srv._ENV_BINARY_DIR, str(tmp_path))
+        self._run(monkeypatch, "  Vulkan0: NVIDIA GeForce RTX 4050 Laptop GPU (5920 MiB free)\n")
+        assert srv.gpu_offload_available(_cfg()) is True
+
+    def test_no_devices_via_env_dir_returns_false(self, monkeypatch, tmp_path):
+        (tmp_path / srv._server_exe_name()).write_bytes(b"bin")
+        monkeypatch.setenv(srv._ENV_BINARY_DIR, str(tmp_path))
+        self._run(monkeypatch, "Available devices:\n")
+        assert srv.gpu_offload_available(_cfg()) is False
+
+    def test_device_found_via_configured_path_returns_true(self, monkeypatch, tmp_path):
+        monkeypatch.delenv(srv._ENV_BINARY_DIR, raising=False)
+        exe = tmp_path / "llama-server.exe"
+        exe.write_bytes(b"bin")
+        self._run(monkeypatch, "  Vulkan0: NVIDIA GeForce RTX 4050 Laptop GPU (5920 MiB free)\n")
+        assert srv.gpu_offload_available(_cfg(llamacpp_server_binary=str(exe))) is True
+
+    def test_env_dir_set_but_binary_missing_returns_none(self, monkeypatch, tmp_path):
+        monkeypatch.setenv(srv._ENV_BINARY_DIR, str(tmp_path))  # empty dir - no exe
+        assert srv.gpu_offload_available(_cfg()) is None
+
+    def test_configured_path_missing_returns_none(self, monkeypatch, tmp_path):
+        monkeypatch.delenv(srv._ENV_BINARY_DIR, raising=False)
+        missing = tmp_path / "nope.exe"
+        assert srv.gpu_offload_available(_cfg(llamacpp_server_binary=str(missing))) is None
+
+    def test_no_env_dir_and_no_configured_path_returns_none_without_touching_path(self, monkeypatch):
+        """Must not fall back to shutil.which - a bare PATH lookup would make a
+        dev/CI machine's unrelated llama-server install spawn a real subprocess
+        from a passive /api/status poll."""
+        monkeypatch.delenv(srv._ENV_BINARY_DIR, raising=False)
+
+        def _boom(*_a, **_k):
+            raise AssertionError("must not spawn a subprocess when no binary is known")
+
+        monkeypatch.setattr(srv.subprocess, "run", _boom)
+        assert srv.gpu_offload_available(_cfg()) is None
+
+    def test_probe_subprocess_failure_returns_none(self, monkeypatch, tmp_path):
+        (tmp_path / srv._server_exe_name()).write_bytes(b"bin")
+        monkeypatch.setenv(srv._ENV_BINARY_DIR, str(tmp_path))
+
+        def _boom(*_a, **_k):
+            raise OSError("cannot run")
+
+        monkeypatch.setattr(srv.subprocess, "run", _boom)
+        assert srv.gpu_offload_available(_cfg()) is None
+
+
 class TestBuildArgs:
     def test_autofit_omits_gpu_layers_flag(self):
         # The critical spike lesson: -1 means auto-fit, so no --n-gpu-layers is passed

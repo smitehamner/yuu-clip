@@ -50,6 +50,14 @@ class ProjectContext:
 
         self.config = Config.load(project_dir)
 
+        # Cached result of the llama-server Vulkan device probe (see
+        # llm_gpu_available below) - None means "not probed yet" or "inconclusive",
+        # so it is retried; True/False are cached to avoid re-spawning
+        # `llama-server --list-devices` on every /api/status poll. Reset here so a
+        # project switch or config reload (a different llama-server binary/model
+        # path) re-probes instead of reusing a stale result.
+        self._llm_gpu_probe: bool | None = None
+
         # Engine is created once so create_all only runs at startup, not on every
         # API request (which could race with the analyze subprocess).
         self._engine         = make_engine(self.db_path)
@@ -122,6 +130,23 @@ class ProjectContext:
         on-disk change) without hand-rolling a second config source of truth.
         """
         self.config = Config.load(self.project_dir)
+        self._llm_gpu_probe = None
+
+    def llm_gpu_available(self) -> bool | None:
+        """Cached: can llama-server find a GPU device to offload to right now?
+
+        None means unknown/inapplicable (llm_use_gpu is off, or no server binary
+        is resolvable yet) - the header GPU-warning chip treats None as "don't
+        warn". The underlying probe spawns a subprocess
+        (`llama-server --list-devices`), so the result is cached per project/config
+        generation rather than re-run on every /api/status poll.
+        """
+        if not self.config.llm_use_gpu:
+            return None
+        if self._llm_gpu_probe is None:
+            from yuu_clip.scoring.llamacpp_server import gpu_offload_available
+            self._llm_gpu_probe = gpu_offload_available(self.config)
+        return self._llm_gpu_probe
 
     def switch_project(self, project_dir: Path) -> None:
         """Tear down the current project's resources and rebind to *project_dir*

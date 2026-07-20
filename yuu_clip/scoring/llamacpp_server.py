@@ -117,10 +117,12 @@ def _is_integrated(device_name: str) -> bool:
     return any(marker in lowered for marker in _INTEGRATED_MARKERS)
 
 
-def pick_gpu_device(binary: str) -> str | None:
-    """Return the id (e.g. "Vulkan0") of the GPU to offload to, preferring a discrete
-    card over an integrated one. Device ordering is not guaranteed, so we match by
-    name rather than trusting index 0. None when no GPU device is listed."""
+def list_gpu_devices(binary: str) -> list[tuple[str, str]] | None:
+    """Run *binary* --list-devices and parse its (device id, name) pairs.
+
+    None means the probe itself couldn't run (missing binary, broken process) -
+    distinct from an empty list, which means the probe ran fine and found zero
+    devices (no Vulkan runtime, or a GPU with no working driver)."""
     try:
         result = subprocess.run(
             [binary, "--list-devices"], capture_output=True, text=True, timeout=30,
@@ -133,12 +135,49 @@ def pick_gpu_device(binary: str) -> str | None:
         match = _DEVICE_LINE.match(line)
         if match and match.group(1) not in ("Available", "load_backend"):
             devices.append((match.group(1), match.group(2)))
+    return devices
+
+
+def pick_gpu_device(binary: str) -> str | None:
+    """Return the id (e.g. "Vulkan0") of the GPU to offload to, preferring a discrete
+    card over an integrated one. Device ordering is not guaranteed, so we match by
+    name rather than trusting index 0. None when no GPU device is listed."""
+    devices = list_gpu_devices(binary)
     if not devices:
         return None
     discrete = [dev for dev in devices if not _is_integrated(dev[1])]
     chosen = (discrete or devices)[0]
     _log.info("llama-server GPU device: %s (%s)", chosen[0], chosen[1])
     return chosen[0]
+
+
+def gpu_offload_available(config: Config) -> bool | None:
+    """Whether llama-server can find a GPU device to offload to on this machine.
+
+    None means unknown. Used to warn when GPU offload is requested but the Vulkan
+    runtime finds no usable device - a broken/missing GPU driver, not a deliberate
+    CPU choice. Deliberately does NOT fall back to a bare `shutil.which` PATH
+    lookup like resolve_server_binary does for an actual server spawn - only a
+    packaged build's bundled binary dir or an explicitly configured path counts,
+    so a dev/CI machine that merely happens to have an unrelated llama-server on
+    PATH never triggers a surprise subprocess spawn from a passive /api/status poll.
+    """
+    env_dir = os.environ.get(_ENV_BINARY_DIR)
+    if env_dir:
+        try:
+            binary = _binary_in_bundle(Path(env_dir), prefer_cpu=False)
+        except LlamaServerError:
+            return None
+    elif config.llamacpp_server_binary:
+        if not Path(config.llamacpp_server_binary).is_file():
+            return None
+        binary = config.llamacpp_server_binary
+    else:
+        return None
+    devices = list_gpu_devices(binary)
+    if devices is None:
+        return None
+    return len(devices) > 0
 
 
 def _free_port() -> int:

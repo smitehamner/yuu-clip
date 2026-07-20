@@ -98,12 +98,17 @@ function _scrollToSettingsSection(sectionId) {
   const panel = document.getElementById('settings-panel');
   const section = document.getElementById(sectionId);
   if (!section) return;
+  // A jump target can be (or sit inside) a collapsed <details> disclosure (e.g.
+  // LLM scoring's "Advanced AI options") - open it, or the control being linked
+  // to stays hidden after the scroll lands on it.
+  section.closest('details')?.setAttribute('open', '');
+  if (section.tagName === 'DETAILS') section.open = true;
   const headerHeight = panel.querySelector('.settings-header')?.offsetHeight ?? 0;
   const smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   panel.scrollTo({ top: section.offsetTop - headerHeight - 10, behavior: smooth ? 'smooth' : 'auto' });
 }
 
-async function openSettings() {
+async function openSettings(scrollToSectionId) {
   _settingsOpener = document.activeElement;
   // Close the new-recording panel so it isn't left open behind the overlay.
   if (_isNewRecordingPanelOpen()) {
@@ -129,7 +134,11 @@ async function openSettings() {
     // preventScroll: the panel should open at the top (showing the Capabilities
     // overview); a plain focus() scrolls this mid-panel control into view, yanking
     // the panel down - visibly so since Wave 4's taller Capabilities section.
-    setTimeout(() => document.getElementById('s-whisper-model')?.focus({ preventScroll: true }), 50);
+    if (scrollToSectionId) {
+      setTimeout(() => _scrollToSettingsSection(scrollToSectionId), 50);
+    } else {
+      setTimeout(() => document.getElementById('s-whisper-model')?.focus({ preventScroll: true }), 50);
+    }
   } catch (e) {
     showToast('Failed to load settings', 'error');
   }
@@ -772,7 +781,8 @@ function _flashSettingsSaved() {
 // wired once at load (the settings panel is never innerHTML-rebuilt), replacing
 // what used to be inline onclick="…"/onchange="…" attributes.
 function _wireHeaderButtons() {
-  document.getElementById('btn-settings-header')?.addEventListener('click', openSettings);
+  document.getElementById('btn-settings-header')?.addEventListener('click', () => openSettings());
+  document.getElementById('gpu-warning-chip')?.addEventListener('click', () => openSettings('settings-sec-hardware'));
   document.getElementById('btn-reset-all-settings')?.addEventListener('click', revertAllSettings);
   document.getElementById('btn-settings-save')?.addEventListener('click', saveSettings);
   document.getElementById('btn-settings-close')?.addEventListener('click', () => closeSettings());

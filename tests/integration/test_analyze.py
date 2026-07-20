@@ -1365,6 +1365,70 @@ class TestStatus:
         assert d["active_jobs"] == 0
         assert "version" in d
 
+    def test_gpu_setup_defaults_without_a_bundled_llm_binary(self, client, monkeypatch):
+        """No bundled/configured llama-server binary in the test environment - that
+        probe must report "don't know" rather than guessing. nvidia_gpu_present is
+        pinned False here (real machines running this suite may have a real NVIDIA
+        GPU - that path is covered separately below)."""
+        monkeypatch.setattr(client.app.state.ctx.thermal_monitor, "available", lambda: False)
+        d = client.get("/api/status").json()
+        assert d["nvidia_gpu_present"] is False
+        assert d["cuda_libs_installed"] is False
+        assert d["whisper_device"] == "auto"
+        assert d["llm_use_gpu"] is True
+        assert d["llm_gpu_available"] is None
+
+    def test_gpu_setup_reports_nvidia_present(self, client, monkeypatch):
+        monkeypatch.setattr(client.app.state.ctx.thermal_monitor, "available", lambda: True)
+        d = client.get("/api/status").json()
+        assert d["nvidia_gpu_present"] is True
+
+    def test_gpu_setup_reports_cuda_libs_installed(self, client, monkeypatch):
+        import yuu_clip.web.routes.analyze as analyze_routes
+        monkeypatch.setattr(analyze_routes, "module_findable", lambda _module: True)
+        d = client.get("/api/status").json()
+        assert d["cuda_libs_installed"] is True
+
+    def test_gpu_setup_reports_llm_gpu_available(self, client, monkeypatch):
+        monkeypatch.setattr(client.app.state.ctx, "llm_gpu_available", lambda: False)
+        d = client.get("/api/status").json()
+        assert d["llm_gpu_available"] is False
+
+
+class TestLlmGpuAvailableCache:
+    """ProjectContext.llm_gpu_available caches the (subprocess-spawning) probe so
+    /api/status polling doesn't re-run it every call - see web/deps.py."""
+
+    def test_returns_none_when_llm_use_gpu_is_off(self, client):
+        client.app.state.ctx.config.llm_use_gpu = False
+        assert client.app.state.ctx.llm_gpu_available() is None
+
+    def test_caches_the_probe_result(self, client, monkeypatch):
+        ctx = client.app.state.ctx
+        calls = []
+
+        def _probe(_config):
+            calls.append(1)
+            return True
+
+        monkeypatch.setattr(
+            "yuu_clip.scoring.llamacpp_server.gpu_offload_available", _probe,
+        )
+        assert ctx.llm_gpu_available() is True
+        assert ctx.llm_gpu_available() is True
+        assert len(calls) == 1
+
+    def test_reload_config_invalidates_the_cache(self, client, monkeypatch):
+        ctx = client.app.state.ctx
+        results = iter([True, False])
+        monkeypatch.setattr(
+            "yuu_clip.scoring.llamacpp_server.gpu_offload_available",
+            lambda _config: next(results),
+        )
+        assert ctx.llm_gpu_available() is True
+        ctx.reload_config()
+        assert ctx.llm_gpu_available() is False
+
     def test_status_reflects_running_analyze(self, project_dir):
         from unittest.mock import AsyncMock, MagicMock
 

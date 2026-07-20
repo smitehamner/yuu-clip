@@ -44,6 +44,10 @@ from yuu_clip.web.sse import subprocess_sse, terminate_process_tree_async
 _log = get_logger(__name__)
 
 
+def _import_names_present(slug: str) -> bool:
+    return all(module_findable(module) for module in _IMPORT_NAMES[slug])
+
+
 def _analyze_running(ctx: ProjectContext) -> bool:
     """Whether an analyze operation is currently in flight, across both the
     reattachable AnalyzeJob (ctx.analyze_job) and the legacy bare-subprocess
@@ -407,6 +411,17 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             # GPU thermal monitoring - null/"unavailable" when no NVIDIA GPU is present.
             "gpu_temp_c": job.gpu_temp_c if job_running else None,
             "gpu_state": job.gpu_state if job_running else "unavailable",
+            # GPU-setup mismatch detection (header warning chip): a real GPU present
+            # but not actually accelerating something, so the run silently falls
+            # back to a much slower CPU path. nvidia_gpu_present reuses the same
+            # pynvml check as thermal monitoring (cheap, cached); cuda_libs_installed
+            # mirrors GET /api/install/cuda-libs; llm_gpu_available is null when
+            # unknown/inapplicable (llm_use_gpu off, or no server binary yet).
+            "nvidia_gpu_present": ctx.thermal_monitor.available(),
+            "cuda_libs_installed": _import_names_present("cuda-libs"),
+            "whisper_device": ctx.config.whisper_device,
+            "llm_use_gpu": bool(ctx.config.llm_use_gpu),
+            "llm_gpu_available": ctx.llm_gpu_available(),
             # Auto-pause config so the "running hot" warning can tell the user what
             # happens next (auto-pause at N°C, or that it won't and they should pause).
             "thermal_autopause_enabled": bool(ctx.config.thermal_autopause_enabled),
@@ -684,8 +699,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         """Report whether an optional package's import modules are present."""
         if slug not in _IMPORT_NAMES:
             raise HTTPException(400, f"Unknown package slug '{slug}' - allowed: {sorted(_IMPORT_NAMES)}")
-        installed = all(module_findable(module) for module in _IMPORT_NAMES[slug])
-        return {"installed": installed}
+        return {"installed": _import_names_present(slug)}
 
     @router.post("/api/install/{slug}")
     async def install_package(slug: str):

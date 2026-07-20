@@ -65,6 +65,7 @@
     <button class="nav-link" id="btn-highlight-reels">Highlight Reels</button>
   </nav>
   <div class="header-spacer" id="header-spacer"></div>
+  <button class="gpu-warning-chip" id="gpu-warning-chip" style="display:none" title="" aria-label="GPU not fully used - click for details">&#9888; GPU not used</button>
   <button class="btn highlight" id="btn-analyze">+ Analyze</button>
   <button class="btn ghost" id="btn-settings-header" title="Settings" aria-label="Settings" style="font-size:15px;padding:5px 10px">&#9881;</button>
   <div class="hamburger-wrap" id="hamburger-wrap">
@@ -131,6 +132,7 @@
     </div>
     <nav class="settings-jump-row" aria-label="Jump to settings section">
       <button type="button" class="settings-jump-link" data-section="settings-sec-capabilities">Capabilities</button>
+      <button type="button" class="settings-jump-link" data-section="settings-sec-hardware">Hardware</button>
       <button type="button" class="settings-jump-link" data-section="settings-sec-stt">Speech-to-text</button>
       <button type="button" class="settings-jump-link" data-section="settings-sec-llm">LLM scoring</button>
       <button type="button" class="settings-jump-link" data-section="settings-sec-speakers">Speaker labels</button>
@@ -138,7 +140,6 @@
       <button type="button" class="settings-jump-link" data-section="settings-sec-hotwords">Hot-words</button>
       <button type="button" class="settings-jump-link" data-section="settings-sec-sensitive">Sensitive Content</button>
       <button type="button" class="settings-jump-link" data-section="settings-sec-analysis">Analysis defaults</button>
-      <button type="button" class="settings-jump-link" data-section="settings-sec-hardware">Hardware</button>
       <button type="button" class="settings-jump-link" data-section="settings-sec-ui">UI</button>
       <button type="button" class="settings-jump-link" data-section="settings-sec-export">Export</button>
       <button type="button" class="settings-jump-link" data-section="settings-sec-sounds">Sounds</button>
@@ -156,6 +157,51 @@
     <div class="settings-section-title">Capabilities</div>
     <div class="settings-note" id="s-capabilities-intro" style="margin-bottom:12px">Checking…</div>
     <div id="s-capabilities-list"></div>
+  </div>
+
+  <!-- Hardware section - promoted near the top (rather than buried near the
+       bottom) so a real GPU that isn't actually accelerating anything (missing
+       CUDA libs, or LLM GPU offload silently falling back to CPU) is easy to find,
+       not just flagged by the header's GPU-warning chip. -->
+  <div class="settings-section" id="settings-sec-hardware">
+    <div class="settings-section-title has-action"><span>Hardware <span style="font-size:11px;font-weight:400;color:var(--muted)">(GPU temperature - NVIDIA only, hidden automatically otherwise)</span></span><button type="button" class="btn-secondary settings-reset-btn" data-revert-section="settings-sec-hardware">Reset to defaults</button></div>
+    <div class="settings-note" style="margin-bottom:12px">Two separate GPU paths: transcription (below) needs the NVIDIA-only CUDA libraries; <strong>LLM scoring</strong> uses a different, vendor-agnostic path (NVIDIA, AMD, or Intel) with its own <button type="button" class="settings-jump-link" data-section="s-llm-advanced">GPU toggle under LLM scoring's Advanced AI options</button> - installing or removing the CUDA libraries here has no effect on it.</div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label">GPU acceleration for transcription</label>
+        <div class="settings-note">On an NVIDIA GPU, installs the CUDA support libraries (cuBLAS + cuDNN) so transcription runs on the GPU - much faster than CPU. About 1&nbsp;GB. Re-run analysis after installing. To stop using the GPU without uninstalling, switch <button type="button" class="settings-jump-link" data-section="settings-sec-stt">Compute device</button> to cpu instead.</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn-secondary" id="btn-install-cuda-libs">Enable GPU acceleration</button>
+        <button class="btn-secondary" id="btn-uninstall-cuda-libs" style="display:none">Remove</button>
+        <span id="install-status-cuda-libs" style="font-size:12px"></span>
+      </div>
+    </div>
+    <div id="install-log-cuda-libs" class="settings-install-log"></div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" id="lbl-thermal-autopause" for="s-thermal-autopause">Auto-pause on high GPU temperature</label>
+        <div class="settings-note">Pauses analysis before the next video when the GPU stays too hot</div>
+      </div>
+      <label class="settings-checkbox">
+        <input type="checkbox" id="s-thermal-autopause" aria-labelledby="lbl-thermal-autopause">
+        <span style="font-size:13px" aria-hidden="true">On</span>
+      </label>
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-thermal-warn-c">Warning temperature (&deg;C)</label>
+        <div class="settings-note">Toast shown after 3 consecutive readings at or above this</div>
+      </div>
+      <input class="settings-input" id="s-thermal-warn-c" type="number" min="40" max="110" step="1" style="max-width:100px">
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-thermal-pause-c">Auto-pause temperature (&deg;C)</label>
+        <div class="settings-note">Must be higher than the warning temperature</div>
+      </div>
+      <input class="settings-input" id="s-thermal-pause-c" type="number" min="40" max="110" step="1" style="max-width:100px">
+    </div>
   </div>
 
   <!-- Whisper section -->
@@ -692,47 +738,6 @@
         <input type="checkbox" id="s-scene-generation" aria-label="Generate scenes during analysis">
         <span style="font-size:13px" aria-hidden="true">Enable</span>
       </label>
-    </div>
-  </div>
-
-  <!-- Hardware section -->
-  <div class="settings-section" id="settings-sec-hardware">
-    <div class="settings-section-title has-action"><span>Hardware <span style="font-size:11px;font-weight:400;color:var(--muted)">(GPU temperature - NVIDIA only, hidden automatically otherwise)</span></span><button type="button" class="btn-secondary settings-reset-btn" data-revert-section="settings-sec-hardware">Reset to defaults</button></div>
-    <div class="settings-row">
-      <div class="settings-col">
-        <label class="settings-label">GPU acceleration for transcription</label>
-        <div class="settings-note">On an NVIDIA GPU, installs the CUDA support libraries (cuBLAS + cuDNN) so transcription runs on the GPU - much faster than CPU. About 1&nbsp;GB. Re-run analysis after installing. To stop using the GPU without uninstalling, switch <button type="button" class="settings-jump-link" data-section="settings-sec-stt">Compute device</button> to cpu instead.</div>
-      </div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <button class="btn-secondary" id="btn-install-cuda-libs">Enable GPU acceleration</button>
-        <button class="btn-secondary" id="btn-uninstall-cuda-libs" style="display:none">Remove</button>
-        <span id="install-status-cuda-libs" style="font-size:12px"></span>
-      </div>
-    </div>
-    <div id="install-log-cuda-libs" class="settings-install-log"></div>
-    <div class="settings-row">
-      <div class="settings-col">
-        <label class="settings-label" id="lbl-thermal-autopause" for="s-thermal-autopause">Auto-pause on high GPU temperature</label>
-        <div class="settings-note">Pauses analysis before the next video when the GPU stays too hot</div>
-      </div>
-      <label class="settings-checkbox">
-        <input type="checkbox" id="s-thermal-autopause" aria-labelledby="lbl-thermal-autopause">
-        <span style="font-size:13px" aria-hidden="true">On</span>
-      </label>
-    </div>
-    <div class="settings-row">
-      <div class="settings-col">
-        <label class="settings-label" for="s-thermal-warn-c">Warning temperature (&deg;C)</label>
-        <div class="settings-note">Toast shown after 3 consecutive readings at or above this</div>
-      </div>
-      <input class="settings-input" id="s-thermal-warn-c" type="number" min="40" max="110" step="1" style="max-width:100px">
-    </div>
-    <div class="settings-row">
-      <div class="settings-col">
-        <label class="settings-label" for="s-thermal-pause-c">Auto-pause temperature (&deg;C)</label>
-        <div class="settings-note">Must be higher than the warning temperature</div>
-      </div>
-      <input class="settings-input" id="s-thermal-pause-c" type="number" min="40" max="110" step="1" style="max-width:100px">
     </div>
   </div>
 

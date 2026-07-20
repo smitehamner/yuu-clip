@@ -75,6 +75,9 @@ async function _streamPackageOp(slug, op, { installBtn, status, log }) {
         status.style.color = cfg.doneColor;
         installBtn.textContent = cfg.doneLabel;
         _setUninstallVisible(slug, op === 'install');
+        // Installing/removing the CUDA libraries changes whether the header
+        // GPU-warning chip should show - re-sync it without a page reload.
+        if (window.refreshServerState) window.refreshServerState();
         return;
       }
       log.textContent += msg + '\n';
