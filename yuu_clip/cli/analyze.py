@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-import time
 from pathlib import Path
 from typing import Optional
 
@@ -10,7 +9,7 @@ import typer
 from rich.panel import Panel
 from rich.table import Table
 
-from yuu_clip.analyze.pause import pause_flag_path
+from yuu_clip.analyze.pause import wait_while_paused
 from yuu_clip.cli._base import (
     _load_project,
     _require_ffmpeg,
@@ -33,12 +32,11 @@ _PAUSE_POLL_INTERVAL_S = 3.0
 
 def _wait_while_paused(project_dir: Path, poll_interval_s: float = _PAUSE_POLL_INTERVAL_S) -> None:
     """Block before starting the next video while the pause flag is present."""
-    flag = pause_flag_path(project_dir)
-    if not flag.exists():
-        return
-    console.print("[yellow][Paused - waiting to start next video][/yellow]")
-    while flag.exists():
-        time.sleep(poll_interval_s)
+    wait_while_paused(
+        project_dir,
+        poll_interval_s,
+        on_pause=lambda: console.print("[yellow][Paused - waiting to start next video][/yellow]"),
+    )
 
 
 @app.command()
@@ -155,7 +153,10 @@ def analyze(
 
     for video_path in video_paths:
         _wait_while_paused(proj_dir)
-        analyze_one(video_path, session, config, audio_dir, opts, proxy_dir=proxy_dir)
+        analyze_one(
+            video_path, session, config, audio_dir, opts,
+            proxy_dir=proxy_dir, project_dir=proj_dir,
+        )
 
     # The "run yuuclip status" hint is CLI-only guidance; the web UI drives its own
     # completion (SSE __DONE__ + job pills), so suppress it on --no-interact runs where
@@ -305,6 +306,9 @@ def score(
         console.rule(f"[bold]{v.filename}[/bold]")
         _cn = json.loads(v.context_names_json) if v.context_names_json else []
         _ctx = format_context_block(load_contexts(proj_dir), _cn)
+        # No project_dir: the standalone score command is the web UI's Rescore job,
+        # which has no Pause control and no thermal monitor, so a stale pause flag
+        # must not be able to stall it with nothing to clear it.
         run_scoring(v, v.audio_tracks, config, session, context_text=_ctx, proxy_dir=proxy_dir)
         session.commit()
 

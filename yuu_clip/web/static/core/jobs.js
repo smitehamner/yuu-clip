@@ -185,7 +185,7 @@ async function _pollThermalStatus() {
   _lastGpuState = status.gpu_state;
 }
 
-// "Pause after current video" toggle in the job header - only shown for jobs
+// "Pause at next safe point" toggle in the job header - only shown for jobs
 // backed by the pause flag file (the single analyze stream and the JS
 // sequential-segment runners; see togglePauseJob).
 function _renderPauseUI() {
@@ -193,7 +193,7 @@ function _renderPauseUI() {
   const badge = document.getElementById('job-paused-badge');
   if (!btn || !badge) return;
   btn.style.display = _jobPausable ? '' : 'none';
-  btn.textContent = _jobPaused ? 'Resume' : 'Pause after current video';
+  btn.textContent = _jobPaused ? 'Resume' : 'Pause at next safe point';
   badge.style.display = _jobPaused ? '' : 'none';
 }
 

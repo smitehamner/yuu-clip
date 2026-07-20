@@ -174,11 +174,14 @@ def _analyze_one(
     audio_dir: Path,
     opts: AnalyzeOptions,
     proxy_dir: Optional[Path] = None,
+    project_dir: Optional[Path] = None,
 ) -> None:
     """Orchestrate all pipeline stages for a single video file.
 
     *proxy_dir* feeds the opt-in auto vision-describe pass in _run_scoring (Stage 4
-    of video-heavy analysis); omit it to skip that pass regardless of config."""
+    of video-heavy analysis); omit it to skip that pass regardless of config.
+    *project_dir* enables the between-clips pause point during scoring; omit it and
+    this video runs start to finish once begun."""
     resolved = _resolve_existing_video(session, video_path, opts)
     if resolved is None:
         return
@@ -259,6 +262,7 @@ def _analyze_one(
                     _run_scoring(
                         video, track_objs, config, session, energy_mode=opts.energy_mode,
                         context_text=opts.context_text, proxy_dir=proxy_dir,
+                        project_dir=project_dir,
                     ) or []
                 )
         except Exception as exc:
@@ -913,16 +917,36 @@ def _summarize_video(video, transcripts, config, session, context_text: str = ""
         log.exception("Video summary failed: video_id=%s", video.id)
 
 
+def _make_scoring_pause_gate(project_dir: Optional[Path]):
+    """Return the per-clip pause callback for score_video, or None when there is no
+    project dir to watch (a caller that opted out of mid-video pausing)."""
+    if project_dir is None:
+        return None
+    from yuu_clip.analyze.pause import wait_while_paused
+
+    def _pause_gate() -> None:
+        wait_while_paused(
+            project_dir,
+            on_pause=lambda: console.print(
+                "  [yellow][Paused - scoring will continue when you resume][/yellow]"
+            ),
+        )
+
+    return _pause_gate
+
+
 def _run_scoring(
     video, track_objs, config, session, energy_mode: str = "fast", context_text: str = "",
-    proxy_dir: Optional[Path] = None,
+    proxy_dir: Optional[Path] = None, project_dir: Optional[Path] = None,
 ) -> list[str]:
     """Run Phase 2 scoring (energy, scenes, LLM) for all candidates belonging to *video*.
 
     Returns plain-English warnings worth surfacing after the run (e.g. the LLM was
     unavailable, so clips got only a basic description). *proxy_dir* feeds the
     opt-in auto vision-describe pass (video-heavy analysis Stage 4) that runs after
-    scoring; omit it (None) to skip that pass regardless of the config toggle."""
+    scoring; omit it (None) to skip that pass regardless of the config toggle.
+    *project_dir* enables the mid-video pause point between clips; omit it (None)
+    and scoring runs straight through."""
     from yuu_clip.scoring.audio_event import AudioEventScorer, audio_event_model_cached
     from yuu_clip.scoring.energy import compute_energy
     from yuu_clip.scoring.engine import ScoringEngine
@@ -1037,7 +1061,10 @@ def _run_scoring(
         console.print(f"  Scoring {i}/{total}...")
         emit_progress(Stage.SCORE, done=i, total=total)
 
-    n = engine.score_video(video, session, progress_cb=_score_progress)
+    n = engine.score_video(
+        video, session, progress_cb=_score_progress,
+        pause_gate=_make_scoring_pause_gate(project_dir),
+    )
     if audio_event_scorer.load_failed or laugh_scorer.load_failed:
         console.print(
             "  [yellow]The audio-event model couldn't be downloaded - clips were scored "

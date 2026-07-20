@@ -367,7 +367,7 @@ class TestPauseResumeUI:
         self._ready(page)
         self._simulate_pausable_job(page)
         expect(page.locator("#btn-pause-job")).to_be_visible()
-        expect(page.locator("#btn-pause-job")).to_have_text("Pause after current video")
+        expect(page.locator("#btn-pause-job")).to_have_text("Pause at next safe point")
         expect(page.locator("#job-paused-badge")).to_be_hidden()
         page.evaluate("() => endJobUI()")
 
@@ -406,7 +406,7 @@ class TestPauseResumeUI:
         page.click("#btn-pause-job")
         expect(page.locator("#btn-pause-job")).to_have_text("Resume")
         page.click("#btn-pause-job")
-        expect(page.locator("#btn-pause-job")).to_have_text("Pause after current video")
+        expect(page.locator("#btn-pause-job")).to_have_text("Pause at next safe point")
         expect(page.locator("#job-paused-badge")).to_be_hidden()
         page.evaluate("() => endJobUI()")
 
@@ -422,7 +422,7 @@ class TestPauseResumeUI:
         self._simulate_pausable_job(page)
         page.click("#btn-pause-job")
         expect(page.locator("#toast-container .toast.info")).to_contain_text("No analysis is running.")
-        expect(page.locator("#btn-pause-job")).to_have_text("Pause after current video")
+        expect(page.locator("#btn-pause-job")).to_have_text("Pause at next safe point")
         page.evaluate("() => endJobUI()")
 
     def test_status_pill_reflects_paused_state(self, page: Page):

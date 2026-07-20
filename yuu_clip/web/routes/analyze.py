@@ -427,11 +427,13 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
     @router.post("/api/analyze/pause")
     async def pause_analyze():
-        """Request a pause before the next video in the running batch starts.
+        """Request a pause at the running job's next pause point.
 
-        The video currently in progress always finishes - this only holds the
-        loop before it starts the next one. No-op with a clear message when no
-        job is running (including single-video runs, where it simply never fires).
+        Two pause points exist: between videos in a multi-video batch, and between
+        individual clips during scoring (the sustained-GPU stage), so a single-video
+        run does honour this rather than running to completion. Stages other than
+        scoring still finish before the pause takes effect. No-op with a clear
+        message when no job is running.
         """
         job = ctx.analyze_job
         if job is None or job.done:
@@ -439,12 +441,12 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         from yuu_clip.analyze.pause import create_pause_flag
         create_pause_flag(ctx.project_dir)
         job.pause_requested = True
-        _log.info("Analyze pause requested - will hold before the next video")
+        _log.info("Analyze pause requested - will hold at the next pause point")
         return {"status": "pause-requested"}
 
     @router.post("/api/analyze/resume")
     async def resume_analyze():
-        """Clear a pending pause so the batch loop continues to the next video."""
+        """Clear a pending pause so the running analysis continues."""
         job = ctx.analyze_job
         if job is None or job.done:
             return {"status": "no-op", "message": "No analysis is running."}
@@ -707,14 +709,14 @@ async def _thermal_poll_loop(ctx: ProjectContext, job) -> None:
             if result.pause_triggered:
                 _log.warning(
                     "Auto-paused analysis: GPU reached %.0f°C sustained "
-                    "(pause threshold %.0f°C) - holding before the next video",
+                    "(pause threshold %.0f°C) - holding at the next pause point",
                     result.temp_c, cfg.thermal_pause_c,
                 )
                 create_pause_flag(ctx.project_dir)
                 job.pause_requested = True
                 job._emit(
                     f"[Auto-paused: GPU reached {result.temp_c:.0f}°C "
-                    " -  will hold before the next video]"
+                    " -  will hold at the next pause point]"
                 )
             await asyncio.sleep(_THERMAL_POLL_INTERVAL_S)
     except asyncio.CancelledError:

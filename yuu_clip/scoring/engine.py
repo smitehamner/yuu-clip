@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable, Optional
 
 from yuu_clip.log import get_logger
 from yuu_clip.scoring.protocol import Scorer, ScoreResult
@@ -391,12 +391,20 @@ class ScoringEngine:
                 # object to detect the mutation; in-place .append() is invisible.
                 clip.tags = clip.tags + [tag]
 
-    def score_video(self, video: "Video", session: "Session", progress_cb=None, kind: str = "clip") -> int:
+    def score_video(
+        self, video: "Video", session: "Session", progress_cb=None, kind: str = "clip",
+        pause_gate: Optional[Callable[[], None]] = None,
+    ) -> int:
         """Score a video's ClipCandidates of one *kind*.  Returns count scored.
 
         Scoped to a single ``kind`` (default 'clip') so the clip scorers never run
         over scene rows, which share the ``clip_candidates`` table - scenes get their
         own scoring path.
+
+        *pause_gate* is called after each clip is committed and may block. This is the
+        pipeline's only mid-video pause point: scoring is the sustained GPU/LLM stage,
+        so without it a thermal auto-pause raised during a single-video run would set
+        its flag and never be honoured until the whole video finished.
         """
         from yuu_clip.db.models import ClipCandidate
         candidates = (
@@ -415,5 +423,7 @@ class ScoringEngine:
             session.commit()
             if progress_cb:
                 progress_cb(i, total)
+            if pause_gate:
+                pause_gate()
         _log.info("Scoring complete for video %d: %d clip(s) scored", video.id, total)
         return total

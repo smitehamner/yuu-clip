@@ -226,3 +226,94 @@ class TestCliPauseLoop:
             processed.append(video)
 
         assert processed == ["first.mkv", "second.mkv"]
+
+
+# ---------------------------------------------------------------------------
+# Shared wait_while_paused helper - the poll both pause points are built on
+# ---------------------------------------------------------------------------
+
+class TestWaitWhilePaused:
+    def test_returns_false_without_flag(self, tmp_path):
+        from yuu_clip.analyze.pause import wait_while_paused
+        assert wait_while_paused(tmp_path, poll_interval_s=0.05) is False
+
+    def test_returns_true_after_waiting(self, tmp_path):
+        from yuu_clip.analyze.pause import create_pause_flag, remove_pause_flag, wait_while_paused
+        create_pause_flag(tmp_path)
+        threading.Timer(0.1, remove_pause_flag, args=(tmp_path,)).start()
+        assert wait_while_paused(tmp_path, poll_interval_s=0.05) is True
+
+    def test_on_pause_not_called_when_not_paused(self, tmp_path):
+        from yuu_clip.analyze.pause import wait_while_paused
+        notices = []
+        wait_while_paused(tmp_path, poll_interval_s=0.05, on_pause=lambda: notices.append(1))
+        assert notices == []
+
+    def test_on_pause_announced_exactly_once_per_wait(self, tmp_path):
+        """The notice fires on entering the wait, not on every poll - otherwise a
+        long cool-down would spam the analyze log with the same line."""
+        from yuu_clip.analyze.pause import create_pause_flag, remove_pause_flag, wait_while_paused
+        create_pause_flag(tmp_path)
+        notices = []
+        threading.Timer(0.2, remove_pause_flag, args=(tmp_path,)).start()
+        wait_while_paused(tmp_path, poll_interval_s=0.02, on_pause=lambda: notices.append(1))
+        assert notices == [1]
+
+
+# ---------------------------------------------------------------------------
+# Mid-video pause point (UX bug hunt B9) - scoring honours the flag between
+# clips, so a single-video run is actually protected by thermal auto-pause.
+# ---------------------------------------------------------------------------
+
+class TestScoringPauseGateWiring:
+    def test_no_gate_without_a_project_dir(self):
+        from yuu_clip.pipeline.ingest import _make_scoring_pause_gate
+        assert _make_scoring_pause_gate(None) is None
+
+    def test_gate_returns_immediately_when_not_paused(self, tmp_path):
+        from yuu_clip.pipeline.ingest import _make_scoring_pause_gate
+        gate = _make_scoring_pause_gate(tmp_path)
+        start = time.monotonic()
+        gate()
+        assert time.monotonic() - start < 0.5
+
+    def test_gate_blocks_while_the_flag_is_present(self, tmp_path):
+        from yuu_clip.analyze.pause import create_pause_flag, remove_pause_flag
+        from yuu_clip.pipeline.ingest import _make_scoring_pause_gate
+        create_pause_flag(tmp_path)
+        threading.Timer(0.15, remove_pause_flag, args=(tmp_path,)).start()
+        gate = _make_scoring_pause_gate(tmp_path)
+        start = time.monotonic()
+        gate()
+        assert time.monotonic() - start >= 0.1
+
+    def test_run_scoring_passes_a_gate_through_to_score_video(self, tmp_path, monkeypatch):
+        """The regression B9 was: the flag existed, the poll existed, but nothing
+        in the per-video path ever consulted it."""
+        from yuu_clip.config import Config
+        from yuu_clip.db.models import Video, make_session
+        from yuu_clip.pipeline import ingest as _ingest
+        from yuu_clip.scoring.engine import ScoringEngine
+
+        captured = {}
+
+        def _fake_score_video(self, video, session, progress_cb=None, kind="clip", pause_gate=None):
+            captured["pause_gate"] = pause_gate
+            return 0
+
+        monkeypatch.setattr(ScoringEngine, "score_video", _fake_score_video)
+
+        session = make_session(tmp_path / "gate.db")
+        video = Video(path=str(tmp_path / "v.mkv"), filename="v.mkv", status="done", duration_ms=1000)
+        session.add(video)
+        session.flush()
+        config = Config()
+        config.scorer_energy_enabled = False
+        config.scorer_scenes_enabled = False
+        config.scorer_visual_enabled = False
+        try:
+            _ingest._run_scoring(video, [], config, session, project_dir=tmp_path)
+        finally:
+            session.close()
+
+        assert callable(captured["pause_gate"])

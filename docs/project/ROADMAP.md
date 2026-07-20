@@ -173,12 +173,11 @@ Wanted before distributing beyond friends/trusted users.
   (`cli/analyze.py`'s `analyze` command accepts multiple video paths/a glob and pauses between
   them via `_wait_while_paused`), but the web UI's `/api/analyze/start` always builds the CLI
   command for exactly one video, so nothing in the app can ever reach that multi-video path.
-  Surfaced 2026-07-19 alongside a related bug: the job header's "Pause after current video"
-  toggle is shown even for a plain single-recording run, where it is currently a dead control
-  (there is no next video to ever pause before - see the UX bug-hunt notes) and only genuinely
-  works for pre-split segments of one recording. Building real batch-analyze support would give
-  that toggle an honest meaning for the common case too, instead of needing to hide/relabel it
-  for single-video runs.
+  Surfaced 2026-07-19 alongside a related bug (UX bug hunt B9): the job header's "Pause after
+  current video" toggle was a dead control on a plain single-recording run. That is now fixed
+  at the pipeline level - scoring polls the pause flag between clips - so the toggle does
+  something on every run. Its *label* still describes the between-videos behaviour only, and
+  would want revisiting alongside real batch-analyze support.
 
 - [ ] **Right-click context menus for videos/clips** *(unscoped, deferred)* - investigated
   2026-07-19: everything a context menu would offer already exists via visible affordances

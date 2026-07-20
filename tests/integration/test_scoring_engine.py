@@ -703,3 +703,75 @@ class TestScoringEngineScoreVideo:
         finally:
             session.close()
         assert commit_spy.call_count == 3
+
+
+class TestScoringEnginePauseGate:
+    """The mid-video pause point (UX bug hunt B9): scoring is the sustained-GPU
+    stage, so it is where a thermal auto-pause has to be honoured - the between-
+    videos check alone gives a single-video run no protection at all."""
+
+    def _video_with_clips(self, tmp_path, db_name, clip_count):
+        from yuu_clip.db.models import ClipCandidate, Video, make_session
+        session = make_session(tmp_path / db_name)
+        video = Video(
+            path=str(tmp_path / "v.mkv"), filename="v.mkv", status="done",
+            duration_ms=clip_count * 30_000,
+        )
+        session.add(video)
+        session.flush()
+        for i in range(clip_count):
+            session.add(ClipCandidate(video_id=video.id, start_ms=i * 30_000, end_ms=(i + 1) * 30_000))
+        session.flush()
+        return session, video
+
+    def _engine(self):
+        import unittest.mock as mock
+
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
+        from yuu_clip.scoring.protocol import ScoreResult
+        scorer = mock.MagicMock()
+        scorer.is_available.return_value = True
+        scorer.weight = 1.0
+        scorer.score.return_value = ScoreResult(score_funny=0.5, score_dramatic=0.5, score_action=0.5)
+        return ScoringEngine(Config(), [scorer])
+
+    def test_pause_gate_called_once_per_clip(self, tmp_path):
+        session, video = self._video_with_clips(tmp_path, "pg1.db", 3)
+        calls = []
+        try:
+            self._engine().score_video(video, session, pause_gate=lambda: calls.append(1))
+        finally:
+            session.close()
+        assert len(calls) == 3
+
+    def test_pause_gate_runs_after_the_clip_is_committed(self, tmp_path):
+        """A pause that blocks must never strand the just-scored clip uncommitted -
+        the whole point is that progress already made survives the hold. Read it
+        back over a second connection, which only sees committed rows."""
+        from yuu_clip.db.models import ClipCandidate, make_session
+        session, video = self._video_with_clips(tmp_path, "pg2.db", 2)
+        session.commit()
+        observer = make_session(tmp_path / "pg2.db")
+        scored_at_gate = []
+
+        def _gate():
+            observer.expire_all()
+            scored_at_gate.append(
+                observer.query(ClipCandidate).filter(ClipCandidate.score_funny > 0).count()
+            )
+
+        try:
+            self._engine().score_video(video, session, pause_gate=_gate)
+        finally:
+            observer.close()
+            session.close()
+        assert scored_at_gate == [1, 2]
+
+    def test_no_pause_gate_scores_every_clip(self, tmp_path):
+        session, video = self._video_with_clips(tmp_path, "pg3.db", 2)
+        try:
+            count = self._engine().score_video(video, session)
+        finally:
+            session.close()
+        assert count == 2
