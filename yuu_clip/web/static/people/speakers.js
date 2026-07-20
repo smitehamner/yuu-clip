@@ -195,6 +195,8 @@ function _playSpeakerSample(startMs, endMs) {
 }
 
 async function _saveSpeakerName(speakerId, name) {
+  const input = document.querySelector(`.speaker-name-input[data-speaker-id="${speakerId}"]`);
+  if (input) input.disabled = true;
   try {
     const res = await fetch(`/api/speakers/${speakerId}`, {
       method: 'PUT',
@@ -206,7 +208,6 @@ async function _saveSpeakerName(speakerId, name) {
       return;
     }
     const updated = await res.json();
-    const input = document.querySelector(`.speaker-name-input[data-speaker-id="${speakerId}"]`);
     if (input && !updated.is_named) input.value = '';
     showToast(updated.is_named ? `Speaker named ${updated.display_name}` : 'Name cleared');
     // Refresh the open clip so its transcript reflects the new name, and the
@@ -215,10 +216,14 @@ async function _saveSpeakerName(speakerId, name) {
     if (_currentVideoId) window.reloadVideoTranscriptIfOpen(_currentVideoId);
   } catch (_) {
     showToast('Could not save speaker name', 'error');
+  } finally {
+    if (input) input.disabled = false;
   }
 }
 
 async function _saveSpeakerColor(speakerId, color) {
+  const input = document.querySelector(`.speaker-color-input[data-speaker-id="${speakerId}"]`);
+  if (input) input.disabled = true;
   try {
     const res = await fetch(`/api/speakers/${speakerId}`, {
       method: 'PUT',
@@ -234,6 +239,8 @@ async function _saveSpeakerColor(speakerId, color) {
     if (_currentVideoId) window.reloadVideoTranscriptIfOpen(_currentVideoId);
   } catch (_) {
     showToast('Could not save speaker color', 'error');
+  } finally {
+    if (input) input.disabled = false;
   }
 }
 

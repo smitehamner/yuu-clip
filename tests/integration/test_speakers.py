@@ -601,6 +601,28 @@ class TestSpeakerRoutes:
         assert db.get(ClipCandidate, clip_id).transcript_edited_at is None
         db.close()
 
+    def test_rename_sets_video_transcript_edited_at(self, client, project_dir):
+        # B16: drives the video-level "SRT sidecar is stale" badge.
+        video_id, speaker_id, _clip_id = self._seed_speaker(project_dir)
+        db = self._db(project_dir)
+        assert db.get(Video, video_id).transcript_edited_at is None
+        db.close()
+
+        client.put(f"/api/speakers/{speaker_id}", json={"name": "Yuu"})
+
+        db = self._db(project_dir)
+        assert db.get(Video, video_id).transcript_edited_at is not None
+        db.close()
+
+    def test_color_only_rename_does_not_set_video_transcript_edited_at(self, client, project_dir):
+        video_id, speaker_id, _clip_id = self._seed_speaker(project_dir)
+
+        client.put(f"/api/speakers/{speaker_id}", json={"color": "#abcdef"})
+
+        db = self._db(project_dir)
+        assert db.get(Video, video_id).transcript_edited_at is None
+        db.close()
+
     def test_rename_refreshes_existing_export_sidecar(self, client, project_dir):
         _video_id, speaker_id, clip_id = self._seed_speaker(project_dir)
         clip = client.get(f"/api/clips/{clip_id}").json()
@@ -712,6 +734,19 @@ class TestReassignSegmentSpeaker:
         client.put(f"/api/transcript-segments/{seg_id}/speaker", json={"speaker_id": sp2})
 
         assert "Mara" in srt.read_text(encoding="utf-8")
+
+    def test_reassign_sets_video_transcript_edited_at(self, client, project_dir):
+        # B16: drives the video-level "SRT sidecar is stale" badge.
+        video_id, _, sp2, seg_id, _, _ = self._seed(project_dir)
+        db = self._db(project_dir)
+        assert db.get(Video, video_id).transcript_edited_at is None
+        db.close()
+
+        client.put(f"/api/transcript-segments/{seg_id}/speaker", json={"speaker_id": sp2})
+
+        db = self._db(project_dir)
+        assert db.get(Video, video_id).transcript_edited_at is not None
+        db.close()
 
 
 class TestVoiceMatchRoutes:

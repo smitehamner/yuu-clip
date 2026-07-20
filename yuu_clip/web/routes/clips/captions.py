@@ -6,12 +6,18 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 
-from yuu_clip.db.models import TranscriptSegment, Video
+from yuu_clip.db.models import ClipCandidate, TranscriptSegment, Video
 from yuu_clip.export.paths import srt_path
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.routes.clips.schemas import CaptionSegmentUpdate
-from yuu_clip.web.routes.common import require_clip, srt_to_vtt, stage_segment_text_edit
+from yuu_clip.web.routes.common import (
+    require_clip,
+    srt_to_vtt,
+    stage_segment_text_edit,
+    touch_video_transcript_edited,
+    with_write_retry,
+)
 
 _log = get_logger(__name__)
 
@@ -65,27 +71,40 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
         new_text = body.text.strip()
         if not new_text:
             raise HTTPException(400, "Caption text cannot be empty")
+
+        def _op():
+            db = ctx.get_db()
+            try:
+                seg = db.get(TranscriptSegment, seg_id)
+                if not seg:
+                    raise HTTPException(404, "Caption segment not found")
+                video_id = seg.transcript.audio_track.video_id
+                affected = stage_segment_text_edit(db, seg, new_text)
+                touch_video_transcript_edited(db, video_id)
+                db.commit()
+                return video_id, seg.text, [c.id for c in affected]
+            finally:
+                db.close()
+
+        video_id, text, affected_clip_ids = with_write_retry(_op)
+
         db = ctx.get_db()
         try:
-            seg = db.get(TranscriptSegment, seg_id)
-            if not seg:
-                raise HTTPException(404, "Caption segment not found")
-            video_id = seg.transcript.audio_track.video_id
-            affected = stage_segment_text_edit(db, seg, new_text)
-            db.commit()
-            for clip in affected:
-                refresh_export_sidecars(clip, ctx.export_dir, ctx.config.export_name_template)
-            _log.info(
-                "Edited caption segment %d (video %d) - rebuilt %d clip excerpt(s)",
-                seg_id, video_id, len(affected),
-            )
-            return {
-                "seg_id": seg_id,
-                "text": seg.text,
-                "affected_clip_ids": [c.id for c in affected],
-            }
+            for clip_id in affected_clip_ids:
+                clip = db.get(ClipCandidate, clip_id)
+                if clip is not None:
+                    refresh_export_sidecars(clip, ctx.export_dir, ctx.config.export_name_template)
         finally:
             db.close()
+        _log.info(
+            "Edited caption segment %d (video %d) - rebuilt %d clip excerpt(s)",
+            seg_id, video_id, len(affected_clip_ids),
+        )
+        return {
+            "seg_id": seg_id,
+            "text": text,
+            "affected_clip_ids": affected_clip_ids,
+        }
 
     @router.get("/api/clips/{clip_id}/captions.vtt")
     def clip_captions_vtt(clip_id: int):

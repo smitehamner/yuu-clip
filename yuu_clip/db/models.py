@@ -201,6 +201,13 @@ class Video(Base):
 
     context_names_json: Mapped[Optional[str]] = mapped_column(Text)  # JSON list of context IDs
 
+    # Set whenever a caption/speaker edit touches this recording's transcript
+    # (caption edit, speaker rename/reassign, name-corrections apply - same routes
+    # that stamp the overlapping ClipCandidate.transcript_edited_at above). Compared
+    # against the on-disk SRT sidecar's own file mtime to flag a saved SRT that no
+    # longer reflects the current transcript - see routes/videos.py::_transcript_srt_stale.
+    transcript_edited_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+
     # Provenance: timestamp + active context for each LLM operation, so the UI
     # can warn when results are stale after a context change.
     clips_scored_at: Mapped[Optional[datetime]] = mapped_column(DateTime)

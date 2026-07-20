@@ -198,6 +198,22 @@ def stage_segment_text_edit(db, seg, new_text: str) -> list[ClipCandidate]:
     return affected
 
 
+def touch_video_transcript_edited(db, video_id: int) -> None:
+    """Stamp a video's transcript_edited_at to now - drives the SRT staleness badge.
+
+    Shared by every route that edits a video's transcript (caption edit, speaker
+    rename/reassign, name-corrections apply) so the on-disk SRT sidecar staleness
+    check (video.transcript_edited_at vs the sidecar file's own mtime) fires the
+    same way regardless of which edit path touched the transcript. Does NOT commit -
+    the caller's own commit picks this up alongside its other writes.
+    """
+    from datetime import datetime, timezone
+
+    video = db.get(Video, video_id)
+    if video is not None:
+        video.transcript_edited_at = datetime.now(timezone.utc)
+
+
 def rebuild_video_excerpts(db, video_id: int) -> int:
     """Rebuild transcript excerpts for a video's clips so a speaker/Person rename shows up.
 

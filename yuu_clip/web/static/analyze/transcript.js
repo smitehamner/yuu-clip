@@ -326,15 +326,17 @@ async function _openSpeakerMenu(chip) {
   _openSpkMenu = menu;
 
   menu.addEventListener('click', e => {
-    if (e.target.closest('.spk-menu-new')) { _newSpeakerForLine(segId, videoId); return; }
+    const newSpeakerBtn = e.target.closest('.spk-menu-new');
+    if (newSpeakerBtn) { _newSpeakerForLine(segId, videoId, newSpeakerBtn); return; }
     const reassign = e.target.closest('[data-reassign]');
     if (reassign) {
       const val = reassign.dataset.reassign;
-      _reassignLine(segId, val === '' ? null : parseInt(val, 10), videoId);
+      _reassignLine(segId, val === '' ? null : parseInt(val, 10), videoId, reassign);
       return;
     }
-    if (e.target.closest('.spk-menu-save') && curId != null) {
-      _renameSpeakerFromLine(curId, menu.querySelector('.spk-menu-name').value.trim(), videoId);
+    const saveBtn = e.target.closest('.spk-menu-save');
+    if (saveBtn && curId != null) {
+      _renameSpeakerFromLine(curId, menu.querySelector('.spk-menu-name').value.trim(), videoId, saveBtn);
     }
   });
   menu.querySelector('.spk-menu-name')?.addEventListener('keydown', e => {
@@ -351,7 +353,8 @@ async function _openSpeakerMenu(chip) {
 // Create a fresh unnamed speaker (for a voice diarization missed or merged) and move
 // this line onto it. The user can name it from its dot afterward. Reassignment reuses
 // the same path as picking an existing speaker (rebuilds excerpts, refreshes the card).
-async function _newSpeakerForLine(segId, videoId) {
+async function _newSpeakerForLine(segId, videoId, triggerEl) {
+  if (triggerEl) triggerEl.disabled = true;
   try {
     const res = await fetch(`/api/videos/${videoId}/speakers`, {
       method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}',
@@ -363,10 +366,17 @@ async function _newSpeakerForLine(segId, videoId) {
     showToast(`Line moved to a new ${speaker.display_name}`);
   } catch (err) {
     showToast(`Could not add a speaker: ${err.message}`, 'error');
+  } finally {
+    if (triggerEl) triggerEl.disabled = false;
   }
 }
 
-async function _reassignLine(segId, speakerId, videoId) {
+// triggerEl (a menu button/chip) is disabled for the fetch's duration - the DB
+// write it hits can retry through a lock for several seconds while an analyze
+// run is in progress (with_write_retry, B6), and this is the only feedback the
+// user gets that the click landed.
+async function _reassignLine(segId, speakerId, videoId, triggerEl) {
+  if (triggerEl) triggerEl.disabled = true;
   try {
     const res = await fetch(`/api/transcript-segments/${segId}/speaker`, {
       method: 'PUT', headers: {'Content-Type': 'application/json'},
@@ -380,10 +390,13 @@ async function _reassignLine(segId, speakerId, videoId) {
     _refreshAfterSpeakerChange(videoId, data.affected_clip_ids);
   } catch (err) {
     showToast(`Could not reassign speaker: ${err.message}`, 'error');
+  } finally {
+    if (triggerEl) triggerEl.disabled = false;
   }
 }
 
-async function _renameSpeakerFromLine(speakerId, name, videoId) {
+async function _renameSpeakerFromLine(speakerId, name, videoId, triggerEl) {
+  if (triggerEl) triggerEl.disabled = true;
   try {
     const res = await fetch(`/api/speakers/${speakerId}`, {
       method: 'PUT', headers: {'Content-Type': 'application/json'},
@@ -396,6 +409,8 @@ async function _renameSpeakerFromLine(speakerId, name, videoId) {
     _refreshAfterSpeakerChange(videoId, null);
   } catch (_) {
     showToast('Could not save speaker name', 'error');
+  } finally {
+    if (triggerEl) triggerEl.disabled = false;
   }
 }
 
@@ -435,7 +450,7 @@ export async function startRenameSpeaker(label) {
     settled = true;
     const next = input.value.trim();
     if (commit && next !== prevName) {
-      _renameSpeakerFromLine(speakerId, next, videoId);
+      _renameSpeakerFromLine(speakerId, next, videoId, input);
     } else {
       label.classList.remove('editing');
       label.textContent = original;

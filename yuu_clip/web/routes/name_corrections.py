@@ -18,7 +18,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from yuu_clip.contexts import load_contexts
-from yuu_clip.db.models import Speaker, Transcript, TranscriptSegment, Video
+from yuu_clip.db.models import ClipCandidate, Speaker, Transcript, TranscriptSegment, Video
 from yuu_clip.log import get_logger
 from yuu_clip.scoring.textmatch import (
     LexiconName,
@@ -26,7 +26,12 @@ from yuu_clip.scoring.textmatch import (
     find_name_corrections,
 )
 from yuu_clip.web.deps import ProjectContext
-from yuu_clip.web.routes.common import json_list, stage_segment_text_edit
+from yuu_clip.web.routes.common import (
+    json_list,
+    stage_segment_text_edit,
+    touch_video_transcript_edited,
+    with_write_retry,
+)
 
 _log = get_logger(__name__)
 
@@ -68,40 +73,54 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     @router.post("/api/videos/{video_id}/name-corrections/apply")
     def apply(video_id: int, body: ApplyRequest):
         from yuu_clip.subtitles import refresh_export_sidecars
+
+        def _op():
+            db = ctx.get_db()
+            try:
+                video = db.get(Video, video_id)
+                if not video:
+                    raise HTTPException(404, "Video not found")
+                valid_seg_ids = {s.id for s in _track_segments(db, video)}
+                by_segment: dict[int, list[ApplyItem]] = {}
+                for item in body.corrections:
+                    by_segment.setdefault(item.segment_id, []).append(item)
+
+                results: list[dict] = []
+                affected: dict[int, object] = {}
+                for seg_id, items in by_segment.items():
+                    seg = db.get(TranscriptSegment, seg_id)
+                    if seg is None or seg_id not in valid_seg_ids:
+                        results.extend(_failed(items, "segment_not_found"))
+                        continue
+                    new_text, seg_results = _apply_spans(seg.text, items)
+                    results.extend(seg_results)
+                    if new_text != seg.text:
+                        for clip in stage_segment_text_edit(db, seg, new_text):
+                            affected[clip.id] = clip
+                if affected:
+                    touch_video_transcript_edited(db, video_id)
+                db.commit()
+                return results, list(affected), len(by_segment)
+            finally:
+                db.close()
+
+        results, affected_clip_ids, segment_count = with_write_retry(_op)
+
         db = ctx.get_db()
         try:
-            video = db.get(Video, video_id)
-            if not video:
-                raise HTTPException(404, "Video not found")
-            valid_seg_ids = {s.id for s in _track_segments(db, video)}
-            by_segment: dict[int, list[ApplyItem]] = {}
-            for item in body.corrections:
-                by_segment.setdefault(item.segment_id, []).append(item)
-
-            results: list[dict] = []
-            affected: dict[int, object] = {}
-            for seg_id, items in by_segment.items():
-                seg = db.get(TranscriptSegment, seg_id)
-                if seg is None or seg_id not in valid_seg_ids:
-                    results.extend(_failed(items, "segment_not_found"))
-                    continue
-                new_text, seg_results = _apply_spans(seg.text, items)
-                results.extend(seg_results)
-                if new_text != seg.text:
-                    for clip in stage_segment_text_edit(db, seg, new_text):
-                        affected[clip.id] = clip
-            db.commit()
-            for clip in affected.values():
-                refresh_export_sidecars(clip, ctx.export_dir, ctx.config.export_name_template)
-            applied = sum(1 for r in results if r["applied"])
-            _log.info(
-                "Name corrections (video %d): applied %d of %d across %d segment(s)",
-                video_id, applied, len(results), len(by_segment),
-            )
-            return {"applied": applied, "results": results,
-                    "affected_clip_ids": list(affected)}
+            for clip_id in affected_clip_ids:
+                clip = db.get(ClipCandidate, clip_id)
+                if clip is not None:
+                    refresh_export_sidecars(clip, ctx.export_dir, ctx.config.export_name_template)
         finally:
             db.close()
+        applied = sum(1 for r in results if r["applied"])
+        _log.info(
+            "Name corrections (video %d): applied %d of %d across %d segment(s)",
+            video_id, applied, len(results), segment_count,
+        )
+        return {"applied": applied, "results": results,
+                "affected_clip_ids": affected_clip_ids}
 
     return router
 

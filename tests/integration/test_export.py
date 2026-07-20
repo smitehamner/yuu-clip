@@ -1195,6 +1195,53 @@ class TestExportVideoTranscript:
         assert r.status_code == 404
 
 
+class TestVideoTranscriptSrtStale:
+    """video.transcript_srt_stale (B16) - compares transcript_edited_at against the
+    on-disk SRT sidecar's own mtime, so a caption edit after the SRT was written
+    (or a pre-existing SRT older than the transcript) surfaces the stale badge."""
+
+    def _set_edited_at(self, project_dir, video_id: int, when: datetime) -> None:
+        from yuu_clip.db.models import Video
+        session = make_session(project_dir / ".yuu-clip" / "project.db")
+        video = session.get(Video, video_id)
+        video.transcript_edited_at = when
+        session.commit()
+        session.close()
+
+    def test_false_when_transcript_never_edited(self, client):
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        assert client.get(f"/api/videos/{vid_id}").json()["transcript_srt_stale"] is False
+
+    def test_false_when_no_sidecar_exists_yet(self, client, project_dir):
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        self._set_edited_at(project_dir, vid_id, datetime.now(timezone.utc))
+        assert client.get(f"/api/videos/{vid_id}").json()["transcript_srt_stale"] is False
+
+    def test_true_when_edited_after_sidecar_was_written(self, client, project_dir):
+        vid_id, source_path = self._id_and_path(client)
+        srt = Path(source_path).with_suffix(".srt")
+        srt.write_text("1\n00:00:00,000 --> 00:00:01,000\nold\n\n", encoding="utf-8")
+        old_mtime = datetime.now(timezone.utc) - timedelta(hours=1)
+        os.utime(srt, (old_mtime.timestamp(), old_mtime.timestamp()))
+
+        self._set_edited_at(project_dir, vid_id, datetime.now(timezone.utc))
+
+        assert client.get(f"/api/videos/{vid_id}").json()["transcript_srt_stale"] is True
+
+    def test_false_when_sidecar_written_after_the_edit(self, client, project_dir):
+        vid_id, source_path = self._id_and_path(client)
+        self._set_edited_at(project_dir, vid_id, datetime.now(timezone.utc) - timedelta(hours=1))
+
+        srt = Path(source_path).with_suffix(".srt")
+        srt.write_text("1\n00:00:00,000 --> 00:00:01,000\nfresh\n\n", encoding="utf-8")
+
+        assert client.get(f"/api/videos/{vid_id}").json()["transcript_srt_stale"] is False
+
+    def _id_and_path(self, client) -> tuple[int, str]:
+        video = client.get("/api/videos").json()[0]
+        return video["id"], video["path"]
+
+
 class TestSafeFilename:
     """_safe_filename strips directory traversal components."""
 

@@ -1312,34 +1312,49 @@ function clearDetail() {
 async function setStatus(id, status) {
   const clip = AppState.clips.find(c => c.id === id);
   const fromStatus = clip?.status;
-  const res = await fetch(`/api/clips/${id}/status`, {
-    method:  'POST',
-    headers: {'Content-Type': 'application/json'},
-    body:    JSON.stringify({status}),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    showToast(`Failed to update status: ${formatApiError(err)}`, 'error');
-    return;
-  }
-  AppState.activeClipId = id;
-  const [clipsData, clipDetail] = await Promise.all([
-    fetch(_clipsListUrl(AppState.activeVideoId)).then(r => r.json()),
-    fetch(`/api/clips/${id}`).then(r => r.json()),
-  ]);
-  AppState.clips = clipsData;
-  _renderClips();
-  renderDetail(clipDetail);
-  loadVideos();
+  // A slow DB-lock retry (with_write_retry, B6) can take seconds while analysis is
+  // hammering the DB - disable the review buttons for the duration so that wait
+  // reads as "working" instead of "stuck" (B7). Only the currently-shown clip's
+  // buttons exist in the DOM; a keyboard-shortcut call already selected its clip
+  // first, so this still finds them.
+  const statusButtons = id === AppState.activeClipId
+    ? [...document.querySelectorAll('.review-actions [data-act="set-status"]')]
+    : [];
+  statusButtons.forEach(btn => { btn.disabled = true; });
+  try {
+    const res = await fetch(`/api/clips/${id}/status`, {
+      method:  'POST',
+      headers: {'Content-Type': 'application/json'},
+      body:    JSON.stringify({status}),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      showToast(`Failed to update status: ${formatApiError(err)}`, 'error');
+      return;
+    }
+    AppState.activeClipId = id;
+    const [clipsData, clipDetail] = await Promise.all([
+      fetch(_clipsListUrl(AppState.activeVideoId)).then(r => r.json()),
+      fetch(`/api/clips/${id}`).then(r => r.json()),
+    ]);
+    AppState.clips = clipsData;
+    _renderClips();
+    renderDetail(clipDetail);
+    loadVideos();
 
-  if (fromStatus && fromStatus !== status) {
-    if (AppState.lastStatusChange?.timer) clearTimeout(AppState.lastStatusChange.timer);
-    if (AppState.lastBulkStatusChange?.timer) clearTimeout(AppState.lastBulkStatusChange.timer);
-    AppState.lastBulkStatusChange = null;
-    const label = {approved:'Approved', rejected:'Rejected', pending:'Marked as Unreviewed'}[status] || status;
-    AppState.lastStatusChange = {clipId: id, fromStatus};
-    AppState.lastStatusChange.timer = setTimeout(() => { AppState.lastStatusChange = null; }, 5000);
-    showUndoToast(`Clip ${label}`, undoLastStatus);
+    if (fromStatus && fromStatus !== status) {
+      if (AppState.lastStatusChange?.timer) clearTimeout(AppState.lastStatusChange.timer);
+      if (AppState.lastBulkStatusChange?.timer) clearTimeout(AppState.lastBulkStatusChange.timer);
+      AppState.lastBulkStatusChange = null;
+      const label = {approved:'Approved', rejected:'Rejected', pending:'Marked as Unreviewed'}[status] || status;
+      AppState.lastStatusChange = {clipId: id, fromStatus};
+      AppState.lastStatusChange.timer = setTimeout(() => { AppState.lastStatusChange = null; }, 5000);
+      showUndoToast(`Clip ${label}`, undoLastStatus);
+    }
+  } finally {
+    // renderDetail() already replaced these nodes on success - re-enabling a
+    // detached node is a harmless no-op there; this only matters on the error path.
+    statusButtons.forEach(btn => { btn.disabled = false; });
   }
 }
 

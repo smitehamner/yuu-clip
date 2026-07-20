@@ -985,6 +985,25 @@ def _bulk_clip_stats(db, video_ids: list[int]) -> dict[int, dict]:
     }
 
 
+def _transcript_srt_stale(video: Video) -> bool:
+    """True when the transcript was edited after the on-disk SRT sidecar was written.
+
+    Compares against the sidecar file's own mtime rather than tracking a separate
+    "last exported" timestamp - this also catches a pre-existing sidecar SRT that
+    predates any in-app edit, not just one this app wrote itself. No sidecar means
+    nothing to be stale against yet.
+    """
+    if not video.transcript_edited_at:
+        return False
+    srt = Path(video.path).with_suffix(".srt")
+    if not srt.exists():
+        return False
+    # transcript_edited_at is stored UTC-naive; attach tzinfo so the comparison against
+    # st_mtime (an epoch, tz-agnostic) is apples-to-apples - mirrors reel.py::_reel_stale.
+    edited_ts = video.transcript_edited_at.replace(tzinfo=timezone.utc).timestamp()
+    return edited_ts > srt.stat().st_mtime
+
+
 def _video_dict(video: Video, stats: dict) -> dict:
     return {
         "id": video.id,
@@ -1007,6 +1026,8 @@ def _video_dict(video: Video, stats: dict) -> dict:
         "summary_original": video.summary or "",
         "summary_is_edited": video.summary_user is not None,
         "has_timeline": bool(video.timeline_json),
+        "transcript_edited_at": video.transcript_edited_at.isoformat() if video.transcript_edited_at else None,
+        "transcript_srt_stale": _transcript_srt_stale(video),
         "context_names": json_list(video.context_names_json),
         "parent_video_id": video.parent_video_id,
         "segment_start_s": video.segment_start_s,

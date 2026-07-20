@@ -123,6 +123,19 @@ class TestUpdateCaptionSegment:
         clip = client.get(f"/api/clips/{clip_ids[0]}").json()
         assert clip["transcript_stale"] is False
 
+    def test_sets_video_transcript_edited_at(self, client, project_dir):
+        # B16: drives the video-level "SRT sidecar is stale" badge.
+        session = _db(project_dir)
+        seg_a_id, _b, _clips, vid = _seed_transcript(session)
+        assert session.get(Video, vid).transcript_edited_at is None
+        session.close()
+
+        client.put(f"/api/caption-segments/{seg_a_id}", json={"text": "edit"})
+
+        check = _db(project_dir)
+        assert check.get(Video, vid).transcript_edited_at is not None
+        check.close()
+
     def test_empty_text_rejected(self, client, project_dir):
         session = _db(project_dir)
         seg_a_id, _b, _clips, _vid = _seed_transcript(session)

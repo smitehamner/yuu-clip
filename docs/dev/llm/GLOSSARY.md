@@ -1186,6 +1186,27 @@ staleness warning above, which is about scores/descriptions vs. world contexts, 
 
 ---
 
+### Stale Captions File
+
+A recording's whole-file SRT sidecar (written on demand by "Save Captions to SRT",
+next to the source recording) no longer reflects the app's current transcript - a
+caption edit, speaker rename/reassignment, or name-correction landed after the file
+was last written. Distinct from Stale Export above: that is a per-clip *encoded*
+artifact tracked by a DB timestamp; this is a whole-recording *plain-text* file with
+no export record at all, so staleness is decided by comparing the transcript's last-edit
+timestamp against the sidecar file's own on-disk mtime, not a stored "last written" field.
+
+- **Code:** `Video.transcript_edited_at`, `transcript_srt_stale` (`routes/videos.py::_transcript_srt_stale`)
+- **UI label:** "Transcript edited since the saved captions file was written" note next
+  to "Save Captions to SRT" in the recording's Full Transcript card
+- **Notes:** Bumped by the same four routes as the per-clip `ClipCandidate.transcript_edited_at`
+  (caption edit, speaker rename, transcript-segment speaker reassignment, name-corrections
+  apply). Comparing against the file's mtime (rather than a stored export timestamp) also
+  catches a pre-existing sidecar SRT that predates any in-app edit, not just one this app
+  wrote itself.
+
+---
+
 ## UI & Review Concepts
 
 ### Recordings Panel

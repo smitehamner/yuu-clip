@@ -483,7 +483,8 @@ function renderVideoDetail(video, savedTimeline) {
 
     ${(video.clip_count > 0 || video.status === 'done') ? collapsibleCard('video-transcript',
         `<span class="detail-card-title">Full transcript</span>`,
-      `<div id="video-transcript-view" class="transcript"></div>`,
+      `${video.transcript_srt_stale ? `<div class="transcript-stale-note">&#9888; Transcript edited since the saved captions file was written - <button class="btn ghost" style="font-size:11px;padding:2px 8px" data-act="export-video-transcript" data-video-id="${video.id}">Save Captions to SRT</button> to refresh.</div>` : ''}
+      <div id="video-transcript-view" class="transcript"></div>`,
       { defaultCollapsed: true, attrs: `id="video-transcript-details" data-video-id="${video.id}"`,
         actions: `<span style="display:flex;gap:6px">
           <button class="btn ghost" style="font-size:11px;padding:3px 9px" title="Scan the transcript for mis-heard names (e.g. &quot;You&quot; for &quot;Yuu&quot;) and fix them"
@@ -576,6 +577,9 @@ async function _doExportVideoTranscript(id, btn, overwrite) {
     }
     if (!res.ok) throw new Error(formatApiError(data));
     showToast(`Captions exported → ${data.path}`);
+    // The stale-captions note (if shown) is now out of date - drop it rather than
+    // leaving a stale warning about a file we just refreshed.
+    document.querySelector('#video-transcript-details .transcript-stale-note')?.remove();
   } catch (err) {
     showToast(`Export failed: ${err.message}`, 'error');
   } finally {
@@ -1026,6 +1030,7 @@ function _handleDetailClick(e) {
     case 'open-video-actions': openVideoActionsModal(videoId); break;
     case 'open-name-corrections': window.openNameCorrections(videoId); break;
     case 'open-clip-create-picker': window.openClipCreatePicker(videoId); break;
+    case 'export-video-transcript': exportVideoTranscript(videoId, el); break;
     case 'generate-timeline': window.generateTimeline(videoId); break;
     case 'cancel-job': cancelJob(); break;
     case 'open-context-manager': window.openContextManager(); break;

@@ -218,8 +218,11 @@ class TestApplyRoute:
         session = make_session(project / ".yuu-clip" / "project.db")
         seg = session.query(TranscriptSegment).one()
         clip = session.query(ClipCandidate).one()
+        video = session.query(Video).one()
         assert seg.text == "Yuu were amazing"
         assert clip.transcript_edited_at is not None
+        # B16: drives the video-level "SRT sidecar is stale" badge.
+        assert video.transcript_edited_at is not None
         session.close()
 
     def test_apply_reports_drift_per_item(self, tmp_path: Path):
@@ -240,6 +243,8 @@ class TestApplyRoute:
 
         session = make_session(project / ".yuu-clip" / "project.db")
         assert session.query(TranscriptSegment).one().text == "You were amazing"
+        # Nothing actually changed - no clip and no video should be flagged stale.
+        assert session.query(Video).one().transcript_edited_at is None
         session.close()
 
     def test_apply_scan_apply_is_idempotent_second_time_finds_nothing(self, tmp_path: Path):

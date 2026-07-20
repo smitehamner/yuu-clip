@@ -198,6 +198,25 @@ class TestVideoTranscript:
         page.evaluate("renderVideoDetail(AppState.activeVideoData, null)")
         expect(page.locator("#video-transcript-view .tline")).to_have_count(2)
 
+    def test_stale_captions_note_shown_when_srt_sidecar_is_stale(self, page: Page):
+        # B16: a saved SRT sidecar that predates the transcript's last edit gets a
+        # visible staleness note next to "Save Captions to SRT".
+        self._select_first_video(page)
+        page.evaluate(
+            "() => renderVideoDetail({...AppState.activeVideoData, transcript_srt_stale: true}, null)"
+        )
+        page.locator("#video-transcript-details .detail-card-title").click()
+        note = page.locator("#video-transcript-details .transcript-stale-note")
+        expect(note).to_be_visible()
+        expect(note).to_contain_text("Save Captions to SRT")
+
+    def test_stale_captions_note_absent_when_srt_sidecar_is_current(self, page: Page):
+        self._select_first_video(page)
+        page.evaluate(
+            "() => renderVideoDetail({...AppState.activeVideoData, transcript_srt_stale: false}, null)"
+        )
+        expect(page.locator("#video-transcript-details .transcript-stale-note")).to_have_count(0)
+
 
 _VIDEO_LINES_SPK = {
     "lines": [

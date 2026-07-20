@@ -37,6 +37,7 @@ from yuu_clip.web.routes.common import (
     rebuild_video_excerpts,
     reject_if_busy,
     sse_response,
+    touch_video_transcript_edited,
     with_write_retry,
 )
 
@@ -184,39 +185,54 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     @router.put("/api/speakers/{speaker_id}")
     def rename_speaker(speaker_id: int, body: SpeakerRename):
         from yuu_clip.subtitles import refresh_export_sidecars
+
+        def _op():
+            db = ctx.get_db()
+            try:
+                speaker = db.get(Speaker, speaker_id)
+                if not speaker:
+                    raise HTTPException(404, "Speaker not found")
+
+                fields_set = body.model_fields_set
+                refreshed = 0
+                affected: list[ClipCandidate] = []
+                if "name" in fields_set:
+                    name = (body.name or "").strip()
+                    speaker.name = name or None
+                    speaker.confirmed = True
+                    db.flush()
+                    refreshed = rebuild_video_excerpts(db, speaker.video_id)
+                    edited_at = datetime.now(timezone.utc)
+                    affected = db.query(ClipCandidate).filter_by(video_id=speaker.video_id).all()
+                    for clip in affected:
+                        clip.transcript_edited_at = edited_at
+                    touch_video_transcript_edited(db, speaker.video_id)
+
+                if "color" in fields_set:
+                    color = (body.color or "").strip()
+                    if color and not _HEX_COLOR_RE.match(color):
+                        raise HTTPException(400, "Color must be a hex value like #4fc3f7")
+                    speaker.color = color or None
+
+                db.commit()
+                return speaker.id, speaker.video_id, speaker.name, speaker.color, [c.id for c in affected], refreshed
+            finally:
+                db.close()
+
+        speaker_id_out, video_id, name, color, affected_ids, refreshed = with_write_retry(_op)
+
         db = ctx.get_db()
         try:
-            speaker = db.get(Speaker, speaker_id)
-            if not speaker:
-                raise HTTPException(404, "Speaker not found")
-
-            fields_set = body.model_fields_set
-            refreshed = 0
-            affected: list[ClipCandidate] = []
-            if "name" in fields_set:
-                name = (body.name or "").strip()
-                speaker.name = name or None
-                speaker.confirmed = True
-                db.flush()
-                refreshed = rebuild_video_excerpts(db, speaker.video_id)
-                edited_at = datetime.now(timezone.utc)
-                affected = db.query(ClipCandidate).filter_by(video_id=speaker.video_id).all()
-                for clip in affected:
-                    clip.transcript_edited_at = edited_at
-
-            if "color" in fields_set:
-                color = (body.color or "").strip()
-                if color and not _HEX_COLOR_RE.match(color):
-                    raise HTTPException(400, "Color must be a hex value like #4fc3f7")
-                speaker.color = color or None
-
-            db.commit()
-            for clip in affected:
-                refresh_export_sidecars(clip, ctx.export_dir, ctx.config.export_name_template)
+            for clip_id in affected_ids:
+                clip = db.get(ClipCandidate, clip_id)
+                if clip is not None:
+                    refresh_export_sidecars(clip, ctx.export_dir, ctx.config.export_name_template)
             _log.info(
                 "Updated speaker %d (video %d): name=%r color=%r; refreshed %d clip excerpt(s)",
-                speaker_id, speaker.video_id, speaker.name, speaker.color, refreshed,
+                speaker_id_out, video_id, name, color, refreshed,
             )
+            speaker = db.get(Speaker, speaker_id_out)
+            assert speaker is not None  # the rename just committed onto it
             samples = _speaker_samples(db, [speaker.id])
             return _speaker_dict(speaker, samples.get(speaker.id))
         finally:
@@ -231,50 +247,63 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         re-score - mirrors the caption-edit route.
         """
         from yuu_clip.subtitles import refresh_export_sidecars
+
+        def _op():
+            db = ctx.get_db()
+            try:
+                seg = db.get(TranscriptSegment, seg_id)
+                if not seg:
+                    raise HTTPException(404, "Transcript segment not found")
+                video_id = seg.transcript.audio_track.video_id
+
+                if body.speaker_id is not None:
+                    speaker = db.get(Speaker, body.speaker_id)
+                    if not speaker or speaker.video_id != video_id:
+                        raise HTTPException(400, "Speaker does not belong to this recording")
+
+                seg.speaker_id = body.speaker_id
+                seg.speaker_edited = True
+
+                affected = (
+                    db.query(ClipCandidate)
+                    .filter(
+                        ClipCandidate.video_id == video_id,
+                        ClipCandidate.start_ms < seg.end_ms,
+                        ClipCandidate.end_ms > seg.start_ms,
+                    )
+                    .all()
+                )
+                edited_at = datetime.now(timezone.utc)
+                for clip in affected:
+                    rebuild_clip_excerpt(clip)
+                    clip.transcript_edited_at = edited_at
+                touch_video_transcript_edited(db, video_id)
+                db.commit()
+                return video_id, seg.speaker_id, [c.id for c in affected]
+            finally:
+                db.close()
+
+        video_id, speaker_id, affected_ids = with_write_retry(_op)
+
         db = ctx.get_db()
         try:
-            seg = db.get(TranscriptSegment, seg_id)
-            if not seg:
-                raise HTTPException(404, "Transcript segment not found")
-            video_id = seg.transcript.audio_track.video_id
+            for clip_id in affected_ids:
+                clip = db.get(ClipCandidate, clip_id)
+                if clip is not None:
+                    refresh_export_sidecars(clip, ctx.export_dir, ctx.config.export_name_template)
 
-            if body.speaker_id is not None:
-                speaker = db.get(Speaker, body.speaker_id)
-                if not speaker or speaker.video_id != video_id:
-                    raise HTTPException(400, "Speaker does not belong to this recording")
-
-            seg.speaker_id = body.speaker_id
-            seg.speaker_edited = True
-
-            affected = (
-                db.query(ClipCandidate)
-                .filter(
-                    ClipCandidate.video_id == video_id,
-                    ClipCandidate.start_ms < seg.end_ms,
-                    ClipCandidate.end_ms > seg.start_ms,
-                )
-                .all()
-            )
-            edited_at = datetime.now(timezone.utc)
-            for clip in affected:
-                rebuild_clip_excerpt(clip)
-                clip.transcript_edited_at = edited_at
-            db.commit()
-            for clip in affected:
-                refresh_export_sidecars(clip, ctx.export_dir, ctx.config.export_name_template)
-
-            speaker = db.get(Speaker, seg.speaker_id) if seg.speaker_id is not None else None
+            speaker = db.get(Speaker, speaker_id) if speaker_id is not None else None
             _log.info(
                 "Reassigned segment %d (video %d) to speaker %s - rebuilt %d clip excerpt(s)",
-                seg_id, video_id, seg.speaker_id, len(affected),
+                seg_id, video_id, speaker_id, len(affected_ids),
             )
             return {
                 "seg_id": seg_id,
-                "speaker_id": seg.speaker_id,
+                "speaker_id": speaker_id,
                 "speaker": speaker.display_name if speaker else None,
                 "color": speaker.display_color if speaker else None,
                 "speaker_edited": True,
-                "affected_clip_ids": [c.id for c in affected],
+                "affected_clip_ids": affected_ids,
             }
         finally:
             db.close()

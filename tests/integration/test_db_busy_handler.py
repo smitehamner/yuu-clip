@@ -134,3 +134,129 @@ def test_clip_status_route_survives_a_transient_lock(client, monkeypatch):
 
     assert r.status_code == 200
     assert state["failed_once"] is True  # the first commit did fail and was retried
+
+
+# ---------------------------------------------------------------------------
+# B6: the caption edit / speaker rename / segment reassignment / name-corrections
+# apply routes were previously a plain db.commit() with no retry - each now wraps
+# its write in with_write_retry like clip status above. One end-to-end wiring
+# proof per route, same technique: fail the first commit, confirm a 200 (not the
+# 503 an un-retried write would produce) and that a retry actually happened.
+# ---------------------------------------------------------------------------
+
+def _fail_first_commit(monkeypatch) -> dict:
+    """Patch Session.commit to raise "database is locked" once, then behave normally.
+
+    Returns the shared state dict - state["failed_once"] confirms a retry occurred.
+    """
+    from sqlalchemy.orm import Session
+
+    original_commit = Session.commit
+    state = {"failed_once": False}
+
+    def flaky_commit(self):
+        if not state["failed_once"]:
+            state["failed_once"] = True
+            raise OperationalError("UPDATE", {}, Exception("database is locked"))
+        return original_commit(self)
+
+    monkeypatch.setattr(Session, "commit", flaky_commit)
+    return state
+
+
+def test_caption_edit_route_survives_a_transient_lock(client, project_dir, monkeypatch):
+    from yuu_clip.db.models import AudioTrack, Transcript, TranscriptSegment, Video, make_session
+
+    session = make_session(project_dir / ".yuu-clip" / "project.db")
+    video = session.query(Video).first()
+    track = session.query(AudioTrack).filter_by(video_id=video.id).first()
+    tx = Transcript(audio_track_id=track.id, model_name="base")
+    session.add(tx)
+    session.flush()
+    seg = TranscriptSegment(transcript_id=tx.id, start_ms=0, end_ms=1000, text="helo")
+    session.add(seg)
+    session.commit()
+    seg_id = seg.id
+    session.close()
+
+    state = _fail_first_commit(monkeypatch)
+    r = client.put(f"/api/caption-segments/{seg_id}", json={"text": "hello"})
+
+    assert r.status_code == 200
+    assert state["failed_once"] is True
+
+
+def test_speaker_rename_route_survives_a_transient_lock(client, project_dir, monkeypatch):
+    from yuu_clip.db.models import Speaker, Video, make_session
+
+    session = make_session(project_dir / ".yuu-clip" / "project.db")
+    video = session.query(Video).first()
+    speaker = Speaker(video_id=video.id, display_index=1)
+    session.add(speaker)
+    session.commit()
+    speaker_id = speaker.id
+    session.close()
+
+    state = _fail_first_commit(monkeypatch)
+    r = client.put(f"/api/speakers/{speaker_id}", json={"name": "Yuu"})
+
+    assert r.status_code == 200
+    assert state["failed_once"] is True
+
+
+def test_segment_speaker_reassign_route_survives_a_transient_lock(client, project_dir, monkeypatch):
+    from yuu_clip.db.models import (
+        AudioTrack,
+        Speaker,
+        Transcript,
+        TranscriptSegment,
+        Video,
+        make_session,
+    )
+
+    session = make_session(project_dir / ".yuu-clip" / "project.db")
+    video = session.query(Video).first()
+    track = session.query(AudioTrack).filter_by(video_id=video.id).first()
+    tx = Transcript(audio_track_id=track.id, model_name="base")
+    session.add(tx)
+    session.flush()
+    speaker = Speaker(video_id=video.id, display_index=1, name="Mara", confirmed=True)
+    session.add(speaker)
+    session.flush()
+    seg = TranscriptSegment(transcript_id=tx.id, start_ms=0, end_ms=1000, text="hello")
+    session.add(seg)
+    session.commit()
+    seg_id, speaker_id = seg.id, speaker.id
+    session.close()
+
+    state = _fail_first_commit(monkeypatch)
+    r = client.put(f"/api/transcript-segments/{seg_id}/speaker", json={"speaker_id": speaker_id})
+
+    assert r.status_code == 200
+    assert state["failed_once"] is True
+
+
+def test_name_corrections_apply_route_survives_a_transient_lock(client, project_dir, monkeypatch):
+    from yuu_clip.db.models import AudioTrack, Transcript, TranscriptSegment, Video, make_session
+
+    session = make_session(project_dir / ".yuu-clip" / "project.db")
+    video = session.query(Video).first()
+    video_id = video.id
+    track = session.query(AudioTrack).filter_by(video_id=video.id).first()
+    tx = Transcript(audio_track_id=track.id, model_name="base")
+    session.add(tx)
+    session.flush()
+    seg = TranscriptSegment(transcript_id=tx.id, start_ms=0, end_ms=1000, text="You were amazing")
+    session.add(seg)
+    session.commit()
+    seg_id = seg.id
+    session.close()
+
+    state = _fail_first_commit(monkeypatch)
+    r = client.post(f"/api/videos/{video_id}/name-corrections/apply", json={"corrections": [{
+        "segment_id": seg_id, "token_start": 0, "token_end": 3, "token": "You", "replacement": "Yuu",
+    }]})
+
+    assert r.status_code == 200
+    assert r.json()["applied"] == 1
+    assert state["failed_once"] is True
