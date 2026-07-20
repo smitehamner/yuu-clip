@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 import urllib.request
 
 import pytest
@@ -641,7 +642,13 @@ class TestImportFromUrl:
         expect(page.locator("#import-url-inspect-area")).to_contain_text("Already imported as")
         expect(page.locator("#import-url-inspect-area")).to_contain_text("dup.mkv")
 
-    def test_download_completion_prefills_analyze_path(self, page: Page):
+    def test_download_stays_in_panel_with_inline_progress(self, page: Page):
+        # Regression test for B1 (2026-07-19 UX bug hunt): the panel used to
+        # close to the log panel the instant the download started, then
+        # reopen on completion - reading as being "kicked out" mid-setup.
+        # The download is still just fetching the source file, so the panel
+        # (and its settings) must stay visible the whole time, with progress
+        # rendered inline instead.
         fake_path = "C:\\fake\\downloads\\my video.mkv"
         page.goto(LIVE_URL)
         self._open_panel(page)
@@ -660,20 +667,51 @@ class TestImportFromUrl:
         page.wait_for_selector("#btn-start-import")
 
         page.route("**/api/import-url/start", _fulfill_json({"status": "started"}))
-        page.route("**/api/import-url/events", lambda route: route.fulfill(
-            status=200, content_type="text/event-stream",
-            body=_sse_body([
-                "[Download] 50.0% of 100MB at 5MB/s, ETA 00:05",
-                f"[Imported] {fake_path}",
-            ]),
-        ))
+
+        # Capture the SSE request instead of fulfilling it immediately, so the
+        # test can assert the "still downloading" state for real - the request
+        # stays genuinely in flight until this test chooses to complete it -
+        # rather than sleeping inside the route handler, which blocks the
+        # Playwright driver itself (and everything else waiting on it, i.e.
+        # the assertions below).
+        pending_events_route: dict = {}
+        page.route("**/api/import-url/events", lambda route: pending_events_route.update(route=route))
         # Downloaded VODs have no real file on disk - stub the probe the
         # prefilled path triggers so it fails quietly instead of erroring.
         page.route("**/api/probe", _fulfill_json({"detail": "File not found"}, status=400))
 
         page.click("#btn-start-import")
+
+        # While the download SSE request is still unanswered: the panel stays
+        # open and shows inline progress, and the app does not switch over to
+        # the log panel to show it instead.
+        expect(page.locator("#new-recording-panel")).to_be_visible()
+        expect(page.locator("#import-url-progress-row")).to_be_visible()
+        expect(page.locator("#import-url-progress-row")).to_contain_text("Downloading")
+        # The log panel starts "visible" but minimized to a thin strip on every
+        # page load (boot.js); openLog() is what expands it by dropping
+        # "minimized" - it must stay minimized, i.e. never force-opened.
+        expect(page.locator("#log-panel")).to_have_class(re.compile(r"\bminimized\b"))
+
+        deadline = time.monotonic() + 5
+        while "route" not in pending_events_route and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert "route" in pending_events_route, "the download never reached the mocked SSE endpoint"
+        pending_events_route["route"].fulfill(
+            status=200, content_type="text/event-stream",
+            body=_sse_body([
+                "[Download] 50.0% of 100MB at 5MB/s, ETA 00:05",
+                f"[Imported] {fake_path}",
+            ]),
+        )
+
+        # On completion: still the same open panel (no close/reopen round
+        # trip), now showing the local-file field prefilled with the
+        # downloaded path, ready for Start Analysis.
         expect(page.locator("#toast-container .toast.success")).to_contain_text("Download complete")
-        page.locator("#new-recording-panel").wait_for(state="visible")
+        expect(page.locator("#new-recording-panel")).to_be_visible()
+        expect(page.locator("#recording-source-field")).to_be_visible()
+        expect(page.locator("#import-url-field")).to_be_hidden()
         expect(page.locator("#analyze-path")).to_have_value(fake_path)
 
 

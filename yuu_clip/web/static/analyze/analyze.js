@@ -882,8 +882,11 @@ async function startImportUrlDownload() {
 
   const title = _importUrlInfo.title;
   _panelDirty = false;
-  _doCloseNewRecordingPanel();
-  openLog();
+  // The panel stays open for the whole download - it's still just fetching the
+  // source file, no analysis has started yet. Progress renders inline (below)
+  // instead of kicking the user out to the log panel - see B1 in the 2026-07-19
+  // UX bug hunt.
+  _renderImportUrlDownloadProgress();
   appendLog(`Downloading: ${title}`);
   streamSSE(
     '/api/import-url/events',
@@ -902,6 +905,30 @@ async function startImportUrlDownload() {
   });
 }
 
+// Swaps the Download button for a progress row inside the same estimate box,
+// reusing the .estimate-row treatment already used for the time-estimate lines
+// above it rather than any new markup.
+function _renderImportUrlDownloadProgress() {
+  const actions = document.querySelector('#import-url-inspect-area .new-recording-actions');
+  if (!actions) return;
+  actions.innerHTML = `
+    <div class="estimate-row" id="import-url-progress-row">
+      <span class="estimate-step">Downloading</span>
+      <span class="estimate-note" id="import-url-progress-note"></span>
+      <span class="estimate-time" id="import-url-progress-pct">0%</span>
+    </div>`;
+}
+
+// Restores the Download button, e.g. after a completed download that reported
+// no file path (see _onImportUrlDownloadDone) - the panel stays open, so the
+// progress row can't just be left stuck at its last value.
+function _resetImportUrlActionsButton() {
+  const actions = document.querySelector('#import-url-inspect-area .new-recording-actions');
+  if (!actions) return;
+  actions.innerHTML = `<button class="btn primary" id="btn-start-import">Download</button>`;
+  document.getElementById('btn-start-import').addEventListener('click', startImportUrlDownload);
+}
+
 // Mirrors url_import.py's format_progress_line/parse_progress_line - keep the
 // three in sync if that format ever changes.
 const _IMPORT_PROGRESS_RE = /^\[Download\] ([\d.]+)% of (\S+)(?: at (\S+)\/s)?(?:, ETA (\S+))?$/;
@@ -914,13 +941,24 @@ function _onImportUrlLine(line) {
   if (imported) { _lastImportedPath = imported[1].trim(); return; }
 
   const m = line.match(_IMPORT_PROGRESS_RE);
-  const el = document.getElementById('step-0');
-  if (!m || !el) return;
+  if (!m) return;
   const pct = parseFloat(m[1]);
   const speedPart = m[3] ? ` at ${m[3]}/s` : '';
   const etaPart = m[4] ? ` (~${m[4]} left)` : '';
-  el.textContent = `Download · ${pct.toFixed(0)}%${speedPart}${etaPart}`;
-  el.style.backgroundImage = `linear-gradient(to right, var(--green) ${pct}%, var(--accent) ${pct}%)`;
+
+  const stepEl = document.getElementById('step-0');
+  if (stepEl) {
+    stepEl.textContent = `Download · ${pct.toFixed(0)}%${speedPart}${etaPart}`;
+    stepEl.style.backgroundImage = `linear-gradient(to right, var(--green) ${pct}%, var(--accent) ${pct}%)`;
+  }
+
+  const row = document.getElementById('import-url-progress-row');
+  if (row) {
+    row.style.backgroundImage =
+      `linear-gradient(to right, color-mix(in srgb, var(--accent) 16%, transparent) ${pct}%, transparent ${pct}%)`;
+    document.getElementById('import-url-progress-note').textContent = `${speedPart}${etaPart}`.trim();
+    document.getElementById('import-url-progress-pct').textContent = `${pct.toFixed(0)}%`;
+  }
 }
 
 function _onImportUrlDownloadDone(title) {
@@ -928,6 +966,7 @@ function _onImportUrlDownloadDone(title) {
   window.SoundFx.play('analysis');
   if (!_lastImportedPath) {
     showToast('Download finished, but the file path was not reported - open it from the downloads folder.', 'warning');
+    _resetImportUrlActionsButton();
     return;
   }
   const path = _lastImportedPath;
@@ -935,10 +974,9 @@ function _onImportUrlDownloadDone(title) {
   // The job just finished, but endJobUI() only re-enables #btn-analyze after its
   // cosmetic 2s "done" pill delay - force it open now instead of waiting.
   document.getElementById('btn-analyze').disabled = false;
-  openNewRecordingPanel().then(() => {
-    document.getElementById('analyze-path').value = path;
-    scheduleProbe();
-  });
+  hideImportUrlSection();
+  document.getElementById('analyze-path').value = path;
+  scheduleProbe();
 }
 
 // ── profile manager ───────────────────────────────────────────────────────────
