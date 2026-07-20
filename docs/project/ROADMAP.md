@@ -50,7 +50,11 @@ except the two items below).
   (`INGEST_STEPS`/`SCORE_STEPS` `patterns`) are kept one release as a fallback - remove
   them once the marker path is proven in real runs. Still open: the `export/` engine
   emits progress via `console.print` only (no marker channel yet); add one if export
-  ever needs a structured progress bar or to run in-process.
+  ever needs a structured progress bar or to run in-process. **Trigger occurred
+  (2026-07-19):** Batch Export's progress pill was asked to show the current clip's id +
+  description, which a regex-parsed prose line can't carry cleanly - give `export/` a
+  real marker channel for this instead of a one-off regex hack. Detail in the private
+  planning workspace, `UX-BUG-HUNT-2026-07-19.md` B14.
 
 - [ ] **Drain the residual `window.X = X` shim (vitest follow-on)** - the ESM migration
   (completed 2026-07-16) left `static/main.esm.js` with a shrinking `window.X = X` shim,
@@ -163,6 +167,32 @@ Wanted before distributing beyond friends/trusted users.
   serialize their writes), so the real win is genuinely independent work (clip export, proxy
   builds) overlapping one DB job. Only worth starting on real demand.
 
+- [ ] **Batch-analyze multiple recordings from the web UI** *(unscoped)* - the New Recording
+  panel only ever queues one file (or one URL import) at a time; there is no multi-select or
+  queue. The underlying loop-and-pause machinery already exists at the CLI layer
+  (`cli/analyze.py`'s `analyze` command accepts multiple video paths/a glob and pauses between
+  them via `_wait_while_paused`), but the web UI's `/api/analyze/start` always builds the CLI
+  command for exactly one video, so nothing in the app can ever reach that multi-video path.
+  Surfaced 2026-07-19 alongside a related bug: the job header's "Pause after current video"
+  toggle is shown even for a plain single-recording run, where it is currently a dead control
+  (there is no next video to ever pause before - see the UX bug-hunt notes) and only genuinely
+  works for pre-split segments of one recording. Building real batch-analyze support would give
+  that toggle an honest meaning for the common case too, instead of needing to hide/relabel it
+  for single-video runs.
+
+- [ ] **Right-click context menus for videos/clips** *(unscoped, deferred)* - investigated
+  2026-07-19: everything a context menu would offer already exists via visible affordances
+  (the video-level "Additional Actions" modal, per-field clip kebab buttons, the bulk-select
+  toolbar) - nothing is only reachable by a hypothetical right-click, and there is zero
+  existing `contextmenu` wiring anywhere in the app today. Building one would be a second,
+  hidden path to things already reachable via visible buttons, cutting against the project's
+  own discoverability-over-power-user-efficiency principle for a non-developer audience - so
+  deferred rather than built for an initial release. Cheaper alternative if the underlying
+  itch keeps coming up: sidebar clip-list rows have no per-row quick action today (only a
+  bulk-select checkbox, or click-in to open full detail) - a small kebab button per row
+  (reusing the existing `kebab-btn`/`data-act` pattern) would close that gap without a whole
+  context-menu system.
+
 ---
 
 ## 5 - Platform reach
@@ -238,6 +268,22 @@ kept here so they're not lost.
   audio track that might trigger copyright claims. Requires audio fingerprinting against a
   reference database (AcoustID or similar); needs evaluation of fingerprinting libraries,
   database licensing, and accuracy on gaming audio before it can be scoped.
+
+- **Vision auto-describe feeding recording timeline generation** *(idea only)* - vision
+  auto-describe (opt-in image-LLM clip descriptions) currently only ever runs against
+  individual clip candidates; optionally feed the same descriptions into a recording's
+  timeline generation too, not just per-clip descriptions.
+
+- **Per-clip representative thumbnail frame** *(idea only)* - capture a representative frame
+  per clip (e.g. partway through, or a scene-detected keyframe) to display as a thumbnail -
+  useful in the sidebar clip list (currently text-only rows) and specifically wanted in the
+  highlight reel builder, where picking clips by description alone is harder than picking by
+  a glance at what's in frame. No thumbnail concept exists in the codebase today - would need
+  a capture step, an on-disk storage/cache convention, a DB column, and a serving route.
+
+- **Custom icon art replacing emoji** *(idea only)* - the icons used throughout the app (sort
+  dropdown, clip scoring box, Getting Started legend, clip-list badges) are emoji today;
+  replace with custom (not AI-generated) icon art.
 
 ---
 
