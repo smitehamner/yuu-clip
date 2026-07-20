@@ -10,8 +10,9 @@ transcribe.speaker_attach; the raw ASR backend lives in transcribe.transcriber.
 from __future__ import annotations
 
 from dataclasses import asdict
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Callable, Optional
 
 from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
@@ -28,6 +29,15 @@ if TYPE_CHECKING:
 
 console = Console()
 
+# Transcription commits (not just flushes) every this many segments. Two reasons,
+# and the commit must come first for the second to be safe:
+#  - it bounds how much work a crashed run loses, and
+#  - it closes the write transaction, so *pause_gate* can block for a whole thermal
+#    cool-down without holding SQLite's single write lock. Blocking mid-transaction
+#    would make every web route that writes fail with "database is locked" for
+#    minutes, which is why the pause point sits here and not just anywhere in the loop.
+SEGMENTS_PER_COMMIT = 200
+
 
 def resolve_transcription_language(explicit: Optional[str], config: Config) -> Optional[str]:
     """Per-run explicit language wins over the configured default; None = auto-detect."""
@@ -42,12 +52,20 @@ def transcribe_track(
     config: Config,
     session: "Session",
     language: Optional[str] = None,
+    pause_gate: Optional[Callable[[], None]] = None,
 ) -> Transcript:
     """
     Transcribe *track.extracted_path* and persist the result to the DB.
 
     Returns the newly created Transcript ORM object. Streams the backend's segment
-    iterator so progress shows live even on long recordings.
+    iterator so progress shows live even on long recordings, committing every
+    SEGMENTS_PER_COMMIT segments.
+
+    *pause_gate*, when given, is called at each of those commit boundaries and may
+    block (the analyze pause/thermal-auto-pause point); omit it and transcription
+    runs straight through. The returned Transcript carries ``completed_at`` only if
+    the whole track finished - a partial commit left by a crash stays NULL so the
+    next run discards rather than reuses it.
     """
     if not track.extracted_path:
         raise ValueError(f"Track {track.id} has no extracted_path - extract audio first.")
@@ -71,6 +89,9 @@ def transcribe_track(
     )
     session.add(transcript)
     session.flush()  # get transcript.id before adding segments
+    # Held as a local because the commits below expire the ORM instance, and
+    # re-reading transcript.id per segment would issue a SELECT each time.
+    transcript_id = transcript.id
 
     seg_count = 0
 
@@ -92,7 +113,7 @@ def transcribe_track(
         for seg in result.segments:
             seg_count += 1
             db_seg = TranscriptSegment(
-                transcript_id=transcript.id,
+                transcript_id=transcript_id,
                 start_ms=seg.start_ms,
                 end_ms=seg.end_ms,
                 text=seg.text,
@@ -104,10 +125,13 @@ def transcribe_track(
             session.add(db_seg)
             progress.update(task, segs=seg_count)
 
-            if seg_count % 200 == 0:  # flush in batches to avoid holding everything in memory
-                session.flush()
+            if seg_count % SEGMENTS_PER_COMMIT == 0:
+                session.commit()
+                if pause_gate is not None:
+                    pause_gate()
 
-    session.flush()
+    transcript.completed_at = datetime.now(timezone.utc)
+    session.commit()
     _log.info(
         "Transcription complete: track %d [%s], %d segments, language=%s",
         track.id, track.label, seg_count, transcript.language or "auto",

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 
 from sqlalchemy.pool import NullPool
@@ -90,6 +91,74 @@ class TestAdditiveColumns:
             assert session2.get(ClipCandidate, clip_id).kind == "clip"
         finally:
             session2.close()
+
+
+class TestOneTimeBackfills:
+    """transcripts.completed_at cannot express its correct pre-existing-row value as a
+    SQLite ALTER-TABLE DEFAULT (it is not a constant), so it carries a one-time UPDATE
+    run at the moment the column is added. Getting this wrong is expensive in both
+    directions: no backfill silently re-transcribes every existing recording, and a
+    backfill that re-runs marks a genuinely truncated transcript complete."""
+
+    def _drop_column(self, db_path: Path, table: str, column: str):
+        conn = sqlite3.connect(db_path)
+        try:
+            conn.execute(f"ALTER TABLE {table} DROP COLUMN {column}")
+            conn.commit()
+        finally:
+            conn.close()
+
+    def _seed_transcript(self, engine, completed_at):
+        from sqlalchemy.orm import sessionmaker
+
+        from yuu_clip.db.models import AudioTrack, Transcript, Video
+
+        session = sessionmaker(bind=engine)()
+        video = Video(path="x.mkv", filename="x.mkv")
+        session.add(video)
+        session.flush()
+        track = AudioTrack(video_id=video.id, stream_index=0, label="combined")
+        session.add(track)
+        session.flush()
+        transcript = Transcript(
+            audio_track_id=track.id, model_name="medium", completed_at=completed_at,
+        )
+        session.add(transcript)
+        session.commit()
+        transcript_id = transcript.id
+        session.close()
+        return transcript_id
+
+    def _completed_at(self, engine, transcript_id):
+        from sqlalchemy.orm import sessionmaker
+
+        from yuu_clip.db.models import Transcript
+
+        session = sessionmaker(bind=engine)()
+        try:
+            return session.get(Transcript, transcript_id).completed_at
+        finally:
+            session.close()
+
+    def test_preexisting_transcripts_backfill_to_complete(self, tmp_path: Path):
+        db = tmp_path / "old.db"
+        engine = make_engine(db)
+        transcript_id = self._seed_transcript(engine, datetime(2020, 1, 1, tzinfo=timezone.utc))
+        engine.dispose()
+
+        self._drop_column(db, "transcripts", "completed_at")  # a DB predating the marker
+
+        assert self._completed_at(make_engine(db), transcript_id) is not None
+
+    def test_backfill_does_not_re_run_on_later_opens(self, tmp_path: Path):
+        """A transcript left unfinished by a crashed run must stay unfinished across
+        restarts - otherwise the next analyze reuses a truncated transcript."""
+        db = tmp_path / "project.db"
+        engine = make_engine(db)
+        transcript_id = self._seed_transcript(engine, None)
+        engine.dispose()
+
+        assert self._completed_at(make_engine(db), transcript_id) is None
 
 
 class TestAdditiveColumnCompleteness:

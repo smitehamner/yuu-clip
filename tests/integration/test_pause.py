@@ -5,6 +5,8 @@ from __future__ import annotations
 import threading
 import time
 
+import pytest
+
 # ---------------------------------------------------------------------------
 # Flag-file helpers
 # ---------------------------------------------------------------------------
@@ -229,7 +231,7 @@ class TestCliPauseLoop:
 
 
 # ---------------------------------------------------------------------------
-# Shared wait_while_paused helper - the poll both pause points are built on
+# Shared wait_while_paused helper - the poll every pause point is built on
 # ---------------------------------------------------------------------------
 
 class TestWaitWhilePaused:
@@ -317,3 +319,274 @@ class TestScoringPauseGateWiring:
             session.close()
 
         assert callable(captured["pause_gate"])
+
+
+# ---------------------------------------------------------------------------
+# Transcription pause point (UX bug hunt B9, remaining gap) - the other
+# sustained-GPU stage. The gate is only safe because transcription commits at
+# segment batch boundaries; blocking inside the old single-transaction loop
+# would hold SQLite's write lock for the whole cool-down.
+# ---------------------------------------------------------------------------
+
+class _FakeSegment:
+    def __init__(self, index):
+        self.start_ms = index * 1000
+        self.end_ms = (index + 1) * 1000
+        self.text = f"seg{index}"
+        self.confidence = -0.1
+        self.words = None
+
+
+class _FakeResult:
+    language = "en"
+
+    def __init__(self, count):
+        self.segments = (_FakeSegment(i) for i in range(count))
+
+
+def _transcribable_track(tmp_path, name="project.db"):
+    from yuu_clip.db.models import AudioTrack, Video, make_session
+    audio = tmp_path / "t0.wav"
+    audio.write_bytes(b"fake")
+    session = make_session(tmp_path / name)
+    video = Video(path=str(tmp_path / "s.mkv"), filename="s.mkv", status="probed", duration_ms=60_000)
+    session.add(video)
+    session.flush()
+    track = AudioTrack(
+        video_id=video.id, stream_index=0, label="combined",
+        do_transcribe=True, do_score=True, extracted_path=str(audio),
+    )
+    session.add(track)
+    session.flush()
+    return session, video, track
+
+
+def _stub_transcriber(monkeypatch, segment_count):
+    from yuu_clip.transcribe import whisper_runner
+
+    class _Backend:
+        def transcribe(self, audio_path, language):
+            return _FakeResult(segment_count)
+
+    monkeypatch.setattr(whisper_runner, "make_transcriber", lambda config: _Backend())
+
+
+class TestTranscriptionPauseGate:
+    def test_gate_called_once_per_commit_batch(self, tmp_path, monkeypatch):
+        from yuu_clip.config import Config
+        from yuu_clip.transcribe import whisper_runner
+
+        monkeypatch.setattr(whisper_runner, "SEGMENTS_PER_COMMIT", 10)
+        _stub_transcriber(monkeypatch, 35)
+        session, _video, track = _transcribable_track(tmp_path)
+        calls = []
+        try:
+            whisper_runner.transcribe_track(
+                track, Config(), session, pause_gate=lambda: calls.append(1),
+            )
+        finally:
+            session.close()
+
+        assert len(calls) == 3  # after segments 10, 20, 30 - not the trailing 5
+
+    def test_gate_sees_preceding_segments_already_committed(self, tmp_path, monkeypatch):
+        """The whole point of moving from flush() to commit(): the gate may block for
+        minutes, so nothing may be left sitting in an open write transaction."""
+        from yuu_clip.config import Config
+        from yuu_clip.db.models import TranscriptSegment, make_session
+        from yuu_clip.transcribe import whisper_runner
+
+        monkeypatch.setattr(whisper_runner, "SEGMENTS_PER_COMMIT", 10)
+        _stub_transcriber(monkeypatch, 12)
+        session, _video, track = _transcribable_track(tmp_path)
+        visible_to_others = []
+
+        def _peek_over_a_second_connection():
+            other = make_session(tmp_path / "project.db")
+            try:
+                visible_to_others.append(other.query(TranscriptSegment).count())
+            finally:
+                other.close()
+
+        try:
+            whisper_runner.transcribe_track(
+                track, Config(), session, pause_gate=_peek_over_a_second_connection,
+            )
+        finally:
+            session.close()
+
+        assert visible_to_others == [10]
+
+    def test_no_gate_still_transcribes_everything(self, tmp_path, monkeypatch):
+        from yuu_clip.config import Config
+        from yuu_clip.transcribe import whisper_runner
+
+        monkeypatch.setattr(whisper_runner, "SEGMENTS_PER_COMMIT", 10)
+        _stub_transcriber(monkeypatch, 25)
+        session, _video, track = _transcribable_track(tmp_path)
+        try:
+            transcript = whisper_runner.transcribe_track(track, Config(), session)
+            assert len(transcript.segments) == 25
+        finally:
+            session.close()
+
+    def test_finished_track_is_marked_complete(self, tmp_path, monkeypatch):
+        from yuu_clip.config import Config
+        from yuu_clip.transcribe import whisper_runner
+
+        monkeypatch.setattr(whisper_runner, "SEGMENTS_PER_COMMIT", 10)
+        _stub_transcriber(monkeypatch, 25)
+        session, _video, track = _transcribable_track(tmp_path)
+        try:
+            transcript = whisper_runner.transcribe_track(track, Config(), session)
+            assert transcript.completed_at is not None
+        finally:
+            session.close()
+
+    def test_track_that_dies_mid_loop_stays_incomplete(self, tmp_path, monkeypatch):
+        """The committed-but-truncated case the completeness marker exists for: the
+        segments are durable, but nothing may read them as a finished transcript."""
+        from yuu_clip.config import Config
+        from yuu_clip.db.models import Transcript, TranscriptSegment, make_session
+        from yuu_clip.transcribe import whisper_runner
+
+        def _dies_after_twelve():
+            for index in range(12):
+                yield _FakeSegment(index)
+            raise RuntimeError("backend fell over mid-track")
+
+        class _Backend:
+            def transcribe(self, audio_path, language):
+                result = _FakeResult(0)
+                result.segments = _dies_after_twelve()
+                return result
+
+        monkeypatch.setattr(whisper_runner, "SEGMENTS_PER_COMMIT", 10)
+        monkeypatch.setattr(whisper_runner, "make_transcriber", lambda config: _Backend())
+        session, _video, track = _transcribable_track(tmp_path)
+        try:
+            with pytest.raises(RuntimeError):
+                whisper_runner.transcribe_track(track, Config(), session)
+        finally:
+            session.close()
+
+        verify = make_session(tmp_path / "project.db")
+        try:
+            assert verify.query(TranscriptSegment).count() == 10  # the committed batch
+            assert verify.query(Transcript).one().completed_at is None
+        finally:
+            verify.close()
+
+    def test_gate_blocks_while_the_flag_is_present(self, tmp_path, monkeypatch):
+        from yuu_clip.analyze.pause import create_pause_flag, remove_pause_flag
+        from yuu_clip.config import Config
+        from yuu_clip.pipeline.ingest import _make_pause_gate
+        from yuu_clip.transcribe import whisper_runner
+
+        monkeypatch.setattr(whisper_runner, "SEGMENTS_PER_COMMIT", 10)
+        _stub_transcriber(monkeypatch, 12)
+        session, _video, track = _transcribable_track(tmp_path)
+        create_pause_flag(tmp_path)
+        threading.Timer(0.15, remove_pause_flag, args=(tmp_path,)).start()
+
+        start = time.monotonic()
+        try:
+            whisper_runner.transcribe_track(
+                track, Config(), session, pause_gate=_make_pause_gate(tmp_path, "paused"),
+            )
+        finally:
+            session.close()
+        assert time.monotonic() - start >= 0.1
+
+
+class TestTranscriptionPauseGateWiring:
+    """The B9 regression shape: the flag, the poll and the loop can all exist while
+    nothing in the per-video path ever hands one to the other."""
+
+    def _capture_pause_gate(self, monkeypatch):
+        from yuu_clip.transcribe import whisper_runner
+        captured = {}
+
+        def _fake(track, config, session, language=None, pause_gate=None):
+            captured["pause_gate"] = pause_gate
+            raise RuntimeError("stop here - only the wiring is under test")
+
+        monkeypatch.setattr(whisper_runner, "transcribe_track", _fake)
+        return captured
+
+    def _run(self, tmp_path, monkeypatch, project_dir):
+        from yuu_clip.config import Config
+        from yuu_clip.pipeline import ingest as _ingest
+
+        captured = self._capture_pause_gate(monkeypatch)
+        monkeypatch.setattr(
+            "yuu_clip.analyze.overlap.detect_transcript_overlap", lambda *a, **k: False
+        )
+        session, video, track = _transcribable_track(tmp_path)
+        try:
+            _ingest._transcribe_and_check_overlap(
+                [track], Config(), session, video, language=None, project_dir=project_dir,
+            )
+        finally:
+            session.close()
+        return captured
+
+    def test_analyze_path_hands_a_gate_to_transcribe_track(self, tmp_path, monkeypatch):
+        captured = self._run(tmp_path, monkeypatch, project_dir=tmp_path)
+        assert callable(captured["pause_gate"])
+
+    def test_no_gate_without_a_project_dir(self, tmp_path, monkeypatch):
+        """Retranscribe (a UI job with no Pause control and no thermal monitor) must
+        not get a gate - a stale flag would stall it with nothing able to clear it."""
+        captured = self._run(tmp_path, monkeypatch, project_dir=None)
+        assert captured["pause_gate"] is None
+
+    def test_retranscribe_video_passes_no_project_dir(self, tmp_path, monkeypatch):
+        from yuu_clip.config import Config
+        from yuu_clip.pipeline import ingest as _ingest
+
+        seen = {}
+
+        def _fake_transcribe(track_objs, config, session, video, language, force=False, project_dir=None):
+            seen["project_dir"] = project_dir
+            return []
+
+        monkeypatch.setattr(_ingest, "_transcribe_and_check_overlap", _fake_transcribe)
+        monkeypatch.setattr(_ingest, "_extract_audio_and_check_rms_overlap", lambda *a, **k: None)
+        session, video, _track = _transcribable_track(tmp_path)
+        try:
+            _ingest._retranscribe_video(session, Config(), video, tmp_path)
+        finally:
+            session.close()
+
+        assert seen["project_dir"] is None
+
+
+# ---------------------------------------------------------------------------
+# Between-stage pause point - the coarse backstop for the stages with no pause
+# point of their own. Safe because every call site follows a session.commit().
+# ---------------------------------------------------------------------------
+
+class TestPauseBetweenStages:
+    def test_noop_without_a_project_dir(self, tmp_path):
+        from yuu_clip.analyze.pause import create_pause_flag
+        from yuu_clip.pipeline.ingest import _pause_between_stages
+        create_pause_flag(tmp_path)  # set, but no project dir to watch it
+        start = time.monotonic()
+        _pause_between_stages(None)
+        assert time.monotonic() - start < 0.5
+
+    def test_returns_immediately_when_not_paused(self, tmp_path):
+        from yuu_clip.pipeline.ingest import _pause_between_stages
+        start = time.monotonic()
+        _pause_between_stages(tmp_path)
+        assert time.monotonic() - start < 0.5
+
+    def test_blocks_while_the_flag_is_present(self, tmp_path):
+        from yuu_clip.analyze.pause import create_pause_flag, remove_pause_flag
+        from yuu_clip.pipeline.ingest import _pause_between_stages
+        create_pause_flag(tmp_path)
+        threading.Timer(0.15, remove_pause_flag, args=(tmp_path,)).start()
+        start = time.monotonic()
+        _pause_between_stages(tmp_path)
+        assert time.monotonic() - start >= 0.1

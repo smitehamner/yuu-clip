@@ -46,19 +46,24 @@ def reset_transcript() -> None:
     _ACTIVE_SEGMENTS[:] = CANNED_SEGMENTS
 
 
-def fake_transcribe_track(track, config, session, language=None):
+def fake_transcribe_track(track, config, session, language=None, pause_gate=None):
     """Stand in for whisper_runner.transcribe_track: persist canned segments.
 
     Mirrors the real function's DB writes (a Transcript row + its
     TranscriptSegments) so every downstream stage - windowing, excerpts,
-    summaries, captions - sees a real, deterministic transcript.
+    summaries, captions - sees a real, deterministic transcript. That includes
+    ``completed_at``: without it the next run reads this transcript as a truncated
+    leftover and re-transcribes.
     """
+    from datetime import datetime, timezone
+
     from yuu_clip.db.models import Transcript, TranscriptSegment
 
     transcript = Transcript(
         audio_track_id=track.id,
         model_name=config.whisper_model,
         language="en",
+        completed_at=datetime.now(timezone.utc),
     )
     session.add(transcript)
     session.flush()

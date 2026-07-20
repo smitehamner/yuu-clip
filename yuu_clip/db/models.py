@@ -108,7 +108,22 @@ _ADDITIVE_COLUMNS: tuple[tuple[str, str, str], ...] = (
     # only this pre-existing-table column needs the explicit ALTER. Plain INTEGER,
     # not a FK, for the same reason as speakers.global_voice_id above.
     ("project_voices", "character_id", "INTEGER"),
+    # Transcription pause point: marks a transcript whose every segment landed.
+    # Nullable, because "unfinished" is exactly what NULL means here - see the
+    # one-time backfill below for why existing rows must not read as unfinished.
+    ("transcripts", "completed_at", "DATETIME"),
 )
+
+# Run ONCE, immediately after the keyed column is first added, for a column whose
+# correct value for pre-existing rows is not a constant SQLite accepts as an
+# ALTER TABLE ... DEFAULT. Deliberately not re-run on later startups: every row
+# that predates the column was written before the marker existed and is therefore
+# finished, but a NULL written *after* the migration means genuinely unfinished,
+# and re-running would silently mark a truncated transcript complete.
+_ONE_TIME_BACKFILLS: dict[tuple[str, str], str] = {
+    ("transcripts", "completed_at"):
+        "UPDATE transcripts SET completed_at = created_at WHERE completed_at IS NULL",
+}
 
 
 def _ensure_additive_columns(engine) -> None:
@@ -117,6 +132,9 @@ def _ensure_additive_columns(engine) -> None:
             columns = {row[1] for row in conn.exec_driver_sql(f"PRAGMA table_info({table})")}
             if column not in columns:
                 conn.exec_driver_sql(f"ALTER TABLE {table} ADD COLUMN {column} {coltype}")
+                backfill = _ONE_TIME_BACKFILLS.get((table, column))
+                if backfill:
+                    conn.exec_driver_sql(backfill)
 
 
 def make_session(db_path: Path) -> Session:
@@ -310,6 +328,13 @@ class Transcript(Base):
     model_name: Mapped[str] = mapped_column(String)
     language: Mapped[Optional[str]] = mapped_column(String)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    # Set only once every segment has been persisted. Transcription commits at
+    # segment batch boundaries (so a pause point can block without holding SQLite's
+    # single write lock), which means a run that dies mid-track leaves a committed
+    # but TRUNCATED transcript behind. NULL is how the next run recognises one and
+    # discards it instead of reusing it as complete - see
+    # pipeline.ingest._reusable_track_transcript, the single place that decides.
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     audio_track: Mapped["AudioTrack"] = relationship(back_populates="transcripts")
     segments: Mapped[List["TranscriptSegment"]] = relationship(

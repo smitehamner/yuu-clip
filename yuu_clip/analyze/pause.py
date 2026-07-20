@@ -3,9 +3,15 @@
 The analyze subprocess is a separate process from the web server (AnalyzeJob),
 so pausing is signalled via a flag file rather than in-memory state. Created and
 removed by the web routes (manual Pause/Resume and thermal auto-pause), polled by
-two pause points in the subprocess: the CLI batch loop between videos, and the
-per-clip scoring loop inside a single video (the sustained-GPU stage, so the one
-that makes auto-pause effective on the common single-video run).
+four pause points in the subprocess, coarse to fine: the CLI batch loop between
+videos, the pipeline stage boundaries, the segment-batch boundary inside a long
+transcription, and the per-clip scoring loop. The last two are the sustained-GPU
+stages, so they are what make auto-pause effective on the common single-video run.
+
+Every poll site must sit immediately after a commit. SQLite is single-writer here,
+so blocking with a write transaction open would lock the web server out of its own
+database for the whole hold - which is why transcription had to be restructured to
+commit at segment batch boundaries before it could gain a pause point at all.
 """
 from __future__ import annotations
 

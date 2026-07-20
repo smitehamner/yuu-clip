@@ -429,11 +429,11 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     async def pause_analyze():
         """Request a pause at the running job's next pause point.
 
-        Two pause points exist: between videos in a multi-video batch, and between
-        individual clips during scoring (the sustained-GPU stage), so a single-video
-        run does honour this rather than running to completion. Stages other than
-        scoring still finish before the pause takes effect. No-op with a clear
-        message when no job is running.
+        Four pause points exist, coarse to fine: between videos in a multi-video batch,
+        between pipeline stages, inside a long transcription, and between individual
+        clips during scoring. The last two are the sustained-GPU stages, so a
+        single-video run honours this within seconds rather than running to completion.
+        No-op with a clear message when no job is running.
         """
         job = ctx.analyze_job
         if job is None or job.done:

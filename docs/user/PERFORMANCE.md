@@ -73,6 +73,6 @@ Long analysis runs keep the GPU at sustained load. For safety:
 - Consider batching: analyze one file at a time rather than a large folder drop
 - The hardware health monitor watches GPU temperature during analysis: it warns at the configurable
   warn threshold and can auto-pause if the GPU stays hot (NVIDIA only; tune the thresholds in
-  Settings → Hardware). The pause takes effect at the next safe point - between clips once
-  scoring has started, or between videos in a batch - so the run picks up where it left off
-  when you resume
+  Settings → Hardware). The pause takes effect at the next safe point - during transcription
+  or scoring, the two stages that generate the heat, that is within seconds - so the run picks
+  up where it left off when you resume

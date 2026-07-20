@@ -175,9 +175,10 @@ Wanted before distributing beyond friends/trusted users.
   command for exactly one video, so nothing in the app can ever reach that multi-video path.
   Surfaced 2026-07-19 alongside a related bug (UX bug hunt B9): the job header's "Pause after
   current video" toggle was a dead control on a plain single-recording run. That is now fixed
-  at the pipeline level - scoring polls the pause flag between clips - so the toggle does
-  something on every run. Its *label* still describes the between-videos behaviour only, and
-  would want revisiting alongside real batch-analyze support.
+  at the pipeline level - transcription and scoring both poll the pause flag mid-stage, and
+  the stage boundaries poll it too - so the toggle does something on every run. Its *label*
+  still describes the between-videos behaviour only, and would want revisiting alongside real
+  batch-analyze support.
 
 - [ ] **Right-click context menus for videos/clips** *(unscoped, deferred)* - investigated
   2026-07-19: everything a context menu would offer already exists via visible affordances
@@ -209,8 +210,31 @@ Wanted before distributing beyond friends/trusted users.
     deferred until the library reality changes.
   - Thermal monitoring (`analyze/thermal.py`, pynvml) stays NVIDIA-only and degrades gracefully;
     not a blocker, but no AMD/Intel temperature readout until a vendor-neutral source is wired in.
+    See the dedicated thermal-sensor-coverage item below.
     (The wizard GPU-line messaging was corrected 2026-07-10 to report LLM scoring running on
     any-vendor GPUs via Vulkan while transcription stays NVIDIA/CUDA-only.)
+
+- [ ] **CPU and non-NVIDIA GPU temperature sources (widen auto-pause coverage)** - the
+  auto-pause machinery is now genuinely effective: as of the B9 follow-up, transcription,
+  scoring, and every pipeline stage boundary poll the pause flag, so a thermal trip is
+  honoured within seconds instead of at the end of the run. What limits it now is the
+  *sensor*, not the response. `GpuThermalMonitor` reads pynvml only, so users on AMD/Intel
+  graphics get no protection at all, and nobody gets CPU-temperature protection - which
+  matters more than it sounds, because two of the heaviest stages are CPU-bound for a large
+  share of users (Whisper on `whisper_device=cpu`, and ffmpeg extract/encode always).
+  - `GpuThermalMonitor` is already the right seam: `available()` + `read_max_temp_c()`, with
+    a `sampler` injection point tests use. Widening this means adding sibling backends behind
+    a `make_thermal_monitor(config)` factory keyed on a `thermal_backend` value, per the
+    swappable-backends convention - not adding vendor branches inside the existing class.
+  - Candidate sources, all needing a licence check before adoption (LibreHardwareMonitor is
+    MPL-2.0, fine; several Python wrappers around it are not): LibreHardwareMonitor / OpenHardwareMonitor
+    over WMI for both CPU and GPU on Windows, `psutil.sensors_temperatures()` on Linux
+    (returns nothing on Windows), AMD ADLX and Intel's Level Zero sysman for vendor GPU
+    readings.
+  - Design question to settle first: with several sensors live, does the trigger act on the
+    hottest single reading or on per-source thresholds? A CPU at 95°C and a GPU at 95°C are
+    not equally alarming, so one shared `thermal_pause_c` is probably wrong - likely
+    per-source thresholds with per-source defaults.
 
 - [ ] **Linux compatibility** - code analysis done. Python core is close (uses `platformdirs`, not
   raw `%APPDATA%`; `llama-server` binary name and FFmpeg resolution already branch off-Windows;

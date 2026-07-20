@@ -207,6 +207,7 @@ def run_retranscribe(cand, session, config, language: Optional[str] = None,
                 clip_id=cand.id,
                 model_name=config.whisper_model,
                 language=result.language,
+                completed_at=datetime.now(timezone.utc),
             )
             session.add(tx)
             session.flush()

@@ -890,6 +890,9 @@ def _migrate_transcript_to_segments(
                 audio_track_id=new_track.id,
                 model_name=transcript.model_name,
                 language=transcript.language,
+                # Copied wholesale from an existing transcript, so it is complete on
+                # creation; a NULL here would make a later analyze run discard it.
+                completed_at=datetime.now(timezone.utc),
             )
             db.add(new_transcript)
             db.flush()

@@ -315,13 +315,15 @@ already made.
   `wait_while_paused`), `POST /api/analyze/pause`, `POST /api/analyze/resume`,
   `AnalyzeJob.pause_requested`
 - **UI label:** "Pause at next safe point" button in the job header (swaps to "Resume" when paused)
-- **Notes:** Two pause points: between videos in a multi-video (or multi-segment) batch,
-  and between individual clips during scoring - the sustained-GPU stage, and the reason a
-  single-video run is protected rather than running straight to the end. Other stages
-  (extract, transcribe, speakers, clip generation) still finish before a pause takes
-  effect; transcription is a known remaining gap. Flag-file only; does not survive a
-  server restart. Only the analyze job honours it - the standalone Rescore job
-  deliberately does not, having no Pause control to clear it.
+- **Notes:** Four pause points, coarse to fine: between videos in a multi-video (or
+  multi-segment) batch; between pipeline stages; inside a long transcription (every
+  `SEGMENTS_PER_COMMIT` segments); and between individual clips during scoring. The last
+  two are the sustained-GPU stages, and the reason a single-video run is protected rather
+  than running straight to the end. Every pause point sits immediately after a commit -
+  SQLite is single-writer here, so blocking with a write transaction open would lock the
+  web server out of its own database for the whole hold. Flag-file only; does not survive
+  a server restart. Only the analyze job honours it - the standalone Rescore and
+  Retranscribe jobs deliberately do not, having no Pause control to clear the flag.
 
 ---
 
@@ -337,8 +339,9 @@ that follows if it stays hot.
   with a "Resume now" action at the pause threshold
 - **Notes:** Requires 3 consecutive over-threshold readings (~30s) before firing, to avoid
   reacting to a single noisy sample. Auto-pause reuses the Pause/Resume Analysis flag, so
-  it takes effect at that feature's next pause point - between clips once scoring starts.
-  Silently disabled on non-NVIDIA hardware.
+  it takes effect at that feature's next pause point - within seconds during transcription
+  or scoring, the two stages that actually generate the heat. Silently disabled on
+  non-NVIDIA hardware.
 
 ---
 

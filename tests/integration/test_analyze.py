@@ -806,9 +806,16 @@ class TestTranscriptionIdempotency:
         session.flush()
         return session, video, track
 
-    def _seed_transcript(self, session, track, *, clip_id=None, text="original"):
+    def _seed_transcript(self, session, track, *, clip_id=None, text="original", completed=True):
+        """Seed a transcript. *completed=False* mimics what a run that died mid-track
+        leaves behind - committed segments with no completeness marker."""
+        from datetime import datetime, timezone
+
         from yuu_clip.db.models import Transcript, TranscriptSegment
-        transcript = Transcript(audio_track_id=track.id, clip_id=clip_id, model_name="medium", language="en")
+        transcript = Transcript(
+            audio_track_id=track.id, clip_id=clip_id, model_name="medium", language="en",
+            completed_at=datetime.now(timezone.utc) if completed else None,
+        )
         session.add(transcript)
         session.flush()
         session.add(TranscriptSegment(transcript_id=transcript.id, start_ms=0, end_ms=1000, text=text))
@@ -816,9 +823,14 @@ class TestTranscriptionIdempotency:
         return transcript
 
     @staticmethod
-    def _fake_transcribe_track(track, config, session, language=None):
+    def _fake_transcribe_track(track, config, session, language=None, pause_gate=None):
+        from datetime import datetime, timezone
+
         from yuu_clip.db.models import Transcript, TranscriptSegment
-        transcript = Transcript(audio_track_id=track.id, model_name=config.whisper_model, language="en")
+        transcript = Transcript(
+            audio_track_id=track.id, model_name=config.whisper_model, language="en",
+            completed_at=datetime.now(timezone.utc),
+        )
         session.add(transcript)
         session.flush()
         session.add(TranscriptSegment(transcript_id=transcript.id, start_ms=0, end_ms=1000, text="fresh"))
@@ -875,6 +887,44 @@ class TestTranscriptionIdempotency:
             assert len(track_level) == 1
             assert [s.text for s in track_level[0].segments] == ["fresh"]
             assert result == track_level
+        finally:
+            session.close()
+
+    def test_rerun_discards_an_unfinished_transcript_and_redoes_it(self, tmp_path):
+        """Transcription commits in batches so a pause point can block without holding
+        SQLite's write lock, which means a crashed run leaves a committed but TRUNCATED
+        transcript. Reusing one would pass half a recording off as the whole thing.
+        """
+        from yuu_clip.db.models import Transcript
+
+        session, video, track = self._make_video_and_track(tmp_path)
+        self._seed_transcript(session, track, text="truncated", completed=False)
+
+        try:
+            result, transcribe = self._run(session, video, [track], force=False)
+
+            transcribe.assert_called_once()
+            track_level = session.query(Transcript).filter_by(audio_track_id=track.id, clip_id=None).all()
+            assert len(track_level) == 1
+            assert [s.text for s in track_level[0].segments] == ["fresh"]
+            assert result == track_level
+        finally:
+            session.close()
+
+    def test_rerun_prefers_the_complete_transcript_over_an_unfinished_one(self, tmp_path):
+        from yuu_clip.db.models import Transcript
+
+        session, video, track = self._make_video_and_track(tmp_path)
+        complete_id = self._seed_transcript(session, track, text="whole").id
+        self._seed_transcript(session, track, text="truncated", completed=False)
+
+        try:
+            result, transcribe = self._run(session, video, [track], force=False)
+
+            transcribe.assert_not_called()
+            assert [t.id for t in result] == [complete_id]
+            track_level = session.query(Transcript).filter_by(audio_track_id=track.id, clip_id=None).all()
+            assert [t.id for t in track_level] == [complete_id]
         finally:
             session.close()
 

@@ -146,12 +146,18 @@ def _resolve_existing_video(session, video_path: Path, opts: AnalyzeOptions):
     return video_path, existing
 
 
-def _obtain_transcripts(opts: AnalyzeOptions, video_path: Path, track_objs, session, video, config) -> list:
+def _obtain_transcripts(
+    opts: AnalyzeOptions, video_path: Path, track_objs, session, video, config,
+    project_dir: Optional[Path] = None,
+) -> list:
     """Import subtitles, transcribe, or skip - depending on the run options."""
     if opts.subtitle_source:
         return _import_subtitles(opts.subtitle_source, video_path, track_objs, session, video)
     if not opts.no_transcribe:
-        return _transcribe_and_check_overlap(track_objs, config, session, video, opts.language, opts.force)
+        return _transcribe_and_check_overlap(
+            track_objs, config, session, video, opts.language, opts.force,
+            project_dir=project_dir,
+        )
     return []
 
 
@@ -180,8 +186,9 @@ def _analyze_one(
 
     *proxy_dir* feeds the opt-in auto vision-describe pass in _run_scoring (Stage 4
     of video-heavy analysis); omit it to skip that pass regardless of config.
-    *project_dir* enables the between-clips pause point during scoring; omit it and
-    this video runs start to finish once begun."""
+    *project_dir* enables this video's pause points - between pipeline stages, inside
+    a long transcribe, and between scored clips; omit it and this video runs start to
+    finish once begun."""
     resolved = _resolve_existing_video(session, video_path, opts)
     if resolved is None:
         return
@@ -228,10 +235,14 @@ def _analyze_one(
             segment_start_s=seg_start, segment_end_s=seg_end,
         )
     session.commit()
+    _pause_between_stages(project_dir)
 
     with recorder.stage("Import captions" if opts.subtitle_source else "Transcribe"):
-        transcripts = _obtain_transcripts(opts, video_path, track_objs, session, video, config)
+        transcripts = _obtain_transcripts(
+            opts, video_path, track_objs, session, video, config, project_dir=project_dir,
+        )
     session.commit()
+    _pause_between_stages(project_dir)
 
     transcribed = not opts.subtitle_source and not opts.no_transcribe
     diarized = bool(transcripts) and config.diarization_backend != "null"
@@ -245,15 +256,18 @@ def _analyze_one(
         with recorder.stage("Speakers"):
             _run_speaker_diarization(config, session, transcripts)
         session.commit()
+        _pause_between_stages(project_dir)
 
     with recorder.stage("Generate Clips"):
         candidates = _generate_candidates(video, transcripts, config, session, opts.no_segment, opts.no_transcribe, opts.force)
     session.commit()
+    _pause_between_stages(project_dir)
 
     if not opts.no_score and transcripts:
         with recorder.stage("Summarize"):
             _summarize_video(video, transcripts, config, session, context_text=opts.context_text)
         session.commit()
+        _pause_between_stages(project_dir)
 
     if not opts.no_score and candidates:
         try:
@@ -364,7 +378,12 @@ def _import_subtitles(subtitle_source: str, video_path: Path, track_objs, sessio
     if target_track is None:
         return []
 
-    tr = Transcript(audio_track_id=target_track.id, model_name="srt-import")
+    # completed_at: an imported SRT is whole the moment it parses. Without it the next
+    # analyze run would read this as an unfinished transcript and re-transcribe over it.
+    tr = Transcript(
+        audio_track_id=target_track.id, model_name="srt-import",
+        completed_at=datetime.now(timezone.utc),
+    )
     session.add(tr)
     session.flush()
     for start_ms, end_ms, text in parsed:
@@ -545,18 +564,60 @@ def _extract_audio_and_check_rms_overlap(
         session.flush()
 
 
-def _transcribe_and_check_overlap(track_objs, config, session, video, language, force=False) -> list:
+def _reusable_track_transcript(session, track, force: bool):
+    """The track's existing transcript that a re-run may reuse, or None to transcribe.
+
+    Also prunes unusable rows as a side effect, which is why this is one function and
+    not a pure query: a transcript with no ``completed_at`` is a truncated leftover
+    from a run that died mid-track (transcription commits in batches, so partial work
+    survives). Reusing one would silently pass a half transcript off as the whole
+    recording, so it is deleted here rather than left to age in the DB. ``force``
+    clears every existing transcript, complete or not.
+    """
+    from yuu_clip.db.models import Transcript
+
+    existing = (
+        session.query(Transcript)
+        .filter_by(audio_track_id=track.id, clip_id=None)
+        .order_by(Transcript.id)
+        .all()
+    )
+    discardable = existing if force else [t for t in existing if t.completed_at is None]
+    for stale in discardable:
+        session.delete(stale)
+    if discardable:
+        session.flush()
+        reason = "--force" if force else "unfinished - will re-transcribe"
+        console.print(f"  [dim]  Cleared existing transcript for track {track.label} ({reason})[/dim]")
+    if force:
+        return None
+    complete = [t for t in existing if t.completed_at is not None]
+    return complete[-1] if complete else None
+
+
+def _transcribe_and_check_overlap(
+    track_objs, config, session, video, language, force=False,
+    project_dir: Optional[Path] = None,
+) -> list:
     """Transcribe all eligible tracks and suppress duplicates found in combined-track content.
 
-    Idempotent per track: an existing track-level transcript is reused on a normal
+    Idempotent per track: a *completed* track-level transcript is reused on a normal
     re-run and deleted-then-replaced under ``--force`` (mirrors the ClipCandidate
     force-delete in ``_generate_candidates``). Without this, ``--force`` and resumed
     partial runs mint a second Transcript per track (no unique constraint guards it).
+    See _reusable_track_transcript for how an unfinished transcript is handled.
+
+    *project_dir* enables the pause point inside a long transcribe; omit it (None) and
+    each track transcribes start to finish once begun. Only the analyze path passes it
+    - see _make_pause_gate.
     """
     from yuu_clip.analyze.overlap import detect_transcript_overlap
-    from yuu_clip.db.models import Transcript
     from yuu_clip.transcribe.transcriber import make_transcriber
     from yuu_clip.transcribe.whisper_runner import transcribe_track
+
+    pause_gate = _make_pause_gate(
+        project_dir, "  [yellow][Paused - transcription will continue when you resume][/yellow]"
+    )
 
     console.print(f"  [bold]Transcribing (model: {config.whisper_model})...[/bold]")
     emit_progress(Stage.TRANSCRIBE)
@@ -580,26 +641,18 @@ def _transcribe_and_check_overlap(track_objs, config, session, video, language, 
             console.print(f"  [yellow]  Track {idx}/{total_tracks} - no extracted audio, skipping[/yellow]")
             continue
 
-        existing = (
-            session.query(Transcript)
-            .filter_by(audio_track_id=track.id, clip_id=None)
-            .order_by(Transcript.id)
-            .all()
-        )
-        if existing and not force:
+        reusable = _reusable_track_transcript(session, track, force)
+        if reusable is not None:
             console.print(f"  [dim]  Track {idx}/{total_tracks} already transcribed[/dim]")
-            transcripts.append(existing[-1])
+            transcripts.append(reusable)
             continue
-        if existing and force:
-            for stale in existing:
-                session.delete(stale)
-            session.flush()
-            console.print(f"  [dim]  Cleared existing transcript for track {track.label} (--force)[/dim]")
 
         console.print(f"  [dim]  Track {idx}/{total_tracks} [{track.label}]...[/dim]")
         emit_progress(Stage.TRANSCRIBE, done=idx, total=total_tracks)
         try:
-            transcript = transcribe_track(track, config, session, language=language)
+            transcript = transcribe_track(
+                track, config, session, language=language, pause_gate=pause_gate,
+            )
             console.print(
                 f"  [green]  OK[/green] [{track.label}]  {len(transcript.segments)} segments  "
                 f"[dim](language: {transcript.language or 'auto'})[/dim]"
@@ -917,22 +970,45 @@ def _summarize_video(video, transcripts, config, session, context_text: str = ""
         log.exception("Video summary failed: video_id=%s", video.id)
 
 
-def _make_scoring_pause_gate(project_dir: Optional[Path]):
-    """Return the per-clip pause callback for score_video, or None when there is no
-    project dir to watch (a caller that opted out of mid-video pausing)."""
+def _pause_between_stages(project_dir: Optional[Path]) -> None:
+    """Coarse pause point at a pipeline stage boundary. No-op without a project dir.
+
+    Every call site sits immediately after a ``session.commit()``, which is what makes
+    blocking here safe: no write transaction is open, so a long hold cannot lock the
+    web server out of the DB. This is the backstop for the stages with no pause point
+    of their own (extract, speakers, clip generation, scenes); transcription and
+    scoring pause at a finer grain from inside their own loops.
+    """
+    gate = _make_pause_gate(
+        project_dir, "  [yellow][Paused - analysis will continue when you resume][/yellow]"
+    )
+    if gate is not None:
+        gate()
+
+
+def _make_pause_gate(project_dir: Optional[Path], message: str):
+    """Return a pause callback that blocks while the flag is set, or None when there
+    is no project dir to watch (a caller that opted out of mid-video pausing).
+
+    Every call site must invoke the returned gate immediately after a commit: it can
+    block for a whole thermal cool-down, and SQLite is single-writer here, so holding
+    an open write transaction across one would lock out every web route that writes.
+    *message* is the caller's own "paused" line, printed once per wait.
+    """
     if project_dir is None:
         return None
     from yuu_clip.analyze.pause import wait_while_paused
 
     def _pause_gate() -> None:
-        wait_while_paused(
-            project_dir,
-            on_pause=lambda: console.print(
-                "  [yellow][Paused - scoring will continue when you resume][/yellow]"
-            ),
-        )
+        wait_while_paused(project_dir, on_pause=lambda: console.print(message))
 
     return _pause_gate
+
+
+def _make_scoring_pause_gate(project_dir: Optional[Path]):
+    return _make_pause_gate(
+        project_dir, "  [yellow][Paused - scoring will continue when you resume][/yellow]"
+    )
 
 
 def _run_scoring(
