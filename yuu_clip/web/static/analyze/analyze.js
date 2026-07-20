@@ -689,16 +689,27 @@ function _showAnalysisToast(video) {
 // complete" while the whole recording re-encoded; now completion is instant and
 // this drains the existing encode SSE quietly (no job pill). Non-fatal - if it's
 // skipped or the page closes, the proxy still builds lazily on first preview.
+//
+// It still counts toward the backend's job_in_flight busy gate (ctx.active_jobs,
+// via active_job() in routes/videos.py) for the whole encode, so a heavy action
+// attempted during the warm-up gets the normal 409. #preview-warm-status is shown
+// only while actually encoding (not for the already-fresh/already-generating
+// no-op paths) so that rejection has something visible to point at - see B4 in
+// the 2026-07-19 UX bug hunt.
 async function _warmPreviewProxy(videoId) {
+  const statusEl = document.getElementById('preview-warm-status');
   try {
     const status = await fetch(`/api/videos/${videoId}/proxy-status`).then(r => r.ok ? r.json() : null);
     if (!status || status.available || status.generating) return;
+    if (statusEl) statusEl.classList.add('visible');
     const response = await fetch(`/api/videos/${videoId}/proxy/generate`);
     if (!response.ok || !response.body) return;
     const reader = response.body.getReader();
     while (true) { const {done} = await reader.read(); if (done) break; }
   } catch (_) {
     // Preview is a convenience; a failed warm must never surface as an error.
+  } finally {
+    if (statusEl) statusEl.classList.remove('visible');
   }
 }
 
@@ -1239,6 +1250,6 @@ export {
   _doCloseNewRecordingPanel,
   _renderSubtitleSourcePicker,
   renderEstimate, startAnalyze, reattachAnalysis,
-  _showAnalysisToast,
+  _showAnalysisToast, _warmPreviewProxy,
   closeProfileManager,
 };
