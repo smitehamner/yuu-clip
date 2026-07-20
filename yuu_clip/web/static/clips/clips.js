@@ -1,6 +1,6 @@
 import { AppState } from '../core/state.js';
 import {
-  escHtml, _scoreIcon, _scoreBorderColor, _sortScore, fmtDuration, plural, truncate,
+  AXIS_ICONS, escHtml, _scoreIcon, _scoreBorderColor, _sortScore, fmtDuration, plural, truncate,
   _fmtAgo, _fmtOffset, formatApiError,
 } from '../core/format.js';
 import {
@@ -1006,15 +1006,17 @@ document.getElementById('detail').addEventListener('click', _handleDetailClick);
 document.getElementById('detail').addEventListener('keydown', _handleDetailKeydown);
 
 function scoreRow(label, val, cls) {
+  const icon = AXIS_ICONS[cls] || '';
   return `
-    <span class="score-label">${label}</span>
+    <span class="score-label">${icon ? icon + ' ' : ''}${label}</span>
     <div class="score-bar-wrap"><div class="score-bar bar-${cls}" style="width:${(val*100).toFixed(1)}%"></div></div>
     <span class="score-val" style="color:var(--${cls})">${Math.round(val*100)}%</span>`;
 }
 
 function scoreRowOverride(label, llmVal, userVal, cls) {
+  const icon = AXIS_ICONS[cls] || '';
   return `
-    <span class="score-label">${label} <span class="score-override-badge">override</span></span>
+    <span class="score-label">${icon ? icon + ' ' : ''}${label} <span class="score-override-badge">override</span></span>
     <div class="score-bar-wrap">
       <div class="score-bar bar-${cls}" style="width:${(userVal*100).toFixed(1)}%;opacity:.5"></div>
     </div>

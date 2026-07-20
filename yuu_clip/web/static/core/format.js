@@ -6,6 +6,17 @@
 import { escHtml } from '../shared/escapehtml.js';
 
 // ── score utils ───────────────────────────────────────────────────────────────
+const AXIS_ICONS = {
+  overall: '&#11088;',
+  funny: '&#128514;',
+  dramatic: '&#127917;',
+  action: '&#9876;&#65039;',
+  visual: '&#127916;',
+  laugh: '&#129315;',
+  length: '&#8986;',
+  timeline: '&#128336;',
+};
+
 function _scoreIcon(score) {
   const color = score >= 0.7 ? 'var(--green)' : score >= 0.4 ? 'var(--warning)' : 'var(--muted)';
   return `<span style="color:${color};font-size:10px" aria-hidden="true">&#11088;</span>`;
@@ -142,7 +153,7 @@ function _parseIntervalS(value, unit) {
 }
 
 export {
-  _scoreIcon, _lerpColor, _scoreBorderColor, _sortScore, _fmtVideoStatus, _msToHms,
+  AXIS_ICONS, _scoreIcon, _lerpColor, _scoreBorderColor, _sortScore, _fmtVideoStatus, _msToHms,
   plural, finiteOr, fmtDuration, truncate, escHtml, formatApiError, stripRichMarkup,
   _parseServerDate, _fmtDate, _fmtAgo, _fmtOffset, _fmtElapsed, _parseIntervalS,
 };
