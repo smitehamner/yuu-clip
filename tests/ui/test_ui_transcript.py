@@ -217,6 +217,65 @@ class TestVideoTranscript:
         )
         expect(page.locator("#video-transcript-details .transcript-stale-note")).to_have_count(0)
 
+    def test_long_transcript_renders_in_pages(self, page: Page):
+        # A multi-hour recording can carry thousands of lines; rendering them all in one
+        # innerHTML write visibly locked up the tab. 620 lines = 2 full 300-line pages
+        # plus a partial third, enough to exercise the chunk boundary twice.
+        lines = {"lines": [
+            {"start_ms": i * 1000, "end_ms": i * 1000 + 900, "speaker": None, "text": f"line {i}"}
+            for i in range(620)
+        ]}
+        page.route(
+            "**/api/videos/*/transcript",
+            lambda route: route.fulfill(
+                status=200, content_type="application/json", body=json.dumps(lines)
+            ),
+        )
+        self._select_first_video(page)
+        page.locator("#video-transcript-details .detail-card-title").click()
+
+        expect(page.locator("#video-transcript-view .tline")).to_have_count(300)
+        more = page.locator(".tx-load-more")
+        expect(more).to_contain_text("320 left")
+
+        more.click()
+        expect(page.locator("#video-transcript-view .tline")).to_have_count(600)
+        expect(page.locator(".tx-load-more")).to_contain_text("20 left")
+
+        page.locator(".tx-load-more").click()
+        expect(page.locator("#video-transcript-view .tline")).to_have_count(620)
+        expect(page.locator(".tx-load-more")).to_have_count(0)
+
+    def test_speaker_label_does_not_repeat_across_a_page_boundary(self, page: Page):
+        # The same speaker's last line on page 1 and first line on page 2 must not both
+        # print the "Yuu" label - _renderNextTranscriptChunk seeds initialPrevSpeaker from
+        # the previous page's last line specifically to prevent this.
+        lines = {"lines": [
+            {"start_ms": i * 1000, "end_ms": i * 1000 + 900, "speaker": "Yuu", "speaker_id": 1,
+             "color": "#4fc3f7", "text": f"line {i}", "seg_id": 100 + i}
+            for i in range(305)
+        ]}
+        page.route(
+            "**/api/videos/*/transcript",
+            lambda route: route.fulfill(
+                status=200, content_type="application/json", body=json.dumps(lines)
+            ),
+        )
+        page.route(
+            "**/api/videos/*/speakers",
+            lambda route: route.fulfill(status=200, content_type="application/json",
+                                        body=json.dumps(_TWO_SPEAKERS)),
+        )
+        self._select_first_video(page)
+        page.locator("#video-transcript-details .detail-card-title").click()
+        expect(page.locator("#video-transcript-view .tline")).to_have_count(300)
+        # One unbroken run of the same speaker -> exactly one label, on the first line.
+        expect(page.locator("#video-transcript-view .tline-speaker")).to_have_count(1)
+
+        page.locator(".tx-load-more").click()
+        expect(page.locator("#video-transcript-view .tline")).to_have_count(305)
+        expect(page.locator("#video-transcript-view .tline-speaker")).to_have_count(1)
+
 
 _VIDEO_LINES_SPK = {
     "lines": [

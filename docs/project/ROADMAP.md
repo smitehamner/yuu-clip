@@ -56,6 +56,31 @@ except the two items below).
   real marker channel for this instead of a one-off regex hack. Detail in the private
   planning workspace, `UX-BUG-HUNT-2026-07-19.md` B14.
 
+- [ ] **Full-recording transcript panel still renders every page in the DOM
+  (virtualize instead of just paginate)** - a real lag report on a 3+ hour
+  recording (~7000 transcript lines) traced to `loadVideoTranscript` in
+  `static/analyze/transcript.js` building the *entire* transcript's HTML in one
+  `innerHTML` write (tens of thousands of DOM nodes in a single paint). Quick fix
+  shipped (2026-07-20): the panel now renders 300-line pages with a "Show more"
+  button (`_renderNextTranscriptChunk`), so the *initial* render is fast. Not
+  fixed: a user who clicks through to the end of a very long transcript still
+  ends up with all pages live in the DOM at once (memory/scroll cost still grows
+  unbounded with total length) - true virtualization (only the visible rows are
+  ever in the DOM, e.g. windowing by scroll position) would close that, but is a
+  bigger lift not justified until someone actually hits it in practice.
+
+- [ ] **Video list (sidebar) has the same unbounded-DOM-rebuild shape** - audited
+  2026-07-20 alongside the transcript fix: `videos.js`'s `_renderVideoList` ->
+  `_renderGroupedVideoItems` -> `_videoItemLi` rebuilds the *entire* video list from
+  `AppState.videos` (unpaginated - `GET /api/videos` returns every non-split-parent
+  video in the project, project-wide history, not scoped to one recording) on every
+  load, filter, sort, AND search keystroke. For a solo user accumulating hundreds to
+  low-thousands of recordings over months, this is the same failure class as the
+  transcript bug, and arguably worse since it re-triggers on every keystroke rather
+  than once per page load. No fix scoped yet - revisit if a user's sidebar actually
+  gets this large (the transcript bug was confirmed via a real 3h+ recording; this one
+  is audit-only, not yet confirmed painful in practice).
+
 - [ ] **Drain the residual `window.X = X` shim (vitest follow-on)** - the ESM migration
   (completed 2026-07-16) left `static/main.esm.js` with a shrinking `window.X = X` shim,
   plus a live get/set accessor bridge in `analyze/split.js`. Each surviving entry exists

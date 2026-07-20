@@ -37,20 +37,22 @@ function _clock(ms) {
 // control (rename / reassign); omit it to render a read-only transcript. opts.readOnly
 // suppresses the click-to-edit-caption affordance even when a line carries a seg_id -
 // used by the manual clip picker, where a line click selects a range instead.
-export function renderTranscriptLines(lines, opts) {
-  opts = opts || {};
+// opts.initialPrevSpeaker seeds the "did the speaker change" check for the first line -
+// used when rendering one chunk of a longer transcript that was already split into
+// pages (see _renderNextTranscriptChunk) so the speaker label doesn't spuriously
+// reprint at every chunk boundary. opts.diarized overrides the auto-detected diarized
+// flag for the same reason: a chunk can contain zero diarized lines even though the
+// recording as a whole is diarized.
+function _buildTranscriptRows(lines, opts) {
   const offsetS = opts.seekOffsetS || 0;
   const videoId = opts.videoId;
   const readOnly = !!opts.readOnly;
-  if (!Array.isArray(lines) || !lines.length) {
-    return '<div class="transcript-empty">No transcript available.</div>';
-  }
   // Show the per-line speaker dot on every line of a diarized transcript - including
   // ones the user set to Unassigned - so an unassigned line keeps a control to
   // reattribute it. A plain (never-diarized) transcript has no speakers, so no dots.
-  const diarized = videoId != null && lines.some(l => l.speaker_id != null);
-  let prevSpeaker = null;
-  const rows = lines.map(line => {
+  const diarized = opts.diarized != null ? opts.diarized : (videoId != null && lines.some(l => l.speaker_id != null));
+  let prevSpeaker = opts.initialPrevSpeaker != null ? opts.initialPrevSpeaker : null;
+  return lines.map(line => {
     const showSpeaker = line.speaker && line.speaker !== prevSpeaker;
     prevSpeaker = line.speaker;
     const colorAttr = line.color ? ` style="color:${escHtml(line.color)}"` : '';
@@ -91,7 +93,14 @@ export function renderTranscriptLines(lines, opts) {
       <span class="tline-text${editable ? ' editable' : ''}"${editAttrs}>${escHtml(line.text)}</span>
     </div>`;
   }).join('');
-  return `<div class="transcript-lines">${rows}</div>`;
+}
+
+export function renderTranscriptLines(lines, opts) {
+  opts = opts || {};
+  if (!Array.isArray(lines) || !lines.length) {
+    return '<div class="transcript-empty">No transcript available.</div>';
+  }
+  return `<div class="transcript-lines">${_buildTranscriptRows(lines, opts)}</div>`;
 }
 
 export async function loadClipTranscript(clipId) {
@@ -108,7 +117,34 @@ export async function loadClipTranscript(clipId) {
   }
 }
 
+// A multi-hour recording can carry several thousand transcript lines (~5-7 DOM
+// nodes each); building and painting them all in one innerHTML write is what made
+// the full-recording transcript panel visibly lock up the UI on long sessions.
+// Render it a page at a time instead - the same event-delegated click handlers
+// below work unchanged since new pages are just appended DOM.
+const _TRANSCRIPT_CHUNK_SIZE = 300;
 let _videoTranscriptLoadedFor = null;
+let _videoTranscriptPage = null; // {lines, shown, videoId, seekOffsetS, diarized, lastSpeaker}
+
+function _renderNextTranscriptChunk() {
+  const page = _videoTranscriptPage;
+  const container = document.getElementById('video-transcript-lines');
+  if (!page || !container) return;
+  document.getElementById('tx-load-more')?.remove();
+  const next = page.lines.slice(page.shown, page.shown + _TRANSCRIPT_CHUNK_SIZE);
+  container.insertAdjacentHTML('beforeend', _buildTranscriptRows(next, {
+    seekOffsetS: page.seekOffsetS, videoId: page.videoId,
+    diarized: page.diarized, initialPrevSpeaker: page.lastSpeaker,
+  }));
+  page.shown += next.length;
+  if (next.length) page.lastSpeaker = next[next.length - 1].speaker;
+  const remaining = page.lines.length - page.shown;
+  if (remaining > 0) {
+    container.insertAdjacentHTML('afterend',
+      `<button class="btn ghost tx-load-more" id="tx-load-more">Show more lines (${remaining} left)</button>`);
+  }
+}
+
 async function loadVideoTranscript(videoId) {
   const el = document.getElementById('video-transcript-view');
   if (!el) return;
@@ -121,8 +157,19 @@ async function loadVideoTranscript(videoId) {
   try {
     const data = await fetch(`/api/videos/${videoId}/transcript`).then(r => r.json());
     _resetLineSelect();
-    const tools = (data.lines && data.lines.length) ? _lineMoveToolbar() : '';
-    el.innerHTML = tools + renderTranscriptLines(data.lines, {seekOffsetS: data.seek_offset_s || 0, videoId});
+    const lines = data.lines || [];
+    if (!lines.length) {
+      el.innerHTML = '<div class="transcript-empty">No transcript available.</div>';
+      _videoTranscriptPage = null;
+      _videoTranscriptLoadedFor = videoId;
+      return;
+    }
+    _videoTranscriptPage = {
+      lines, shown: 0, videoId, seekOffsetS: data.seek_offset_s || 0,
+      diarized: lines.some(l => l.speaker_id != null), lastSpeaker: null,
+    };
+    el.innerHTML = `${_lineMoveToolbar()}<div class="transcript-lines" id="video-transcript-lines"></div>`;
+    _renderNextTranscriptChunk();
     _videoTranscriptLoadedFor = videoId;
   } catch (_) {
     el.innerHTML = '<div class="transcript-empty">Could not load transcript.</div>';
@@ -556,6 +603,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const detail = document.getElementById('detail');
   if (!detail) return;
   detail.addEventListener('click', e => {
+    if (e.target.closest('.tx-load-more')) { _renderNextTranscriptChunk(); return; }
     if (e.target.closest('.tx-move-toggle')) { _enterLineSelect(); return; }
     if (e.target.closest('.tx-move-cancel')) { _exitLineSelect(); return; }
     const view = document.getElementById('video-transcript-view');
