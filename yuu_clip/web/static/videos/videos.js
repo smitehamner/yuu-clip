@@ -8,7 +8,7 @@ import { collapsibleCard, showToast, netErrMsg, revealInFolder, _syncSortDirBtn,
 import { showConfirm, openFieldEditModal, openDiffModal, showKebab, openActionsModal } from '../core/ui.js';
 import { setupRecordingPreview } from '../core/preview.js';
 import {
-  streamSSE, cancelJob, _blockedByAnalyze, _stepPillLabel,
+  streamSSE, setJobCancel, cancelJob, _blockedByAnalyze, _stepPillLabel,
   _jobStepDefs, _activeStepIdx, _jobStartTime,
 } from '../core/jobs.js';
 import { openGettingStartedModal } from '../core/helpmodals.js';
@@ -810,8 +810,15 @@ function rediarizeVideo(id) {
     },
     [{label: 'Speakers', patterns: ['Detecting speakers']}],
     'Re-detecting speakers',
-    false,
+    true,
   );
+  setJobCancel({
+    url:     '/api/analyze/cancel',
+    title:   'Cancel speaker re-detection?',
+    body:    'Speaker assignments will stay as they were before this run. You can re-detect speakers again anytime.',
+    confirm: 'Cancel',
+    logMsg:  '[Speaker re-detection cancelled]',
+  });
 }
 
 // ── single-stage re-runs ──────────────────────────────────────────────────────
@@ -835,8 +842,15 @@ function reextractVideoRun(id) {
     },
     [{label: 'Extract', patterns: ['Extracting audio']}],
     'Re-extracting audio',
-    false,
+    true,
   );
+  setJobCancel({
+    url:     '/api/analyze/cancel',
+    title:   'Cancel audio re-extraction?',
+    body:    'The recording keeps its previous extracted audio. You can re-extract again anytime.',
+    confirm: 'Cancel',
+    logMsg:  '[Audio re-extraction cancelled]',
+  });
 }
 
 // Reuse the canonical Whisper <option> copy from the clip retranscribe modal (always
@@ -885,8 +899,15 @@ function _startVideoRetranscribe(id, name, model) {
     },
     [{label: 'Extract', patterns: ['Extracting audio']}, {label: 'Transcribe', patterns: ['Transcribing']}],
     'Re-transcribing',
-    false,
+    true,
   );
+  setJobCancel({
+    url:     '/api/analyze/cancel',
+    title:   'Cancel re-transcription?',
+    body:    'The recording keeps its previous transcript. You can re-transcribe again anytime.',
+    confirm: 'Cancel',
+    logMsg:  '[Re-transcription cancelled]',
+  });
 }
 
 function regenerateClipsRun(id) {
@@ -910,8 +931,15 @@ function regenerateClipsRun(id) {
         },
         [{label: 'Generate Clips', patterns: ['Generating clips']}],
         'Regenerating clips',
-        false,
+        true,
       );
+      setJobCancel({
+        url:     '/api/analyze/cancel',
+        title:   'Cancel clip regeneration?',
+        body:    'The recording keeps its existing clips. You can regenerate clips again anytime.',
+        confirm: 'Cancel',
+        logMsg:  '[Clip regeneration cancelled]',
+      });
     },
     true,
   );

@@ -5,7 +5,7 @@ import { escHtml, formatApiError, plural } from '../core/format.js';
 import { showConfirm, openDiffModal } from '../core/ui.js';
 import { showToast, openLog, appendLog, _diarizationReadiness, _diarizationNoteHtml } from '../core/utils.js';
 import {
-  _blockedByAnalyze, _openSSE, streamSSE, _setActiveStream, _clearActiveStream,
+  _blockedByAnalyze, _openSSE, streamSSE, setJobCancel, _setActiveStream, _clearActiveStream,
   _supersedeActiveStream, startJobUI, updateJobUI, endJobUI, SCORE_STEPS,
 } from '../core/jobs.js';
 import { loadVideos, renderVideoDetail, _clipsListUrl } from '../videos/videos.js';
@@ -770,7 +770,15 @@ export function startRetranscribe() {
     () => { selectClip(_retranscribeClipId); showToast('Retranscription complete'); },
     [{label: 'Transcribe', patterns: ['Retranscribing', 'OK']}],
     'Retranscribing',
+    true,
   );
+  setJobCancel({
+    url:     '/api/analyze/cancel',
+    title:   'Cancel retranscription?',
+    body:    'The clip keeps its previous transcript. You can retranscribe it again anytime.',
+    confirm: 'Cancel Retranscribe',
+    logMsg:  '[Retranscription cancelled]',
+  });
 }
 
 // ── re-score individual clip ──────────────────────────────────────────────────

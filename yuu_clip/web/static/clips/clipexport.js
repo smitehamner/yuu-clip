@@ -7,7 +7,7 @@
 import { AppState } from '../core/state.js';
 import { escHtml, formatApiError, _fmtOffset } from '../core/format.js';
 import { PanelNav } from '../core/panelnav.js';
-import { streamSSE } from '../core/jobs.js';
+import { streamSSE, setJobCancel } from '../core/jobs.js';
 import {
   openLog, showToast, revealInFolder, copyText,
   _diarizationNoteHtml, _diarizationReadiness,
@@ -121,7 +121,15 @@ function _regenerateExportFormat(clipId, data) {
     },
     [{label: 'Export', patterns: ['Exporting', 'OK Saved']}],
     'Exporting',
+    true,
   );
+  setJobCancel({
+    url:     '/api/analyze/cancel',
+    title:   'Cancel export?',
+    body:    'The export will stop and no file will be saved. You can export again anytime.',
+    confirm: 'Cancel Export',
+    logMsg:  '[Export cancelled]',
+  });
 }
 
 function _confirmDeleteExportFormat(clipId, exportId) {
@@ -487,7 +495,15 @@ export async function confirmExport() {
     },
     steps,
     retx ? 'Retranscribing' : 'Exporting',
+    true,
   );
+  setJobCancel({
+    url:     '/api/analyze/cancel',
+    title:   'Cancel export?',
+    body:    'The export will stop and no file will be saved. You can export again anytime.',
+    confirm: 'Cancel Export',
+    logMsg:  '[Export cancelled]',
+  });
 }
 
 // ── static modal wiring (replaces the inline onclick=/oninput=/onchange= this

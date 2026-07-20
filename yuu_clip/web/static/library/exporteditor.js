@@ -3,7 +3,7 @@ import { escHtml, formatApiError } from '../core/format.js';
 import { PanelNav } from '../core/panelnav.js';
 import { setupRecordingPreview } from '../core/preview.js';
 import { openLog, showToast } from '../core/utils.js';
-import { streamSSE } from '../core/jobs.js';
+import { streamSSE, setJobCancel } from '../core/jobs.js';
 import { renderPlayer, renderDetail, _reloadClipList } from '../clips/clips.js';
 import { loadVideos } from '../videos/videos.js';
 import { SoundFx } from './sounds.js';
@@ -522,7 +522,15 @@ async function _edExport() {
     },
     [{ label: 'Export', patterns: ['Exporting', 'OK Saved'] }],
     'Exporting',
+    true,
   );
+  setJobCancel({
+    url:     '/api/analyze/cancel',
+    title:   'Cancel export?',
+    body:    'The export will stop and no file will be saved. You can export again anytime.',
+    confirm: 'Cancel Export',
+    logMsg:  '[Export cancelled]',
+  });
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────

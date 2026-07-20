@@ -5,7 +5,7 @@ import { AppState } from '../core/state.js';
 import { escHtml, plural, formatApiError } from '../core/format.js';
 import { showConfirm } from '../core/ui.js';
 import { openLog, appendLog, showToast, revealInFolder } from '../core/utils.js';
-import { streamSSE, _blockedByAnalyze } from '../core/jobs.js';
+import { streamSSE, setJobCancel, _blockedByAnalyze } from '../core/jobs.js';
 import { loadVideos } from '../videos/videos.js';
 import { _renderExportModeSummary } from '../clips/clipexport.js';
 
@@ -543,7 +543,15 @@ async function startDemo() {
     },
     [{label: 'Building', patterns: ['Generating title', 'Encoding', 'OK']}],
     'Reel',
+    true,
   );
+  setJobCancel({
+    url:     '/api/analyze/cancel',
+    title:   'Cancel reel build?',
+    body:    'The reel build will stop and no reel file will be saved. You can start it again anytime.',
+    confirm: 'Cancel Build',
+    logMsg:  '[Reel build cancelled]',
+  });
 }
 
 // ── batch export ──────────────────────────────────────────────────────────────

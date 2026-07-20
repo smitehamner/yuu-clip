@@ -1523,7 +1523,15 @@ function scoreAll() {
     },
     SCORE_STEPS,
     'Scoring',
+    true,
   );
+  setJobCancel({
+    url:     '/api/analyze/cancel',
+    title:   'Cancel scoring?',
+    body:    'Clips already scored keep their scores; the rest will need scoring again.',
+    confirm: 'Cancel Scoring',
+    logMsg:  '[Scoring cancelled]',
+  });
 }
 
 // Static index.html buttons this module owns (filter chips, kind toggle, sort
