@@ -92,7 +92,13 @@ def _whisper_repo_id(model: str) -> str:
 
 
 def _resolve_device_and_compute(config: Config) -> tuple[str, str]:
-    """Return (device, compute_type) resolving 'auto' and upgrading int8 on CUDA."""
+    """Return (device, compute_type) resolving 'auto' on both config knobs.
+
+    'auto' compute_type picks the best type for the resolved device (float16 on
+    cuda, int8 on cpu - matching the Compute type dropdown's hint text). Any
+    other explicit compute_type (e.g. a user picking 'int8' on a GPU to save
+    VRAM) is honored as-is - it is no longer silently upgraded to float16.
+    """
     device = config.whisper_device
     if device == "auto":
         try:
@@ -102,10 +108,9 @@ def _resolve_device_and_compute(config: Config) -> tuple[str, str]:
             _log.debug("ctranslate2 device detection failed, defaulting to cpu: %s", exc)
             device = "cpu"
 
-    # int8 is CPU-optimal; upgrade to float16 on CUDA for better quality
     compute_type = config.whisper_compute_type
-    if device == "cuda" and compute_type == "int8":
-        compute_type = "float16"
+    if compute_type == "auto":
+        compute_type = "float16" if device == "cuda" else "int8"
 
     return device, compute_type
 

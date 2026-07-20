@@ -216,7 +216,7 @@ function _setFieldTxt(id, val) { const el = document.getElementById(id); if (el)
 function _applySttFields(cfg) {
   _setFieldVal('s-whisper-model',  cfg.whisper_model   || 'base');
   _setFieldVal('s-whisper-device', cfg.whisper_device  || 'auto');
-  _setFieldVal('s-whisper-compute',cfg.whisper_compute_type || 'int8');
+  _setFieldVal('s-whisper-compute',cfg.whisper_compute_type || 'auto');
   _setFieldVal('s-whisper-language', cfg.whisper_language || '');
   _setFieldVal('s-export-retranscribe-model', cfg.export_retranscribe_model || 'large-v3');
 }
@@ -775,8 +775,12 @@ function _wireHeaderButtons() {
   document.getElementById('btn-settings-close')?.addEventListener('click', () => closeSettings());
 }
 
+// Delegated on the whole panel (not just .settings-jump-row) so inline
+// cross-links between related controls (e.g. the Hardware <-> Compute device
+// note pair) reuse the same .settings-jump-link[data-section] pattern as the
+// top jump nav, without a second listener.
 function _wireJumpNav() {
-  document.querySelector('.settings-jump-row')?.addEventListener('click', e => {
+  document.getElementById('settings-panel')?.addEventListener('click', e => {
     const btn = e.target.closest('.settings-jump-link[data-section]');
     if (btn) _scrollToSettingsSection(btn.dataset.section);
   });

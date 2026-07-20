@@ -395,6 +395,43 @@ class TestInstallStatus:
             assert r.status_code == 400, slug
 
 
+class TestUninstallPackage:
+    """POST /api/install/{slug}/uninstall - the inverse of install_package (B10):
+    lets a user who enabled GPU transcription reclaim the ~1 GB CUDA libraries."""
+
+    def _capture_cmd(self, client, monkeypatch, slug):
+        from starlette.responses import PlainTextResponse
+
+        from yuu_clip.web.routes import analyze
+
+        captured = {}
+
+        async def fake_sse(cmd, *args, **kwargs):
+            captured["cmd"] = cmd
+            return PlainTextResponse("ok")
+
+        monkeypatch.setattr(analyze, "subprocess_sse", fake_sse)
+        r = client.post(f"/api/install/{slug}/uninstall")
+        assert r.status_code == 200
+        return captured["cmd"]
+
+    def test_unknown_slug_returns_400(self, client):
+        r = client.post("/api/install/not-a-package/uninstall")
+        assert r.status_code == 400
+
+    def test_bundled_slugs_are_not_uninstallable(self, client):
+        for slug in ("anthropic", "embeddings", "mediapipe", "llamacpp", "laugh-deps", "audio-model", "speechbrain"):
+            r = client.post(f"/api/install/{slug}/uninstall")
+            assert r.status_code == 400, slug
+
+    def test_uninstall_runs_pip_uninstall_yes_on_the_installed_packages(self, client, monkeypatch):
+        cmd = self._capture_cmd(client, monkeypatch, "cuda-libs")
+        assert cmd[1:4] == ["-m", "pip", "uninstall"]
+        assert "-y" in cmd
+        assert "nvidia-cublas-cu12" in cmd
+        assert "nvidia-cudnn-cu12" in cmd
+
+
 # ---------------------------------------------------------------------------
 # Glossary
 # ---------------------------------------------------------------------------

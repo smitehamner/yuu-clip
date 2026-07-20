@@ -522,8 +522,10 @@ class Config:
     # "cpu" works everywhere; "cuda" needs NVIDIA GPU + CUDA toolkit on Windows/Linux
     # "auto" lets faster-whisper pick (cuda if available, else cpu)
     whisper_device: str = "auto"
-    # int8 is fast and fine for base/small; use float16 on GPU for large models
-    whisper_compute_type: str = "int8"
+    # "auto" resolves to float16 on cuda, int8 on cpu (see
+    # transcriber._resolve_device_and_compute); an explicit "int8"/"float16"/etc.
+    # is honored as-is, even on a GPU, rather than silently upgraded.
+    whisper_compute_type: str = "auto"
     # ISO 639-1 code forced for all transcription; "" = auto-detect per recording.
     # A per-run --language CLI flag still overrides this.
     whisper_language: str = ""

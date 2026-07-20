@@ -239,7 +239,7 @@ _CONFIG_PATCH_RULES: list[tuple[str, object]] = [
     ("ui_timeline_interval_unit",    _enum_validator({"seconds", "minutes"}, "unit")),
     ("whisper_model",                _whisper_model_validator),
     ("whisper_device",               _enum_validator({"cpu", "cuda", "auto"}, "whisper_device")),
-    ("whisper_compute_type",         _enum_validator({"int8", "float16", "float32", "int8_float16"}, "whisper_compute_type")),
+    ("whisper_compute_type",         _enum_validator({"auto", "int8", "float16", "float32", "int8_float16"}, "whisper_compute_type")),
     ("whisper_language",             _whisper_language_validator),
     ("export_retranscribe_model",    _whisper_model_validator),
     ("ai_privacy_mode",              _enum_validator({"none", "local_only"}, "ai_privacy_mode")),

@@ -671,6 +671,18 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         cmd = [sys.executable, "-m", "pip", "install", *packages]
         return await subprocess_sse(cmd, ctx.project_dir)
 
+    @router.post("/api/install/{slug}/uninstall")
+    async def uninstall_package(slug: str):
+        """Uninstall an optional pip package from the current Python environment -
+        the inverse of install_package, for a user who wants to reclaim the disk
+        space or stop the CUDA libraries shipping with the app entirely."""
+        if slug not in _INSTALLABLE:
+            raise HTTPException(400, f"Unknown package slug '{slug}' - allowed: {sorted(_INSTALLABLE)}")
+        pkgs = _INSTALLABLE[slug]
+        packages = pkgs if isinstance(pkgs, list) else [pkgs]
+        cmd = [sys.executable, "-m", "pip", "uninstall", "-y", *packages]
+        return await subprocess_sse(cmd, ctx.project_dir)
+
     return router
 
 

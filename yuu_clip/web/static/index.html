@@ -199,7 +199,7 @@
     <div class="settings-row">
       <div class="settings-col">
         <label class="settings-label" for="s-whisper-device">Compute device</label>
-        <div class="settings-note">auto = CUDA if available, else CPU</div>
+        <div class="settings-note">auto = CUDA if available, else CPU. GPU transcription needs the CUDA support libraries installed first - see <button type="button" class="settings-jump-link" data-section="settings-sec-hardware">Hardware</button> below to install or remove them.</div>
       </div>
       <select class="settings-select" id="s-whisper-device">
         <option value="auto">auto (recommended)</option>
@@ -210,9 +210,10 @@
     <div class="settings-row">
       <div class="settings-col">
         <label class="settings-label" for="s-whisper-compute">Compute type</label>
-        <div class="settings-note">int8 is fastest on CPU; float16 best on GPU</div>
+        <div class="settings-note">auto picks int8 on CPU, float16 on GPU. Pick int8 or float16 explicitly to force that type even on GPU (e.g. int8 to save VRAM)</div>
       </div>
       <select class="settings-select" id="s-whisper-compute">
+        <option value="auto">auto (recommended)</option>
         <option value="int8">int8</option>
         <option value="float16">float16</option>
         <option value="float32">float32</option>
@@ -700,10 +701,11 @@
     <div class="settings-row">
       <div class="settings-col">
         <label class="settings-label">GPU acceleration for transcription</label>
-        <div class="settings-note">On an NVIDIA GPU, installs the CUDA support libraries (cuBLAS + cuDNN) so transcription runs on the GPU - much faster than CPU. About 1&nbsp;GB. Re-run analysis after installing.</div>
+        <div class="settings-note">On an NVIDIA GPU, installs the CUDA support libraries (cuBLAS + cuDNN) so transcription runs on the GPU - much faster than CPU. About 1&nbsp;GB. Re-run analysis after installing. To stop using the GPU without uninstalling, switch <button type="button" class="settings-jump-link" data-section="settings-sec-stt">Compute device</button> to cpu instead.</div>
       </div>
       <div style="display:flex;gap:8px;align-items:center">
         <button class="btn-secondary" id="btn-install-cuda-libs">Enable GPU acceleration</button>
+        <button class="btn-secondary" id="btn-uninstall-cuda-libs" style="display:none">Remove</button>
         <span id="install-status-cuda-libs" style="font-size:12px"></span>
       </div>
     </div>
