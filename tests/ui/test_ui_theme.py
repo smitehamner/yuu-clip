@@ -31,7 +31,7 @@ THEMES = ["dark", "light", "high-contrast"]
 ACCENTS = ["default", "red", "orange", "yellow", "green", "blue", "purple", "pink"]
 
 _CONTRAST_JS = """
-(pair) => {
+(pairs) => {
   // Some accent-tinted tokens (e.g. --bg on a data-accent variant) are declared as
   // color-mix(...) rather than a plain hex literal. getComputedStyle on a CUSTOM
   // property returns the declared value verbatim - color-mix() is only evaluated
@@ -63,12 +63,51 @@ _CONTRAST_JS = """
     [r, g, b] = [r, g, b].map(v => v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
     return 0.2126 * r + 0.7152 * g + 0.0722 * b;
   };
-  const [l1, l2] = [lum(resolveRgb(pair[0])), lum(resolveRgb(pair[1]))];
-  return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+  return pairs.map(([name, fg, bg]) => {
+    const [l1, l2] = [lum(resolveRgb(fg)), lum(resolveRgb(bg))];
+    return [name, (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05)];
+  });
 }
 """
 
 AA_NORMAL_TEXT = 4.5
+
+# (name, foreground token, background token) - every pairing the app actually
+# renders text/fill on, checked under every (theme, accent) combination below.
+CONTRAST_PAIRS = [
+    ("muted_text_on_surface", "--muted", "--surface"),
+    ("muted_text_on_bg", "--muted", "--bg"),
+    # .rec-model-meta and the "Downloaded" badge render muted text on the
+    # recommended-model card (--surface-raised).
+    ("muted_text_on_surface_raised", "--muted", "--surface-raised"),
+    ("pending_step_pill_muted_on_border", "--muted", "--border"),
+    # .step.active, .btn.primary, .btn.active, .clip-chip.active
+    ("on_accent_on_accent", "--on-accent", "--accent"),
+    # Reserved gold fill (Export/keep button, overall-score bar): --on-highlight
+    # text over a --highlight fill. Gold is used as fill/border only, never text.
+    ("on_highlight_on_highlight", "--on-highlight", "--highlight"),
+    # .step.done, .btn.approve.active, .export-pill.is-exported,
+    # .run-meta-badge.gpu, .dot-approved
+    ("on_green_on_green", "--on-green", "--green"),
+    # .btn.reject.active, .dot-rejected, .split-marker-x
+    ("on_red_on_red", "--on-red", "--red"),
+    ("pending_dot_bg_on_muted", "--bg", "--muted"),
+    # header h1, .settings-section-title, .spk-menu-item.active
+    ("accent_text_on_surface", "--accent-text", "--surface"),
+    # .tline-speaker, .context-chip, .ctx-pill.selected
+    ("accent_text_on_bg", "--accent-text", "--bg"),
+    ("warning_text_on_surface", "--warning", "--surface"),
+    # dark-on-amber "Remote LLM" badge: text is --on-warning over a --warning fill
+    ("on_warning_on_warning_fill", "--on-warning", "--warning"),
+    # .description, .video-title, .timeline-stamp render accent2 as body text
+    ("accent2_text_on_bg", "--accent2", "--bg"),
+    # .clip-dup-badge and .sensitive-category-privacy render accent2 on the
+    # sidebar/card surface
+    ("accent2_text_on_surface", "--accent2", "--surface"),
+    ("text_on_surface", "--text", "--surface"),
+    # Primary (idle) status filter chips render --text on a --bg fill.
+    ("text_on_bg", "--text", "--bg"),
+]
 
 
 def _apply_theme_accent(page: Page, theme: str, accent: str) -> None:
@@ -87,80 +126,17 @@ def _apply_theme_accent(page: Page, theme: str, accent: str) -> None:
 @pytest.mark.parametrize("accent", ACCENTS)
 class TestContrastTokens:
     """The AA contract holds under every (theme, accent) combination, not just
-    the dark/default baseline."""
+    the dark/default baseline. Every pair is checked in one evaluate call per
+    combination rather than one page load per pair."""
 
-    @pytest.fixture(autouse=True)
-    def _apply(self, page: Page, theme: str, accent: str):
+    def test_all_pairs_meet_aa(self, page: Page, theme: str, accent: str):
         _apply_theme_accent(page, theme, accent)
-
-    def _ratio(self, page: Page, fg: str, bg: str) -> float:
-        return page.evaluate(_CONTRAST_JS, [fg, bg])
-
-    def test_muted_text_on_surface(self, page: Page):
-        assert self._ratio(page, "--muted", "--surface") >= AA_NORMAL_TEXT
-
-    def test_muted_text_on_bg(self, page: Page):
-        assert self._ratio(page, "--muted", "--bg") >= AA_NORMAL_TEXT
-
-    def test_muted_text_on_surface_raised(self, page: Page):
-        # .rec-model-meta and the "Downloaded" badge render muted text on the
-        # recommended-model card (--surface-raised).
-        assert self._ratio(page, "--muted", "--surface-raised") >= AA_NORMAL_TEXT
-
-    def test_pending_step_pill_muted_on_border(self, page: Page):
-        assert self._ratio(page, "--muted", "--border") >= AA_NORMAL_TEXT
-
-    def test_on_accent_on_accent(self, page: Page):
-        # .step.active, .btn.primary, .btn.active, .clip-chip.active
-        assert self._ratio(page, "--on-accent", "--accent") >= AA_NORMAL_TEXT
-
-    def test_on_highlight_on_highlight(self, page: Page):
-        # Reserved gold fill (Export/keep button, overall-score bar): --on-highlight
-        # text over a --highlight fill. Gold is used as fill/border only, never text.
-        assert self._ratio(page, "--on-highlight", "--highlight") >= AA_NORMAL_TEXT
-
-    def test_on_green_on_green(self, page: Page):
-        # .step.done, .btn.approve.active, .export-pill.is-exported,
-        # .run-meta-badge.gpu, .dot-approved
-        assert self._ratio(page, "--on-green", "--green") >= AA_NORMAL_TEXT
-
-    def test_on_red_on_red(self, page: Page):
-        # .btn.reject.active, .dot-rejected, .split-marker-x
-        assert self._ratio(page, "--on-red", "--red") >= AA_NORMAL_TEXT
-
-    def test_pending_dot_bg_on_muted(self, page: Page):
-        assert self._ratio(page, "--bg", "--muted") >= AA_NORMAL_TEXT
-
-    def test_accent_text_on_surface(self, page: Page):
-        # header h1, .settings-section-title, .spk-menu-item.active
-        assert self._ratio(page, "--accent-text", "--surface") >= AA_NORMAL_TEXT
-
-    def test_accent_text_on_bg(self, page: Page):
-        # .tline-speaker, .context-chip, .ctx-pill.selected
-        assert self._ratio(page, "--accent-text", "--bg") >= AA_NORMAL_TEXT
-
-    def test_warning_text_on_surface(self, page: Page):
-        assert self._ratio(page, "--warning", "--surface") >= AA_NORMAL_TEXT
-
-    def test_on_warning_on_warning_fill(self, page: Page):
-        # dark-on-amber "Remote LLM" badge: text is --on-warning over a --warning fill
-        assert self._ratio(page, "--on-warning", "--warning") >= AA_NORMAL_TEXT
-
-    def test_accent2_text_on_bg(self, page: Page):
-        # .description, .video-title, .timeline-stamp render accent2 as body text
-        assert self._ratio(page, "--accent2", "--bg") >= AA_NORMAL_TEXT
-
-    def test_accent2_text_on_surface(self, page: Page):
-        # .clip-dup-badge and .sensitive-category-privacy render accent2 on the
-        # sidebar/card surface
-        assert self._ratio(page, "--accent2", "--surface") >= AA_NORMAL_TEXT
-
-    def test_text_on_surface(self, page: Page):
-        assert self._ratio(page, "--text", "--surface") >= AA_NORMAL_TEXT
-
-    def test_text_on_bg(self, page: Page):
-        # Primary (idle) status filter chips render --text on a --bg fill.
-        assert self._ratio(page, "--text", "--bg") >= AA_NORMAL_TEXT
+        results = page.evaluate(_CONTRAST_JS, [list(pair) for pair in CONTRAST_PAIRS])
+        failures = [(name, ratio) for name, ratio in results if ratio < AA_NORMAL_TEXT]
+        assert not failures, (
+            f"{theme}/{accent}: below {AA_NORMAL_TEXT}:1 contrast for "
+            + ", ".join(f"{name}={ratio:.2f}" for name, ratio in failures)
+        )
 
 
 @skip_no_server
