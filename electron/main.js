@@ -1135,6 +1135,7 @@ function createWindow(port) {
     minWidth: 1024, minHeight: 700,
     title: 'YuuClip',
     icon: path.join(__dirname, 'assets', 'icon.png'),
+    autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
