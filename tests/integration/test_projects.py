@@ -143,9 +143,29 @@ class TestProjectSwitch:
         assert client.post("/api/projects/switch", json={"path": str(other)}).status_code == 200
         assert [v["filename"] for v in client.get("/api/videos").json()] == ["again.mkv"]
 
-    def test_nonexistent_path_400(self, client, tmp_path):
-        res = client.post("/api/projects/switch", json={"path": str(tmp_path / "nope")})
+    def test_nonexistent_leaf_with_existing_parent_creates_folder(self, client, tmp_path):
+        # open-project.html promises "a new folder becomes a fresh, empty project" -
+        # a not-yet-existing leaf under an existing parent should be created, not 400.
+        target = tmp_path / "brand-new-project"
+        assert not target.exists()
+        res = client.post("/api/projects/switch", json={"path": str(target)})
+        assert res.status_code == 200
+        assert target.is_dir()
+        assert res.json()["current"] == str(target.resolve())
+
+    def test_nonexistent_parent_still_400(self, client, tmp_path):
+        # A missing parent is a real typo, not "make me a new project" - still rejected.
+        res = client.post(
+            "/api/projects/switch",
+            json={"path": str(tmp_path / "nope" / "still-nope")},
+        )
         assert res.status_code == 400
+
+    def test_existing_folder_switch_unchanged(self, client, tmp_path):
+        other = _seed_project(tmp_path / "existing", "existing.mkv")
+        res = client.post("/api/projects/switch", json={"path": str(other)})
+        assert res.status_code == 200
+        assert res.json()["current"] == str(other.resolve())
 
     def test_rejected_while_job_running(self, client, tmp_path):
         other = _seed_project(tmp_path / "busy", "busy.mkv")

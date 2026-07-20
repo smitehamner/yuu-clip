@@ -58,7 +58,13 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             )
         new_dir = Path(body.path).expanduser()
         if not new_dir.is_dir():
-            raise HTTPException(400, f"Not a folder: {body.path}")
+            # "A new folder becomes a fresh, empty project" (open-project.html) - honor
+            # that promise when the parent exists (a plausible new-project path), but
+            # still 400 when the parent is also missing (that's a typo, not a request
+            # to create an entire directory tree).
+            if new_dir.exists() or not new_dir.parent.is_dir():
+                raise HTTPException(400, f"Not a folder: {body.path}")
+            new_dir.mkdir()
         new_dir = new_dir.resolve()
 
         # switch_project mkdirs .yuu-clip before make_engine; redirect_logging then
