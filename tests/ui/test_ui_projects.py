@@ -43,8 +43,9 @@ class TestProjectSwitcher:
         page.locator("#project-menu").get_by_text("Open another project…").click()
         expect(page.locator("#open-project-modal")).to_have_class(_VISIBLE)
         expect(page.locator("#open-project-path")).to_be_focused()
-        # Browse button is Electron-only; hidden in browser-dev mode.
-        expect(page.locator("#btn-project-browse")).to_be_hidden()
+        # Browse button is always shown now - Electron's native dialog, or the
+        # server-side tkinter fallback in browser-dev mode.
+        expect(page.locator("#btn-project-browse")).to_be_visible()
         page.evaluate("closeOpenProjectModal()")
 
     def test_menu_closes_on_outside_click(self, page: Page):

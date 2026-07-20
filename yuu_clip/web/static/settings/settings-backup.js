@@ -1,4 +1,4 @@
-import { escHtml, formatApiError, plural } from '../core/format.js';
+import { escHtml, formatApiError, plural, stripQuotedPath } from '../core/format.js';
 import { showToast } from '../core/utils.js';
 import { showConfirm } from '../core/ui.js';
 
@@ -155,11 +155,11 @@ async function _pickFolderInto(inputId) {
 
 async function _applyRestore(overwrite) {
   if (!_restoreState) return;
-  const target = document.getElementById('restore-target').value.trim();
+  const target = stripQuotedPath(document.getElementById('restore-target').value.trim());
   if (!target) { showToast('Choose a folder to restore into', 'error'); return; }
   const mapping = {};
   _restoreState.groups.forEach((group, i) => {
-    const value = document.getElementById(`repoint-${i}`)?.value.trim();
+    const value = stripQuotedPath(document.getElementById(`repoint-${i}`)?.value.trim() || '');
     if (value) mapping[group.missing_dir] = value;
   });
 

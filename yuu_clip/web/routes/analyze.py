@@ -244,6 +244,32 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             root.destroy()
         return {"path": str(Path(path)) if path else None}
 
+    _PICK_FOLDER_KINDS = {
+        "project": "Select Project Folder",
+    }
+
+    @router.get("/api/pick-folder")
+    def pick_folder(kind: str = "project"):
+        """Open the OS-native folder dialog on the server machine and return the chosen path.
+
+        Mirrors /api/pick-file's pattern but for a directory - the non-Electron
+        fallback for folder-picker buttons (e.g. Open Project) that would
+        otherwise only work inside the packaged Electron app.
+        """
+        if kind not in _PICK_FOLDER_KINDS:
+            raise HTTPException(400, f"kind must be one of: {sorted(_PICK_FOLDER_KINDS)}")
+        title = _PICK_FOLDER_KINDS[kind]
+        import tkinter as tk
+        from tkinter import filedialog
+        root = tk.Tk()
+        root.withdraw()
+        root.wm_attributes("-topmost", True)
+        try:
+            path = filedialog.askdirectory(title=title)
+        finally:
+            root.destroy()
+        return {"path": str(Path(path)) if path else None}
+
     @router.post("/api/probe")
     def probe_video_file(req: ProbeRequest):
         """Probe a video file and return its duration, resolution, stream counts, and subtitle info."""

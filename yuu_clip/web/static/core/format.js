@@ -139,6 +139,21 @@ function _fmtElapsed(ms) {
   return m > 0 ? `${m}m ${s % 60}s` : `${s}s`;
 }
 
+// ── path-entry text boxes ─────────────────────────────────────────────────────
+// Windows Explorer's "Copy as path" wraps the clipboard value in double quotes
+// (e.g. `"D:\Videos\my-project"`), which fails path validation even though the
+// unquoted path is valid. Strip one matching pair of leading/trailing quotes -
+// same char on both ends - and leave an unbalanced quote alone rather than
+// guessing at malformed input. Shared by every path-entry text box (Open
+// Project, the Settings LLM model/vision/mmproj path fields, backup restore).
+function stripQuotedPath(value) {
+  if (typeof value !== 'string' || value.length < 2) return value;
+  const first = value[0];
+  const last = value[value.length - 1];
+  if ((first === '"' || first === "'") && first === last) return value.slice(1, -1);
+  return value;
+}
+
 // ── timeline interval ─────────────────────────────────────────────────────────
 const _TIMELINE_MIN_INTERVAL_S = 10;
 
@@ -155,5 +170,5 @@ function _parseIntervalS(value, unit) {
 export {
   AXIS_ICONS, _scoreIcon, _lerpColor, _scoreBorderColor, _sortScore, _fmtVideoStatus, _msToHms,
   plural, finiteOr, fmtDuration, truncate, escHtml, formatApiError, stripRichMarkup,
-  _parseServerDate, _fmtDate, _fmtAgo, _fmtOffset, _fmtElapsed, _parseIntervalS,
+  _parseServerDate, _fmtDate, _fmtAgo, _fmtOffset, _fmtElapsed, _parseIntervalS, stripQuotedPath,
 };

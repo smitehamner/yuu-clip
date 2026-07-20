@@ -5,7 +5,7 @@
 import {
   escHtml, _parseServerDate, _fmtAgo, _fmtOffset, _msToHms, finiteOr, fmtDuration,
   formatApiError, stripRichMarkup, _scoreBorderColor, _lerpColor, _fmtElapsed,
-  _fmtVideoStatus, _fmtDate, _sortScore, plural, _parseIntervalS,
+  _fmtVideoStatus, _fmtDate, _sortScore, plural, _parseIntervalS, stripQuotedPath,
 } from '../../../yuu_clip/web/static/core/format.js';
 
 describe('escHtml', () => {
@@ -170,6 +170,37 @@ describe('_parseIntervalS', () => {
   });
   it('treats any non-minutes unit as seconds', () => {
     expect(_parseIntervalS('15', 'seconds')).toBe(15);
+  });
+});
+
+// Windows Explorer's "Copy as path" wraps the clipboard value in double quotes;
+// strip exactly one matching pair, leaving an unbalanced/mismatched quote alone
+// rather than guessing at malformed input (B26).
+describe('stripQuotedPath', () => {
+  it('strips a matching double-quote pair', () => {
+    expect(stripQuotedPath('"D:\\Videos\\my-project"')).toBe('D:\\Videos\\my-project');
+  });
+  it('strips a matching single-quote pair', () => {
+    expect(stripQuotedPath("'/home/user/videos'")).toBe('/home/user/videos');
+  });
+  it('leaves a path with no quotes unchanged', () => {
+    expect(stripQuotedPath('D:\\Videos\\my-project')).toBe('D:\\Videos\\my-project');
+  });
+  it('leaves an unbalanced leading quote alone', () => {
+    expect(stripQuotedPath('"D:\\Videos\\my-project')).toBe('"D:\\Videos\\my-project');
+  });
+  it('leaves an unbalanced trailing quote alone', () => {
+    expect(stripQuotedPath('D:\\Videos\\my-project"')).toBe('D:\\Videos\\my-project"');
+  });
+  it('leaves mismatched quote types alone', () => {
+    expect(stripQuotedPath('"D:\\Videos\\my-project\'')).toBe('"D:\\Videos\\my-project\'');
+  });
+  it('handles empty and single-character input without stripping', () => {
+    expect(stripQuotedPath('')).toBe('');
+    expect(stripQuotedPath('"')).toBe('"');
+  });
+  it('passes non-string input through unchanged', () => {
+    expect(stripQuotedPath(null)).toBe(null);
   });
 });
 

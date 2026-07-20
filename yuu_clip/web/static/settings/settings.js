@@ -6,7 +6,7 @@ import {
 } from './modelcatalog.js';
 import { showConfirm, playbackRatePref, applyPlaybackRate } from '../core/ui.js';
 import { showToast } from '../core/utils.js';
-import { plural, escHtml, formatApiError, _parseIntervalS } from '../core/format.js';
+import { plural, escHtml, formatApiError, _parseIntervalS, stripQuotedPath } from '../core/format.js';
 import { languageOptionsHtml } from '../shared/whisperlang.js';
 import { _filterGlossary, closeGlossaryModal } from '../core/helpmodals.js';
 import { _isNewRecordingPanelOpen, _doCloseNewRecordingPanel } from '../analyze/analyze.js';
@@ -629,6 +629,9 @@ async function saveSettings() {
   const getVal = id => { const el = document.getElementById(id); return el ? el.value : null; };
   const getChk = id => { const el = document.getElementById(id); return el ? el.checked : null; };
   const getNum = (id, parse) => { const v = getVal(id); return v !== null ? parse(v) : null; };
+  // LLM model/vision/mmproj paths: strip a Windows "Copy as path" quote pair
+  // before it hits the server's is_file()/exists() validation (B26).
+  const getPathVal = id => stripQuotedPath(getVal(id));
 
   const tlUnit = getVal('s-timeline-unit');
   const tlRaw  = getVal('s-timeline-interval');
@@ -647,9 +650,9 @@ async function saveSettings() {
     export_retranscribe_model:  getVal('s-export-retranscribe-model'),
     ai_privacy_mode:            _currentPrivacyMode(),
     llm_enabled:                getChk('s-llm-enabled'),
-    llm_model_path:             getVal('s-llm-model-path'),
-    llm_vision_model_path:      getVal('s-llm-vision-model-path'),
-    llm_mmproj_path:            getVal('s-llm-mmproj-path'),
+    llm_model_path:             getPathVal('s-llm-model-path'),
+    llm_vision_model_path:      getPathVal('s-llm-vision-model-path'),
+    llm_mmproj_path:            getPathVal('s-llm-mmproj-path'),
     llm_use_gpu:                getChk('s-llm-use-gpu'),
     vision_enabled:             getChk('s-vision-enabled'),
     vision_frames_per_clip:     getNum('s-vision-frames', v => parseInt(v, 10)),

@@ -6,6 +6,7 @@
 // the old project's data and is not hot-swapped. See routes/projects.py.
 import { showToast } from '../core/utils.js';
 import { _menuArrowKeydown } from '../core/ui.js';
+import { stripQuotedPath } from '../core/format.js';
 
 let _openProjectOpener = null;
 
@@ -127,8 +128,9 @@ async function switchProject(path) {
 function openOpenProjectModal() {
   _openProjectOpener = document.activeElement;
   document.getElementById('open-project-path').value = '';
-  document.getElementById('btn-project-browse').style.display =
-    window.electronAPI?.pickProjectFolder ? '' : 'none';
+  // A picker is available either way now: Electron's native dialog, or the
+  // server-side tkinter fallback (_pickFolderServerSide) in a plain browser.
+  document.getElementById('btn-project-browse').style.display = '';
   document.getElementById('open-project-modal').classList.add('visible');
   setTimeout(() => document.getElementById('open-project-path').focus(), 50);
 }
@@ -139,15 +141,33 @@ function closeOpenProjectModal() {
   if (opener?.focus) opener.focus();
 }
 function _openProjectConfirm() {
-  const path = document.getElementById('open-project-path').value.trim();
+  const path = stripQuotedPath(document.getElementById('open-project-path').value.trim());
   if (!path) { showToast('Enter a project folder path', 'error'); return; }
   closeOpenProjectModal();
   switchProject(path);
 }
 async function browseForProjectFolder() {
-  if (!window.electronAPI?.pickProjectFolder) return;
-  const dir = await window.electronAPI.pickProjectFolder();
+  if (window.electronAPI?.pickProjectFolder) {
+    const dir = await window.electronAPI.pickProjectFolder();
+    if (dir) document.getElementById('open-project-path').value = dir;
+    return;
+  }
+  const dir = await _pickFolderServerSide();
   if (dir) document.getElementById('open-project-path').value = dir;
+}
+
+// Non-Electron fallback: the server machine's own native folder picker
+// (tkinter, same pattern as the video/captions file pickers in /api/pick-file),
+// so a plain-browser session (e.g. `yuu-dev serve` opened in a normal tab)
+// still gets a picker instead of a bare text box with no visible affordance.
+async function _pickFolderServerSide() {
+  try {
+    const data = await fetch('/api/pick-folder').then(r => r.json());
+    return data.path || null;
+  } catch {
+    showToast('Could not open the folder picker', 'error');
+    return null;
+  }
 }
 
 document.getElementById('open-project-path').addEventListener('keydown', e => {
