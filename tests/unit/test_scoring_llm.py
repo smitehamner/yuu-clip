@@ -563,6 +563,113 @@ class TestSummarizeTranscript:
         assert title == ""
         assert summary == ""
 
+# ---------------------------------------------------------------------------
+# _sample_transcript_for_speaker_names() - B13: a flat head-only [:12000] cut
+# never saw introductions later in a long recording (e.g. a press conference).
+# ---------------------------------------------------------------------------
+
+class TestSampleTranscriptForSpeakerNames:
+    def _long_transcript(self, num_lines=2000):
+        return [f"Speaker 1: filler line number {i} of the session" for i in range(num_lines)]
+
+    def test_short_transcript_returned_unchanged(self):
+        from yuu_clip.scoring.llm import _sample_transcript_for_speaker_names
+        text = "Speaker 1: hi\nSpeaker 2: hello"
+        assert _sample_transcript_for_speaker_names(text) == text
+
+    def test_long_transcript_keeps_lines_near_the_end(self):
+        from yuu_clip.scoring.llm import _sample_transcript_for_speaker_names
+        lines = self._long_transcript()
+        lines[-3] = "Speaker 2: joining us today is Dr. Alex"
+        text = "\n".join(lines)
+        assert len(text) > 12000  # a flat [:12000] truncation would have dropped this line
+        sampled = _sample_transcript_for_speaker_names(text)
+        assert "joining us today is Dr. Alex" in sampled
+
+    def test_long_transcript_also_keeps_the_opening_lines(self):
+        from yuu_clip.scoring.llm import _sample_transcript_for_speaker_names
+        lines = self._long_transcript()
+        lines[0] = "Speaker 1: I'm Alex, welcome everyone"
+        text = "\n".join(lines)
+        sampled = _sample_transcript_for_speaker_names(text)
+        assert "I'm Alex, welcome everyone" in sampled
+
+    def test_result_does_not_grow_far_past_budget(self):
+        from yuu_clip.scoring.llm import _sample_transcript_for_speaker_names
+        text = "\n".join(self._long_transcript())
+        sampled = _sample_transcript_for_speaker_names(text, max_chars=12000)
+        assert len(sampled) <= 12000 * 1.1
+
+    def test_sampled_lines_preserve_original_order(self):
+        from yuu_clip.scoring.llm import _sample_transcript_for_speaker_names
+        lines = [f"Speaker 1: line {i}" for i in range(2000)]
+        text = "\n".join(lines)
+        sampled_lines = _sample_transcript_for_speaker_names(text, max_chars=2000).split("\n")
+        line_numbers = [int(line.rsplit(" ", 1)[1]) for line in sampled_lines]
+        assert line_numbers == sorted(line_numbers)
+
+    def test_no_duplicate_lines_when_windows_overlap(self):
+        from yuu_clip.scoring.llm import _sample_transcript_for_speaker_names
+        text = "\n".join(self._long_transcript(num_lines=2000))
+        sampled_lines = _sample_transcript_for_speaker_names(text, max_chars=100000).split("\n")
+        assert len(sampled_lines) == len(set(sampled_lines))
+
+
+# ---------------------------------------------------------------------------
+# infer_speaker_names() / _SPEAKER_NAME_SYSTEM - B13
+# ---------------------------------------------------------------------------
+
+class TestSpeakerNameSystemPrompt:
+    def test_mentions_third_person_introduction_patterns(self):
+        from yuu_clip.scoring.llm import _SPEAKER_NAME_SYSTEM
+        lowered = _SPEAKER_NAME_SYSTEM.lower()
+        assert "welcome" in lowered
+        assert "joining us" in lowered
+
+    def test_still_mentions_direct_address_and_self_identification(self):
+        from yuu_clip.scoring.llm import _SPEAKER_NAME_SYSTEM
+        lowered = _SPEAKER_NAME_SYSTEM.lower()
+        assert "i'm alex" in lowered
+        assert "hey yuu" in lowered
+
+
+class TestInferSpeakerNames:
+    def _cfg(self):
+        from yuu_clip.config import Config
+        return Config()
+
+    def test_long_transcript_is_sampled_before_sending(self):
+        import json
+        import unittest.mock as mock
+
+        from yuu_clip.scoring.llm import infer_speaker_names
+        lines = [f"Speaker 1: filler line number {i} of the session" for i in range(2000)]
+        lines[-3] = "Speaker 2: joining us today is Dr. Alex"
+        transcript = "\n".join(lines)
+        captured = {}
+        def fake_call(messages, config, temperature=0.1, max_tokens=None):
+            captured["messages"] = messages
+            return json.dumps({})
+        with mock.patch("yuu_clip.scoring.llm._call_client", side_effect=fake_call):
+            infer_speaker_names(transcript, self._cfg())
+        user_content = captured["messages"][1]["content"]
+        assert "joining us today is Dr. Alex" in user_content
+        assert len(user_content) < len(transcript)
+
+    def test_short_transcript_sent_unchanged(self):
+        import json
+        import unittest.mock as mock
+
+        from yuu_clip.scoring.llm import infer_speaker_names
+        transcript = "Speaker 1: hey yuu, watch out\nSpeaker 2: nice shot"
+        captured = {}
+        def fake_call(messages, config, temperature=0.1, max_tokens=None):
+            captured["messages"] = messages
+            return json.dumps({})
+        with mock.patch("yuu_clip.scoring.llm._call_client", side_effect=fake_call):
+            infer_speaker_names(transcript, self._cfg())
+        assert transcript in captured["messages"][1]["content"]
+
 class TestGenerateTimelineChunk:
     def _cfg(self):
         from yuu_clip.config import Config

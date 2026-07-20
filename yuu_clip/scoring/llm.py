@@ -442,17 +442,21 @@ def find_related_clips(
 
 
 _SPEAKER_NAME_SYSTEM = """\
-You identify who each anonymous speaker is in a transcript, using only how people
-address each other by name.
+You identify who each anonymous speaker is in a transcript, using every naming clue
+available - not just how people address each other.
 
-The transcript is labeled with anonymous numbers (Speaker 1, Speaker 2, …). Speakers
-often address one another directly ("Hey Yuu, watch out", "Nice shot, Alex") or
-identify themselves ("I'm Alex"). Infer each speaker's real name from that evidence.
+The transcript is labeled with anonymous numbers (Speaker 1, Speaker 2, …). Look for:
+- Direct address ("Hey Yuu, watch out", "Nice shot, Alex") - the name usually belongs to
+  a DIFFERENT speaker, the one being spoken to.
+- Self-identification ("I'm Alex", "This is Alex speaking").
+- Third-person introduction by someone else, common in interviews, panels, and press
+  conferences ("Please welcome astronaut Alex", "Joining us today is Dr. Alex", "Our
+  next question is from Alex") - the name usually belongs to whichever speaker takes
+  the next turn after the introduction.
 
 Rules:
 - Suggest a name only when the evidence is clear. Omit any speaker you cannot identify -
   never guess or invent a name.
-- A name spoken TO someone is usually the name of a DIFFERENT speaker, not the talker.
 - Never assign the same name to two different speaker numbers.
 
 Return ONLY valid JSON: an object mapping the speaker number (as a string) to the
@@ -460,20 +464,66 @@ inferred name, e.g. {"1": "Yuu", "3": "Alex"}. Return {} when nothing is clear.
 No markdown, no extra text.\
 """
 
+_SPEAKER_NAME_TRANSCRIPT_MAX_CHARS = 12000
+_SPEAKER_NAME_TRANSCRIPT_WINDOWS = 5
+
+
+def _sample_transcript_for_speaker_names(
+    labeled_transcript: str,
+    max_chars: int = _SPEAKER_NAME_TRANSCRIPT_MAX_CHARS,
+    windows: int = _SPEAKER_NAME_TRANSCRIPT_WINDOWS,
+) -> str:
+    """Fit *labeled_transcript* within *max_chars* by sampling lines spread across the
+    whole recording - including the very end - rather than just the opening minutes.
+
+    A flat head-only truncation never sees introductions or self-identification that
+    happen later in a long recording (e.g. a 60-minute press conference). Instead this
+    splits the budget into *windows* evenly spaced starting points (the first anchored
+    at the head, the last anchored at the tail so it always reaches the true end) and
+    keeps lines from each, in original order, until that window's share of the budget
+    is spent. Returns the transcript unchanged when it already fits.
+    """
+    if len(labeled_transcript) <= max_chars:
+        return labeled_transcript
+    lines = labeled_transcript.split("\n")
+    if not lines:
+        return labeled_transcript[:max_chars]
+    window_budget = max_chars // windows
+    kept_indices: set[int] = set()
+    for window in range(windows):
+        if window == windows - 1:
+            chars_used = 0
+            idx = len(lines)
+            while idx > 0 and chars_used < window_budget:
+                idx -= 1
+                chars_used += len(lines[idx]) + 1
+            kept_indices.update(range(idx, len(lines)))
+        else:
+            chars_used = 0
+            idx = round(window * len(lines) / windows)
+            while idx < len(lines) and chars_used < window_budget:
+                kept_indices.add(idx)
+                chars_used += len(lines[idx]) + 1
+                idx += 1
+    return "\n".join(lines[i] for i in sorted(kept_indices))
+
 
 def infer_speaker_names(
     labeled_transcript: str, config: "Config", context_text: str = ""
 ) -> dict[str, str]:
-    """Suggest real names for anonymous speakers from direct address in the transcript.
+    """Suggest real names for anonymous speakers from naming evidence in the transcript.
 
     *labeled_transcript* is the recording's transcript with each line prefixed by its
     "Speaker N" label. Returns {display_index_str: name}, empty when nothing is clear.
-    Truncates to 12 000 chars to stay within the model's context window. Raises on failure.
+    Long transcripts are sampled across the whole recording (see
+    `_sample_transcript_for_speaker_names`) to stay within the model's context window
+    without losing introductions that happen after the opening minutes. Raises on failure.
     """
     system = _prepend_context(_SPEAKER_NAME_SYSTEM, context_text)
+    sampled = _sample_transcript_for_speaker_names(labeled_transcript)
     messages = [
         {"role": "system", "content": system},
-        {"role": "user",   "content": f"Transcript:\n\"\"\"\n{labeled_transcript[:12000]}\n\"\"\"\nJSON:"},
+        {"role": "user",   "content": f"Transcript:\n\"\"\"\n{sampled}\n\"\"\"\nJSON:"},
     ]
     data = _call_llm_json(messages, config, temperature=0.1)
     if not isinstance(data, dict):
