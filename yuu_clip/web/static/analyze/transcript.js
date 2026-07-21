@@ -303,6 +303,47 @@ export function reloadVideoTranscriptIfOpen(videoId) {
   if (card && !card.classList.contains('collapsed')) loadVideoTranscript(videoId);
 }
 
+// Patch a speaker's name and/or colour across every transcript row already on the page
+// (recording transcript AND any open clip transcript) WITHOUT re-fetching or rebuilding.
+// A rename/recolour never changes the transcript's structure - which lines belong to
+// whom, or their order - only the displayed label and colour, so an in-place patch keeps
+// the user's scroll position, focus, loaded pages, and any caption edit in progress
+// intact. That is the whole point: a full reload here was visibly disruptive while
+// editing inside the transcript. (Reassigning a line DOES change structure, so that path
+// keeps using reloadVideoTranscriptIfOpen.)
+export function updateSpeakerLabelsInTranscript(speakerId, changes) {
+  const sel = `[data-speaker-id="${speakerId}"]`;
+  const displayName = changes ? changes.displayName : null;
+  const color = changes ? changes.color : null;
+
+  if (displayName != null) {
+    document.querySelectorAll(`.tline-speaker${sel}`).forEach(label => {
+      // Skip a label the user is mid-rename on, so we never clobber its open input.
+      if (!label.classList.contains('editing')) label.textContent = displayName;
+    });
+    document.querySelectorAll(`.tline-spk${sel}`).forEach(btn => {
+      const prefix = btn.classList.contains('edited') ? 'Reassigned by you - ' : '';
+      btn.title = `${prefix}${displayName} - click to change or rename`;
+    });
+  }
+  if (color != null) {
+    document.querySelectorAll(`.tline-speaker${sel}`).forEach(label => { label.style.color = color; });
+    document.querySelectorAll(`.tline-spk${sel} .tline-spk-dot`).forEach(dot => { dot.style.background = color; });
+  }
+
+  // Keep the paged cache in sync so a later "Show more" renders the new label/colour too.
+  const page = _videoTranscriptPage;
+  if (page) {
+    const numId = Number(speakerId);
+    for (const line of page.lines) {
+      if (line.speaker_id === numId) {
+        if (displayName != null) line.speaker = displayName;
+        if (color != null) line.color = color;
+      }
+    }
+  }
+}
+
 // ── per-line speaker control (rename + reassign) ───────────────────────────────
 // A transcript line's speaker dot opens a menu to reattribute that one line to a
 // different speaker (or detach it) and to name the line's current speaker without
@@ -453,9 +494,16 @@ async function _renameSpeakerFromLine(speakerId, name, videoId, triggerEl) {
     const updated = await res.json();
     _closeSpeakerMenu();
     showToast(updated.is_named ? `Speaker named ${updated.display_name}` : 'Name cleared');
-    _refreshAfterSpeakerChange(videoId, null);
+    // A rename only changes the label - patch it in place (recording + clip transcript +
+    // Speakers card) instead of rebuilding the whole transcript, so editing here isn't
+    // disrupted. Structure-changing paths (reassign, new speaker) still full-reload.
+    delete _videoSpeakersCache[videoId];
+    loadSpeakers(videoId);
+    updateSpeakerLabelsInTranscript(speakerId, { displayName: updated.display_name, color: updated.color });
+    return updated;
   } catch (_) {
     showToast('Could not save speaker name', 'error');
+    return null;
   } finally {
     if (triggerEl) triggerEl.disabled = false;
   }
@@ -464,7 +512,8 @@ async function _renameSpeakerFromLine(speakerId, name, videoId, triggerEl) {
 // Inline rename straight from the transcript's speaker label - the discoverable path
 // the dot menu's rename field duplicates. Prefills the speaker's raw name (empty when
 // unnamed) so the placeholder invites a real name rather than editing the "Speaker N"
-// fallback. On commit, _renameSpeakerFromLine reloads the transcript, replacing the label.
+// fallback. On commit, _renameSpeakerFromLine patches the label in place (no full reload)
+// and this handler closes the edit field with the saved name.
 // Matches startEditCaption pattern: explicit Save/Cancel buttons + Enter/Escape shortcuts.
 export async function startRenameSpeaker(label) {
   if (label.classList.contains('editing')) return;
@@ -514,7 +563,10 @@ export async function startRenameSpeaker(label) {
     const next = input.value.trim();
     if (next !== prevName) {
       save.disabled = cancel.disabled = true;
-      await _renameSpeakerFromLine(speakerId, next, videoId, input);
+      const updated = await _renameSpeakerFromLine(speakerId, next, videoId, input);
+      // The in-place refresh skips this .editing label (so it can't clobber the open
+      // input), so close it here with the saved name - or restore the original on failure.
+      restore(updated ? updated.display_name : original);
     } else {
       restore(original);
     }

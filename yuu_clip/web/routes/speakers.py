@@ -637,6 +637,12 @@ def _labeled_transcript(db, video_id: int, speakers_by_id: dict[int, Speaker]) -
     return "\n".join(lines)
 
 
+# The auto-generated "Speaker N" placeholder label. A local model asked to name the
+# speakers sometimes just echoes this back (it prefixes every transcript line) - which
+# is never a real name, so it must never become a suggestion.
+_PLACEHOLDER_NAME_RE = re.compile(r"\s*speaker\s+\d+\s*$", re.IGNORECASE)
+
+
 def _apply_name_suggestions(speakers: list[Speaker], suggestions: dict[str, str],
                             allow_confirmed_name: bool = False) -> int:
     """Write deduped name suggestions onto unconfirmed speakers. Returns the count applied.
@@ -668,6 +674,13 @@ def _apply_name_suggestions(speakers: list[Speaker], suggestions: dict[str, str]
         except ValueError:
             continue
         if speaker is None:
+            continue
+        # Drop garbage: the "Speaker N" placeholder the LLM sometimes echoes is never a
+        # real name, and re-suggesting a speaker's current name is a no-op that would
+        # just re-open the accept/dismiss prompt on a name already in place.
+        if _PLACEHOLDER_NAME_RE.match(name):
+            continue
+        if speaker.name and speaker.name.lower() == name.lower():
             continue
         if allow_confirmed_name:
             if speaker.name:  # fill only still-unnamed speakers

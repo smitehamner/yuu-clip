@@ -38,6 +38,22 @@ async function loadVideos() {
   const analyzingName = AppState.analyzeFilename;
   const showPlaceholder = analyzingName && !videos.some(v => v.filename === analyzingName);
 
+  // The instant a freshly-started analysis gets its DB row, jump the user to it if
+  // they're still on the empty/welcome screen: the live progress detail replaces the
+  // "+ Analyze your first recording" CTA that would otherwise sit there looking
+  // clickable but inert (a running job disables the header analyze button, so the CTA
+  // no-ops) for the whole job. Guarded on "nothing selected" so a user who navigated
+  // elsewhere mid-analysis is never yanked away.
+  const autoSelectId = _autoSelectAnalyzingId(videos, analyzingName, AppState.activeVideoId);
+  if (autoSelectId != null) {
+    // selectVideo first (it sets activeVideoId) so the sidebar re-render below marks
+    // the now-open recording active; selectVideo doesn't rebuild the list itself.
+    await selectVideo(autoSelectId);
+    _renderVideoList();
+    _updateDemoButton(videos.reduce((n, v) => n + v.approved, 0));
+    return;
+  }
+
   if (!videos.length && !showPlaceholder) {
     document.getElementById('video-list').innerHTML =
       '<li style="padding:10px 14px;color:var(--muted)">No recordings yet</li>';
@@ -49,10 +65,25 @@ async function loadVideos() {
   _renderVideoList();
   _updateDemoButton(videos.reduce((n, v) => n + v.approved, 0));
 
+  // Pre-row window of a first analysis: the row doesn't exist yet, so we can't select
+  // it, but the welcome CTA must not linger. Show a lightweight "analyzing" detail
+  // until the row appears and the auto-select above takes over.
+  if (showPlaceholder && AppState.activeVideoId == null) _showAnalyzingEmptyState(analyzingName);
+
   if (!AppState.bootRestoreDone) {
     AppState.bootRestoreDone = true;
     _restoreView();
   }
+}
+
+// The recording to auto-open when its analysis row first appears: the analyzing
+// recording, but only while nothing is selected (so we never steal focus from a
+// user who navigated away mid-job). Returns its id, or null when there's nothing to
+// do. Pure so tests/js can pin the guard without standing up loadVideos.
+export function _autoSelectAnalyzingId(videos, analyzingName, activeVideoId) {
+  if (!analyzingName || activeVideoId != null) return null;
+  const analyzing = videos.find(v => v.filename === analyzingName);
+  return analyzing ? analyzing.id : null;
 }
 
 // Client-side search + filter + sort over AppState.videos for the sidebar list.
@@ -298,6 +329,19 @@ function _showEmptyState() {
       <p>Analyze a recording to start reviewing and exporting your best moments. YuuClip shines on talk-heavy sessions - RP, voice chat, streaming, podcasts, and commentary.</p>
       <button class="btn highlight" data-act="open-new-recording-panel">+ Analyze your first recording</button>
       <button class="btn ghost" data-act="open-getting-started" style="margin-top:8px">Getting Started Guide</button>
+    </div>`;
+}
+
+// Shown in the detail pane during the brief window between starting a first analysis
+// and its DB row appearing (once it does, loadVideos auto-selects it). Replaces the
+// welcome CTA so it never sits there looking clickable while a job is already running.
+function _showAnalyzingEmptyState(filename) {
+  document.getElementById('player-area').innerHTML = '';
+  document.getElementById('detail').innerHTML = `
+    <div class="empty-state">
+      <span class="spinner" style="width:28px;height:28px"></span>
+      <h2>Analyzing your recording</h2>
+      <p>${escHtml(filename)} is being analyzed - progress shows in the header above. This recording opens automatically as soon as it's ready.</p>
     </div>`;
 }
 

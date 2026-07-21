@@ -90,6 +90,27 @@ except the two items below).
   `tests/js/` vitest tests (as was already done for the vision cancel-wiring), then delete
   the shim and the bridge. Each entry's per-section comment names its exact surviving reader.
 
+- [ ] **In-process LLM/scoring jobs lack progress + a Cancel** - found in the v0.1.27
+  manual checks: "Generate timeline" and "Suggest names" show no progress and offer no way
+  to cancel, and a sweep found this is one class, not two bugs. Every *subprocess* job
+  (analyze, score, reel, export, retranscribe, re-detect, regenerate clips) already has
+  pills + a working Cancel; every *event-loop* job (timeline, summarize, regenerate-summary,
+  rescore-all, rescore-failed, redescribe-all, hotword-scan, find-similar, infer-speaker-
+  names, session summarize) calls `_openSSE` directly, so it gets neither - and can't reuse
+  the shared Cancel button, which only kills the subprocess handles. The two batch actions
+  whose own dialogs say "several minutes" (rescore-all, redescribe-all) are the worst: long,
+  zero feedback, no cancel. Progress is cheap (wire them through `startJobUI`/`updateJobUI`
+  like single-clip rescore already does; `rescore-clips` even streams `Scored i/total` lines
+  today); Cancel is the real lift (event-loop jobs have no cancel token). Full triage +
+  per-site table + two-part fix in the private planning workspace
+  (`PROGRESS-CANCEL-GAP-2026-07-20.md`). Fix the whole set together, not timeline alone.
+  **Baseline rule (owner, 2026-07-20): every long-running progress/loading indicator must show at
+  minimum the elapsed time since the process started** - a bare spinner reads as hung. Two instances
+  were fixed on report: the post-analysis "Preparing preview" warm-up now shows the encode % + elapsed
+  (it discarded the proxy encoder's SSE lines), and the YouTube/Twitch download percentage now streams
+  live (it was block-buffered in the raw-`print` import subprocess). Apply the same elapsed-time-minimum
+  when wiring the remaining event-loop jobs above.
+
 - [ ] **Hoist repeated inline `style="..."` in the index.html partials into `app.css`
   classes (opportunistic)** - the WS-E split made `index.html` a stitch of
   `static/partials/*.html`; each partial still carries verbose inline styles (hint text,
@@ -168,6 +189,11 @@ Wanted before distributing beyond friends/trusted users.
   What remains deferred is the broader smoother-editing pass over the transcript/speaker
   surface - scope it fresh when this area is next touched (candidates surfaced during R1:
   per-line menu polish, whole-recording speaker management, bulk line moves, caption fixes).
+  **Owner call (2026-07-20): definitely revisit the Speakers card UI/UX as part of this** -
+  the current card grew feature-by-feature (per-row merge picker, voice/person match rows,
+  Suggest-names, samples) and wants a deliberate layout/interaction rethink, not just the
+  incremental fixes already shipped. Fold the "Suggest names" progress+cancel gap (section 1)
+  into the same pass since it lives on this card.
 
 - [ ] **Sidebar grouping for split segments** *(speculative)* - a collapsible parent row
   "session.mkv (3 segments)" with indented children, as an alternative to the flat list.

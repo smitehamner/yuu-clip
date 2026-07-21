@@ -5,6 +5,7 @@
 import { AppState } from '../../../yuu_clip/web/static/core/state.js';
 import {
   _applyVideoFilters, _reanalyzeParams, _analysisLivePanelHTML, _syncAnalysisLivePanel,
+  _autoSelectAnalyzingId,
 } from '../../../yuu_clip/web/static/videos/videos.js';
 import { startJobUI, updateJobUI, endJobUI } from '../../../yuu_clip/web/static/core/jobs.js';
 
@@ -90,6 +91,26 @@ describe('analysis live panel', () => {
     expect(active[0].getAttribute('style') || '').toContain('linear-gradient');
     endJobUI();
     vi.useRealTimers();
+  });
+});
+
+describe('_autoSelectAnalyzingId', () => {
+  const videos = [
+    { id: 1, filename: 'a.mkv' },
+    { id: 2, filename: 'busy.mkv' },
+  ];
+
+  it('returns the analyzing recording once its row exists and nothing is selected', () => {
+    expect(_autoSelectAnalyzingId(videos, 'busy.mkv', null)).toBe(2);
+  });
+  it('returns null while its row has not appeared yet', () => {
+    expect(_autoSelectAnalyzingId(videos, 'pending.mkv', null)).toBe(null);
+  });
+  it('returns null when a recording is already selected (never steals focus)', () => {
+    expect(_autoSelectAnalyzingId(videos, 'busy.mkv', 1)).toBe(null);
+  });
+  it('returns null when nothing is analyzing', () => {
+    expect(_autoSelectAnalyzingId(videos, null, null)).toBe(null);
   });
 });
 

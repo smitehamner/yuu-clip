@@ -54,6 +54,34 @@ describe('_warmPreviewProxy', () => {
     expect(isVisible()).toBe(false);
   });
 
+  it('surfaces the encode percentage and elapsed time while building', async () => {
+    const chunk = new TextEncoder().encode(`data: ${JSON.stringify('frame= 120 45% done')}\n\n`);
+    let capturedLabel = '';
+    let reads = 0;
+    const reader = {
+      read: async () => {
+        if (reads++ === 0) return { done: false, value: chunk };
+        // The progress line was processed before this second read - capture the
+        // live label now, since the finally block resets it once the stream ends.
+        capturedLabel = statusEl().querySelector('span').textContent;
+        return { done: true };
+      },
+    };
+    const fetchMock = vi.fn((url) => {
+      if (url.includes('/proxy-status')) {
+        return Promise.resolve({ ok: true, json: async () => ({ available: false, generating: false }) });
+      }
+      return Promise.resolve({ ok: true, body: { getReader: () => reader } });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await _warmPreviewProxy(42);
+
+    expect(capturedLabel).toContain('45%');
+    expect(capturedLabel).toMatch(/\(\d+s\)/); // elapsed time is always shown
+    expect(isVisible()).toBe(false); // cleared afterward
+  });
+
   it('clears the indicator even when the encode request fails', async () => {
     const fetchMock = vi.fn((url) => {
       if (url.includes('/proxy-status')) {

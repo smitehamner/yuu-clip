@@ -1,7 +1,7 @@
 // Feature-map - Analyze (start + SSE progress) + Import from URL, both in the New Recording panel.
 //   API: routes/analyze.py, routes/imports.py · Tests: tests/ui/test_ui_analyze.py
 import { AppState } from '../core/state.js';
-import { escHtml, plural, formatApiError, _msToHms } from '../core/format.js';
+import { escHtml, plural, formatApiError, _msToHms, _fmtElapsed } from '../core/format.js';
 import { showConfirm } from '../core/ui.js';
 import { showToast, openLog, appendLog, netErrMsg, _diarizationReadiness, _diarizationNoteHtml } from '../core/utils.js';
 import {
@@ -702,17 +702,47 @@ function _showAnalysisToast(video) {
 // the 2026-07-19 UX bug hunt.
 async function _warmPreviewProxy(videoId) {
   const statusEl = document.getElementById('preview-warm-status');
+  const labelEl = statusEl ? statusEl.querySelector('span') : null;
+  const startedAt = Date.now();
+  let pct = null;
+  let ticker = null;
+  // Always show elapsed time (a bare spinner reads as hung on a long encode); layer
+  // the encode percentage on top once the ffmpeg proxy job starts reporting it.
+  const render = () => {
+    if (!labelEl) return;
+    const pctText = pct != null ? ` ${pct}%` : '';
+    labelEl.textContent = `Preparing preview...${pctText} (${_fmtElapsed(Date.now() - startedAt)})`;
+  };
   try {
     const status = await fetch(`/api/videos/${videoId}/proxy-status`).then(r => r.ok ? r.json() : null);
     if (!status || status.available || status.generating) return;
     if (statusEl) statusEl.classList.add('visible');
+    render();
+    ticker = setInterval(render, 1000);
     const response = await fetch(`/api/videos/${videoId}/proxy/generate`);
     if (!response.ok || !response.body) return;
     const reader = response.body.getReader();
-    while (true) { const {done} = await reader.read(); if (done) break; }
+    const decoder = new TextDecoder();
+    let buffer = '';
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, {stream: true});
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        let msg;
+        try { msg = JSON.parse(line.slice(6)); } catch { continue; }
+        const match = typeof msg === 'string' ? /(\d+)%/.exec(msg) : null;
+        if (match) { pct = parseInt(match[1], 10); render(); }
+      }
+    }
   } catch (_) {
     // Preview is a convenience; a failed warm must never surface as an error.
   } finally {
+    if (ticker) clearInterval(ticker);
+    if (labelEl) labelEl.textContent = 'Preparing preview...';
     if (statusEl) statusEl.classList.remove('visible');
   }
 }

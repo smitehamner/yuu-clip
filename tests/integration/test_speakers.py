@@ -906,6 +906,25 @@ class TestApplyNameSuggestions:
         assert applied == 1
         assert speakers[0].name == "New"
 
+    def test_drops_placeholder_speaker_name_suggestion(self):
+        from yuu_clip.web.routes.speakers import _apply_name_suggestions
+
+        # The LLM sometimes echoes the "Speaker N" prompt label - never a real name.
+        speakers = [self._speaker(1), self._speaker(2)]
+        applied = _apply_name_suggestions(speakers, {"1": "Speaker 55", "2": "  speaker 2 "})
+        assert applied == 0
+        assert all(s.name is None for s in speakers)
+
+    def test_skips_suggestion_equal_to_current_name(self):
+        from yuu_clip.web.routes.speakers import _apply_name_suggestions
+
+        # Re-suggesting the name a speaker already carries (here an unconfirmed one) is a
+        # no-op that would just re-open the accept/dismiss prompt - so it must not count.
+        speakers = [self._speaker(1, name="Yuu", confirmed=False, source="inferred")]
+        applied = _apply_name_suggestions(speakers, {"1": "yuu"})
+        assert applied == 0
+        assert speakers[0].name == "Yuu"
+
 
 class TestLabeledTranscript:
     def test_groups_consecutive_segments_and_drops_unattributed(self, tmp_path: Path):

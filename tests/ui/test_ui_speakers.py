@@ -105,11 +105,14 @@ class TestSpeakerNaming:
 
         assert any("abcdef" in body for body in put_bodies), put_bodies
 
-    def test_rename_reloads_open_recording_transcript(self, page: Page):
-        """Renaming a speaker refreshes the expanded full-transcript in place.
+    def test_rename_patches_open_recording_transcript_in_place(self, page: Page):
+        """Renaming a speaker updates the expanded full-transcript label in place -
+        WITHOUT re-fetching/rebuilding the panel.
 
-        Regression: the transcript's fetch-once cache kept the old "Speaker N"
-        label until a manual page refresh.
+        The old behaviour re-fetched the whole transcript on every rename, which was
+        disruptive while editing inside it (lost scroll/focus/in-progress edits). Now the
+        label is patched directly from the rename response, so the transcript endpoint is
+        hit exactly once (the initial expand), never again on rename.
         """
         page.route(
             "**/api/videos/*/speakers",
@@ -122,12 +125,12 @@ class TestSpeakerNaming:
 
         def _handle_transcript(route):
             calls["n"] += 1
-            speaker = "Speaker 1" if calls["n"] == 1 else "Yuu"
             route.fulfill(
                 status=200,
                 content_type="application/json",
                 body=json.dumps(
-                    {"lines": [{"start_ms": 0, "end_ms": 2000, "speaker": speaker, "text": "let's go go go"}]}
+                    {"lines": [{"start_ms": 0, "end_ms": 2000, "speaker": "Speaker 1",
+                                "speaker_id": _SPEAKER["id"], "text": "let's go go go"}]}
                 ),
             )
 
@@ -150,8 +153,10 @@ class TestSpeakerNaming:
         name_input.fill("Yuu")
         name_input.blur()
 
-        # The open transcript reloads with the new name - no manual refresh.
+        # The label updates in place to the new name...
         expect(page.locator("#video-transcript-view .tline-speaker").first).to_have_text("Yuu")
+        # ...and the transcript was NOT re-fetched (only the initial expand hit it).
+        assert calls["n"] == 1
 
     def test_voice_match_chip_renders_and_confirm_posts(self, page: Page):
         prior = {**_SPEAKER, "id": 90001, "display_index": 1, "name": "Yuu",

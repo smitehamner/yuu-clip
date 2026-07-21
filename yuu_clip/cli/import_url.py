@@ -24,8 +24,13 @@ def import_url_cmd(
     downloads_dir = project_downloads_dir(proj_dir)
 
     console.print(f"\n[bold]yuuclip  ·  import-url[/bold]\n  {url}\n")
+    # Flush every progress line: stdout is a pipe here (the web UI reads it as SSE),
+    # so it is block-buffered by default and yt-dlp's frequent progress lines would
+    # batch up instead of streaming live - the download percentage would appear stuck.
+    # (The analyze/score CLIs avoid this by printing progress through Rich, which
+    # flushes per write; this command prints yt-dlp's hook output plainly.)
     try:
-        path = download_video(url, downloads_dir, progress_line_cb=print)
+        path = download_video(url, downloads_dir, progress_line_cb=lambda line: print(line, flush=True))
     except (ImportUrlError, RuntimeError) as e:
         console.print(f"[red]{e}[/red]")
         raise typer.Exit(1)
@@ -33,5 +38,5 @@ def import_url_cmd(
     # Machine-readable marker the web UI's SSE stream looks for to grab the
     # downloaded path - printed plain (not via console.print) so the literal
     # brackets aren't misread as Rich markup.
-    print(f"[Imported] {path}")
+    print(f"[Imported] {path}", flush=True)
     console.print("\n[bold green]Download complete.[/bold green] Open New Recording to analyze it.\n")

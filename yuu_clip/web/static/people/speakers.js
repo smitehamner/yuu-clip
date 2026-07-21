@@ -12,6 +12,7 @@ import {
   _blockedByAnalyze, _openSSE, _supersedeActiveStream, _clearActiveStream, _setActiveStream,
 } from '../core/jobs.js';
 import { selectClip } from '../clips/clips.js';
+import { updateSpeakerLabelsInTranscript } from '../analyze/transcript.js';
 
 let _currentVideoId = null;
 
@@ -33,10 +34,17 @@ export async function loadSpeakers(videoId) {
   section.querySelectorAll('.speaker-color-input').forEach(el => ColorPicker.attach(el));
 }
 
+// The auto-generated "Speaker N" placeholder label - never a real name. The server now
+// filters these out of new suggestions, but this also hides any already written to the
+// DB by an older run so a bogus "Suggested: Speaker 55" doesn't linger.
+function _isPlaceholderName(name) {
+  return /^\s*speaker\s+\d+\s*$/i.test(name || '');
+}
+
 // A speaker with an inferred name the user hasn't accepted yet. Its name stays out of
 // captions/excerpts (server gates display_name on `confirmed`) until accepted here.
-function _isSuggestion(s) {
-  return s.source === 'inferred' && !s.confirmed && !!s.name;
+export function _isSuggestion(s) {
+  return s.source === 'inferred' && !s.confirmed && !!s.name && !_isPlaceholderName(s.name);
 }
 
 function _renderSpeakersCard(speakers) {
@@ -210,10 +218,10 @@ async function _saveSpeakerName(speakerId, name) {
     const updated = await res.json();
     if (input && !updated.is_named) input.value = '';
     showToast(updated.is_named ? `Speaker named ${updated.display_name}` : 'Name cleared');
-    // Refresh the open clip so its transcript reflects the new name, and the
-    // recording's full-transcript panel if it's expanded.
-    if (AppState.activeClipId) selectClip(AppState.activeClipId);
-    if (_currentVideoId) window.reloadVideoTranscriptIfOpen(_currentVideoId);
+    // Patch the name in place across every rendered transcript row (recording + open
+    // clip) instead of reloading the whole panel - a full reload was disruptive while
+    // editing inside the transcript. A rename changes only the label, never structure.
+    updateSpeakerLabelsInTranscript(speakerId, { displayName: updated.display_name, color: updated.color });
   } catch (_) {
     showToast('Could not save speaker name', 'error');
   } finally {
@@ -234,9 +242,10 @@ async function _saveSpeakerColor(speakerId, color) {
       showToast('Could not save speaker color', 'error');
       return;
     }
-    // Refresh the open clip's transcript so its speaker labels pick up the new color.
-    if (AppState.activeClipId) selectClip(AppState.activeClipId);
-    if (_currentVideoId) window.reloadVideoTranscriptIfOpen(_currentVideoId);
+    const updated = await res.json();
+    // Patch the colour in place across rendered transcript rows (recording + open clip)
+    // instead of reloading the whole panel.
+    updateSpeakerLabelsInTranscript(speakerId, { color: updated.color });
   } catch (_) {
     showToast('Could not save speaker color', 'error');
   } finally {
