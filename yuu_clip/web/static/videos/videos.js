@@ -1146,6 +1146,7 @@ export {
   openVideoActionsModal,
   retranscribeVideoRun, _whisperModelOptionsHtml,
   _missingSourceHtml,
+  _handleDetailClick,
 };
 
 document.getElementById('detail').addEventListener('click', _handleDetailClick);

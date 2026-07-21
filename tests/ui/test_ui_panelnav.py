@@ -11,23 +11,10 @@ helpers.
 from __future__ import annotations
 
 import pytest
-from conftest import select_first_video_and_clip, select_video_with_clips, skip_no_server
+from conftest import open_split_editor as _open_split_editor
+from conftest import place_split_point as _place_split_point
+from conftest import select_first_video_and_clip, skip_no_server
 from playwright.sync_api import Page, expect
-
-
-def _open_split_editor(page: Page) -> None:
-    select_video_with_clips(page)
-    page.click(".vid-actions button:has-text('Additional Actions')")
-    page.wait_for_selector("#actions-modal.visible", timeout=2000)
-    page.click("#actions-modal .action-row:has-text('Split Recording')")
-    expect(page.locator("#split-editor-panel")).to_be_visible(timeout=3000)
-
-
-def _place_split_point(page: Page) -> None:
-    bar = page.locator("#split-timeline-bar")
-    box = bar.bounding_box()
-    bar.click(position={"x": box["width"] / 2, "y": box["height"] / 2})
-    expect(page.locator("#split-markers-layer .split-marker")).to_have_count(1)
 
 
 @pytest.fixture

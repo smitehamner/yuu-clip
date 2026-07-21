@@ -50,7 +50,12 @@ describe('settings jump-row drift guard', () => {
   it('every settings section has a jump link and vice versa', () => {
     const sectionIds = [...document.querySelectorAll('.settings-inner .settings-section')]
       .map((el) => el.id);
-    const linkedIds = [...document.querySelectorAll('.settings-jump-link')]
+    // Scoped to the top .settings-jump-row nav only - inline cross-links between
+    // related controls (e.g. the Hardware GPU note -> LLM scoring's Advanced AI
+    // options <details>) deliberately reuse the same .settings-jump-link[data-section]
+    // class/attribute for click delegation (see settings.js _wireJumpNav) but point at
+    // a non-section anchor, so they aren't part of this section<->nav invariant.
+    const linkedIds = [...document.querySelectorAll('.settings-jump-row .settings-jump-link')]
       .map((el) => el.dataset.section);
     expect(sectionIds.length).toBeGreaterThan(0);
     expect(new Set(sectionIds)).toEqual(new Set(linkedIds));

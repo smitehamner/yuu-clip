@@ -13,7 +13,7 @@ vi.mock('../../../yuu_clip/web/static/core/preview.js', async (importActual) => 
   return { ...actual, setupRecordingPreview: vi.fn() };
 });
 
-import { renderVideoDetail } from '../../../yuu_clip/web/static/videos/videos.js';
+import { renderVideoDetail, _handleDetailClick } from '../../../yuu_clip/web/static/videos/videos.js';
 import {
   _renderRunMetaCard, _runTimingLine,
 } from '../../../yuu_clip/web/static/videos/videos-runmeta.js';
@@ -148,5 +148,34 @@ describe('renderVideoDetail run-timing provenance line', () => {
   it('omits the timing line when analyze_run is null', () => {
     render({ analyze_run: null });
     expect(detail().textContent).not.toContain('Last run:');
+  });
+});
+
+// Ported from tests/ui/test_ui_video.py::TestVideoShowInFolder - pure #detail
+// data-act click delegation, no browser or real timing needed. This replaced a
+// Playwright test that flaked under xdist load (FLAKE-6 in the test-flakes
+// register): a background re-render from boot's own pollers could race the click
+// between locate and dispatch. Calling the exported handler directly here removes
+// that race rather than widening a wait - it also sidesteps setup.js's per-test
+// body reseed, which replaces #detail's node identity and would leave the real
+// addEventListener (wired once at module import, matching production's one-time
+// page load) bound to a detached element.
+describe('reveal-in-folder button (data-act delegation)', () => {
+  it('is hidden when reveal is unavailable', () => {
+    AppState.canReveal = false;
+    render({ path: 'D:\\recordings\\uitest_source.mkv' });
+    expect(detail().querySelector('[data-act="reveal-in-folder"]')).toBeNull();
+  });
+
+  it('posts the active video path to /api/reveal when clicked', async () => {
+    AppState.canReveal = true;
+    render({ path: 'D:\\recordings\\uitest_source.mkv' });
+    const btn = detail().querySelector('[data-act="reveal-in-folder"]');
+    expect(btn).toBeTruthy();
+    _handleDetailClick({ target: btn });
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/reveal', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ path: 'D:\\recordings\\uitest_source.mkv' }),
+    })));
   });
 });

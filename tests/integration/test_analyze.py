@@ -1367,10 +1367,13 @@ class TestStatus:
 
     def test_gpu_setup_defaults_without_a_bundled_llm_binary(self, client, monkeypatch):
         """No bundled/configured llama-server binary in the test environment - that
-        probe must report "don't know" rather than guessing. nvidia_gpu_present is
-        pinned False here (real machines running this suite may have a real NVIDIA
-        GPU - that path is covered separately below)."""
+        probe must report "don't know" rather than guessing. nvidia_gpu_present and
+        cuda_libs_installed are pinned False here (real machines running this suite
+        may have a real NVIDIA GPU or CUDA libs installed - those paths are covered
+        separately below)."""
+        import yuu_clip.web.routes.analyze as analyze_routes
         monkeypatch.setattr(client.app.state.ctx.thermal_monitor, "available", lambda: False)
+        monkeypatch.setattr(analyze_routes, "module_findable", lambda _module: False)
         d = client.get("/api/status").json()
         assert d["nvidia_gpu_present"] is False
         assert d["cuda_libs_installed"] is False

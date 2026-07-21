@@ -22,6 +22,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import pytest
+from playwright.sync_api import expect
 
 # ---------------------------------------------------------------------------
 # Live server URL - overridable so the harness and a non-default dev port agree.
@@ -122,6 +123,42 @@ def select_first_video_and_clip(page) -> None:
 def _first_row(page):
     """The first real clip row in the sidebar list (skips the empty-state <li>)."""
     return page.locator("#clip-list li:has(.clip-num)").first
+
+
+def open_split_editor(page) -> None:
+    select_video_with_clips(page)
+    page.click(".vid-actions button:has-text('Additional Actions')")
+    page.wait_for_selector("#actions-modal.visible", timeout=2000)
+    page.click("#actions-modal .action-row:has-text('Split Recording')")
+    expect(page.locator("#split-editor-panel")).to_be_visible(timeout=3000)
+
+
+def place_split_point(page) -> None:
+    """Click the middle of the split timeline bar to place a marker.
+
+    Shared by test_ui_split.py and test_ui_panelnav.py - was previously
+    duplicated in both files, and a 2026-07-10 fix (FLAKE-3 in the test-flakes
+    register) landed in only one of the two copies, so the bug it fixed
+    recurred via the other copy. Single source of truth now.
+
+    Deliberately an unqualified bar.click() rather than a manually computed
+    position={x, y}: a position offset is an ABSOLUTE pixel value from the
+    bar's top-left, resolved against whatever box Playwright reads at the
+    actual moment of the click. Computing that offset from an earlier
+    page.bounding_box() call (a separate round-trip) reads a box that can be
+    stale by click time - e.g. the bar still widening as the split panel
+    finishes animating in - so a "50%" offset computed from a narrow snapshot
+    can land far from center on the final, wider bar, and on a short fixture
+    video that can round the derived second down to 0 (splitTimelineClick's
+    `sec <= 0` guard silently drops the placement - the observed "0 markers"
+    symptom). An unqualified click() has Playwright compute the center from
+    the live, actionability-stable box in one atomic action, which cannot go
+    stale between measurement and dispatch.
+    """
+    bar = page.locator("#split-timeline-bar")
+    expect(bar).to_be_visible()
+    bar.click()
+    expect(page.locator("#split-markers-layer .split-marker")).to_have_count(1)
 
 
 _had_failure = False
