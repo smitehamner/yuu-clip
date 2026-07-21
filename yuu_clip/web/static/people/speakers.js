@@ -202,7 +202,7 @@ function _playSpeakerSample(startMs, endMs) {
   _sampleStopTimer = setTimeout(() => { video.pause(); _sampleStopTimer = null; }, durationMs);
 }
 
-async function _saveSpeakerName(speakerId, name) {
+export async function _saveSpeakerName(speakerId, name) {
   const input = document.querySelector(`.speaker-name-input[data-speaker-id="${speakerId}"]`);
   if (input) input.disabled = true;
   try {
@@ -229,7 +229,7 @@ async function _saveSpeakerName(speakerId, name) {
   }
 }
 
-async function _saveSpeakerColor(speakerId, color) {
+export async function _saveSpeakerColor(speakerId, color) {
   const input = document.querySelector(`.speaker-color-input[data-speaker-id="${speakerId}"]`);
   if (input) input.disabled = true;
   try {
@@ -255,7 +255,7 @@ async function _saveSpeakerColor(speakerId, color) {
 
 // Accept (name = the suggestion) or dismiss (name = "") an inferred suggestion.
 // Both confirm the speaker server-side, so the suggestion prompt clears on reload.
-async function _resolveSuggestion(speakerId, name) {
+export async function _resolveSuggestion(speakerId, name) {
   try {
     const res = await fetch(`/api/speakers/${speakerId}`, {
       method: 'PUT',
@@ -275,7 +275,7 @@ async function _resolveSuggestion(speakerId, name) {
 
 // Confirm ("Same voice" → merge into the suggested speaker) or dismiss
 // ("Different voice" → keep separate) a borderline voiceprint suggestion.
-async function _resolveVoiceMatch(speakerId, sameVoice, matchName) {
+export async function _resolveVoiceMatch(speakerId, sameVoice, matchName) {
   const endpoint = sameVoice ? 'confirm-match' : 'reject-match';
   try {
     const res = await fetch(`/api/speakers/${speakerId}/${endpoint}`, { method: 'POST' });
@@ -293,7 +293,7 @@ async function _resolveVoiceMatch(speakerId, sameVoice, matchName) {
 
 // Add a fresh unnamed speaker to this recording, for a voice diarization missed or
 // merged. Lines are moved onto it from the transcript or via "Merge into...".
-async function _createSpeaker() {
+export async function _createSpeaker() {
   if (!_currentVideoId) return;
   try {
     const res = await fetch(`/api/videos/${_currentVideoId}/speakers`, {
@@ -310,7 +310,7 @@ async function _createSpeaker() {
 
 // Whole-speaker merge: move every line of one speaker onto another. Confirmed first
 // because it deletes the source speaker.
-async function _mergeSpeakerInto(sourceId, targetId, targetName) {
+export async function _mergeSpeakerInto(sourceId, targetId, targetName) {
   showConfirm(
     'Merge speakers?',
     `Move all of this speaker's lines onto ${targetName || 'the other speaker'}? `
@@ -334,7 +334,7 @@ async function _mergeSpeakerInto(sourceId, targetId, targetName) {
 
 // Promote a named speaker into a project-wide Person so the name applies across every
 // recording of this voice. Reloads the card so the "Person: X" line appears.
-async function _promoteToPerson(speakerId) {
+export async function _promoteToPerson(speakerId) {
   try {
     const res = await fetch('/api/voices', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -352,7 +352,7 @@ async function _promoteToPerson(speakerId) {
 // Confirm ("Same person" -> confirm-voice) or dismiss ("Not them" -> reject-voice) a
 // cross-recording Person suggestion. Confirming links this recording's voice to the
 // Person, so its captions/excerpts pick up the Person's name.
-async function _resolvePersonMatch(speakerId, samePerson, matchName) {
+export async function _resolvePersonMatch(speakerId, samePerson, matchName) {
   const endpoint = samePerson ? 'confirm-voice' : 'reject-voice';
   try {
     const res = await fetch(`/api/speakers/${speakerId}/${endpoint}`, {method: 'POST'});
