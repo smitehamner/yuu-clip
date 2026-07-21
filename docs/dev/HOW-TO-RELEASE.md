@@ -58,6 +58,17 @@ to catch it. (During active UI work, `yuu-dev bundle --watch` rebuilds on save.)
 esbuild drift guard skips when the JS toolchain is absent, so run `yuu-dev bundle` on a
 machine with Node before a release build.
 
+**You do not have to remember this - the build script now enforces it.** As its first
+real step, `build-release.ps1` regenerates every committed source-derived artifact
+(`yuu-dev bundle`, `shared-data`, `help-docs`), installing the root JS toolchain
+(`npm ci`) first if esbuild is missing so the bundle can't silently skip, then aborts if
+any of them drifted from what's committed - telling you to review and commit. So a
+forgotten `yuu-dev bundle` (or `shared-data` / `help-docs`) stops the build with a clear
+message instead of shipping a stale UI. Regenerating it here manually just keeps the tree
+clean so that gate is a no-op. (`notices` is not auto-regenerated - it needs the full
+dependency set installed - but it has its own drift-guard test; regenerate it with
+`yuu-dev notices` if you changed bundled dependencies.)
+
 ---
 
 ## Build
@@ -68,6 +79,9 @@ machine with Node before a release build.
 
 This script:
 1. Checks the git working tree is clean (warns if not)
+1b. **Regenerates the committed UI artifacts** (`yuu-dev bundle` / `shared-data` /
+   `help-docs`, installing the root JS toolchain first if needed) and **aborts if any
+   drifted** - so a forgotten `yuu-dev bundle` can't ship a stale UI
 2. Reads the version from `pyproject.toml`
 3. Builds the Python wheel → `build/wheel/yuu_clip-X.Y.Z-py3-none-any.whl`
 4. Verifies `requirements.lock` is present (bundled to pin user installs - see below)

@@ -20,6 +20,61 @@ if ($dirty) {
     if ($ans -notmatch '^[Yy]') { exit 1 }
 }
 
+# ── 0b. Regenerate committed source-derived artifacts, fail on drift ─────────
+# The wheel packages whatever is committed under yuu_clip/web/static/, and the
+# Electron build ships the committed setup bundle + shared data - so a human who
+# edited a *.js module, an index.html partial, a help doc, or a catalog source but
+# forgot to run the generator would ship a STALE UI with no error. The drift-guard
+# unit tests catch this, but only if someone runs them; the build must not depend on
+# that. Regenerate every committed artifact here and abort if any changed, so the
+# "did you run yuu-dev bundle?" step can never be silently missed. Runs BEFORE the
+# version bump so a stale tree aborts before any commit. (notices is left to its own
+# drift test + the lock check below, since regenerating it needs the full dep set.)
+Write-Host "`nRegenerating committed UI artifacts (bundle / shared-data / help-docs)..."
+
+# The esbuild bundle needs the root JS toolchain. Install it if absent so the
+# regeneration below can't silently skip (a skip would let a stale bundle through -
+# the drift guard itself skips when esbuild is missing, exactly the hole this closes).
+python -c "import sys; from yuu_clip.dev.bundle import esbuild_available; sys.exit(0 if esbuild_available() else 1)"
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Root JS toolchain missing - running 'npm ci' to install esbuild..."
+    Push-Location $root
+    npm ci
+    Pop-Location
+    if ($LASTEXITCODE -ne 0) { Write-Error "npm ci (root) failed - cannot regenerate the UI bundle"; exit 1 }
+}
+
+# Invoked as `python -m yuu_clip.dev` (not the `yuu-dev` shim) so this doesn't depend
+# on the shim being on PATH - the same interpreter the rest of this script uses.
+foreach ($gen in @('bundle', 'shared-data', 'help-docs')) {
+    python -m yuu_clip.dev $gen
+    if ($LASTEXITCODE -ne 0) { Write-Error "yuu-dev $gen failed - fix it before releasing"; exit 1 }
+}
+
+$artifactPaths = @(
+    'yuu_clip/web/static/bundle.esm.js',
+    'yuu_clip/web/static/index.html',
+    'yuu_clip/web/static/shared',
+    'yuu_clip/web/static/help',
+    'electron/setup.bundle.js',
+    'electron/shared'
+)
+$artifactDrift = git -C $root status --porcelain -- $artifactPaths
+if ($artifactDrift) {
+    Write-Error @"
+Committed UI artifacts were STALE and have now been regenerated below. This is the
+"you forgot to run yuu-dev bundle" case. Review the changes, commit them, then re-run
+the build:
+
+$artifactDrift
+
+  git add $($artifactPaths -join ' ')
+  git commit -m "Regenerate UI artifacts"
+"@
+    exit 1
+}
+Write-Host "Committed UI artifacts are current."
+
 # ── 1. Bump version if requested ─────────────────────────────────────────────
 if ($Version -eq "") {
     $pyprojectCurrent = Get-Content "$root\pyproject.toml" -Raw
