@@ -413,6 +413,20 @@ A one-glance "what to walk before public" list is in the final section.
 - **Coverage:** packaged-app-verification.md sections H and I; electron smoke test electron/test/smoke.test.js (opt-in boot + no-orphan-python backstop).
 - **Pre-release priority:** P0 - orphaned processes are the packaging failure mode no pytest suite can catch.
 
+### UC-G04 - Check for available updates
+- **Actor goal:** know when a newer YuuClip release exists, without any auto-download/install.
+- **Preconditions:** a running app; GitHub reachable (or not, to see the failure path).
+- **Steps:**
+  1. Launch the app with a version older than the latest GitHub release; wait for the background check.
+  2. Settings -> Updates; read the status line; click "Check for updates now".
+  3. Dismiss the header banner; confirm it stays dismissed for that version but reappears for a newer one.
+  4. Turn off "Check for updates automatically"; relaunch and confirm no background check runs (the manual button still works).
+  5. Simulate no internet; confirm the status reads a plain failure message, not a crash.
+- **Expected:** a newer release shows a status line and a dismissible header banner linking to the GitHub release page; nothing is ever downloaded or installed automatically; the toggle gates only the background launch check, never the manual button; a failed check degrades to a plain message.
+- **Automation:** automated / manual-only. The check/compare logic and route are automated; the real end-to-end GitHub lookup can only be verified once the repo is public (unauthenticated `releases/latest` 404s on a private repo).
+- **Coverage:** tests/unit/test_update_check.py, tests/integration/test_updates.py, tests/js/core/updatecheck.test.js. Live-repo verification is a manual HOW-TO-RELEASE.md checklist item post-flip. Automated by tests/integration/test_updates.py::TestUpdatesCheck::test_reports_update_available.
+- **Pre-release priority:** P2 - convenience, not core loop; never blocks or auto-changes anything.
+
 ---
 
 ## What to walk before flipping the repo public

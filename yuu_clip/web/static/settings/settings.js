@@ -10,6 +10,7 @@ import { plural, escHtml, formatApiError, _parseIntervalS, stripQuotedPath } fro
 import { languageOptionsHtml } from '../shared/whisperlang.js';
 import { _filterGlossary, closeGlossaryModal } from '../core/helpmodals.js';
 import { _isNewRecordingPanelOpen, _doCloseNewRecordingPanel } from '../analyze/analyze.js';
+import { checkForUpdatesNow, updateStatusText } from '../core/updatecheck.js';
 
 // ── settings panel ────────────────────────────────────────────────────────────
 const _settingsFieldIds = [
@@ -29,6 +30,7 @@ const _settingsFieldIds = [
   's-scene-mode','s-energy-mode','s-silence-ms','s-min-clip-ms','s-scene-generation',
   's-thermal-autopause','s-thermal-warn-c','s-thermal-pause-c',
   's-audio-event-enabled',
+  's-update-check-enabled',
   's-timeline-interval','s-timeline-unit','s-autoplay','s-play-next','s-loop-clip','s-playback-rate',
   's-export-name-template',
   's-title-card-bg-color','s-title-card-font-color','s-title-card-scale',
@@ -293,6 +295,20 @@ function _applyHardwareFields(cfg) {
   _setFieldVal('s-thermal-pause-c',   cfg.thermal_pause_c ?? 90);
 }
 
+function _applyUpdatesFields(cfg) {
+  _setFieldChk('s-update-check-enabled', cfg.update_check_enabled !== false);
+}
+
+// Fetches a live status (not cached) each time it runs - a manual click, or
+// Settings opening - and keeps the header banner in sync with the result.
+async function _refreshUpdateStatus() {
+  const statusEl = document.getElementById('s-update-check-status');
+  if (!statusEl) return;
+  statusEl.textContent = 'Checking…';
+  const result = await checkForUpdatesNow();
+  statusEl.textContent = updateStatusText(result);
+}
+
 // Timeline is a saved config field; the playback/theme prefs below it are
 // browser-local (localStorage), applied by saveSettings, not the config PATCH.
 function _applyUiFields(cfg) {
@@ -342,6 +358,7 @@ const _SECTION_APPLIERS = {
   'settings-sec-hardware': _applyHardwareFields,
   'settings-sec-ui':       _applyUiFields,
   'settings-sec-export':   _applyExportFields,
+  'settings-sec-updates':  _applyUpdatesFields,
 };
 
 function _applySettingsToUI(cfg) {
@@ -353,9 +370,11 @@ function _applySettingsToUI(cfg) {
   _applyHardwareFields(cfg);
   _applyUiFields(cfg);
   _applyExportFields(cfg);
+  _applyUpdatesFields(cfg);
   _snapshotSettings();
   _checkSettingsDirty();
   ['cuda-libs'].forEach(window._refreshInstallStatus);
+  _refreshUpdateStatus();
 }
 
 // Factory defaults, fetched once per session and reused by every reset control.
@@ -698,6 +717,7 @@ async function saveSettings() {
     thermal_autopause_enabled:  getChk('s-thermal-autopause'),
     thermal_warn_c:             getNum('s-thermal-warn-c', parseInt),
     thermal_pause_c:            getNum('s-thermal-pause-c', parseInt),
+    update_check_enabled:       getChk('s-update-check-enabled'),
     export_name_template:       getVal('s-export-name-template'),
     title_card_bg_color:        getVal('s-title-card-bg-color'),
     title_card_font_color:      getVal('s-title-card-font-color'),
@@ -841,6 +861,10 @@ function _wireExportSection() {
   document.getElementById('s-caption-word-highlight')?.addEventListener('change', e => _onSettingsWordHighlightChange(e.target.checked));
 }
 
+function _wireUpdatesSection() {
+  document.getElementById('btn-check-for-updates')?.addEventListener('click', () => _refreshUpdateStatus());
+}
+
 function _wireStaticSettingsControls() {
   _wireHeaderButtons();
   _wireJumpNav();
@@ -850,6 +874,7 @@ function _wireStaticSettingsControls() {
   _wireWeightsSection();
   _wireUiSection();
   _wireExportSection();
+  _wireUpdatesSection();
 }
 
 // Dirty-state tracking: re-check on any input/change in the settings panel

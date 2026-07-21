@@ -257,8 +257,15 @@ diagnostic is the log file. Tell them up front: "if anything breaks, zip up and 
 4. Upload `dist/yuu-clip-X.Y.Z-Setup.exe` as a release asset
 5. Write release notes (what changed since last release)
 6. Publish
+7. **Once the repo is public**, verify the in-app update check for real: install an older build,
+   launch it, and confirm Settings -> Updates (and the header banner) reports this release with
+   a working link. This is the one check that can't run against a private repo - GitHub's
+   `releases/latest` API 404s unauthenticated - so it isn't covered by the pytest suite; see
+   `docs/dev/USE_CASES.md` UC-G04.
 
-> **Auto-update is not yet wired up.** Users must download and run the new installer manually. This will be automated in a future release.
+> **Auto-update is notify-only.** The app checks GitHub and links to the new release (Settings ->
+> Updates); users still download and run the installer manually. Actually downloading and
+> installing automatically is a future idea (see ROADMAP.md).
 
 ---
 

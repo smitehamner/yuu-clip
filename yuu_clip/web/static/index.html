@@ -65,6 +65,10 @@
     <button class="nav-link" id="btn-highlight-reels">Highlight Reels</button>
   </nav>
   <div class="header-spacer" id="header-spacer"></div>
+  <div id="update-banner" style="display:none;align-items:center;gap:4px">
+    <a class="btn ghost" id="update-banner-link" href="#" target="_blank" rel="noopener" style="font-size:12px;padding:4px 8px"></a>
+    <button class="btn ghost" id="update-banner-dismiss" aria-label="Dismiss update notice" style="font-size:12px;padding:4px 6px">&#x2715;</button>
+  </div>
   <button class="gpu-warning-chip" id="gpu-warning-chip" style="display:none" title="" aria-label="Setup warning - click for details">&#9888; Setup warning</button>
   <button class="btn highlight" id="btn-analyze">+ Analyze</button>
   <button class="btn ghost" id="btn-settings-header" title="Settings" aria-label="Settings" style="font-size:15px;padding:5px 10px">&#9881;</button>
@@ -144,6 +148,7 @@
       <button type="button" class="settings-jump-link" data-section="settings-sec-export">Export</button>
       <button type="button" class="settings-jump-link" data-section="settings-sec-sounds">Sounds</button>
       <button type="button" class="settings-jump-link" data-section="settings-sec-backup">Backup &amp; Restore</button>
+      <button type="button" class="settings-jump-link" data-section="settings-sec-updates">Updates</button>
       <button type="button" class="settings-jump-link" data-section="settings-sec-paths">Paths</button>
     </nav>
   </div>
@@ -1029,6 +1034,28 @@
       <input type="file" id="restore-file-input" accept=".zip,application/zip" style="display:none" aria-hidden="true" tabindex="-1">
     </div>
     <div id="restore-flow" style="display:none;margin-top:16px"></div>
+  </div>
+
+  <!-- Update check (notify-only) - GitHub only, no auto-install -->
+  <div class="settings-section" id="settings-sec-updates">
+    <div class="settings-section-title">Updates</div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" id="lbl-update-check-enabled" for="s-update-check-enabled">Check for updates automatically</label>
+        <div class="settings-note">Checks GitHub roughly once a day for a newer release. Only a version number is sent - nothing about your project or videos leaves your computer. YuuClip never downloads or installs an update on its own; you always choose when.</div>
+      </div>
+      <label class="settings-checkbox">
+        <input type="checkbox" id="s-update-check-enabled" aria-labelledby="lbl-update-check-enabled">
+        <span style="font-size:13px" aria-hidden="true">On</span>
+      </label>
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <div class="settings-label">Status</div>
+        <div class="settings-note" id="s-update-check-status" aria-live="polite">Checking&hellip;</div>
+      </div>
+      <button type="button" class="btn-secondary" id="btn-check-for-updates">Check for updates now</button>
+    </div>
   </div>
 
   <!-- Paths section (read-only for now) -->

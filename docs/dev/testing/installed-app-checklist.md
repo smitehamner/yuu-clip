@@ -84,6 +84,7 @@ spot-check. If time is short, the P0 rows are the release gate.
 | [UC-G01](../USE_CASES.md#uc-g01---back-up-and-restore-a-project) | P1 | Back up downloads a small `.zip` (no source videos/exports/proxies); restore into a folder rebuilds the project; moved-source relink lets clips play; blank folders stay marked missing. | [ ] |
 | [UC-G02](../USE_CASES.md#uc-g02---confirmations-log-download-status-notification-sounds) | P2 | Delete/cancel use the in-app modal; Download Log is non-empty + username-redacted; opted-in notification sound fires on completion. | [ ] |
 | [UC-G03](../USE_CASES.md#uc-g03---desktop-shell-lifecycle-packaged) | P0 | Re-run Setup Wizard preserves config; Reveal-in-folder opens Explorer; quit leaves NO orphan `python.exe` / `llama-server.exe` (Task Manager); clean relaunch skips the wizard; schema-advancing update opens the wizard in `update` mode. See packaged-app-verification.md sections H and I. | [ ] |
+| [UC-G04](../USE_CASES.md#uc-g04---check-for-available-updates) | P2 | Update banner/status show a newer release with a working link; nothing downloads/installs automatically; turning the toggle off stops the launch check but not the manual button; offline shows a plain failure message. | [ ] |
 
 ---
 

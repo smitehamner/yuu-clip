@@ -14,6 +14,7 @@ import { openGettingStartedModal } from './helpmodals.js';
 import { initModelDownload, initModelPrefetch } from '../settings/modeldownload.js';
 import { _renderClips, _syncKindChips } from '../clips/clips.js';
 import { renderGpuWarningChip } from './gpustatus.js';
+import { initUpdateCheckOnLaunch, wireUpdateBanner } from './updatecheck.js';
 
 // ── accessibility init ────────────────────────────────────────────────────────
 document.querySelectorAll('.modal-bg').forEach((bg, i) => {
@@ -74,6 +75,7 @@ async function refreshServerState() {
     const cfg = await fetch('/api/config').then(r => r.json());
     window._aiPrivacyMode = cfg.ai_privacy_mode || 'local_only';
     window._visionEnabled = cfg.vision_enabled === true;
+    initUpdateCheckOnLaunch(cfg.update_check_enabled);
   } catch { /* keep the last known config on a transient fetch failure */ }
   try {
     const prereqs = await fetch('/api/prereqs').then(r => r.json());
@@ -113,3 +115,4 @@ if (!localStorage.getItem('yuu-getting-started-seen')) openGettingStartedModal()
 // the app stays fully usable.
 initModelDownload();
 initModelPrefetch();
+wireUpdateBanner();

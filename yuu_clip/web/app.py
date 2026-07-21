@@ -49,6 +49,7 @@ from yuu_clip.web.routes import (
     sessions,
     sounds,
     speakers,
+    updates,
     videos,
     voices,
 )
@@ -75,7 +76,7 @@ _ROUTE_MODULES = (
     videos, clips, analyze, profiles, reel, reveal, logs, contexts, config,
     scoring, sounds, speakers, hotwords, sensitive, export_presets, imports,
     projects, sessions, name_corrections, llm, content_presets, models, backup,
-    dedup, voices, characters,
+    dedup, voices, characters, updates,
 )
 
 

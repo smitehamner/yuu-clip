@@ -561,6 +561,15 @@ class Config:
     # and each model still downloads lazily the first time its feature is used.
     model_prefetch_disabled: bool = False
 
+    # GitHub update check (notify-only) - on launch (throttled client-side to
+    # roughly once a day) and via a manual "Check for updates now" button in
+    # Settings, the UI compares the running version to GitHub's latest release
+    # tag and shows a link if a newer one exists. It never downloads or installs
+    # anything - see yuu_clip/update_check.py. Only a version-string GET to
+    # GitHub is made, not telemetry; the manual button still works when this
+    # is off.
+    update_check_enabled: bool = True
+
     audio_sample_rate: int = 16_000  # Whisper expects 16 kHz
     audio_channels: int = 1           # Whisper expects mono
 

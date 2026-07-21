@@ -100,6 +100,8 @@ class ConfigPatch(BaseModel):
     thermal_warn_c:                Optional[int]   = None
     thermal_pause_c:               Optional[int]   = None
     thermal_autopause_enabled:     Optional[bool]  = None
+    # Update check (notify-only)
+    update_check_enabled:          Optional[bool]  = None
 
 
 _CONFIG_FIELDS = (
@@ -131,6 +133,7 @@ _CONFIG_FIELDS = (
     "caption_font_name", "caption_font_size", "caption_position",
     "caption_word_highlight", "caption_word_chunk_size",
     "thermal_warn_c", "thermal_pause_c", "thermal_autopause_enabled",
+    "update_check_enabled",
 )
 
 
@@ -300,6 +303,7 @@ _CONFIG_PATCH_RULES: list[tuple[str, object]] = [
     ("thermal_warn_c",               _range_validator(40, 110, "thermal_warn_c")),
     ("thermal_pause_c",              _range_validator(40, 110, "thermal_pause_c")),
     ("thermal_autopause_enabled",    lambda v: v),
+    ("update_check_enabled",         lambda v: bool(v)),
 ]
 
 

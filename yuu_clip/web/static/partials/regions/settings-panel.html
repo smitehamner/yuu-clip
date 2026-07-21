@@ -23,6 +23,7 @@
       <button type="button" class="settings-jump-link" data-section="settings-sec-export">Export</button>
       <button type="button" class="settings-jump-link" data-section="settings-sec-sounds">Sounds</button>
       <button type="button" class="settings-jump-link" data-section="settings-sec-backup">Backup &amp; Restore</button>
+      <button type="button" class="settings-jump-link" data-section="settings-sec-updates">Updates</button>
       <button type="button" class="settings-jump-link" data-section="settings-sec-paths">Paths</button>
     </nav>
   </div>
@@ -908,6 +909,28 @@
       <input type="file" id="restore-file-input" accept=".zip,application/zip" style="display:none" aria-hidden="true" tabindex="-1">
     </div>
     <div id="restore-flow" style="display:none;margin-top:16px"></div>
+  </div>
+
+  <!-- Update check (notify-only) - GitHub only, no auto-install -->
+  <div class="settings-section" id="settings-sec-updates">
+    <div class="settings-section-title">Updates</div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" id="lbl-update-check-enabled" for="s-update-check-enabled">Check for updates automatically</label>
+        <div class="settings-note">Checks GitHub roughly once a day for a newer release. Only a version number is sent - nothing about your project or videos leaves your computer. YuuClip never downloads or installs an update on its own; you always choose when.</div>
+      </div>
+      <label class="settings-checkbox">
+        <input type="checkbox" id="s-update-check-enabled" aria-labelledby="lbl-update-check-enabled">
+        <span style="font-size:13px" aria-hidden="true">On</span>
+      </label>
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <div class="settings-label">Status</div>
+        <div class="settings-note" id="s-update-check-status" aria-live="polite">Checking&hellip;</div>
+      </div>
+      <button type="button" class="btn-secondary" id="btn-check-for-updates">Check for updates now</button>
+    </div>
   </div>
 
   <!-- Paths section (read-only for now) -->

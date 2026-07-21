@@ -367,6 +367,13 @@ kept here so they're not lost.
   dropdown, clip scoring box, Getting Started legend, clip-list badges) are emoji today;
   replace with custom (not AI-generated) icon art.
 
+- **Auto-update (download + install)** *(idea only)* - the notify-only GitHub update check
+  (`yuu_clip/update_check.py`, Settings -> Updates) tells the user a newer release exists and
+  links to it, but never downloads or installs anything. Actually fetching and running the new
+  installer (e.g. via electron-updater, or a signed NSIS silent upgrade) is a materially bigger
+  scope - partial-download recovery, signature verification, and a rollback path all need
+  design before this is more than an idea.
+
 ---
 
 ## Explicitly out of scope
