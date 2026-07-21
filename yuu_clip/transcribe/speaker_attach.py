@@ -268,6 +268,44 @@ def _attach_speakers(
     )
 
 
+def prune_empty_speakers(session: "Session", video_id: int) -> int:
+    """Delete unnamed Speaker rows for *video_id* left with zero segments.
+
+    Re-diarization can split a previously over-merged voice into new Speaker rows,
+    leaving the old one with none of this run's segments attached (see
+    _attach_speakers - prior Speakers are only ever matched or left alone, never
+    removed). Only unnamed rows are auto-deleted: a user-given name is never
+    silently discarded, so an empty *named* Speaker is left for the user to merge
+    or remove by hand. Mirrors the delete side of _merge_speaker_into (routes/
+    speakers.py): clear dangling suggested_match_id pointers before the delete so
+    SQLite's FK enforcement doesn't block it.
+    """
+    speakers = session.query(Speaker).filter_by(video_id=video_id).all()
+    if not speakers:
+        return 0
+    speaker_ids = [s.id for s in speakers]
+    still_used = {
+        row[0]
+        for row in session.query(TranscriptSegment.speaker_id)
+        .filter(TranscriptSegment.speaker_id.in_(speaker_ids))
+        .distinct()
+    }
+    removed = 0
+    for speaker in speakers:
+        if speaker.name or speaker.id in still_used:
+            continue
+        session.query(Speaker).filter_by(suggested_match_id=speaker.id).update(
+            {"suggested_match_id": None, "suggested_match_score": None},
+            synchronize_session=False,
+        )
+        session.delete(speaker)
+        removed += 1
+    if removed:
+        session.flush()
+        _log.info("Pruned %d empty unnamed speaker(s) for video %d", removed, video_id)
+    return removed
+
+
 def suggest_project_voices(session: "Session", video_id: int, threshold: float) -> None:
     """Propose cross-recording Person matches for this recording's Speakers.
 

@@ -685,7 +685,11 @@ def _run_speaker_diarization(config, session, transcripts) -> None:
     """
     if not transcripts or config.diarization_backend == "null":
         return
-    from yuu_clip.transcribe.speaker_attach import diarize_track, suggest_project_voices
+    from yuu_clip.transcribe.speaker_attach import (
+        diarize_track,
+        prune_empty_speakers,
+        suggest_project_voices,
+    )
 
     console.print("  [bold]Detecting speakers...[/bold]")
     emit_progress(Stage.SPEAKERS)
@@ -696,10 +700,17 @@ def _run_speaker_diarization(config, session, transcripts) -> None:
             continue
         console.print(f"  [dim]  Track {track.stream_index} [{track.label}]...[/dim]")
         diarize_track(config, session, transcript, Path(track.extracted_path), track)
+    # A prior Speaker (e.g. one left over from a re-diarization that split it into
+    # several new ones) can end up with none of this run's segments attached -
+    # prune those unnamed leftovers before cross-recording suggestions run, so the
+    # Speakers list reflects only voices actually present this run.
+    video_id = transcripts[0].audio_track.video_id
+    removed = prune_empty_speakers(session, video_id)
+    if removed:
+        console.print(f"  [dim]  Removed {removed} unnamed speaker(s) left with no lines[/dim]")
     # Cross-recording Person suggestions run ONCE per recording, after every track's
     # Speakers exist - not per track (all a video's tracks share its Speaker set).
-    suggest_project_voices(session, transcripts[0].audio_track.video_id,
-                           config.project_voice_match_threshold)
+    suggest_project_voices(session, video_id, config.project_voice_match_threshold)
     session.flush()
 
 
