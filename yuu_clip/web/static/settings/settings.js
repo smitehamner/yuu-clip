@@ -782,7 +782,9 @@ function _flashSettingsSaved() {
 // what used to be inline onclick="…"/onchange="…" attributes.
 function _wireHeaderButtons() {
   document.getElementById('btn-settings-header')?.addEventListener('click', () => openSettings());
-  document.getElementById('gpu-warning-chip')?.addEventListener('click', () => openSettings('settings-sec-hardware'));
+  document.getElementById('gpu-warning-chip')?.addEventListener('click', e => {
+    openSettings(e.currentTarget.dataset.section || 'settings-sec-hardware');
+  });
   document.getElementById('btn-reset-all-settings')?.addEventListener('click', revertAllSettings);
   document.getElementById('btn-settings-save')?.addEventListener('click', saveSettings);
   document.getElementById('btn-settings-close')?.addEventListener('click', () => closeSettings());

@@ -693,7 +693,6 @@ class Config:
     # of how many silent clips a recording has.
     visual_auto_vision_enabled: bool = False
     visual_vision_topn: int = 8
-    scorer_llm_enabled: bool = True
     scorer_laugh_enabled: bool = True
     # Lexicon scoring (plan non-llm-tiers/03) - curated funny/dramatic/action keyword
     # density, zero-dep. Feeds the standard dimensions so content presets tune it via

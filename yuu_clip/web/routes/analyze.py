@@ -29,7 +29,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
-from yuu_clip.config import validate_whisper_model
+from yuu_clip.config import resolve_ai_permissions, validate_whisper_model
 from yuu_clip.export.paths import validate_caption_style_query, validate_export_preset_query
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
@@ -384,6 +384,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         """Return whether any processing is currently active (analysis, scoring, timeline, etc.)."""
         # Lazy import: analyze.py is loaded by app.py, so a top-level import would be circular.
         from yuu_clip.analyze.pause import pause_flag_exists
+        from yuu_clip.scoring.llm import check_llm_available
         from yuu_clip.web.app import _VERSION_DISPLAY
         job = ctx.analyze_job
         job_running = job is not None and not job.done
@@ -422,6 +423,16 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             "whisper_device": ctx.config.whisper_device,
             "llm_use_gpu": bool(ctx.config.llm_use_gpu),
             "llm_gpu_available": ctx.llm_gpu_available(),
+            # LLM-not-configured mismatch (same header warning chip): the user turned
+            # "Enable LLM scoring" on but there is no usable model, so every clip
+            # silently scores without LLM sub-scores/descriptions. check_llm_available
+            # only does cheap filesystem/PATH checks (no subprocess), safe to call on
+            # every poll. llm_enabled/generative_ai_allowed are exposed separately so
+            # the chip never fires for a deliberate "off" choice (mirrors llm_use_gpu
+            # above).
+            "llm_enabled": bool(ctx.config.llm_enabled),
+            "generative_ai_allowed": bool(resolve_ai_permissions(ctx.config).allow_llm),
+            "llm_ready": check_llm_available(ctx.config)[0],
             # Auto-pause config so the "running hot" warning can tell the user what
             # happens next (auto-pause at N°C, or that it won't and they should pause).
             "thermal_autopause_enabled": bool(ctx.config.thermal_autopause_enabled),
