@@ -81,14 +81,19 @@ except the two items below).
   gets this large (the transcript bug was confirmed via a real 3h+ recording; this one
   is audit-only, not yet confirmed painful in practice).
 
-- [ ] **Drain the residual `window.X = X` shim (vitest follow-on)** - the ESM migration
-  (completed 2026-07-16) left `static/main.esm.js` with a shrinking `window.X = X` shim,
-  plus a live get/set accessor bridge in `analyze/split.js`. Each surviving entry exists
-  only because another module still reads a name as `window.foo` instead of importing it,
-  or a Playwright `page.evaluate` pokes it. The follow-on: convert the remaining `window.*`
-  cross-module reads to `import`s and rewrite the `page.evaluate` internal pokes as
-  `tests/js/` vitest tests (as was already done for the vision cancel-wiring), then delete
-  the shim and the bridge. Each entry's per-section comment names its exact surviving reader.
+- [ ] **Drain the last of the `window.X = X` shim (page.evaluate follow-on)** - the module
+  testability refactor (2026-07-21) converted 68 cross-module `window.foo` reads to real
+  `import`s and took `static/main.esm.js`'s shim from 194 to 155 lines. What is left is
+  mostly *not* module reads any more: each surviving entry is held by a Playwright
+  `page.evaluate` poke in `tests/ui/`, so the remaining work is rewriting those pokes as
+  `tests/js/` vitest tests (as was already done for the vision cancel-wiring) and then
+  deleting the freed shim lines, plus the live get/set accessor bridge in `analyze/split.js`.
+  Each entry's per-section comment names its exact surviving reader.
+  Two known exceptions to leave alone: `core/jobs.js` keeps 9 `window.*` reads because a
+  direct import adds a jobs.js <-> videos/clips edge that breaks vitest's
+  `vi.mock`/`importActual` resolution (the real `streamSSE` runs instead of the mock);
+  and boot.js's shared-state bridge (`_prereqs`, `_aiPrivacyMode`, `_visionEnabled`,
+  `refreshServerState`, `_clipsSortParam`) is boot-owned state, not a module export.
 
 - [ ] **In-process LLM/scoring jobs lack progress + a Cancel** - found in the v0.1.27
   manual checks: "Generate timeline" and "Suggest names" show no progress and offer no way
