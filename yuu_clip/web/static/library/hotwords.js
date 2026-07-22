@@ -215,7 +215,11 @@ function _renderHotwordRows() {
   host.innerHTML = _renderTermGroups(hotWords, _hotwordRowHtml);
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+// Wire the Settings-panel row listeners once. Called from boot.js at first paint
+// instead of at module scope, so importing this module has no DOM side effect (a
+// bare-DOM vitest import no longer needs the whole index.html seeded). The panel
+// elements exist in the static index.html at load, same as under DOMContentLoaded.
+function initHotwordListeners() {
   const host = document.getElementById('s-hotword-rows');
   if (!host) return;
   host.addEventListener('change', e => {
@@ -228,9 +232,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (row) _deleteHotwordRow(row);
   });
   document.getElementById('s-hotword-add')?.addEventListener('click', addHotwordRow);
-});
+}
 
 export {
+  initHotwordListeners,
   initHotwordSettings, ensureHotwordsCache, hasEnabledSemanticHotwords,
   confirmScanHotwordsForVideo,
 };
