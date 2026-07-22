@@ -18,9 +18,15 @@ first-paint entry, imported for side effects, and exports nothing.
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 STATIC_DIR = Path(__file__).resolve().parents[2] / "yuu_clip" / "web" / "static"
+
+# A column-0 `name(...);` / `name.method(...);` statement - a bare call, not a
+# declaration. `document.`/`window.` are handled by _DECL_PREFIXES (the direct
+# addEventListener check covers document.* wiring).
+_BARE_CALL_RE = re.compile(r"^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)?\([^;]*\);?\s*$")
 
 # boot.js is the entry orchestrator (side-effect-only); the two committed bundles and
 # the ESM entry are generated/aggregate, not feature modules.
@@ -29,6 +35,32 @@ _EXEMPT = {"boot.js", "main.esm.js", "bundle.esm.js"}
 # Files that still wire DOM listeners at module scope. SHRINK this as each bucket is
 # converted - never add to it. Paths are relative to STATIC_DIR (POSIX separators).
 _ALLOWED_MODULE_SIDE_EFFECTS: set[str] = set()
+
+# A DOM listener wired INDIRECTLY - a module-scope bare call to a `_wireX()` helper
+# whose body calls addEventListener. It is the same load-time side effect as a literal
+# top-level addEventListener (the direct check above misses it because the
+# addEventListener is one call-frame down). SHRINK this to empty as the helpers move
+# into an exported initX() called from boot.js.
+_ALLOWED_MODULE_SCOPE_CALLS = {
+    "analyze/split.js",
+    "clips/clipexport.js",
+    "core/helpmodals.js",
+    "library/sounds.js",
+    "settings/settings-backup.js",
+    "settings/settings-installs.js",
+    "settings/settings-previews.js",
+    "videos/sessions.js",
+    "videos/videos-timeline.js",
+}
+
+# Keywords/constructs that legitimately start a column-0 line - not a bare side-effect
+# call. A module-scope statement that is none of these and is a bare `name(...);` call
+# executes on import.
+_DECL_PREFIXES = (
+    "export ", "import ", "const ", "let ", "var ", "function ", "async ",
+    "return ", "if ", "for ", "while ", "switch ", "class ", "throw ",
+    "Object.assign", "Object.defineProperty", "window.", "document.",
+)
 
 
 def _has_module_scope_listener(source: str) -> bool:
@@ -39,6 +71,21 @@ def _has_module_scope_listener(source: str) -> bool:
         if stripped.startswith(("//", "*", "/*")):
             continue
         if ".addEventListener(" in stripped:
+            return True
+    return False
+
+
+def _has_module_scope_bare_call(source: str) -> bool:
+    for line in source.splitlines():
+        if line[:1].isspace():
+            continue  # indented -> inside a function/block
+        stripped = line.lstrip()
+        if stripped.startswith(("//", "*", "/*")):
+            continue
+        if stripped.startswith(_DECL_PREFIXES):
+            continue
+        # a bare `identifier(...);` statement at column 0 runs on import
+        if _BARE_CALL_RE.match(stripped):
             return True
     return False
 
@@ -74,6 +121,33 @@ def test_allowlist_has_no_already_clean_entries() -> None:
     assert not stale, (
         "These files are already free of module-scope listeners - remove them from "
         f"_ALLOWED_MODULE_SIDE_EFFECTS so the ratchet stays tight: {sorted(stale)}"
+    )
+
+
+def test_no_new_module_scope_bare_call_wiring() -> None:
+    offenders = {
+        path.relative_to(STATIC_DIR).as_posix()
+        for path in _feature_modules()
+        if _has_module_scope_bare_call(path.read_text(encoding="utf-8"))
+    }
+    new_offenders = offenders - _ALLOWED_MODULE_SCOPE_CALLS
+    assert not new_offenders, (
+        "New module-scope bare call(s) (a _wireX()-style side effect on import) - "
+        "move the wiring into an exported initX() called from boot.js: "
+        f"{sorted(new_offenders)}"
+    )
+
+
+def test_bare_call_allowlist_has_no_already_clean_entries() -> None:
+    offenders = {
+        path.relative_to(STATIC_DIR).as_posix()
+        for path in _feature_modules()
+        if _has_module_scope_bare_call(path.read_text(encoding="utf-8"))
+    }
+    stale = _ALLOWED_MODULE_SCOPE_CALLS - offenders
+    assert not stale, (
+        "These files no longer make a module-scope bare call - remove them from "
+        f"_ALLOWED_MODULE_SCOPE_CALLS so the ratchet stays tight: {sorted(stale)}"
     )
 
 
