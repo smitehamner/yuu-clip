@@ -9,6 +9,7 @@ import { streamSSE, setJobCancel, _blockedByAnalyze } from '../core/jobs.js';
 import { loadVideos } from '../videos/videos.js';
 import { _renderExportModeSummary } from '../clips/clipexport.js';
 import { releaseVideoRespectingPip } from '../core/preview.js';
+import { SoundFx } from '../library/sounds.js';
 
 let _reelClips = [];
 let _reelsOpener = null;
@@ -396,7 +397,7 @@ async function exportUnexportedReelClips() {
     () => {
       statusEl.textContent = '';
       showToast('Clips exported');
-      window.SoundFx.play('export');
+      SoundFx.play('export');
       _refreshReelExportStatus();
       loadVideos();
     },
@@ -538,7 +539,7 @@ async function startDemo() {
       loadVideos();
       showToast(`Highlight reel complete!${skipNote}`, 'success');
       openHighlightReelsModal('view');
-      window.SoundFx.play('reel');
+      SoundFx.play('reel');
     },
     [{label: 'Building', patterns: ['Generating title', 'Encoding', 'OK']}],
     'Reel',
@@ -635,7 +636,7 @@ async function confirmBatchExport() {
   openLog();
   streamSSE(
     `/api/videos/${id}/batch-export?${params}`,
-    () => { loadVideos(); showToast('Batch export complete'); window.SoundFx.play('export'); },
+    () => { loadVideos(); showToast('Batch export complete'); SoundFx.play('export'); },
     [{label: 'Exporting', patterns: ['Exporting clip', 'OK clip', 'Skipping']}],
     'Batch Export',
   );
@@ -756,7 +757,11 @@ function _wireBatchExportModal() {
   document.getElementById('batch-confirm-btn').addEventListener('click', () => confirmBatchExport());
 }
 
-document.getElementById('btn-highlight-reels').addEventListener('click', () => openHighlightReelsModal('build'));
-_wireHighlightReelsModal();
-_wireReelPreviewModal();
-_wireBatchExportModal();
+// Called once from boot.js at first paint (see initHotwordListeners in hotwords.js
+// for the reference pattern) so importing this module has no DOM side effect.
+export function initReelListeners() {
+  document.getElementById('btn-highlight-reels').addEventListener('click', () => openHighlightReelsModal('build'));
+  _wireHighlightReelsModal();
+  _wireReelPreviewModal();
+  _wireBatchExportModal();
+}

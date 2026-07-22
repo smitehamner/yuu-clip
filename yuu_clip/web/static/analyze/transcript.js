@@ -651,7 +651,9 @@ function _onCaptionEdited(data) {
   if (openId && affected.includes(openId)) refreshClipDetail(openId);
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+// Called once from boot.js at first paint (see initHotwordListeners in hotwords.js
+// for the reference pattern) so importing this module has no DOM side effect.
+export function initTranscriptListeners() {
   const detail = document.getElementById('detail');
   if (!detail) return;
   detail.addEventListener('click', e => {
@@ -702,4 +704,4 @@ document.addEventListener('DOMContentLoaded', () => {
       if (card) loadVideoTranscript(parseInt(card.dataset.videoId, 10));
     }
   });
-});
+}

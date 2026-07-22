@@ -29,9 +29,6 @@ _EXEMPT = {"boot.js", "main.esm.js", "bundle.esm.js"}
 # Files that still wire DOM listeners at module scope. SHRINK this as each bucket is
 # converted - never add to it. Paths are relative to STATIC_DIR (POSIX separators).
 _ALLOWED_MODULE_SIDE_EFFECTS = {
-    "analyze/analyze.js",
-    "analyze/reel.js",
-    "analyze/transcript.js",
     "clips/clipbulk.js",
     "clips/clips.js",
     "core/jobs.js",

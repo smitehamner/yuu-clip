@@ -10,7 +10,12 @@ import {
 import {
   loadVideos, selectVideo, renderVideoDetail, _updateStartIngestButton, _reanalyzeParams,
 } from '../videos/videos.js';
-import { _splitPoints, _splitDurationS, _splitIgnored } from './split.js';
+import {
+  _splitPoints, _splitDurationS, _splitIgnored, hidePreSplitSection, initPreSplitDuration, _fmtSplitTime,
+} from './split.js';
+import { openContextManager } from '../library/contexts.js';
+import { getWhisperDownloadPct } from '../settings/modeldownload.js';
+import { SoundFx } from '../library/sounds.js';
 
 // ── shared live panel state ───────────────────────────────────────────────────
 // _probedInfo and _panelDirty are read cross-file by videos.js (analyze-button
@@ -72,6 +77,7 @@ async function openNewRecordingPanel() {
   if (_isNewRecordingPanelOpen()) return;
   if (document.getElementById('btn-analyze').disabled) return;
   if (document.getElementById('settings-panel').classList.contains('visible')) {
+    // window.* read: kept to avoid a cycle with settings.js - see MODULE-TESTABILITY-PLAN
     window.closeSettings(openNewRecordingPanel);
     return;
   }
@@ -85,7 +91,7 @@ async function openNewRecordingPanel() {
   _probedInfo   = null;
   _panelDirty   = false;
   _updateStartIngestButton();
-  window.hidePreSplitSection();
+  hidePreSplitSection();
   hideImportUrlSection();
   _applyPanelMode();
   await _loadAnalysisDefaults();
@@ -102,6 +108,7 @@ async function openNewRecordingPanel() {
 async function openReanalyzePanel(video) {
   if (document.getElementById('btn-analyze').disabled) return;
   if (document.getElementById('settings-panel').classList.contains('visible')) {
+    // window.* read: kept to avoid a cycle with settings.js - see MODULE-TESTABILITY-PLAN
     window.closeSettings(() => openReanalyzePanel(video));
     return;
   }
@@ -117,7 +124,7 @@ async function openReanalyzePanel(video) {
   _probedInfo   = null;
   _panelDirty   = false;
   _updateStartIngestButton();
-  window.hidePreSplitSection();
+  hidePreSplitSection();
   hideImportUrlSection();
   _applyPanelMode();
   await _loadProfileDropdown();
@@ -219,7 +226,7 @@ async function _loadIngestContextPicker() {
 function _handleContextListClick(e) {
   if (e.target.closest('[data-act="add-context"]')) {
     closeNewRecordingPanel();
-    window.openContextManager();
+    openContextManager();
     return;
   }
   const pill = e.target.closest('.ctx-pill');
@@ -298,11 +305,11 @@ async function runProbe(path) {
     _renderSubtitleSourcePicker(_probedInfo);
     if (_reanalyzeTarget) _selectSubtitleSource(_reanalyzeTarget.subtitleSource);
     runEstimate();
-    if (!_reanalyzeTarget) window.initPreSplitDuration(_probedInfo.duration_s);
+    if (!_reanalyzeTarget) initPreSplitDuration(_probedInfo.duration_s);
   } catch (err) {
     _probedInfo = null;
     _updateStartIngestButton();
-    window.hidePreSplitSection();
+    hidePreSplitSection();
     document.getElementById('estimate-area').innerHTML =
       `<div style="color:var(--red);font-size:12px">Could not inspect file: ${escHtml(String(err.message || err))}</div>`;
   }
@@ -502,7 +509,7 @@ async function startAnalyze() {
     status = await fetch('/api/llm/download-status').then(r => r.json());
   } catch { /* can't tell - don't block the user */ }
   if (status && status.whisper_downloading) {
-    const pct = window.getWhisperDownloadPct ? window.getWhisperDownloadPct() : null;
+    const pct = getWhisperDownloadPct();
     const pctText = (typeof pct === 'number' && pct >= 0) ? ` (${pct}%)` : '';
     showConfirm(
       'Speech model still downloading',
@@ -599,7 +606,7 @@ function _streamAnalyzeEvents(filename) {
       _showAnalysisToast(v);
       _surfaceAnalyzeWarnings(v);
       if (v) _warmPreviewProxy(v.id);
-      window.SoundFx.play('analysis');
+      SoundFx.play('analysis');
     },
     INGEST_STEPS,
     `Analyzing ${filename}`,
@@ -637,12 +644,12 @@ async function _analyzeSegmentsSequentially(
     loadVideos().then(() =>
       showToast(`Analysis complete - ${plural(segments.length, 'segment')}`)
     );
-    window.SoundFx.play('analysis');
+    SoundFx.play('analysis');
     return;
   }
   await _waitWhileAnalyzePaused();
   const seg = segments[index];
-  appendLog(`Analyzing segment ${index + 1}/${segments.length}: ${window._fmtSplitTime(seg.start_s)}–${window._fmtSplitTime(seg.end_s)}`);
+  appendLog(`Analyzing segment ${index + 1}/${segments.length}: ${_fmtSplitTime(seg.start_s)}–${_fmtSplitTime(seg.end_s)}`);
   fetch('/api/analyze/start', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -993,7 +1000,7 @@ function _onImportUrlLine(line) {
 
 function _onImportUrlDownloadDone(title) {
   showToast('Download complete', 'success');
-  window.SoundFx.play('analysis');
+  SoundFx.play('analysis');
   if (!_lastImportedPath) {
     showToast('Download finished, but the file path was not reported - open it from the downloads folder.', 'warning');
     _resetImportUrlActionsButton();
@@ -1198,14 +1205,6 @@ function cancelProfileEdit() {
   document.getElementById('profile-editor').style.display = 'none';
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  const editor = document.getElementById('profile-editor');
-  if (editor) {
-    editor.addEventListener('input',  () => { _profileEditorDirty = true; });
-    editor.addEventListener('change', () => { _profileEditorDirty = true; });
-  }
-});
-
 // ── drag-and-drop analyze (Electron-first) ──────────────────────────────────
 // A plain browser can't read a filesystem path off a dropped File, so the
 // overlay affordance only appears when window.electronAPI is present; a
@@ -1218,97 +1217,110 @@ function _dragHasFiles(e) {
   return !!(e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files'));
 }
 
-document.addEventListener('dragenter', e => {
-  if (!_dragHasFiles(e) || !window.electronAPI) return;
-  e.preventDefault();
-  _dragDepth++;
-  document.getElementById('drop-overlay').style.display = 'flex';
-});
-
-document.addEventListener('dragover', e => {
-  if (!_dragHasFiles(e) || !window.electronAPI) return;
-  e.preventDefault();  // required for the browser to fire 'drop'
-});
-
-document.addEventListener('dragleave', e => {
-  if (!_dragHasFiles(e) || !window.electronAPI) return;
-  e.preventDefault();
-  _dragDepth = Math.max(0, _dragDepth - 1);
-  if (_dragDepth === 0) document.getElementById('drop-overlay').style.display = 'none';
-});
-
-document.addEventListener('drop', async e => {
-  if (!_dragHasFiles(e)) return;
-  e.preventDefault();
-  _dragDepth = 0;
-  document.getElementById('drop-overlay').style.display = 'none';
-
-  const files = Array.from(e.dataTransfer.files);
-  if (!files.length) return;
-
-  if (!window.electronAPI || typeof window.electronAPI.getPathForFile !== 'function') {
-    showToast('Drag and drop needs the desktop app - use Analyze and enter the file path instead.', 'info');
-    return;
+// Called once from boot.js at first paint (see initHotwordListeners in hotwords.js
+// for the reference pattern) so importing this module has no DOM side effect.
+// Combines what used to be three separate module-scope listener blocks: the
+// profile-editor dirty tracking, drag-and-drop analyze wiring, and the New
+// Recording panel's static control wiring.
+function initAnalyzeListeners() {
+  const editor = document.getElementById('profile-editor');
+  if (editor) {
+    editor.addEventListener('input',  () => { _profileEditorDirty = true; });
+    editor.addEventListener('change', () => { _profileEditorDirty = true; });
   }
-  if (files.length > 1) {
-    showToast('Drop one recording at a time - using the first file.', 'warning');
-  }
-  const file = files[0];
-  const ext = '.' + (file.name.split('.').pop() || '').toLowerCase();
-  if (!DROP_VIDEO_EXTENSIONS.includes(ext)) {
-    showToast(`Unsupported file type "${ext}" - expected a video file.`, 'error');
-    return;
-  }
-  const path = window.electronAPI.getPathForFile(file);
-  if (!path) {
-    showToast("Could not read the dropped file's path.", 'error');
-    return;
-  }
-  await openNewRecordingPanel();
-  document.getElementById('analyze-path').value = path;
-  scheduleProbe();
-});
 
-// ── static control wiring ─────────────────────────────────────────────────────
-// This markup is static in index.html (never re-rendered), so each listener is
-// wired once at module load - replacing the onclick=/oninput=/onchange=
-// attributes that used to live there.
-document.getElementById('btn-analyze').addEventListener('click', openNewRecordingPanel);
-document.getElementById('btn-close-new-recording').addEventListener('click', closeNewRecordingPanel);
-document.getElementById('btn-browse-recording').addEventListener('click', pickFile);
-document.getElementById('analyze-path').addEventListener('input', scheduleProbe);
-document.getElementById('btn-show-import-url').addEventListener('click', showImportUrlSection);
-document.getElementById('btn-use-local-file').addEventListener('click', hideImportUrlSection);
-document.getElementById('import-url-input').addEventListener('keydown', e => {
-  if (e.key !== 'Enter') return;
-  e.preventDefault();
-  checkImportUrl();
-});
-document.getElementById('btn-check-url').addEventListener('click', checkImportUrl);
-document.getElementById('analyze-profile').addEventListener('change', runEstimate);
-document.getElementById('btn-open-profile-manager').addEventListener('click', openProfileManager);
-document.getElementById('analyze-model').addEventListener('change', runEstimate);
-document.getElementById('analyze-diarize').addEventListener('change', runEstimate);
-document.getElementById('analyze-scene-mode').addEventListener('change', runEstimate);
-document.getElementById('analyze-energy-mode').addEventListener('change', runEstimate);
-document.getElementById('btn-start-analyze').addEventListener('click', startAnalyze);
+  document.addEventListener('dragenter', e => {
+    if (!_dragHasFiles(e) || !window.electronAPI) return;
+    e.preventDefault();
+    _dragDepth++;
+    document.getElementById('drop-overlay').style.display = 'flex';
+  });
 
-const _profileModalBg = document.getElementById('profile-modal');
-_profileModalBg.addEventListener('click', e => { if (e.target === _profileModalBg) closeProfileManager(); });
-document.getElementById('btn-close-profile-manager').addEventListener('click', closeProfileManager);
-document.getElementById('btn-new-track-layout').addEventListener('click', openNewProfile);
-document.getElementById('pe-name').addEventListener('input', _clearPeNameError);
-document.getElementById('pe-numtracks').addEventListener('input', () => renderTrackRows());
-document.getElementById('btn-save-profile').addEventListener('click', saveProfile);
-document.getElementById('btn-cancel-profile-edit').addEventListener('click', cancelProfileEdit);
+  document.addEventListener('dragover', e => {
+    if (!_dragHasFiles(e) || !window.electronAPI) return;
+    e.preventDefault();  // required for the browser to fire 'drop'
+  });
 
-document.getElementById('analyze-context-list').addEventListener('click', _handleContextListClick);
-// #pe-tracks is a stable container - renderTrackRows only replaces its innerHTML,
-// so a single delegated listener here covers every row across re-renders.
-document.getElementById('pe-tracks').addEventListener('change', e => {
-  const sel = e.target.closest('select[id^="pe-label-"]');
-  if (sel) onLabelChange(parseInt(sel.id.slice('pe-label-'.length), 10));
-});
+  document.addEventListener('dragleave', e => {
+    if (!_dragHasFiles(e) || !window.electronAPI) return;
+    e.preventDefault();
+    _dragDepth = Math.max(0, _dragDepth - 1);
+    if (_dragDepth === 0) document.getElementById('drop-overlay').style.display = 'none';
+  });
+
+  document.addEventListener('drop', async e => {
+    if (!_dragHasFiles(e)) return;
+    e.preventDefault();
+    _dragDepth = 0;
+    document.getElementById('drop-overlay').style.display = 'none';
+
+    const files = Array.from(e.dataTransfer.files);
+    if (!files.length) return;
+
+    if (!window.electronAPI || typeof window.electronAPI.getPathForFile !== 'function') {
+      showToast('Drag and drop needs the desktop app - use Analyze and enter the file path instead.', 'info');
+      return;
+    }
+    if (files.length > 1) {
+      showToast('Drop one recording at a time - using the first file.', 'warning');
+    }
+    const file = files[0];
+    const ext = '.' + (file.name.split('.').pop() || '').toLowerCase();
+    if (!DROP_VIDEO_EXTENSIONS.includes(ext)) {
+      showToast(`Unsupported file type "${ext}" - expected a video file.`, 'error');
+      return;
+    }
+    const path = window.electronAPI.getPathForFile(file);
+    if (!path) {
+      showToast("Could not read the dropped file's path.", 'error');
+      return;
+    }
+    await openNewRecordingPanel();
+    document.getElementById('analyze-path').value = path;
+    scheduleProbe();
+  });
+
+  // ── static control wiring ─────────────────────────────────────────────────
+  // This markup is static in index.html (never re-rendered), so each listener is
+  // wired once here - replacing the onclick=/oninput=/onchange= attributes that
+  // used to live there.
+  document.getElementById('btn-analyze').addEventListener('click', openNewRecordingPanel);
+  document.getElementById('btn-close-new-recording').addEventListener('click', closeNewRecordingPanel);
+  document.getElementById('btn-browse-recording').addEventListener('click', pickFile);
+  document.getElementById('analyze-path').addEventListener('input', scheduleProbe);
+  document.getElementById('btn-show-import-url').addEventListener('click', showImportUrlSection);
+  document.getElementById('btn-use-local-file').addEventListener('click', hideImportUrlSection);
+  document.getElementById('import-url-input').addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    checkImportUrl();
+  });
+  document.getElementById('btn-check-url').addEventListener('click', checkImportUrl);
+  document.getElementById('analyze-profile').addEventListener('change', runEstimate);
+  document.getElementById('btn-open-profile-manager').addEventListener('click', openProfileManager);
+  document.getElementById('analyze-model').addEventListener('change', runEstimate);
+  document.getElementById('analyze-diarize').addEventListener('change', runEstimate);
+  document.getElementById('analyze-scene-mode').addEventListener('change', runEstimate);
+  document.getElementById('analyze-energy-mode').addEventListener('change', runEstimate);
+  document.getElementById('btn-start-analyze').addEventListener('click', startAnalyze);
+
+  const profileModalBg = document.getElementById('profile-modal');
+  profileModalBg.addEventListener('click', e => { if (e.target === profileModalBg) closeProfileManager(); });
+  document.getElementById('btn-close-profile-manager').addEventListener('click', closeProfileManager);
+  document.getElementById('btn-new-track-layout').addEventListener('click', openNewProfile);
+  document.getElementById('pe-name').addEventListener('input', _clearPeNameError);
+  document.getElementById('pe-numtracks').addEventListener('input', () => renderTrackRows());
+  document.getElementById('btn-save-profile').addEventListener('click', saveProfile);
+  document.getElementById('btn-cancel-profile-edit').addEventListener('click', cancelProfileEdit);
+
+  document.getElementById('analyze-context-list').addEventListener('click', _handleContextListClick);
+  // #pe-tracks is a stable container - renderTrackRows only replaces its innerHTML,
+  // so a single delegated listener here covers every row across re-renders.
+  document.getElementById('pe-tracks').addEventListener('change', e => {
+    const sel = e.target.closest('select[id^="pe-label-"]');
+    if (sel) onLabelChange(parseInt(sel.id.slice('pe-label-'.length), 10));
+  });
+}
 
 // Public API - symbols with a still-classic (bundle.js) bare-global consumer, an
 // already-ESM caller reading this module's exports as window.* (clips.js,
@@ -1318,6 +1330,7 @@ document.getElementById('pe-tracks').addEventListener('change', e => {
 // _probedInfo/_panelDirty are NOT here - videos.js imports them directly (see
 // the top of this file) as live ESM bindings instead of reading them off window.
 export {
+  initAnalyzeListeners,
   _isNewRecordingPanelOpen, openNewRecordingPanel, openReanalyzePanel, closeNewRecordingPanel,
   _doCloseNewRecordingPanel,
   _renderSubtitleSourcePicker,

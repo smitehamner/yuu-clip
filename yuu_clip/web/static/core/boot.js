@@ -11,7 +11,9 @@ import { ensureHotwordsCache, initHotwordListeners } from '../library/hotwords.j
 import { ensureExportPresetsCache, initExportPresetListeners } from '../library/exportpresets.js';
 import { initSensitiveListeners } from '../library/sensitive.js';
 import { initColorPickerListeners } from '../library/colorpicker.js';
-import { reattachAnalysis } from '../analyze/analyze.js';
+import { reattachAnalysis, initAnalyzeListeners } from '../analyze/analyze.js';
+import { initReelListeners } from '../analyze/reel.js';
+import { initTranscriptListeners } from '../analyze/transcript.js';
 import { openGettingStartedModal } from './helpmodals.js';
 import { initModelDownload, initModelPrefetch } from '../settings/modeldownload.js';
 import { _renderClips, _syncKindChips } from '../clips/clips.js';
@@ -52,6 +54,9 @@ initSensitiveListeners();
 initColorPickerListeners();
 ensureExportPresetsCache();
 initExportPresetListeners();
+initAnalyzeListeners();
+initReelListeners();
+initTranscriptListeners();
 fetch('/api/status').then(r => r.json()).then(d => {
   if (d.version) {
     const versionLabel = (/^\d/.test(d.version) ? 'v' : '') + d.version;

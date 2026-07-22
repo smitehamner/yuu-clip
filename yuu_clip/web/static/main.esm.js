@@ -124,7 +124,7 @@ import {
 // import keeps esbuild pulling it into the bundle and runs its static wiring.
 import './settings/settings-backup.js';
 import {
-  initModelDownload, initModelPrefetch, getWhisperDownloadPct, _resetModelDownloads,
+  initModelDownload, initModelPrefetch, _resetModelDownloads,
 } from './settings/modeldownload.js';
 import {
   SoundFx, commitSoundSettings,
@@ -146,8 +146,7 @@ import { openNameCorrections } from './people/namecorrections.js';
 import { openExportEditor } from './library/exporteditor.js';
 import {
   isSplitEditorOpen, openSplitEditor, closeSplitEditor,
-  initPreSplitDuration, hidePreSplitSection,
-  _fmtSplitTime, _parseSplitTime, splitTimelineClick,
+  _parseSplitTime, splitTimelineClick,
 } from './analyze/split.js';
 // boot.js is the first-paint entry point: it must be imported LAST so its
 // top-level init (initResize/loadVideos/refreshServerState/...) runs only after
@@ -458,8 +457,10 @@ window.closeBatchExportModal = closeBatchExportModal;
 // directly by tests/ui/test_ui_contexts.py / test_ui_utils.py via page.evaluate;
 // _termContextOptions and _renderTermGroups are called as bare globals by
 // hotwords.js/sensitive.js; openContextManager is read as window.* by
-// analyze.js/videos.js (already-ESM) and invoked directly by
-// tests/ui/test_ui_contexts.py; closeContextManager is called as a bare global
+// videos.js (already-ESM, out of scope to touch here - analyze.js's own read
+// was converted to a direct import in the analyze/ bucket conversion) and
+// invoked directly by tests/ui/test_ui_contexts.py; closeContextManager is
+// called as a bare global
 // by shortcuts.js's Escape-key modal-closer map; addVideoContext is read as
 // window.* by videos.js; openAutoApproveModal is read as window.* by videos.js;
 // closeAutoApproveModal is called as a bare global by shortcuts.js;
@@ -554,19 +555,20 @@ window.isProjectMenuOpen = isProjectMenuOpen;
 window.closeProjectMenu = closeProjectMenu;
 window.closeOpenProjectModal = closeOpenProjectModal;
 // modeldownload.js - initModelDownload and initModelPrefetch are called as bare
-// globals by boot.js (still classic); getWhisperDownloadPct is read as window.* by
-// analyze.js (already-ESM, but out of scope to switch it to an import here);
-// _resetModelDownloads is invoked directly by tests/ui/test_ui_modeldownload.py and
-// test_ui_whisper_prefetch.py via page.evaluate. _cancelDownload dropped: its only
-// caller is this module's own row-action onclick (property assignment inside
-// _wireRowActions), so nothing outside the module needs it off window.
+// globals by boot.js (still classic); _resetModelDownloads is invoked directly by
+// tests/ui/test_ui_modeldownload.py and test_ui_whisper_prefetch.py via
+// page.evaluate. getWhisperDownloadPct dropped: its only reader was analyze.js
+// (analyze/ bucket conversion), which now imports it directly, and no other
+// reader remains. _cancelDownload dropped: its only caller is this module's own
+// row-action onclick (property assignment inside _wireRowActions), so nothing
+// outside the module needs it off window.
 window.initModelDownload = initModelDownload;
 window.initModelPrefetch = initModelPrefetch;
-window.getWhisperDownloadPct = getWhisperDownloadPct;
 window._resetModelDownloads = _resetModelDownloads;
 // sounds.js - SoundFx is read as window.SoundFx by already-ESM callers
-// (analyze.js, clipbulk.js, clipexport.js, contexts.js, reel.js, videos.js,
-// jobs.js) and as a bare global by the still-classic exporteditor.js;
+// (clipbulk.js, clipexport.js, contexts.js, videos.js, jobs.js - analyze.js's
+// and reel.js's own reads were converted to direct imports in the analyze/
+// bucket conversion) and as a bare global by the still-classic exporteditor.js;
 // commitSoundSettings is invoked directly by tests/ui/test_ui_sounds.py via
 // page.evaluate. initSoundSettings and _soundSettingsDirty dropped: settings.js
 // (settings/ bucket conversion) now imports both directly, and no other reader
@@ -656,20 +658,19 @@ window.openExportEditor = openExportEditor;
 // and never switched to an import - out of scope to touch videos.js here) and
 // openSplitEditor/closeSplitEditor are also invoked directly by
 // tests/ui/test_ui_keyboard.py, test_ui_panelnav.py and test_ui_split.py via
-// page.evaluate; initPreSplitDuration/hidePreSplitSection/_fmtSplitTime are read
-// as window.* by analyze.js (already-ESM, same reason), and _fmtSplitTime/
-// _parseSplitTime/splitTimelineClick are invoked directly by test_ui_split.py via
-// page.evaluate. The two test-poked STATE names (_splitPoints, _splitNames) are NOT
-// here - split.js wires those onto window itself via live get/set accessors, since a
-// plain snapshot would go stale on reassignment. videos.js/analyze.js read
-// _splitPoints/_splitDurationS/_splitIgnored via a direct import instead of window.
-// (The jobs.js equivalent bridge has since been removed; split.js's remains only for
-// test_ui_keyboard's page.evaluate pokes.)
+// page.evaluate; _parseSplitTime/splitTimelineClick are invoked directly by
+// test_ui_split.py via page.evaluate. initPreSplitDuration/hidePreSplitSection/
+// _fmtSplitTime dropped: their only reader was analyze.js (analyze/ bucket
+// conversion), which now imports all three directly, and no other reader or
+// page.evaluate poke remains. The two test-poked STATE names (_splitPoints,
+// _splitNames) are NOT here - split.js wires those onto window itself via live
+// get/set accessors, since a plain snapshot would go stale on reassignment.
+// videos.js/analyze.js read _splitPoints/_splitDurationS/_splitIgnored via a
+// direct import instead of window. (The jobs.js equivalent bridge has since
+// been removed; split.js's remains only for test_ui_keyboard's page.evaluate
+// pokes.)
 window.isSplitEditorOpen = isSplitEditorOpen;
 window.openSplitEditor = openSplitEditor;
 window.closeSplitEditor = closeSplitEditor;
-window.initPreSplitDuration = initPreSplitDuration;
-window.hidePreSplitSection = hidePreSplitSection;
-window._fmtSplitTime = _fmtSplitTime;
 window._parseSplitTime = _parseSplitTime;
 window.splitTimelineClick = splitTimelineClick;
