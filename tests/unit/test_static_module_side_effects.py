@@ -28,12 +28,7 @@ _EXEMPT = {"boot.js", "main.esm.js", "bundle.esm.js"}
 
 # Files that still wire DOM listeners at module scope. SHRINK this as each bucket is
 # converted - never add to it. Paths are relative to STATIC_DIR (POSIX separators).
-_ALLOWED_MODULE_SIDE_EFFECTS = {
-    "core/jobs.js",
-    "core/shortcuts.js",
-    "core/ui.js",
-    "core/utils.js",
-}
+_ALLOWED_MODULE_SIDE_EFFECTS: set[str] = set()
 
 
 def _has_module_scope_listener(source: str) -> bool:

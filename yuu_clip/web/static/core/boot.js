@@ -2,8 +2,10 @@
 //   Not a feature module; imported LAST from main.esm.js so its top-level init runs
 //   after every other module in the ESM graph has been evaluated. Exports nothing.
 import { AppState } from './state.js';
-import { initResize, initPlaybackRate, _applyPrereqWarnings } from './ui.js';
-import { _syncSortDirBtn } from './utils.js';
+import { initResize, initPlaybackRate, _applyPrereqWarnings, initUiListeners } from './ui.js';
+import { _syncSortDirBtn, initUtilsListeners } from './utils.js';
+import { initJobsListeners } from './jobs.js';
+import { initShortcuts } from './shortcuts.js';
 import { initProjectSwitcher, initProjectListeners } from '../settings/projects.js';
 import { _loadContexts, initContextsListeners } from '../library/contexts.js';
 import { loadVideos, initVideosListeners } from '../videos/videos.js';
@@ -41,6 +43,10 @@ document.querySelectorAll('.modal-bg').forEach((bg, i) => {
 // ── boot ──────────────────────────────────────────────────────────────────────
 initResize();
 initPlaybackRate();
+initUiListeners();
+initUtilsListeners();
+initJobsListeners();
+initShortcuts();
 initProjectSwitcher();
 initProjectListeners();
 initSettingsListeners();

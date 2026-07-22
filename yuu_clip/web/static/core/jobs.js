@@ -4,6 +4,9 @@
 //   API: routes/analyze.py, routes/scoring.py (SSE endpoints) · Tests: tests/ui/test_ui_utils.py, tests/ui/test_ui_sse.py
 import { AppState } from './state.js';
 import { escHtml, formatApiError, _fmtElapsed } from './format.js';
+import { showToast, appendLog, netErrMsg } from './utils.js';
+import { showConfirm } from './ui.js';
+import { SoundFx } from '../library/sounds.js';
 
 // ── shared live job-render state ──────────────────────────────────────────────
 // _jobStepDefs / _activeStepIdx / _jobStartTime are read cross-module by videos.js's
@@ -148,6 +151,7 @@ function startJobUI(stepDefs, jobLabel, cancellable = false, pausable = false) {
     _pollThermalStatus();
     _jobThermalPollTimer = setInterval(_pollThermalStatus, 5000);
   }
+  // window.* read: kept to avoid a cycle with clips.js - see MODULE-TESTABILITY-PLAN
   if (window._renderClipFilterCounts) _renderClipFilterCounts();
 }
 
@@ -172,12 +176,12 @@ async function _pollThermalStatus() {
     const next = status.thermal_autopause_enabled
       ? `Analysis will auto-pause if it reaches ${Math.round(status.thermal_pause_c)}°C.`
       : `Auto-pause is off - pause the job manually if it keeps climbing.`;
-    window.showToast(`GPU running hot - ${Math.round(status.gpu_temp_c)}°C. ${next}`, 'warning');
+    showToast(`GPU running hot - ${Math.round(status.gpu_temp_c)}°C. ${next}`, 'warning');
   }
   if (status.gpu_state === 'pause' && _lastGpuState !== 'pause') {
     _jobPaused = true;
     _renderPauseUI();
-    window.showToast(`Auto-paused: GPU reached ${Math.round(status.gpu_temp_c)}°C - will hold before the next video`, 'warning', {
+    showToast(`Auto-paused: GPU reached ${Math.round(status.gpu_temp_c)}°C - will hold before the next video`, 'warning', {
       durationMs: 20000,
       action: {label: 'Resume now', onClick: togglePauseJob},
     });
@@ -212,18 +216,18 @@ async function togglePauseJob() {
     const res = await fetch(`/api/analyze/${wantPause ? 'pause' : 'resume'}`, {method: 'POST'});
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      window.showToast(formatApiError(data) || `Could not ${wantPause ? 'pause' : 'resume'}`, 'error');
+      showToast(formatApiError(data) || `Could not ${wantPause ? 'pause' : 'resume'}`, 'error');
       return;
     }
     if (data.status === 'no-op') {
-      window.showToast(data.message || 'No analysis is running.', 'info');
+      showToast(data.message || 'No analysis is running.', 'info');
       return;
     }
     _jobPaused = wantPause;
     _renderPauseUI();
-    window.showToast(wantPause ? 'Will pause before the next video' : 'Resumed', 'info');
+    showToast(wantPause ? 'Will pause before the next video' : 'Resumed', 'info');
   } catch (err) {
-    window.showToast(window.netErrMsg(err), 'error');
+    showToast(netErrMsg(err), 'error');
   } finally {
     btn.disabled = false;
   }
@@ -275,6 +279,7 @@ function updateJobUI(line) {
     const m = line.match(activeDef.progressPattern);
     if (m) _setStepProgress(_activeStepIdx, parseInt(m[1], 10), parseInt(m[2], 10));
   }
+  // window.* read: kept to avoid a cycle with videos.js - see MODULE-TESTABILITY-PLAN
   if (window._syncAnalysisLivePanel) _syncAnalysisLivePanel();
 }
 
@@ -287,12 +292,14 @@ function _driveStepFromMarker(marker) {
   if (typeof marker.done === 'number' && typeof marker.total === 'number' && marker.total > 0) {
     _setStepProgress(idx, marker.done, marker.total);
   }
+  // window.* read: kept to avoid a cycle with videos.js - see MODULE-TESTABILITY-PLAN
   if (window._syncAnalysisLivePanel) _syncAnalysisLivePanel();
 }
 
 let _sidebarRefreshTimer = null;
 function _debouncedSidebarRefresh() {
   if (_sidebarRefreshTimer) return;
+  // window.* read: kept to avoid a cycle with videos.js - see MODULE-TESTABILITY-PLAN
   _sidebarRefreshTimer = setTimeout(() => { _sidebarRefreshTimer = null; window.loadVideos(); }, 1200);
 }
 
@@ -309,6 +316,7 @@ function _debouncedClipListRefresh() {
     if (!AppState.activeVideoId || !AppState.analyzeFilename) return;
     const analyzing = AppState.videos.find(v => v.filename === AppState.analyzeFilename);
     if (!analyzing || analyzing.id !== AppState.activeVideoId) return;
+    // window.* reads: kept to avoid a cycle with videos.js/clips.js - see MODULE-TESTABILITY-PLAN
     AppState.clips = await fetch(window._clipsListUrl(AppState.activeVideoId)).then(r => r.json());
     window._renderClips();
   }, 1200);
@@ -364,6 +372,7 @@ function _renderStepPill(idx) {
 }
 
 function _tickJobTimer() {
+  // window.* read: kept to avoid a cycle with videos.js - see MODULE-TESTABILITY-PLAN
   if (window._syncAnalysisLivePanel) _syncAnalysisLivePanel();
   if (_activeStepIdx < 0) return;
   _renderStepPill(_activeStepIdx);
@@ -391,6 +400,7 @@ function endJobUI() {
     if (analyzeBtn) analyzeBtn.title = '';
     _setJobBlockedButtons(false);
     const totalApproved = (AppState.videos || []).reduce((n, v) => n + v.approved, 0);
+    // window.* reads: kept to avoid a cycle with videos.js/clips.js - see MODULE-TESTABILITY-PLAN
     window._updateDemoButton(totalApproved);
     if (window._renderClipFilterCounts) _renderClipFilterCounts();
   }, 2000);
@@ -464,7 +474,7 @@ function _openSSE(url, onLine, onDone, onError, opts = {}) {
       if (!ctrl.signal.aborted) onError('Connection lost - server disconnected');
     }
   }).catch(err => {
-    if (!ctrl.signal.aborted) onError(window.netErrMsg(err));
+    if (!ctrl.signal.aborted) onError(netErrMsg(err));
   });
   return handle;
 }
@@ -501,7 +511,7 @@ function _supersedeActiveStream() {
 // before any side effects.
 function _blockedByAnalyze(actionLabel) {
   if (!AppState.analyzeFilename) return false;
-  window.showToast(`Wait for the current analysis to finish before you ${actionLabel}.`, 'warning');
+  showToast(`Wait for the current analysis to finish before you ${actionLabel}.`, 'warning');
   return true;
 }
 
@@ -522,7 +532,7 @@ function streamSSE(url, onDone, stepDefs, jobLabel, cancellable = false, onLine 
       // a log line; everything else falls through to the log + prose fallback.
       const marker = stepDefs ? parseProgress(text) : null;
       if (marker) { _driveStepFromMarker(marker); return; }
-      window.appendLog(text); if (onLine) onLine(text); if (stepDefs) updateJobUI(text);
+      appendLog(text); if (onLine) onLine(text); if (stepDefs) updateJobUI(text);
     },
     () => {
       _clearActiveStream(handle);
@@ -531,11 +541,12 @@ function streamSSE(url, onDone, stepDefs, jobLabel, cancellable = false, onLine 
     },
     errMsg => {
       _clearActiveStream(handle);
-      window.appendLog(`[${errMsg}]`);
-      window.showToast(errMsg, 'error');
-      window.SoundFx.play('error');
+      appendLog(`[${errMsg}]`);
+      showToast(errMsg, 'error');
+      SoundFx.play('error');
       if (stepDefs) endJobUI();
       if (onError) onError(errMsg);
+      // window.* read: kept to avoid a cycle with videos.js - see MODULE-TESTABILITY-PLAN
       window.loadVideos();
     },
     opts,
@@ -553,7 +564,7 @@ async function _waitWhileAnalyzePaused() {
   while (true) {
     const status = await fetch('/api/status').then(r => r.json()).catch(() => null);
     if (!status || !status.pause_flag_set) return;
-    if (!toasted) { window.showToast('Paused - will hold before the next segment', 'info'); toasted = true; }
+    if (!toasted) { showToast('Paused - will hold before the next segment', 'info'); toasted = true; }
     await new Promise(resolve => setTimeout(resolve, 3000));
   }
 }
@@ -574,7 +585,7 @@ let _activeCancel = _ANALYZE_CANCEL;
 function setJobCancel(cfg) { _activeCancel = cfg || _ANALYZE_CANCEL; }
 
 function cancelJob() {
-  window.showConfirm(
+  showConfirm(
     _activeCancel.title,
     _activeCancel.body,
     _activeCancel.confirm,
@@ -591,11 +602,11 @@ async function _doCancelJob() {
     const res = await fetch(cancel.url, {method: 'POST'});
     if (!res.ok) throw new Error(`Server error ${res.status}`);
   } catch (err) {
-    window.showToast(`Could not cancel - ${err.message}`, 'error');
+    showToast(`Could not cancel - ${err.message}`, 'error');
     return;
   }
   _supersedeActiveStream();
-  window.appendLog(cancel.logMsg);
+  appendLog(cancel.logMsg);
   endJobUI();
   // A job-specific terminal cleanup (e.g. clearing a per-clip in-flight flag so
   // its button leaves the spinner) - the generic analyze cancel sets none.
@@ -604,10 +615,24 @@ async function _doCancelJob() {
   // spinner. Left set, a cancelled run whose DB row never materialised would
   // keep an unclickable "Analyzing…" placeholder until a manual page refresh.
   AppState.analyzeFilename = null;
+  // window.* read: kept to avoid a cycle with videos.js - see MODULE-TESTABILITY-PLAN
   window.loadVideos();
 }
 
+// The job header's Pause/Cancel buttons are static markup in index.html (never
+// re-rendered), so a single listener wired once here - replacing the
+// onclick="togglePauseJob()"/"cancelJob()" attributes that used to live there -
+// can never double-wire. Called from boot.js at first paint (see initHotwordListeners
+// in hotwords.js for the reference pattern) so importing this module has no DOM side
+// effect. (videos.js's in-detail Cancel button still uses its own inline
+// onclick="cancelJob()"; that markup lives in videos.js, out of scope here.)
+function initJobsListeners() {
+  document.getElementById('btn-pause-job').addEventListener('click', togglePauseJob);
+  document.getElementById('btn-cancel-job').addEventListener('click', cancelJob);
+}
+
 export {
+  initJobsListeners,
   INGEST_STEPS, SCORE_STEPS, FRAMES_STEPS, JOB_STAGES, parseProgress, _driveStepFromMarker,
   startJobUI, updateJobUI, endJobUI, applyJobBlockedState, _stepPillLabel, _renderStepPill, _tickJobTimer,
   _setPausedUIFromStatus, togglePauseJob, _pollThermalStatus,
@@ -618,11 +643,3 @@ export {
   // Live bindings read by videos.js's in-detail live panel (values change per job).
   _jobStepDefs, _activeStepIdx, _jobStartTime,
 };
-
-// The job header's Pause/Cancel buttons are static markup in index.html (never
-// re-rendered), so a single listener wired once at module load - replacing the
-// onclick="togglePauseJob()"/"cancelJob()" attributes that used to live there -
-// can never double-wire. (videos.js's in-detail Cancel button still uses its own
-// inline onclick="cancelJob()"; that markup lives in videos.js, out of scope here.)
-document.getElementById('btn-pause-job').addEventListener('click', togglePauseJob);
-document.getElementById('btn-cancel-job').addEventListener('click', cancelJob);

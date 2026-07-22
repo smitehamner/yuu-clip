@@ -115,7 +115,7 @@ const _FOCUSABLE_SELECTOR =
   'a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), ' +
   'textarea:not(:disabled), [tabindex]:not([tabindex="-1"])';
 
-document.addEventListener('keydown', e => {
+function _trapModalTabKeydown(e) {
   if (e.key !== 'Tab') return;
   const modal = topmostVisibleModal();
   if (!modal) return;
@@ -134,7 +134,7 @@ document.addEventListener('keydown', e => {
     e.preventDefault();
     last.focus();
   }
-});
+}
 
 // ── menu keyboard pattern (hamburger + kebab) ─────────────────────────────────
 function _menuFocusableItems(menu) {
@@ -172,14 +172,14 @@ export function closeHamburger(refocusTrigger = false) {
   menu.classList.remove('open');
   document.getElementById('btn-hamburger').setAttribute('aria-expanded', 'false');
 }
-document.getElementById('hamburger-menu').addEventListener('keydown', e => {
+function _hamburgerMenuKeydown(e) {
   _menuArrowKeydown(document.getElementById('hamburger-menu'), e);
-});
-document.addEventListener('click', e => {
+}
+function _dismissHamburgerOnOutsideClick(e) {
   if (!document.getElementById('hamburger-wrap').contains(e.target)) {
     closeHamburger();
   }
-});
+}
 
 // ── controls modal ────────────────────────────────────────────────────────────
 let _controlsOpener = null;
@@ -343,7 +343,7 @@ function _fieldEditSave() {
 
 // Refresh/close with a dirty editor open would silently lose the edit - the
 // same protection closeFieldEditModal/_diffDiscard give Escape and Discard.
-window.addEventListener('beforeunload', e => {
+function _warnOnUnloadWithDirtyEditor(e) {
   const fieldEditDirty =
     document.getElementById('field-edit-modal').classList.contains('visible') &&
     document.getElementById('field-edit-text').value !== _fieldEditOriginalValue;
@@ -353,7 +353,7 @@ window.addEventListener('beforeunload', e => {
     e.preventDefault();
     e.returnValue = '';
   }
-});
+}
 
 // ── kebab menus ───────────────────────────────────────────────────────────────
 let _activeKebab = null;
@@ -639,6 +639,17 @@ function _wireHamburgerHandlers() {
   document.getElementById('hamburger-item-download-log').addEventListener('click', () => closeHamburger());
 }
 
-_wireModalBgDismissals();
-_wireModalButtons();
-_wireHamburgerHandlers();
+// Wires every fixed, never-recreated ui.js listener once - the Tab focus trap,
+// the hamburger menu's arrow-key nav and outside-click dismiss, the dirty-editor
+// beforeunload guard, and the static modal/hamburger click wiring above. Called
+// from boot.js at first paint (see initHotwordListeners in hotwords.js for the
+// reference pattern) so importing this module has no DOM side effect.
+export function initUiListeners() {
+  document.addEventListener('keydown', _trapModalTabKeydown);
+  document.getElementById('hamburger-menu').addEventListener('keydown', _hamburgerMenuKeydown);
+  document.addEventListener('click', _dismissHamburgerOnOutsideClick);
+  window.addEventListener('beforeunload', _warnOnUnloadWithDirtyEditor);
+  _wireModalBgDismissals();
+  _wireModalButtons();
+  _wireHamburgerHandlers();
+}

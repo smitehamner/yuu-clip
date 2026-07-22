@@ -39,10 +39,9 @@ import {
   openHelpModal, closeHelpModal,
   openGlossaryModal, closeGlossaryModal, _filterGlossary,
 } from './core/helpmodals.js';
-// shortcuts.js has no public surface (its only export is the keydown listener
-// registration) - a bare side-effect import registers the global handler
-// without adding anything to the window shim.
-import './core/shortcuts.js';
+// shortcuts.js's only export is initShortcuts(), the keydown listener
+// registration - imported and called once from boot.js (see
+// MODULE-TESTABILITY-PLAN), which main.esm.js already pulls in below.
 import {
   _ensureModelCatalog, refreshModelCatalog,
   _updateLlmCapabilities, _renderCapabilityTiers,

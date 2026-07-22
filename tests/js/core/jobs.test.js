@@ -5,6 +5,15 @@
 // timers (which control Date.now()) instead of seeding the module's private state,
 // so they survive the pending window-accessor-bridge removal.
 import { AppState } from '../../../yuu_clip/web/static/core/state.js';
+
+// _blockedByAnalyze reports through showToast - spy on it without disturbing the
+// rest of utils.js.
+vi.mock('../../../yuu_clip/web/static/core/utils.js', async (importActual) => {
+  const actual = await importActual();
+  return { ...actual, showToast: vi.fn() };
+});
+
+import { showToast } from '../../../yuu_clip/web/static/core/utils.js';
 import {
   SCORE_STEPS, INGEST_STEPS, startJobUI, updateJobUI, endJobUI,
   parseProgress, _driveStepFromMarker, isDoneSentinel, doneError,
@@ -212,20 +221,18 @@ describe('active-stream supersede contract', () => {
 });
 
 describe('_blockedByAnalyze', () => {
-  afterEach(() => { AppState.analyzeFilename = null; delete window.showToast; });
+  afterEach(() => { AppState.analyzeFilename = null; showToast.mockClear(); });
 
   it('is a warning (not an error) and returns true while an analysis runs', () => {
-    window.showToast = vi.fn();
     AppState.analyzeFilename = 'busy.mkv';
     expect(_blockedByAnalyze('re-score clips')).toBe(true);
-    expect(window.showToast).toHaveBeenCalledWith(
+    expect(showToast).toHaveBeenCalledWith(
       expect.stringContaining('Wait for the current analysis'), 'warning',
     );
   });
   it('is a no-op returning false when nothing is analyzing', () => {
-    window.showToast = vi.fn();
     AppState.analyzeFilename = null;
     expect(_blockedByAnalyze('re-score clips')).toBe(false);
-    expect(window.showToast).not.toHaveBeenCalled();
+    expect(showToast).not.toHaveBeenCalled();
   });
 });

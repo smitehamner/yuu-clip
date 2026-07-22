@@ -70,7 +70,7 @@ function _closeTopmostLayer() {
   if (_isNewRecordingPanelOpen()) closeNewRecordingPanel();
 }
 
-document.addEventListener('keydown', e => {
+function _handleGlobalKeydown(e) {
   // A focused list item (clip/video <li>) handles Enter/Space itself and calls
   // preventDefault - don't ALSO run the global shortcut (e.g. Space toggling
   // play/pause while the li activation is selecting a clip).
@@ -175,10 +175,15 @@ document.addEventListener('keydown', e => {
       if (idx !== -1 && idx < shown.length - 1) _navigateTo(shown[idx + 1].id);
       break;
   }
-});
+}
 
-// No exports - this module's only public surface is the keydown listener
-// registration itself; _modalEscapeClosers/_closeTopmostLayer are referenced
-// only from within this module. Every closer/action it calls is now imported
-// (see the top of the file); shortcuts.js is a sink in the import graph (nothing
-// imports it), so those feature imports can't form a cycle back through it.
+// Registers the app-global keydown handler. Called once from boot.js (see
+// initHotwordListeners in hotwords.js for the reference pattern) so importing
+// this module has no DOM side effect. _modalEscapeClosers/_closeTopmostLayer are
+// referenced only from within this module. Every closer/action it calls is
+// imported (see the top of the file); shortcuts.js is a sink in the import graph
+// (nothing else imports it), so those feature imports can't form a cycle back
+// through it.
+export function initShortcuts() {
+  document.addEventListener('keydown', _handleGlobalKeydown);
+}

@@ -95,9 +95,11 @@ export function clearLog() {
 }
 
 // The log header's toggle/clear buttons are static markup in index.html (never
-// re-rendered), so this one-time wiring at module load can't double-fire.
-document.getElementById('btn-log-toggle').addEventListener('click', toggleLog);
-document.getElementById('btn-clear-log').addEventListener('click', clearLog);
+// re-rendered), so this one-time wiring (see initUtilsListeners) can't double-fire.
+function _wireLogHeaderButtons() {
+  document.getElementById('btn-log-toggle').addEventListener('click', toggleLog);
+  document.getElementById('btn-clear-log').addEventListener('click', clearLog);
+}
 
 // Cap the log DOM. An unbounded log froze the browser on long runs and, worse,
 // when a reattached analyze stream replayed a large buffer all at once (each line
@@ -280,9 +282,18 @@ function _toggleCollapsibleCard(card, toggle) {
 // Only the card's own toggle button collapses it (native Enter/Space activate it
 // too). Nested headers inside a compound card's body carry no .card-toggle, so
 // they neither toggle nor show a chevron.
-document.addEventListener('click', (e) => {
+function _handleCardToggleClick(e) {
   const toggle = e.target.closest('.card-toggle');
   if (!toggle) return;
   const card = toggle.closest('.detail-card.collapsible');
   if (card) _toggleCollapsibleCard(card, toggle);
-});
+}
+
+// Wires utils.js's fixed listeners once - the log header's toggle/clear buttons
+// and the app-wide collapsible-card click delegation. Called from boot.js at
+// first paint (see initHotwordListeners in hotwords.js for the reference
+// pattern) so importing this module has no DOM side effect.
+export function initUtilsListeners() {
+  _wireLogHeaderButtons();
+  document.addEventListener('click', _handleCardToggleClick);
+}
