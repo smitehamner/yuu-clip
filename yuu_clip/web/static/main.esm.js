@@ -19,7 +19,7 @@ import { PanelNav } from './core/panelnav.js';
 import * as jobs from './core/jobs.js';
 import { _buildMediaUrl, setupRecordingPreview } from './core/preview.js';
 import {
-  openLog, clearLog, appendLog, showToast, revealInFolder, copyText,
+  openLog, showToast, revealInFolder, copyText,
 } from './core/utils.js';
 import {
   showAlert, showConfirm, _confirmCancel,
@@ -47,7 +47,7 @@ import {
   loadVideos, selectVideo, renderVideoDetail, deleteVideo,
   onClipsSortChange, _clipsSortParam, _clipsListUrl,
   _updateDemoButton,
-  _analysisLivePanelHTML, _syncAnalysisLivePanel,
+  _syncAnalysisLivePanel,
   _renderVideoList,
   setVideoSearch, setVideoSort, toggleVideoSortDir, toggleVideoFilter,
   openVideoActionsModal,
@@ -73,7 +73,6 @@ import {
   openReanalyzePanel, closeNewRecordingPanel,
   _renderSubtitleSourcePicker,
   renderEstimate, startAnalyze, reattachAnalysis,
-  _showAnalysisToast,
 } from './analyze/analyze.js';
 import {
   openHighlightReelsModal, closeHighlightReelsModal, switchReelTab,
@@ -86,7 +85,7 @@ import {
   openRetranscribeModal, closeRetranscribeModal, startRetranscribe,
 } from './library/contexts.js';
 import {
-  openSettings, applyTheme, applyAccent,
+  openSettings,
   _onDiarizationBackendChange,
 } from './settings/settings.js';
 import { closeOpenProjectModal } from './settings/projects.js';
@@ -107,7 +106,6 @@ import { openNameCorrections } from './people/namecorrections.js';
 import { openExportEditor } from './library/exporteditor.js';
 import {
   openSplitEditor, closeSplitEditor,
-  _parseSplitTime, splitTimelineClick,
 } from './analyze/split.js';
 // boot.js is the first-paint entry point: it must be imported LAST so its
 // top-level init (initResize/loadVideos/refreshServerState/...) runs only after
@@ -119,18 +117,16 @@ window.AppState = AppState;
 Object.assign(window, format);
 window.ColorPicker = ColorPicker;
 window.PanelNav = PanelNav;
-// utils.js - openLog/clearLog/appendLog/showToast/revealInFolder/copyText are
-// invoked directly by tests/ui/*.py and tests/js/*.test.js via page.evaluate /
-// direct import-under-test; no JS module reads any of them off window anymore.
-// _syncSortDirBtn, _diarizationReadiness, netErrMsg and collapsibleCard dropped:
-// every remaining reader (clips.js/videos.js/boot.js etc.) now imports them
-// directly. toggleLog, isCardCollapsed, _diarizationReason and
-// _diarizationNoteHtml were dropped earlier as their only external consumers
-// migrated to ESM imports or (the diarization helpers) to the tests/js vitest
-// unit layer.
+// utils.js - openLog/showToast/revealInFolder/copyText are invoked directly by
+// tests/ui/*.py via page.evaluate; no JS module reads any of them off window
+// anymore. clearLog/appendLog dropped: tests/js/core/utils.test.js already
+// imports both directly. _syncSortDirBtn, _diarizationReadiness, netErrMsg and
+// collapsibleCard dropped: every remaining reader (clips.js/videos.js/boot.js
+// etc.) now imports them directly. toggleLog, isCardCollapsed,
+// _diarizationReason and _diarizationNoteHtml were dropped earlier as their
+// only external consumers migrated to ESM imports or (the diarization
+// helpers) to the tests/js vitest unit layer.
 window.openLog = openLog;
-window.clearLog = clearLog;
-window.appendLog = appendLog;
 window.showToast = showToast;
 window.revealInFolder = revealInFolder;
 window.copyText = copyText;
@@ -227,7 +223,6 @@ window.onClipsSortChange = onClipsSortChange;
 window._clipsSortParam = _clipsSortParam;
 window._clipsListUrl = _clipsListUrl;
 window._updateDemoButton = _updateDemoButton;
-window._analysisLivePanelHTML = _analysisLivePanelHTML;
 window._syncAnalysisLivePanel = _syncAnalysisLivePanel;
 window._renderVideoList = _renderVideoList;
 window.setVideoSearch = setVideoSearch;
@@ -342,14 +337,16 @@ window.openClipCreatePicker = openClipCreatePicker;
 // dynamically-built onclick string (the _diarizationNoteHtml "Settings" link);
 // openReanalyzePanel is invoked directly by tests/ui/test_ui_analyze.py via
 // page.evaluate (its readers in clips.js and videos.js now import it
-// directly). renderEstimate, startAnalyze, _showAnalysisToast and
-// _renderSubtitleSourcePicker have no outside JS caller left (their only
-// external use was now-removed index.html inline handlers) but
-// tests/ui/test_ui_analyze.py, test_ui_whisper_prefetch.py and
-// test_ui_toasts.py call them directly via page.evaluate. reattachAnalysis is
-// invoked directly by tests/ui/test_ui_analyze.py via page.evaluate (boot.js's
-// own read already imports it directly). closeProfileManager dropped:
-// shortcuts.js already imports it directly and no test pokes it.
+// directly). renderEstimate, startAnalyze and _renderSubtitleSourcePicker
+// have no outside JS caller left (their only external use was now-removed
+// index.html inline handlers) but tests/ui/test_ui_analyze.py and
+// test_ui_whisper_prefetch.py call them directly via page.evaluate.
+// reattachAnalysis is invoked directly by tests/ui/test_ui_analyze.py via
+// page.evaluate (boot.js's own read already imports it directly).
+// _showAnalysisToast dropped: its only page.evaluate poke (test_ui_toasts.py)
+// was already migrated to tests/js/analyze/analyze.test.js, which imports it
+// directly. closeProfileManager dropped: shortcuts.js already imports it
+// directly and no test pokes it.
 // _probedInfo/_panelDirty are NOT here -
 // videos.js imports them directly from analyze.js as live ESM bindings instead
 // of reading them off window. _isNewRecordingPanelOpen and
@@ -372,7 +369,6 @@ window._renderSubtitleSourcePicker = _renderSubtitleSourcePicker;
 window.renderEstimate = renderEstimate;
 window.startAnalyze = startAnalyze;
 window.reattachAnalysis = reattachAnalysis;
-window._showAnalysisToast = _showAnalysisToast;
 // reel.js - openHighlightReelsModal, switchReelTab and closeHighlightReelsModal
 // are invoked directly by tests/ui/*.py via page.evaluate (shortcuts.js's own
 // read of closeHighlightReelsModal already imports it directly); _reelMove and
@@ -442,12 +438,13 @@ window.startRetranscribe = startRetranscribe;
 // settings.js - openSettings is read as a bare global from dynamically-built
 // onclick strings owned by other modules (analyze.js/clipexport.js/contexts.js's
 // _diarizationNoteHtml links, modelcatalog.js's "Open Settings" link);
-// applyTheme/applyAccent are invoked directly by tests/ui/test_ui_theme.py via
-// page.evaluate; _onDiarizationBackendChange is invoked directly by
-// tests/ui/test_ui_settings.py via page.evaluate. _updateDiarizationStatus
-// dropped: it has no external caller anywhere (settings.js calls it only from
-// its own internal logic) - the earlier note about a "settings-installs.js
-// sibling contract" was stale; settings-installs.js does not reference it.
+// _onDiarizationBackendChange is invoked directly by tests/ui/test_ui_settings.py
+// via page.evaluate. applyTheme/applyAccent dropped: their page.evaluate pokes
+// in test_ui_theme.py were already migrated to tests/js/settings/settings.test.js,
+// which imports both directly. _updateDiarizationStatus dropped: it has no
+// external caller anywhere (settings.js calls it only from its own internal
+// logic) - the earlier note about a "settings-installs.js sibling contract"
+// was stale; settings-installs.js does not reference it.
 // closeSettings, _scrollToSettingsSection, _checkSettingsDirty and
 // markModelPathsApplied dropped: their only readers (analyze.js/shortcuts.js,
 // clips.js/videos.js/modelcatalog.js, modelcatalog.js, modelcatalog.js
@@ -461,8 +458,6 @@ window.startRetranscribe = startRetranscribe;
 // addEventListener inside settings.js itself) or its own internal logic, so
 // nothing outside the module needs them off window anymore.
 window.openSettings = openSettings;
-window.applyTheme = applyTheme;
-window.applyAccent = applyAccent;
 window._onDiarizationBackendChange = _onDiarizationBackendChange;
 // settings-previews.js and settings-installs.js: no window shim left. Their
 // preview/install-status helpers were only read as window.* by settings.js,
@@ -568,19 +563,21 @@ window.openExportEditor = openExportEditor;
 // split.js - openSplitEditor/closeSplitEditor are invoked directly by
 // tests/ui/test_ui_keyboard.py, test_ui_panelnav.py and test_ui_split.py via
 // page.evaluate (their videos.js reads now import both directly too, the
-// window-cycle-avoidance conversion); _parseSplitTime/splitTimelineClick are
-// invoked directly by test_ui_split.py via page.evaluate. isSplitEditorOpen
-// dropped: its only reader (videos.js) now imports it directly.
-// initPreSplitDuration/hidePreSplitSection/_fmtSplitTime dropped earlier: their
-// only reader was analyze.js (analyze/ bucket conversion), which now imports
-// all three directly, and no other reader or page.evaluate poke remains. The
-// two test-poked STATE names (_splitPoints, _splitNames) are NOT here -
-// split.js wires those onto window itself via live get/set accessors, since a
-// plain snapshot would go stale on reassignment. videos.js/analyze.js read
-// _splitPoints/_splitDurationS/_splitIgnored via a direct import instead of
-// window. (The jobs.js equivalent bridge has since been removed; split.js's
-// remains only for test_ui_keyboard's page.evaluate pokes.)
+// window-cycle-avoidance conversion). isSplitEditorOpen dropped: its only
+// reader (videos.js) now imports it directly. _parseSplitTime dropped:
+// tests/js/analyze/split.test.js already imports it directly, and its old
+// test_ui_split.py page.evaluate poke is gone (only stale comment mentions
+// remain there). splitTimelineClick dropped for the same reason: no test
+// pokes it any more (test_ui_split.py's remaining mentions are comments, not
+// code) and it has no JS reader. initPreSplitDuration/hidePreSplitSection/
+// _fmtSplitTime dropped earlier: their only reader was analyze.js (analyze/
+// bucket conversion), which now imports all three directly, and no other
+// reader or page.evaluate poke remains. The two test-poked STATE names
+// (_splitPoints, _splitNames) are NOT here - split.js wires those onto window
+// itself via live get/set accessors, since a plain snapshot would go stale on
+// reassignment. videos.js/analyze.js read _splitPoints/_splitDurationS/
+// _splitIgnored via a direct import instead of window. (The jobs.js
+// equivalent bridge has since been removed; split.js's remains only for
+// test_ui_keyboard's page.evaluate pokes.)
 window.openSplitEditor = openSplitEditor;
 window.closeSplitEditor = closeSplitEditor;
-window._parseSplitTime = _parseSplitTime;
-window.splitTimelineClick = splitTimelineClick;
