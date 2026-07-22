@@ -536,4 +536,6 @@ function _wireExportModal() {
   document.getElementById('export-title-card').addEventListener('change', () => _updateExportModeSummary());
 }
 
-_wireExportModal();
+export function initClipExportListeners() {
+  _wireExportModal();
+}

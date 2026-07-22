@@ -1019,4 +1019,6 @@ function _wireSplitEditor() {
   _wireSegmentList('pre-split-segment-list', _renderPreSplitEditor);
 }
 
-_wireSplitEditor();
+export function initSplitListeners() {
+  _wireSplitEditor();
+}

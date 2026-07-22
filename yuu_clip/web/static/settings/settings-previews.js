@@ -136,6 +136,8 @@ function _wireStaticHandlers() {
   }
 }
 
-_wireStaticHandlers();
+export function initSettingsPreviewsListeners() {
+  _wireStaticHandlers();
+}
 
 export { _updateExportNameTemplatePreview, _updateTitleCardPreview };

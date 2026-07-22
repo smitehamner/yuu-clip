@@ -187,4 +187,6 @@ function _wireTimelineModal() {
   document.getElementById('timeline-interval-unit').addEventListener('change', () => updateTimelineIntervalHint());
 }
 
-_wireTimelineModal();
+export function initVideosTimelineListeners() {
+  _wireTimelineModal();
+}

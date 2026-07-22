@@ -41,17 +41,7 @@ _ALLOWED_MODULE_SIDE_EFFECTS: set[str] = set()
 # top-level addEventListener (the direct check above misses it because the
 # addEventListener is one call-frame down). SHRINK this to empty as the helpers move
 # into an exported initX() called from boot.js.
-_ALLOWED_MODULE_SCOPE_CALLS = {
-    "analyze/split.js",
-    "clips/clipexport.js",
-    "core/helpmodals.js",
-    "library/sounds.js",
-    "settings/settings-backup.js",
-    "settings/settings-installs.js",
-    "settings/settings-previews.js",
-    "videos/sessions.js",
-    "videos/videos-timeline.js",
-}
+_ALLOWED_MODULE_SCOPE_CALLS: set[str] = set()
 
 # Keywords/constructs that legitimately start a column-0 line - not a bare side-effect
 # call. A module-scope statement that is none of these and is a bare `name(...);` call

@@ -253,7 +253,9 @@ function _wireStaticHandlers() {
   if (input) input.addEventListener('change', () => _onSoundUpload(input));
 }
 
-_wireStaticHandlers();
+export function initSoundsListeners() {
+  _wireStaticHandlers();
+}
 
 const SoundFx = {play: playActionSound, stop: stopActionSound};
 

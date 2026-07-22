@@ -334,7 +334,9 @@ function _wireHelpViewer() {
   });
 }
 
-_wireModalBgDismissals();
-_wireModalButtons();
-_wireHamburgerHandlers();
-_wireHelpViewer();
+export function initHelpModalsListeners() {
+  _wireModalBgDismissals();
+  _wireModalButtons();
+  _wireHamburgerHandlers();
+  _wireHelpViewer();
+}

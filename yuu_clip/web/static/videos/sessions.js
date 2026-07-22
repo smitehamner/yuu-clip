@@ -491,7 +491,9 @@ function _wireStaticHandlers() {
     .addEventListener('click', () => confirmGroupSelection());
 }
 
-_wireStaticHandlers();
+export function initSessionsListeners() {
+  _wireStaticHandlers();
+}
 
 export {
   SessionUI, isSessionCollapsed, sessionGroupHeaderLi, toggleGroupSelect,

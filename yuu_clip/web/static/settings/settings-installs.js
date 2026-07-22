@@ -128,6 +128,8 @@ function _wireStaticHandlers() {
     ?.addEventListener('click', () => uninstallPackage('cuda-libs'));
 }
 
-_wireStaticHandlers();
+export function initSettingsInstallsListeners() {
+  _wireStaticHandlers();
+}
 
 export { _refreshInstallStatus, installPackage, uninstallPackage };

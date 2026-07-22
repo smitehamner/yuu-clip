@@ -228,6 +228,8 @@ function _wireStaticHandlers() {
   if (input) input.addEventListener('change', () => _onRestoreFileChosen(input.files[0]));
 }
 
-_wireStaticHandlers();
+export function initSettingsBackupListeners() {
+  _wireStaticHandlers();
+}
 
 export { backupProject, startRestore };

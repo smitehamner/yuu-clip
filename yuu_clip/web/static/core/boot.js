@@ -16,15 +16,23 @@ import { initColorPickerListeners } from '../library/colorpicker.js';
 import { reattachAnalysis, initAnalyzeListeners } from '../analyze/analyze.js';
 import { initReelListeners } from '../analyze/reel.js';
 import { initTranscriptListeners } from '../analyze/transcript.js';
-import { openGettingStartedModal } from './helpmodals.js';
+import { openGettingStartedModal, initHelpModalsListeners } from './helpmodals.js';
 import { initModelDownload, initModelPrefetch } from '../settings/modeldownload.js';
 import { _renderClips, _syncKindChips, initClipsListeners } from '../clips/clips.js';
 import { initClipBulkListeners } from '../clips/clipbulk.js';
+import { initClipExportListeners } from '../clips/clipexport.js';
 import { renderGpuWarningChip } from './gpustatus.js';
 import { initUpdateCheckOnLaunch, wireUpdateBanner } from './updatecheck.js';
 import { initSpeakerListeners } from '../people/speakers.js';
 import { initVoicesListeners } from '../people/voices.js';
 import { initSettingsListeners } from '../settings/settings.js';
+import { initSettingsBackupListeners } from '../settings/settings-backup.js';
+import { initSettingsInstallsListeners } from '../settings/settings-installs.js';
+import { initSettingsPreviewsListeners } from '../settings/settings-previews.js';
+import { initSoundsListeners } from '../library/sounds.js';
+import { initSessionsListeners } from '../videos/sessions.js';
+import { initVideosTimelineListeners } from '../videos/videos-timeline.js';
+import { initSplitListeners } from '../analyze/split.js';
 
 // ── accessibility init ────────────────────────────────────────────────────────
 document.querySelectorAll('.modal-bg').forEach((bg, i) => {
@@ -53,8 +61,11 @@ initSettingsListeners();
 _loadContexts();
 loadVideos();
 initVideosListeners();
+initVideosTimelineListeners();
+initSessionsListeners();
 initClipsListeners();
 initClipBulkListeners();
+initClipExportListeners();
 ensureHotwordsCache();
 initHotwordListeners();
 initSpeakerListeners();
@@ -65,8 +76,14 @@ initColorPickerListeners();
 ensureExportPresetsCache();
 initExportPresetListeners();
 initAnalyzeListeners();
+initSplitListeners();
 initReelListeners();
 initTranscriptListeners();
+initHelpModalsListeners();
+initSoundsListeners();
+initSettingsBackupListeners();
+initSettingsInstallsListeners();
+initSettingsPreviewsListeners();
 fetch('/api/status').then(r => r.json()).then(d => {
   if (d.version) {
     const versionLabel = (/^\d/.test(d.version) ? 'v' : '') + d.version;
