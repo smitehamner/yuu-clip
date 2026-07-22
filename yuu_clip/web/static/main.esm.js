@@ -19,55 +19,48 @@ import { PanelNav } from './core/panelnav.js';
 import * as jobs from './core/jobs.js';
 import { _buildMediaUrl, setupRecordingPreview } from './core/preview.js';
 import {
-  _syncSortDirBtn, _diarizationReadiness,
-  openLog, clearLog, appendLog, showToast, netErrMsg, revealInFolder, copyText,
-  collapsibleCard,
+  openLog, clearLog, appendLog, showToast, revealInFolder, copyText,
 } from './core/utils.js';
 import {
-  showAlert, closeAlertModal, showConfirm, _confirmCancel,
-  openActionsModal, closeActionsModal, topmostVisibleModal, _menuArrowKeydown,
-  isHamburgerOpen, toggleHamburger, closeHamburger,
-  openControlsModal, closeControlsModal,
-  openDiffModal, _diffDiscard,
-  openFieldEditModal, closeFieldEditModal,
-  closeKebab, showKebab, initResize, _applyPrereqWarnings, showUndoToast,
-  playbackRatePref, applyPlaybackRate, initPlaybackRate,
+  showAlert, showConfirm, _confirmCancel,
+  closeActionsModal, toggleHamburger, closeHamburger,
+  openControlsModal,
+  openDiffModal,
+  showKebab, _applyPrereqWarnings, showUndoToast,
+  playbackRatePref, applyPlaybackRate,
 } from './core/ui.js';
 import {
   openGettingStartedModal, closeGettingStartedModal,
   openAboutModal, closeAboutModal,
   openHelpModal, closeHelpModal,
-  openGlossaryModal, closeGlossaryModal, _filterGlossary,
+  openGlossaryModal, closeGlossaryModal,
 } from './core/helpmodals.js';
 // shortcuts.js's only export is initShortcuts(), the keydown listener
 // registration - imported and called once from boot.js (see
 // MODULE-TESTABILITY-PLAN), which main.esm.js already pulls in below.
 import {
-  _ensureModelCatalog, refreshModelCatalog,
-  _updateLlmCapabilities, _renderCapabilityTiers,
+  refreshModelCatalog,
+  _renderCapabilityTiers,
   gateOnCapability,
 } from './settings/modelcatalog.js';
 import {
   loadVideos, selectVideo, renderVideoDetail, deleteVideo,
   onClipsSortChange, _clipsSortParam, _clipsListUrl,
-  _needsModelCtaHTML,
-  _updateDemoButton, _updateStartIngestButton,
+  _updateDemoButton,
   _analysisLivePanelHTML, _syncAnalysisLivePanel,
   _renderVideoList,
   setVideoSearch, setVideoSort, toggleVideoSortDir, toggleVideoFilter,
   openVideoActionsModal,
 } from './videos/videos.js';
-import { closeTimelineIntervalModal } from './videos/videos-timeline.js';
 import { regenSummaryAuto } from './videos/videos-summary.js';
 import { toggleGroupSelect } from './videos/sessions.js';
 import {
-  selectClip, setStatus, undoLastStatus, renderDetail, renderPlayer, refreshClipDetail,
+  selectClip, setStatus, renderDetail, renderPlayer, refreshClipDetail,
   analyzeFrames,
   toggleClipFilter, _syncFilterChips,
   _applyFilters, _renderClips, _reloadClipList,
   _renderClipFilterCounts,
-  openScoreOverride, closeScoreOverrideModal,
-  closeSimilarClipsModal,
+  openScoreOverride,
   openClipActionsModal,
 } from './clips/clips.js';
 import { undoLastBulkStatus } from './clips/clipbulk.js';
@@ -81,28 +74,22 @@ import {
   _renderSubtitleSourcePicker,
   renderEstimate, startAnalyze, reattachAnalysis,
   _showAnalysisToast,
-  closeProfileManager,
 } from './analyze/analyze.js';
 import {
   openHighlightReelsModal, closeHighlightReelsModal, switchReelTab,
-  _reelMove, _reelToggle, closeReelPreview, openBatchExportModal, closeBatchExportModal,
+  _reelMove, _reelToggle, openBatchExportModal, closeBatchExportModal,
 } from './analyze/reel.js';
 import {
-  _loadContexts,
-  _termContextOptions, _renderTermGroups,
   openContextManager, closeContextManager, openNewContext,
   cancelContextEdit, duplicateContext, _deriveContextId,
   openCharacterForm, cancelCharacterEdit, _updateCharBoostLabel,
-  closeAutoApproveModal,
   openRetranscribeModal, closeRetranscribeModal, startRetranscribe,
 } from './library/contexts.js';
 import {
   openSettings, applyTheme, applyAccent,
-  _onDiarizationBackendChange, _updateDiarizationStatus,
+  _onDiarizationBackendChange,
 } from './settings/settings.js';
-import {
-  initProjectSwitcher, isProjectMenuOpen, closeProjectMenu, closeOpenProjectModal,
-} from './settings/projects.js';
+import { closeOpenProjectModal } from './settings/projects.js';
 // settings-backup.js has no external window consumer left (its two names,
 // backupProject and startRestore, were only read by index.html inline handlers,
 // now addEventListener inside settings-backup.js itself) - a bare side-effect
@@ -115,7 +102,6 @@ import {
   SoundFx, commitSoundSettings,
 } from './library/sounds.js';
 import { ensureHotwordsCache } from './library/hotwords.js';
-import { ensureExportPresetsCache } from './library/exportpresets.js';
 import { openPeopleView } from './people/voices.js';
 import { openNameCorrections } from './people/namecorrections.js';
 import { openExportEditor } from './library/exporteditor.js';
@@ -133,20 +119,21 @@ window.AppState = AppState;
 Object.assign(window, format);
 window.ColorPicker = ColorPicker;
 window.PanelNav = PanelNav;
-// utils.js is cross-cutting - every name here still has at least one classic
-// window.* consumer. toggleLog, isCardCollapsed, _diarizationReason and
-// _diarizationNoteHtml were dropped as their only external consumers migrated to
-// ESM imports or (the diarization helpers) to the tests/js vitest unit layer.
-window._syncSortDirBtn = _syncSortDirBtn;
-window._diarizationReadiness = _diarizationReadiness;
+// utils.js - openLog/clearLog/appendLog/showToast/revealInFolder/copyText are
+// invoked directly by tests/ui/*.py and tests/js/*.test.js via page.evaluate /
+// direct import-under-test; no JS module reads any of them off window anymore.
+// _syncSortDirBtn, _diarizationReadiness, netErrMsg and collapsibleCard dropped:
+// every remaining reader (clips.js/videos.js/boot.js etc.) now imports them
+// directly. toggleLog, isCardCollapsed, _diarizationReason and
+// _diarizationNoteHtml were dropped earlier as their only external consumers
+// migrated to ESM imports or (the diarization helpers) to the tests/js vitest
+// unit layer.
 window.openLog = openLog;
 window.clearLog = clearLog;
 window.appendLog = appendLog;
 window.showToast = showToast;
-window.netErrMsg = netErrMsg;
 window.revealInFolder = revealInFolder;
 window.copyText = copyText;
-window.collapsibleCard = collapsibleCard;
 // jobs.js is cross-cutting - every export here still has at least one classic
 // window.* consumer or a still-present inline handler, so none can be dropped yet.
 // Its mutable shared-state (_jobStepDefs/_activeStepIdx/_jobStartTime) is now read
@@ -159,40 +146,36 @@ Object.assign(window, jobs);
 // JS consumer left but tests/ui/test_ui_video.py evaluates it as a page global.
 window._buildMediaUrl = _buildMediaUrl;
 window.setupRecordingPreview = setupRecordingPreview;
-// ui.js is cross-cutting - every name here still has at least one classic
-// (bundle.js) consumer, an already-ESM caller (jobs.js/panelnav.js's
-// window.showConfirm), or a tests/ui/*.py page.evaluate. _confirmOk,
-// _diffAcceptNew, _diffAcceptEdit and _fieldEditSave dropped: their only
-// consumers were ui.js's own inline handlers, now addEventListener inside
-// ui.js itself, so nothing outside the module needs them off window anymore.
+// ui.js - showAlert/openDiffModal/showKebab/_applyPrereqWarnings/
+// showUndoToast/playbackRatePref/applyPlaybackRate have no JS reader left and
+// are kept only for tests/ui/*.py or tests/js/*.test.js page.evaluate pokes.
+// _confirmCancel/closeActionsModal/toggleHamburger/openControlsModal are ALSO
+// invoked directly by tests/ui/*.py, even though shortcuts.js's own read of
+// each already imports it directly. closeHamburger and showConfirm stay for a
+// real reason: helpmodals.js and panelnav.js still read them off `window.*`
+// explicitly. closeAlertModal, openActionsModal, topmostVisibleModal,
+// _menuArrowKeydown, isHamburgerOpen, closeControlsModal, _diffDiscard,
+// openFieldEditModal, closeFieldEditModal, closeKebab, initResize and
+// initPlaybackRate dropped: shortcuts.js/boot.js already import all of them
+// directly and no test pokes any of them. _confirmOk, _diffAcceptNew,
+// _diffAcceptEdit and _fieldEditSave dropped earlier: their only consumers
+// were ui.js's own inline handlers, now addEventListener inside ui.js itself.
 window.showAlert = showAlert;
-window.closeAlertModal = closeAlertModal;
 window.showConfirm = showConfirm;
 window._confirmCancel = _confirmCancel;
-window.openActionsModal = openActionsModal;
 window.closeActionsModal = closeActionsModal;
-window.topmostVisibleModal = topmostVisibleModal;
-window._menuArrowKeydown = _menuArrowKeydown;
-window.isHamburgerOpen = isHamburgerOpen;
 window.toggleHamburger = toggleHamburger;
 window.closeHamburger = closeHamburger;
 window.openControlsModal = openControlsModal;
-window.closeControlsModal = closeControlsModal;
 window.openDiffModal = openDiffModal;
-window._diffDiscard = _diffDiscard;
-window.openFieldEditModal = openFieldEditModal;
-window.closeFieldEditModal = closeFieldEditModal;
-window.closeKebab = closeKebab;
 window.showKebab = showKebab;
-window.initResize = initResize;
 window._applyPrereqWarnings = _applyPrereqWarnings;
 window.showUndoToast = showUndoToast;
 window.playbackRatePref = playbackRatePref;
 window.applyPlaybackRate = applyPlaybackRate;
-window.initPlaybackRate = initPlaybackRate;
-// helpmodals.js - every name here still has at least one classic (bundle.js)
-// consumer (boot.js, videos.js, shortcuts.js, settings.js call these as bare
-// globals) or a tests/ui/*.py page.evaluate, so none can be dropped yet.
+// helpmodals.js - every remaining name here is invoked directly by
+// tests/ui/*.py via page.evaluate. _filterGlossary dropped: settings.js (its
+// only reader) already imports it directly.
 window.openGettingStartedModal = openGettingStartedModal;
 window.closeGettingStartedModal = closeGettingStartedModal;
 window.openAboutModal = openAboutModal;
@@ -201,17 +184,16 @@ window.openHelpModal = openHelpModal;
 window.closeHelpModal = closeHelpModal;
 window.openGlossaryModal = openGlossaryModal;
 window.closeGlossaryModal = closeGlossaryModal;
-window._filterGlossary = _filterGlossary;
-// modelcatalog.js - every name here still has at least one classic (bundle.js)
-// consumer: settings.js calls _ensureModelCatalog/refreshModelCatalog/
-// _updateLlmCapabilities/_renderCapabilityTiers as bare globals, modeldownload.js
-// checks/calls _updateLlmCapabilities/_renderCapabilityTiers, and clips.js calls
-// gateOnCapability (also read directly by tests/ui/test_ui_model_catalog.py via
-// page.evaluate). prefetchModel and downloadGgufModel dropped: both are wired
+// modelcatalog.js - refreshModelCatalog and gateOnCapability are invoked
+// directly by tests/ui/test_ui_model_catalog.py via page.evaluate;
+// _renderCapabilityTiers has no outside JS caller left (settings.js and
+// modeldownload.js both import it directly) but is poked by
+// tests/ui/test_ui_settings.py and tests/js/settings/modelcatalog.test.js.
+// _ensureModelCatalog and _updateLlmCapabilities dropped: settings.js/
+// modeldownload.js already import both directly and no test pokes either.
+// prefetchModel and downloadGgufModel dropped earlier: both are wired
 // internally via addEventListener/data-* delegation and have no outside caller.
-window._ensureModelCatalog = _ensureModelCatalog;
 window.refreshModelCatalog = refreshModelCatalog;
-window._updateLlmCapabilities = _updateLlmCapabilities;
 window._renderCapabilityTiers = _renderCapabilityTiers;
 window.gateOnCapability = gateOnCapability;
 // videos.js is cross-cutting - every remaining name here still has at least one
@@ -224,7 +206,14 @@ window.gateOnCapability = gateOnCapability;
 // (videos.js already imports jobs.js) that broke Vitest's mock resolution (real
 // streamSSE ran instead of the mocked one, corrupting clipbulk.test.js,
 // vision.test.js and videos-summary.test.js) even though esbuild bundles it fine -
-// reverted, kept on the window shim deliberately. Eleven names (reanalyzeVideo,
+// reverted, kept on the window shim deliberately. onClipsSortChange/
+// setVideoSearch/setVideoSort/toggleVideoSortDir/toggleVideoFilter are read by
+// index.html's inline onclick/onchange attributes (sidebar.html), not any JS
+// module. openVideoActionsModal has no outside JS caller left but is invoked
+// directly by tests/ui/test_ui_hotwords.py via page.evaluate.
+// _needsModelCtaHTML and _updateStartIngestButton dropped: their only readers
+// (videos-summary.js/videos-timeline.js and analyze.js) already import both
+// directly. Eleven names (reanalyzeVideo,
 // rediarizeVideo, reextractVideoRun, retranscribeVideoRun, regenerateClipsRun,
 // unsplitVideo, _doUnsplitVideo, openVideoSummaryKebab, openVideoTitleKebab,
 // _syncVideoFilterChips, _clearVideoFilters) dropped earlier: their only callers
@@ -237,9 +226,7 @@ window.deleteVideo = deleteVideo;
 window.onClipsSortChange = onClipsSortChange;
 window._clipsSortParam = _clipsSortParam;
 window._clipsListUrl = _clipsListUrl;
-window._needsModelCtaHTML = _needsModelCtaHTML;
 window._updateDemoButton = _updateDemoButton;
-window._updateStartIngestButton = _updateStartIngestButton;
 window._analysisLivePanelHTML = _analysisLivePanelHTML;
 window._syncAnalysisLivePanel = _syncAnalysisLivePanel;
 window._renderVideoList = _renderVideoList;
@@ -248,15 +235,14 @@ window.setVideoSort = setVideoSort;
 window.toggleVideoSortDir = toggleVideoSortDir;
 window.toggleVideoFilter = toggleVideoFilter;
 window.openVideoActionsModal = openVideoActionsModal;
-// videos-timeline.js - generateTimeline, _renderTimelineHTML and
-// _timelineEmptyNoteHTML dropped: their only reader (videos.js) now imports all
-// three directly (the window-cycle-avoidance conversion). closeTimelineIntervalModal
-// is called as a bare global by shortcuts.js's Escape-key modal-closer map
-// (shortcuts.js hasn't been updated to import it directly - also out of scope).
-// confirmGenerateTimeline and updateTimelineIntervalHint dropped: their only
-// callers were this module's own inline handlers, now addEventListener inside
+// videos-timeline.js - no window shim left. generateTimeline,
+// _renderTimelineHTML and _timelineEmptyNoteHTML were only read by videos.js,
+// which imports all three directly; closeTimelineIntervalModal was only read
+// by shortcuts.js, which now imports it directly too - the module stays in the
+// bundle graph via those imports. confirmGenerateTimeline and
+// updateTimelineIntervalHint dropped earlier: their only callers were this
+// module's own inline handlers, now addEventListener inside
 // videos-timeline.js itself.
-window.closeTimelineIntervalModal = closeTimelineIntervalModal;
 // videos-summary.js - regenSummaryAuto is invoked directly by
 // tests/ui/test_ui_video.py via page.evaluate. summarizeVideo dropped: its only
 // reader (videos.js) now imports it directly (the window-cycle-avoidance
@@ -276,27 +262,26 @@ window.regenSummaryAuto = regenSummaryAuto;
 // wired to their static index.html buttons via addEventListener inside
 // sessions.js itself (no inline onclick left).
 window.toggleGroupSelect = toggleGroupSelect;
-// clips.js - every remaining name here still has at least one classic
-// (bundle.js) consumer, a still-classic module reading it as window.*
-// (shortcuts.js reads setStatus/undoLastStatus/closeScoreOverrideModal/
-// closeSimilarClipsModal), or a tests/ui/*.py page.evaluate. clearDetail and
-// _releasePlayerBeforeDelete dropped: their only reader (videos.js) now imports
-// both directly. _renderClipFilterCounts is read as window.* by jobs.js - NOT
-// converted to a direct import: see the videos.js block above, same
-// jobs.js<->clips.js cycle broke Vitest's vi.mock(importActual) resolution for
-// jobs.js, reverted deliberately. _syncFilterChips stays: videos.js's read was
-// converted to a direct import, but tests/ui/test_ui_page.py still pokes it via
-// page.evaluate. setClipSearch, setClipScoreMin, _clearClipFilters,
-// setClipKindFilter, _syncKindChips, toggleClipSortDir, deleteClip, deleteExport,
-// mergeClips, scanDuplicates, openClipsActionsMenu, _scoreOverrideSave,
-// clearScoreOverride, openDescKebab, openDescLongKebab, startFindSimilar and
-// openSimilarClipsModal dropped earlier: their only callers were clips.js's own
-// inline handlers (now data-act delegation or static index.html wiring inside
-// clips.js itself) or its own internal logic, so nothing outside the module
-// needs them off window.
+// clips.js - _renderClips and _renderClipFilterCounts are read as window.* by
+// jobs.js - NOT converted to a direct import: see the videos.js block above,
+// same jobs.js<->clips.js cycle broke Vitest's vi.mock(importActual)
+// resolution for jobs.js, reverted deliberately. Every other remaining name
+// (including _applyFilters - shortcuts.js's own read already imports it
+// directly) is invoked directly by tests/ui/*.py or
+// tests/js/*.test.js via page.evaluate / direct import. undoLastStatus,
+// closeScoreOverrideModal and closeSimilarClipsModal dropped: shortcuts.js
+// already imports all three directly and no test pokes any of them.
+// clearDetail and _releasePlayerBeforeDelete dropped earlier: their only
+// reader (videos.js) now imports both directly. setClipSearch,
+// setClipScoreMin, _clearClipFilters, setClipKindFilter, _syncKindChips,
+// toggleClipSortDir, deleteClip, deleteExport, mergeClips, scanDuplicates,
+// openClipsActionsMenu, _scoreOverrideSave, clearScoreOverride, openDescKebab,
+// openDescLongKebab, startFindSimilar and openSimilarClipsModal dropped
+// earlier: their only callers were clips.js's own inline handlers (now
+// data-act delegation or static index.html wiring inside clips.js itself) or
+// its own internal logic, so nothing outside the module needs them off window.
 window.selectClip = selectClip;
 window.setStatus = setStatus;
-window.undoLastStatus = undoLastStatus;
 window.renderDetail = renderDetail;
 window.renderPlayer = renderPlayer;
 window.refreshClipDetail = refreshClipDetail;
@@ -308,30 +293,29 @@ window._renderClips = _renderClips;
 window._reloadClipList = _reloadClipList;
 window._renderClipFilterCounts = _renderClipFilterCounts;
 window.openScoreOverride = openScoreOverride;
-window.closeScoreOverrideModal = closeScoreOverrideModal;
-window.closeSimilarClipsModal = closeSimilarClipsModal;
 window.openClipActionsModal = openClipActionsModal;
-// clipbulk.js - _pruneClipSelection, _updateBulkToolbar and _toggleClipSelection
-// dropped: their only reader (clips.js) now imports all three directly (the
-// window-cycle-avoidance conversion). undoLastBulkStatus is called as a bare
-// global by clips.js's undoLastStatus (a separate, still-open read - out of
-// scope for this conversion pass). bulkSetClipStatus, bulkDeleteClips,
-// bulkExportClips and _clearClipSelection dropped: their only callers were this
-// module's own inline handlers, now data-act delegation inside clipbulk.js
-// itself, so nothing outside the module needs them off window anymore.
+// clipbulk.js - undoLastBulkStatus is read as a bare global by clips.js's
+// undoLastStatus (not yet converted to a direct import - out of scope for
+// this pass). _pruneClipSelection, _updateBulkToolbar and
+// _toggleClipSelection dropped: their only reader (clips.js) now imports all
+// three directly (the window-cycle-avoidance conversion). bulkSetClipStatus,
+// bulkDeleteClips, bulkExportClips and _clearClipSelection dropped: their only
+// callers were this module's own inline handlers, now data-act delegation
+// inside clipbulk.js itself, so nothing outside the module needs them off
+// window anymore.
 window.undoLastBulkStatus = undoLastBulkStatus;
-// clipexport.js - exportClip is read as a bare global by shortcuts.js's
-// _actOnSubject and by clips.js as window.exportClip; closeExportModal is read
-// as a bare global by shortcuts.js's Escape-key modal-closer map and by the
+// clipexport.js - exportClip and closeExportModal are invoked directly by
+// tests/ui/test_ui_clips.py / test_ui_clips2.py via page.evaluate;
+// closeExportModal is ALSO a genuine bare-global consumer of its own shim: the
 // module's own dynamically-built onclick strings (the _diarizationNoteHtml
-// "Settings" link and the MediaPipe-missing "install it in Settings" link, both
-// evaluated in global scope); confirmExport, _onExportPresetChange,
-// _updateExportTightCapWarning and _setExportFraming have no outside JS caller
-// left (their only external use was the now-removed index.html inline
-// handlers) but tests/ui/test_ui_clips.py and test_ui_clips2.py call all of
-// them directly via page.evaluate. _renderExportModeSummary dropped from the
-// window shim: reel.js (now ESM) imports it directly instead of reading it as
-// a bare global.
+// "Settings" link and the MediaPipe-missing "install it in Settings" link) are
+// set as innerHTML and evaluated in global scope when clicked. confirmExport,
+// _onExportPresetChange, _updateExportTightCapWarning and _setExportFraming
+// have no outside JS caller left (their only external use was the now-removed
+// index.html inline handlers) but tests/ui/test_ui_clips.py and
+// test_ui_clips2.py call all of them directly via page.evaluate.
+// _renderExportModeSummary dropped from the window shim: reel.js (now ESM)
+// imports it directly instead of reading it as a bare global.
 // _handleExportFormatAction, _downloadClipExport, _revealClipExport and
 // _copyClipExportPaths dropped: their only reader (clips.js) now imports all
 // four directly (the window-cycle-avoidance conversion). _onExportCaptionsChange,
@@ -353,16 +337,20 @@ window._setExportFraming = _setExportFraming;
 // clipcreate.js) - dead code left as a named export in case a future caller
 // needs a PanelNav('clip-create')-open check.
 window.openClipCreatePicker = openClipCreatePicker;
-// analyze.js - closeNewRecordingPanel is called as a bare global by shortcuts.js
-// and settings.js (still classic); openReanalyzePanel is invoked directly by
-// tests/ui/test_ui_analyze.py via page.evaluate (its readers in clips.js and
-// videos.js now import it directly). closeProfileManager is called as a bare
-// global by shortcuts.js's Escape-key modal-closer map. renderEstimate,
-// startAnalyze, _showAnalysisToast and _renderSubtitleSourcePicker have no
-// outside JS caller left (their only external use was now-removed index.html
-// inline handlers) but tests/ui/test_ui_analyze.py, test_ui_whisper_prefetch.py
-// and test_ui_toasts.py call them directly via page.evaluate. reattachAnalysis
-// is called as a bare global by boot.js. _probedInfo/_panelDirty are NOT here -
+// analyze.js - closeNewRecordingPanel is read as a bare global by shortcuts.js
+// (not yet converted to a direct import) and by this module's own
+// dynamically-built onclick string (the _diarizationNoteHtml "Settings" link);
+// openReanalyzePanel is invoked directly by tests/ui/test_ui_analyze.py via
+// page.evaluate (its readers in clips.js and videos.js now import it
+// directly). renderEstimate, startAnalyze, _showAnalysisToast and
+// _renderSubtitleSourcePicker have no outside JS caller left (their only
+// external use was now-removed index.html inline handlers) but
+// tests/ui/test_ui_analyze.py, test_ui_whisper_prefetch.py and
+// test_ui_toasts.py call them directly via page.evaluate. reattachAnalysis is
+// invoked directly by tests/ui/test_ui_analyze.py via page.evaluate (boot.js's
+// own read already imports it directly). closeProfileManager dropped:
+// shortcuts.js already imports it directly and no test pokes it.
+// _probedInfo/_panelDirty are NOT here -
 // videos.js imports them directly from analyze.js as live ESM bindings instead
 // of reading them off window. _isNewRecordingPanelOpen and
 // _doCloseNewRecordingPanel dropped: shortcuts.js/settings.js already imported
@@ -385,18 +373,18 @@ window.renderEstimate = renderEstimate;
 window.startAnalyze = startAnalyze;
 window.reattachAnalysis = reattachAnalysis;
 window._showAnalysisToast = _showAnalysisToast;
-window.closeProfileManager = closeProfileManager;
-// reel.js - openHighlightReelsModal and switchReelTab are invoked directly by
-// tests/ui/*.py via page.evaluate; closeHighlightReelsModal and closeReelPreview
-// are called as bare globals by shortcuts.js's Escape-key modal-closer map;
-// _reelMove and _reelToggle have no outside JS caller left (their only
-// external use was now-removed reel.js-owned onclick/onchange attributes) but
+// reel.js - openHighlightReelsModal, switchReelTab and closeHighlightReelsModal
+// are invoked directly by tests/ui/*.py via page.evaluate (shortcuts.js's own
+// read of closeHighlightReelsModal already imports it directly); _reelMove and
+// _reelToggle have no outside JS caller left (their only external use was
+// now-removed reel.js-owned onclick/onchange attributes) but
 // tests/ui/test_ui_reel.py calls both directly via page.evaluate;
 // openBatchExportModal is read as window.* by videos.js (already-ESM, out of
 // scope to touch here) and invoked directly by tests/ui/test_ui_clips.py;
-// closeBatchExportModal is called as a bare global by shortcuts.js's
-// Escape-key modal-closer map and invoked directly by
-// tests/ui/test_ui_clips.py. loadReelClips, _toggleReelPoolStatus, startDemo,
+// closeBatchExportModal is invoked directly by tests/ui/test_ui_clips.py
+// (shortcuts.js's own read already imports it directly). closeReelPreview
+// dropped: shortcuts.js already imports it directly and no test pokes it.
+// loadReelClips, _toggleReelPoolStatus, startDemo,
 // closeDemoModal, updateReelEstimate, exportUnexportedReelClips,
 // _onReelCaptionsChange, _onReelWordHighlightChange, previewReelPlaylist,
 // _reelPreviewStep, confirmBatchExport, updateBatchEstimate,
@@ -410,36 +398,35 @@ window.closeHighlightReelsModal = closeHighlightReelsModal;
 window.switchReelTab = switchReelTab;
 window._reelMove = _reelMove;
 window._reelToggle = _reelToggle;
-window.closeReelPreview = closeReelPreview;
 window.openBatchExportModal = openBatchExportModal;
 window.closeBatchExportModal = closeBatchExportModal;
-// contexts.js - _loadContexts is called as a bare global by boot.js;
-// _parseWeight, openNewContext, cancelContextEdit, duplicateContext,
+// contexts.js - _parseWeight, openNewContext, cancelContextEdit, duplicateContext,
 // _deriveContextId, openCharacterForm and _updateCharBoostLabel are invoked
 // directly by tests/ui/test_ui_contexts.py / test_ui_utils.py via page.evaluate;
-// _termContextOptions and _renderTermGroups are called as bare globals by
-// hotwords.js/sensitive.js; openContextManager is invoked directly by
-// tests/ui/test_ui_contexts.py (its videos.js/analyze.js reads now import it
-// directly); closeContextManager is called as a bare global by shortcuts.js's
-// Escape-key modal-closer map; closeAutoApproveModal is called as a bare global
-// by shortcuts.js; openRetranscribeModal is invoked directly by
+// openContextManager and closeContextManager are invoked directly by
+// tests/ui/test_ui_contexts.py (shortcuts.js's own read of closeContextManager
+// already imports it directly); openRetranscribeModal is invoked directly by
 // tests/ui/test_ui_clips2.py (its clips.js read now imports it directly);
-// closeRetranscribeModal is called as a bare global by shortcuts.js and by this
-// module's own dynamically-built onclick string (the _diarizationNoteHtml
-// "Settings" link, evaluated in global scope); startRetranscribe is invoked
-// directly by tests/ui/test_ui_clips2.py. ensureContexts, addVideoContext,
-// openAutoApproveModal, rescoreClip, rescoreClipChoose, rescoreClips,
-// rescoreFailedClips, rescoreAllClips, redescribeAllClips and resetApprovals
-// dropped: their only readers (clips.js, clipcreate.js, videos.js) now import
-// all ten directly (the window-cycle-avoidance conversion). saveContext,
-// deleteContext, resetContextToTemplate, saveCharacter, deleteCharacter,
-// _updateCharacterSectionVisibility, _loadCharacters, doAutoApprove and
-// updateAutoApprovePreview dropped earlier: their only callers were contexts.js's
-// own now-removed index.html inline handlers or its own internal logic, so
-// nothing outside the module needs them off window anymore.
-window._loadContexts = _loadContexts;
-window._termContextOptions = _termContextOptions;
-window._renderTermGroups = _renderTermGroups;
+// closeRetranscribeModal is a genuine bare-global consumer of its own shim:
+// this module's own dynamically-built onclick string (the
+// _diarizationNoteHtml "Settings" link) is set as innerHTML and evaluated in
+// global scope when clicked (shortcuts.js's own read is already a direct
+// import); startRetranscribe is invoked directly by
+// tests/ui/test_ui_clips2.py. _loadContexts, _termContextOptions,
+// _renderTermGroups and closeAutoApproveModal dropped: boot.js
+// (_loadContexts), hotwords.js/sensitive.js (_termContextOptions/
+// _renderTermGroups) and shortcuts.js (closeAutoApproveModal) already import
+// all four directly and no test pokes any of them. ensureContexts,
+// addVideoContext, openAutoApproveModal, rescoreClip, rescoreClipChoose,
+// rescoreClips, rescoreFailedClips, rescoreAllClips, redescribeAllClips and
+// resetApprovals dropped earlier: their only readers (clips.js, clipcreate.js,
+// videos.js) now import all ten directly (the window-cycle-avoidance
+// conversion). saveContext, deleteContext, resetContextToTemplate,
+// saveCharacter, deleteCharacter, _updateCharacterSectionVisibility,
+// _loadCharacters, doAutoApprove and updateAutoApprovePreview dropped earlier:
+// their only callers were contexts.js's own now-removed index.html inline
+// handlers or its own internal logic, so nothing outside the module needs
+// them off window anymore.
 window.openContextManager = openContextManager;
 window.closeContextManager = closeContextManager;
 window.openNewContext = openNewContext;
@@ -449,19 +436,18 @@ window._deriveContextId = _deriveContextId;
 window.openCharacterForm = openCharacterForm;
 window.cancelCharacterEdit = cancelCharacterEdit;
 window._updateCharBoostLabel = _updateCharBoostLabel;
-window.closeAutoApproveModal = closeAutoApproveModal;
 window.openRetranscribeModal = openRetranscribeModal;
 window.closeRetranscribeModal = closeRetranscribeModal;
 window.startRetranscribe = startRetranscribe;
-// settings.js - openSettings is called as a bare global from dynamically-built
+// settings.js - openSettings is read as a bare global from dynamically-built
 // onclick strings owned by other modules (analyze.js/clipexport.js/contexts.js's
-// _diarizationNoteHtml links, modelcatalog.js's "Open Settings" link) and by
-// tests/ui/*.py via page.evaluate; applyTheme/applyAccent are invoked directly by
-// tests/ui/test_ui_theme.py via page.evaluate; _onDiarizationBackendChange is
-// invoked directly by tests/ui/test_ui_settings.py via page.evaluate;
-// _updateDiarizationStatus has no current external caller but
-// settings-installs.js documents an intent to resolve it through window at call
-// time - kept to honor that sibling contract until that module migrates.
+// _diarizationNoteHtml links, modelcatalog.js's "Open Settings" link);
+// applyTheme/applyAccent are invoked directly by tests/ui/test_ui_theme.py via
+// page.evaluate; _onDiarizationBackendChange is invoked directly by
+// tests/ui/test_ui_settings.py via page.evaluate. _updateDiarizationStatus
+// dropped: it has no external caller anywhere (settings.js calls it only from
+// its own internal logic) - the earlier note about a "settings-installs.js
+// sibling contract" was stale; settings-installs.js does not reference it.
 // closeSettings, _scrollToSettingsSection, _checkSettingsDirty and
 // markModelPathsApplied dropped: their only readers (analyze.js/shortcuts.js,
 // clips.js/videos.js/modelcatalog.js, modelcatalog.js, modelcatalog.js
@@ -478,28 +464,25 @@ window.openSettings = openSettings;
 window.applyTheme = applyTheme;
 window.applyAccent = applyAccent;
 window._onDiarizationBackendChange = _onDiarizationBackendChange;
-window._updateDiarizationStatus = _updateDiarizationStatus;
 // settings-previews.js and settings-installs.js: no window shim left. Their
 // preview/install-status helpers were only read as window.* by settings.js,
 // which now imports both directly (settings/ bucket conversion) - both modules
 // stay in the bundle graph via that import, so no side-effect import is needed
 // here either.
-// projects.js - initProjectSwitcher is called as a bare global by boot.js (still
-// classic); isProjectMenuOpen and closeProjectMenu are called as bare globals by
-// shortcuts.js's Escape-key handler (already-ESM, but out of scope to switch it to
-// an import here); closeOpenProjectModal is invoked directly by
-// tests/ui/test_ui_projects.py via page.evaluate. toggleProjectMenu,
-// browseForProjectFolder and _openProjectConfirm dropped: their only callers were
-// this module's own now-removed index.html inline handlers (now addEventListener
-// inside projects.js itself), so nothing outside the module needs them off window.
-window.initProjectSwitcher = initProjectSwitcher;
-window.isProjectMenuOpen = isProjectMenuOpen;
-window.closeProjectMenu = closeProjectMenu;
+// projects.js - closeOpenProjectModal is invoked directly by
+// tests/ui/test_ui_projects.py via page.evaluate. initProjectSwitcher,
+// isProjectMenuOpen and closeProjectMenu dropped: boot.js
+// (initProjectSwitcher) and shortcuts.js (isProjectMenuOpen/closeProjectMenu)
+// already import all three directly and no test pokes any of them.
+// toggleProjectMenu, browseForProjectFolder and _openProjectConfirm dropped
+// earlier: their only callers were this module's own now-removed index.html
+// inline handlers (now addEventListener inside projects.js itself), so
+// nothing outside the module needs them off window.
 window.closeOpenProjectModal = closeOpenProjectModal;
-// modeldownload.js - initModelDownload and initModelPrefetch are called as bare
-// globals by boot.js (still classic); _resetModelDownloads is invoked directly by
-// tests/ui/test_ui_modeldownload.py and test_ui_whisper_prefetch.py via
-// page.evaluate. getWhisperDownloadPct dropped: its only reader was analyze.js
+// modeldownload.js - every remaining name is invoked directly by
+// tests/ui/test_ui_modeldownload.py / test_ui_whisper_prefetch.py via
+// page.evaluate (boot.js's own reads of initModelDownload/initModelPrefetch
+// already import both directly). getWhisperDownloadPct dropped: its only reader was analyze.js
 // (analyze/ bucket conversion), which now imports it directly, and no other
 // reader remains. _cancelDownload dropped: its only caller is this module's own
 // row-action onclick (property assignment inside _wireRowActions), so nothing
@@ -507,20 +490,19 @@ window.closeOpenProjectModal = closeOpenProjectModal;
 window.initModelDownload = initModelDownload;
 window.initModelPrefetch = initModelPrefetch;
 window._resetModelDownloads = _resetModelDownloads;
-// sounds.js - SoundFx is read as window.SoundFx by already-ESM callers
-// (clipbulk.js, clipexport.js, contexts.js, videos.js, jobs.js - analyze.js's
-// and reel.js's own reads were converted to direct imports in the analyze/
-// bucket conversion) and as a bare global by the still-classic exporteditor.js;
-// commitSoundSettings is invoked directly by tests/ui/test_ui_sounds.py via
-// page.evaluate. initSoundSettings and _soundSettingsDirty dropped: settings.js
+// sounds.js - SoundFx and commitSoundSettings are invoked directly by
+// tests/ui/test_ui_sounds.py / tests/js/library/sounds.test.js via
+// page.evaluate / direct import; every JS reader (clipbulk.js, clipexport.js,
+// contexts.js, videos.js, jobs.js, exporteditor.js) already imports SoundFx
+// directly. initSoundSettings and _soundSettingsDirty dropped: settings.js
 // (settings/ bucket conversion) now imports both directly, and no other reader
 // remains. _onSoundUpload dropped: its only consumer was index.html's inline
 // upload onchange, now an addEventListener inside sounds.js itself.
 window.SoundFx = SoundFx;
 window.commitSoundSettings = commitSoundSettings;
-// hotwords.js - ensureHotwordsCache is called as a bare global by boot.js
-// (still classic) and invoked directly by tests/ui/test_ui_hotwords.py via
-// page.evaluate. hasEnabledSemanticHotwords and confirmScanHotwordsForVideo
+// hotwords.js - ensureHotwordsCache is invoked directly by
+// tests/ui/test_ui_hotwords.py via page.evaluate (boot.js's own read already
+// imports it directly). hasEnabledSemanticHotwords and confirmScanHotwordsForVideo
 // dropped: their only reader (videos.js) now imports both directly (the
 // window-cycle-avoidance conversion). initHotwordSettings dropped earlier:
 // settings.js (settings/ bucket conversion) now imports it directly, and no
@@ -539,16 +521,16 @@ window.ensureHotwordsCache = ensureHotwordsCache;
 // Settings-open), and addSensitiveTermRow's only caller was index.html's
 // inline onclick (now an addEventListener inside sensitive.js) - so neither
 // needs a window shim.
-// exportpresets.js - ensureExportPresetsCache is kept on the shim (out of scope
-// for the clips/ bucket conversion to re-examine). initExportPresetSettings
-// dropped: settings.js (settings/ bucket conversion) now imports it directly,
-// and no other reader remains. addExportPresetRow dropped: its only caller was
-// index.html's inline onclick (now an addEventListener inside exportpresets.js
-// itself), so nothing outside the module needs it off window. exportPresetLabel,
+// exportpresets.js - no window shim left. ensureExportPresetsCache dropped:
+// boot.js and exporteditor.js already import it directly and no test pokes it.
+// initExportPresetSettings dropped earlier: settings.js (settings/ bucket
+// conversion) now imports it directly, and no other reader remains.
+// addExportPresetRow dropped: its only caller was index.html's inline onclick
+// (now an addEventListener inside exportpresets.js itself), so nothing
+// outside the module needs it off window. exportPresetLabel,
 // exportPresetIsVertical, exportPresetTargetSizeMb and populateExportPresetSelect
 // dropped: their only readers were clips.js and clipexport.js, which now import
 // them directly (clips/ bucket conversion).
-window.ensureExportPresetsCache = ensureExportPresetsCache;
 // speakers.js - loadSpeakers dropped: its only reader (videos.js) now imports it
 // directly (the window-cycle-avoidance conversion; the module's own
 // transcript.js/voices.js reads were already direct imports). Everything else in
