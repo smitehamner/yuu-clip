@@ -151,7 +151,9 @@ function startJobUI(stepDefs, jobLabel, cancellable = false, pausable = false) {
     _pollThermalStatus();
     _jobThermalPollTimer = setInterval(_pollThermalStatus, 5000);
   }
-  // window.* read: kept to avoid a cycle with clips.js - see MODULE-TESTABILITY-PLAN
+  // window.* read: a direct import here adds a jobs.js <-> videos/clips edge that
+  // esbuild bundles fine, but it breaks vitest's vi.mock/importActual resolution -
+  // the real streamSSE runs instead of the mock. See MODULE-TESTABILITY-PLAN.
   if (window._renderClipFilterCounts) _renderClipFilterCounts();
 }
 
@@ -279,7 +281,9 @@ function updateJobUI(line) {
     const m = line.match(activeDef.progressPattern);
     if (m) _setStepProgress(_activeStepIdx, parseInt(m[1], 10), parseInt(m[2], 10));
   }
-  // window.* read: kept to avoid a cycle with videos.js - see MODULE-TESTABILITY-PLAN
+  // window.* read: a direct import here adds a jobs.js <-> videos/clips edge that
+  // esbuild bundles fine, but it breaks vitest's vi.mock/importActual resolution -
+  // the real streamSSE runs instead of the mock. See MODULE-TESTABILITY-PLAN.
   if (window._syncAnalysisLivePanel) _syncAnalysisLivePanel();
 }
 
@@ -292,14 +296,18 @@ function _driveStepFromMarker(marker) {
   if (typeof marker.done === 'number' && typeof marker.total === 'number' && marker.total > 0) {
     _setStepProgress(idx, marker.done, marker.total);
   }
-  // window.* read: kept to avoid a cycle with videos.js - see MODULE-TESTABILITY-PLAN
+  // window.* read: a direct import here adds a jobs.js <-> videos/clips edge that
+  // esbuild bundles fine, but it breaks vitest's vi.mock/importActual resolution -
+  // the real streamSSE runs instead of the mock. See MODULE-TESTABILITY-PLAN.
   if (window._syncAnalysisLivePanel) _syncAnalysisLivePanel();
 }
 
 let _sidebarRefreshTimer = null;
 function _debouncedSidebarRefresh() {
   if (_sidebarRefreshTimer) return;
-  // window.* read: kept to avoid a cycle with videos.js - see MODULE-TESTABILITY-PLAN
+  // window.* read: a direct import here adds a jobs.js <-> videos/clips edge that
+  // esbuild bundles fine, but it breaks vitest's vi.mock/importActual resolution -
+  // the real streamSSE runs instead of the mock. See MODULE-TESTABILITY-PLAN.
   _sidebarRefreshTimer = setTimeout(() => { _sidebarRefreshTimer = null; window.loadVideos(); }, 1200);
 }
 
@@ -316,7 +324,9 @@ function _debouncedClipListRefresh() {
     if (!AppState.activeVideoId || !AppState.analyzeFilename) return;
     const analyzing = AppState.videos.find(v => v.filename === AppState.analyzeFilename);
     if (!analyzing || analyzing.id !== AppState.activeVideoId) return;
-    // window.* reads: kept to avoid a cycle with videos.js/clips.js - see MODULE-TESTABILITY-PLAN
+    // window.* reads: a direct import here adds a jobs.js <-> videos/clips edge that
+    // esbuild bundles fine, but it breaks vitest's vi.mock/importActual resolution -
+    // the real streamSSE runs instead of the mock. See MODULE-TESTABILITY-PLAN.
     AppState.clips = await fetch(window._clipsListUrl(AppState.activeVideoId)).then(r => r.json());
     window._renderClips();
   }, 1200);
@@ -372,7 +382,9 @@ function _renderStepPill(idx) {
 }
 
 function _tickJobTimer() {
-  // window.* read: kept to avoid a cycle with videos.js - see MODULE-TESTABILITY-PLAN
+  // window.* read: a direct import here adds a jobs.js <-> videos/clips edge that
+  // esbuild bundles fine, but it breaks vitest's vi.mock/importActual resolution -
+  // the real streamSSE runs instead of the mock. See MODULE-TESTABILITY-PLAN.
   if (window._syncAnalysisLivePanel) _syncAnalysisLivePanel();
   if (_activeStepIdx < 0) return;
   _renderStepPill(_activeStepIdx);
@@ -400,7 +412,9 @@ function endJobUI() {
     if (analyzeBtn) analyzeBtn.title = '';
     _setJobBlockedButtons(false);
     const totalApproved = (AppState.videos || []).reduce((n, v) => n + v.approved, 0);
-    // window.* reads: kept to avoid a cycle with videos.js/clips.js - see MODULE-TESTABILITY-PLAN
+    // window.* reads: a direct import here adds a jobs.js <-> videos/clips edge that
+    // esbuild bundles fine, but it breaks vitest's vi.mock/importActual resolution -
+    // the real streamSSE runs instead of the mock. See MODULE-TESTABILITY-PLAN.
     window._updateDemoButton(totalApproved);
     if (window._renderClipFilterCounts) _renderClipFilterCounts();
   }, 2000);
@@ -546,7 +560,9 @@ function streamSSE(url, onDone, stepDefs, jobLabel, cancellable = false, onLine 
       SoundFx.play('error');
       if (stepDefs) endJobUI();
       if (onError) onError(errMsg);
-      // window.* read: kept to avoid a cycle with videos.js - see MODULE-TESTABILITY-PLAN
+      // window.* read: a direct import here adds a jobs.js <-> videos/clips edge that
+      // esbuild bundles fine, but it breaks vitest's vi.mock/importActual resolution -
+      // the real streamSSE runs instead of the mock. See MODULE-TESTABILITY-PLAN.
       window.loadVideos();
     },
     opts,
@@ -615,7 +631,9 @@ async function _doCancelJob() {
   // spinner. Left set, a cancelled run whose DB row never materialised would
   // keep an unclickable "Analyzing…" placeholder until a manual page refresh.
   AppState.analyzeFilename = null;
-  // window.* read: kept to avoid a cycle with videos.js - see MODULE-TESTABILITY-PLAN
+  // window.* read: a direct import here adds a jobs.js <-> videos/clips edge that
+  // esbuild bundles fine, but it breaks vitest's vi.mock/importActual resolution -
+  // the real streamSSE runs instead of the mock. See MODULE-TESTABILITY-PLAN.
   window.loadVideos();
 }
 

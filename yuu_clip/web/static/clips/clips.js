@@ -20,6 +20,16 @@ import { deferPlayerRebuildForPip } from '../core/preview.js';
 import { exportPresetLabel } from '../library/exportpresets.js';
 import { openSettings, _scrollToSettingsSection } from '../settings/settings.js';
 import { openNewRecordingPanel } from '../analyze/analyze.js';
+import { loadClipTranscript } from '../analyze/transcript.js';
+import {
+  rescoreClip, rescoreClipChoose, openRetranscribeModal,
+} from '../library/contexts.js';
+import { openClipCreatePicker } from './clipcreate.js';
+import { openExportEditor } from '../library/exporteditor.js';
+import {
+  exportClip, _handleExportFormatAction, _downloadClipExport, _copyClipExportPaths, _revealClipExport,
+} from './clipexport.js';
+import { _pruneClipSelection, _updateBulkToolbar, _toggleClipSelection } from './clipbulk.js';
 
 // ── clip list & filtering ─────────────────────────────────────────────────────────────────────
 function _applyFilters() {
@@ -64,8 +74,7 @@ function toggleClipSortDir() {
 // so a re-render can't accidentally bypass the active search/status/score
 // filters. Call this - never _renderClipItems directly - after mutating AppState.clips.
 function _renderClips() {
-  // window.* read: kept to avoid a cycle with clipbulk.js - see MODULE-TESTABILITY-PLAN
-  window._pruneClipSelection();
+  _pruneClipSelection();
   const shown = _applyFilters();
   _renderClipItems(shown);
   _renderClipStatsLine(shown);
@@ -286,8 +295,7 @@ function _renderClipItems(clips) {
       ? `No clips match the current filters - <a href="#" style="color:var(--accent);text-decoration:underline" data-act="clear-clip-filters">Clear filters</a>`
       : `No clips found - <a href="#" style="color:var(--accent);text-decoration:underline" data-act="open-new-recording-panel">Analyze another recording</a>`;
     list.innerHTML = `<li style="padding:10px 14px;color:var(--muted)">${filterMsg}</li>`;
-    // window.* read: kept to avoid a cycle with clipbulk.js - see MODULE-TESTABILITY-PLAN
-    window._updateBulkToolbar();
+    _updateBulkToolbar();
     return;
   }
   for (const c of clips) {
@@ -330,12 +338,10 @@ function _renderClipItems(clips) {
     const checkbox = li.querySelector('.clip-select-checkbox');
     checkbox.checked = AppState.selectedClipIds.has(c.id);
     checkbox.onclick = e => e.stopPropagation();
-    // window.* read: kept to avoid a cycle with clipbulk.js - see MODULE-TESTABILITY-PLAN
-    checkbox.onchange = () => window._toggleClipSelection(c.id, checkbox.checked);
+    checkbox.onchange = () => _toggleClipSelection(c.id, checkbox.checked);
     list.appendChild(li);
   }
-  // window.* read: kept to avoid a cycle with clipbulk.js - see MODULE-TESTABILITY-PLAN
-  window._updateBulkToolbar();
+  _updateBulkToolbar();
 }
 
 async function selectClip(id) {
@@ -682,8 +688,7 @@ function renderDetail(clip) {
     ${_transcriptCardHTML(clip)}
   `;
 
-  // window.* read: kept to avoid a cycle with transcript.js - see MODULE-TESTABILITY-PLAN
-  if (clip.transcript_excerpt && window.loadClipTranscript) window.loadClipTranscript(clip.id);
+  if (clip.transcript_excerpt) loadClipTranscript(clip.id);
   _renderTagDatalist();
   _loadTagSuggestions().then(_renderTagDatalist);
   const visionBtn = document.getElementById('analyze-frames-btn');
@@ -974,16 +979,14 @@ function _handleDetailClick(e) {
   const formatBtn = e.target.closest('[data-export-action]');
   if (formatBtn) {
     const row = formatBtn.closest('.export-format-row');
-    // window.* read: kept to avoid a cycle with clipexport.js - see MODULE-TESTABILITY-PLAN
-    if (row) window._handleExportFormatAction(formatBtn.dataset.exportAction, row.dataset);
+    if (row) _handleExportFormatAction(formatBtn.dataset.exportAction, row.dataset);
     return;
   }
   const act = e.target.closest('[data-act]');
   if (!act) return;
   const clipId = Number(act.dataset.clipId);
   switch (act.dataset.act) {
-    // window.* read: kept to avoid a cycle with clipexport.js - see MODULE-TESTABILITY-PLAN
-    case 'export-clip': window.exportClip(clipId); break;
+    case 'export-clip': exportClip(clipId); break;
     case 'open-llm-settings':
       openSettings();
       setTimeout(() => _scrollToSettingsSection('settings-sec-llm'), 120);
@@ -994,11 +997,9 @@ function _handleDetailClick(e) {
     case 'open-clip-actions-modal': openClipActionsModal(clipId); break;
     case 'open-desc-long-kebab': openDescLongKebab(clipId, act); break;
     case 'open-desc-kebab': openDescKebab(clipId, act); break;
-    // window.* read: kept to avoid a cycle with exporteditor.js - see MODULE-TESTABILITY-PLAN
-    case 'open-export-editor': window.openExportEditor(clipId); break;
+    case 'open-export-editor': openExportEditor(clipId); break;
     case 'select-related-clip': e.preventDefault(); selectClip(clipId); break;
-    // window.* read: kept to avoid a cycle with contexts.js - see MODULE-TESTABILITY-PLAN
-    case 'rescore-clip': window.rescoreClip(clipId); break;
+    case 'rescore-clip': rescoreClip(clipId); break;
     case 'analyze-frames': analyzeFrames(clipId); break;
   }
 }
@@ -1049,8 +1050,7 @@ function openClipActionsModal(clipId) {
   const groups = [];
 
   const scoringRows = [
-    // window.* read: kept to avoid a cycle with contexts.js - see MODULE-TESTABILITY-PLAN
-    { label: 'Re-score', description: 'Re-run scoring and description generation for this clip.', action: () => window.rescoreClipChoose(clipId) },
+    { label: 'Re-score', description: 'Re-run scoring and description generation for this clip.', action: () => rescoreClipChoose(clipId) },
   ];
   if (clip.score_overall_user != null) {
     scoringRows.push({ label: 'Remove Override', description: 'Discard the manual score and go back to the generated score.', action: () => clearScoreOverride(clipId) });
@@ -1060,8 +1060,7 @@ function openClipActionsModal(clipId) {
   groups.push({ heading: 'Scoring', rows: scoringRows });
 
   groups.push({ heading: 'Transcript', rows: [
-    // window.* read: kept to avoid a cycle with contexts.js - see MODULE-TESTABILITY-PLAN
-    { label: 'Retranscribe', description: "Re-run transcription for just this clip's time range.", action: () => window.openRetranscribeModal(clipId) },
+    { label: 'Retranscribe', description: "Re-run transcription for just this clip's time range.", action: () => openRetranscribeModal(clipId) },
   ]});
 
   if (clip.description_long || clip.description) {
@@ -1073,13 +1072,12 @@ function openClipActionsModal(clipId) {
   if (clip.has_export) {
     const multiFormat = (clip.exports || []).filter(e => e.exists).length > 1;
     const fileRows = [];
-    // window.* reads below: kept to avoid a cycle with clipexport.js - see MODULE-TESTABILITY-PLAN
     if (AppState.activeMediaFilename) {
-      fileRows.push({ label: 'Download Export', description: `Save ${multiFormat ? 'every exported format' : 'the exported file'} (and any caption sidecars) to your downloads.`, action: () => window._downloadClipExport(clipId) });
+      fileRows.push({ label: 'Download Export', description: `Save ${multiFormat ? 'every exported format' : 'the exported file'} (and any caption sidecars) to your downloads.`, action: () => _downloadClipExport(clipId) });
     }
-    fileRows.push({ label: 'Copy File Path(s)', description: `Copy the full path of ${multiFormat ? 'every exported format' : 'the exported file'} (and any caption sidecars) to your clipboard.`, action: () => window._copyClipExportPaths(clipId) });
+    fileRows.push({ label: 'Copy File Path(s)', description: `Copy the full path of ${multiFormat ? 'every exported format' : 'the exported file'} (and any caption sidecars) to your clipboard.`, action: () => _copyClipExportPaths(clipId) });
     if (AppState.canReveal) {
-      fileRows.push({ label: 'Show in Folder', description: 'Open the exports folder with this file selected.', action: () => window._revealClipExport(clipId) });
+      fileRows.push({ label: 'Show in Folder', description: 'Open the exports folder with this file selected.', action: () => _revealClipExport(clipId) });
     }
     fileRows.push({ label: 'Delete All Exports', description: `Delete ${multiFormat ? 'every exported format' : 'the exported video file'} but keep the clip record. Use the Export section to delete one format at a time.`, danger: true, action: () => deleteExport(clipId) });
     groups.push({ heading: 'Files', rows: fileRows });
@@ -1246,14 +1244,13 @@ function openClipsActionsMenu(btn) {
   // All view can't infer intent, so it offers both (otherwise scene creation is
   // undiscoverable without first clicking the Scenes chip).
   const filter = AppState.clipKindFilter;
-  // window.* reads below: kept to avoid a cycle with clipcreate.js - see MODULE-TESTABILITY-PLAN
   const createItems = filter === 'scene'
-    ? [{ label: 'New scene', action: () => window.openClipCreatePicker(AppState.activeVideoId, 'scene') }]
+    ? [{ label: 'New scene', action: () => openClipCreatePicker(AppState.activeVideoId, 'scene') }]
     : filter === 'clip'
-    ? [{ label: 'New clip', action: () => window.openClipCreatePicker(AppState.activeVideoId, 'clip') }]
+    ? [{ label: 'New clip', action: () => openClipCreatePicker(AppState.activeVideoId, 'clip') }]
     : [
-        { label: 'New clip',  action: () => window.openClipCreatePicker(AppState.activeVideoId, 'clip') },
-        { label: 'New scene', action: () => window.openClipCreatePicker(AppState.activeVideoId, 'scene') },
+        { label: 'New clip',  action: () => openClipCreatePicker(AppState.activeVideoId, 'clip') },
+        { label: 'New scene', action: () => openClipCreatePicker(AppState.activeVideoId, 'scene') },
       ];
   showKebab(btn, [
     ...createItems,
@@ -1303,8 +1300,7 @@ function _openClipDescKebab(clipId, btn, field) {
       }, {revertMode: true})
     });
   }
-  // window.* read: kept to avoid a cycle with contexts.js - see MODULE-TESTABILITY-PLAN
-  items.push(null, { label: 'Regenerate via Re-score', action: () => window.rescoreClip(clipId) });
+  items.push(null, { label: 'Regenerate via Re-score', action: () => rescoreClip(clipId) });
   showKebab(btn, items);
 }
 

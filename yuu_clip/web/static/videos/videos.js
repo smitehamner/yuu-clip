@@ -12,10 +12,30 @@ import {
   _jobStepDefs, _activeStepIdx, _jobStartTime,
 } from '../core/jobs.js';
 import { openGettingStartedModal } from '../core/helpmodals.js';
-import { _probedInfo, _panelDirty } from '../analyze/analyze.js';
-import { _splitPoints } from '../analyze/split.js';
+import {
+  _probedInfo, _panelDirty, _isNewRecordingPanelOpen, _doCloseNewRecordingPanel,
+  openReanalyzePanel, openNewRecordingPanel,
+} from '../analyze/analyze.js';
+import { _splitPoints, isSplitEditorOpen, closeSplitEditor, openSplitEditor } from '../analyze/split.js';
 import { SoundFx } from '../library/sounds.js';
 import { _renderRunMetaCard, _runTimingLine } from './videos-runmeta.js';
+import { SessionUI, isSessionCollapsed, sessionGroupHeaderLi, toggleGroupSelect } from './sessions.js';
+import {
+  selectClip, _renderClips, _syncFilterChips, _releasePlayerBeforeDelete, clearDetail,
+} from '../clips/clips.js';
+import {
+  ensureContexts, openAutoApproveModal, rescoreAllClips, redescribeAllClips, resetApprovals,
+  openContextManager, rescoreClips, rescoreFailedClips, addVideoContext,
+} from '../library/contexts.js';
+import { hasEnabledSemanticHotwords, confirmScanHotwordsForVideo } from '../library/hotwords.js';
+import { loadSpeakers } from '../people/speakers.js';
+import { reloadVideoTranscriptIfOpen } from '../analyze/transcript.js';
+import { _renderTimelineHTML, _timelineEmptyNoteHTML, generateTimeline } from './videos-timeline.js';
+import { summarizeVideo, regenSummaryAuto } from './videos-summary.js';
+import { openBatchExportModal } from '../analyze/reel.js';
+import { openNameCorrections } from '../people/namecorrections.js';
+import { openClipCreatePicker } from '../clips/clipcreate.js';
+import { openSettings, _scrollToSettingsSection } from '../settings/settings.js';
 // ── videos ────────────────────────────────────────────────────────────────────
 async function loadVideos() {
   let videos;
@@ -156,8 +176,7 @@ function _renderVideoList() {
     const li = e.target.closest('li[data-video-id]');
     if (!li) return;
     const videoId = parseInt(li.dataset.videoId);
-    // window.* read: kept to avoid a cycle with sessions.js - see MODULE-TESTABILITY-PLAN
-    if (window.SessionUI && window.SessionUI.selectionMode) { window.toggleGroupSelect(videoId); return; }
+    if (SessionUI && SessionUI.selectionMode) { toggleGroupSelect(videoId); return; }
     document.querySelectorAll('#video-list li').forEach(l => l.classList.remove('active'));
     li.classList.add('active');
     selectVideo(videoId);
@@ -177,9 +196,8 @@ function _renderGroupedVideoItems(list, shown, analyzingName) {
     if (session && !renderedSessions.has(session.id)) {
       renderedSessions.add(session.id);
       const members = shown.filter(x => x.session_id === session.id);
-      // window.* reads: kept to avoid a cycle with sessions.js - see MODULE-TESTABILITY-PLAN
-      list.appendChild(window.sessionGroupHeaderLi(session, members.length));
-      if (!window.isSessionCollapsed(session.id)) {
+      list.appendChild(sessionGroupHeaderLi(session, members.length));
+      if (!isSessionCollapsed(session.id)) {
         for (const m of members) list.appendChild(_videoItemLi(m, analyzingName, true));
       }
     } else if (!session) {
@@ -192,16 +210,14 @@ function _renderGroupedVideoItems(list, shown, analyzingName) {
 // grouping selection mode adds a checkbox and suppresses normal navigation.
 function _videoItemLi(v, analyzingName, inSession) {
   const isAnalyzing = v.filename === analyzingName && v.status !== 'done';
-  // window.* read: kept to avoid a cycle with sessions.js - see MODULE-TESTABILITY-PLAN
-  const selecting = !!(window.SessionUI && window.SessionUI.selectionMode);
+  const selecting = !!(SessionUI && SessionUI.selectionMode);
   const selectable = selecting && v.parent_video_id == null;
   const li = document.createElement('li');
   li.className = 'video-item'
     + (v.id === AppState.activeVideoId ? ' active' : '')
     + (isAnalyzing ? ' analyzing' : '')
     + (inSession ? ' in-session' : '')
-    // window.* read: kept to avoid a cycle with sessions.js - see MODULE-TESTABILITY-PLAN
-    + (selectable && window.SessionUI.selected.has(v.id) ? ' selected' : '');
+    + (selectable && SessionUI.selected.has(v.id) ? ' selected' : '');
   li.dataset.videoId = v.id;
   li.tabIndex = 0;
   const clipsPct = v.duration_ms > 0
@@ -225,9 +241,8 @@ function _videoItemLi(v, analyzingName, inSession) {
   const missingSourceBadge = v.source_exists === false
     ? `<div class="meta" style="margin-top:2px;color:var(--warning)" title="The source recording file is missing from disk - playback and export stay unavailable until it is put back">&#9888; Recording file not found</div>`
     : '';
-  // window.* read: kept to avoid a cycle with sessions.js - see MODULE-TESTABILITY-PLAN
   const checkbox = selectable
-    ? `<input type="checkbox" class="session-select-box" aria-label="Select for grouping" ${window.SessionUI.selected.has(v.id) ? 'checked' : ''}>`
+    ? `<input type="checkbox" class="session-select-box" aria-label="Select for grouping" ${SessionUI.selected.has(v.id) ? 'checked' : ''}>`
     : '';
   li.innerHTML = `
     <div class="video-item-body">
@@ -313,8 +328,7 @@ async function _restoreView() {
     if (!AppState.videos.find(v => v.id === saved.videoId)) return;
     await selectVideo(saved.videoId);
     if (saved.clipId && AppState.clips.find(c => c.id === saved.clipId)) {
-      // window.* read: kept to avoid a cycle with clips.js - see MODULE-TESTABILITY-PLAN
-      await window.selectClip(saved.clipId);
+      await selectClip(saved.clipId);
     }
   } catch {}
 }
@@ -381,8 +395,7 @@ function _clipsListUrl(videoId) {
 }
 
 async function selectVideo(id) {
-  // window.* read: kept to avoid a cycle with split.js - see MODULE-TESTABILITY-PLAN
-  if (window.isSplitEditorOpen()) {
+  if (isSplitEditorOpen()) {
     // _splitPoints is split.js's shared live-edit state, imported as a live ESM
     // binding (export let), so this always sees the current array.
     const hasSplits = _splitPoints.length > 0;
@@ -391,31 +404,26 @@ async function selectVideo(id) {
         'Leave Split editor?',
         'You have unsaved split points. Switch to this recording and discard them?',
         'Discard',
-        // window.* read: kept to avoid a cycle with split.js - see MODULE-TESTABILITY-PLAN
-        () => { window.closeSplitEditor(); selectVideo(id); },
+        () => { closeSplitEditor(); selectVideo(id); },
         true,
       );
       return;
     }
-    // window.* read: kept to avoid a cycle with split.js - see MODULE-TESTABILITY-PLAN
-    window.closeSplitEditor();
+    closeSplitEditor();
   }
   // _panelDirty is analyze.js's shared live-edit state - same bare-global
   // contract as _splitPoints above (see the comment at the top of analyze.js).
-  // window.* reads: kept to avoid a cycle with analyze.js - see MODULE-TESTABILITY-PLAN
-  if (window._isNewRecordingPanelOpen() && _panelDirty) {
+  if (_isNewRecordingPanelOpen() && _panelDirty) {
     showConfirm(
       'Discard new recording?',
       'You have unsaved configuration. Switch to this recording anyway?',
       'Discard',
-      // window.* read: kept to avoid a cycle with analyze.js - see MODULE-TESTABILITY-PLAN
-      () => { window._doCloseNewRecordingPanel(); selectVideo(id); },
+      () => { _doCloseNewRecordingPanel(); selectVideo(id); },
       true,
     );
     return;
   }
-  // window.* reads: kept to avoid a cycle with analyze.js - see MODULE-TESTABILITY-PLAN
-  if (window._isNewRecordingPanelOpen()) window._doCloseNewRecordingPanel();
+  if (_isNewRecordingPanelOpen()) _doCloseNewRecordingPanel();
   AppState.activeVideoId = id;
   AppState.activeSessionId = null;
   document.querySelectorAll('#video-list li.session-header.active').forEach(l => l.classList.remove('active'));
@@ -424,8 +432,7 @@ async function selectVideo(id) {
   AppState.clipFilters.clear();
   AppState.clipSearch  = '';
   AppState.clipScoreMin = 0;
-  // window.* read: kept to avoid a cycle with clips.js - see MODULE-TESTABILITY-PLAN
-  window._syncFilterChips();
+  _syncFilterChips();
   const _searchEl = document.getElementById('clip-search-input');
   if (_searchEl) _searchEl.value = '';
   const _scoreEl = document.getElementById('clip-score-min');
@@ -434,19 +441,16 @@ async function selectVideo(id) {
   // parallel, so the detail's context chips/dropdown never render from an empty
   // list on the first video opened after load.
   const clipsPromise = fetch(_clipsListUrl(id)).then(r => r.json());
-  // window.* read: kept to avoid a cycle with contexts.js - see MODULE-TESTABILITY-PLAN
-  await window.ensureContexts();
+  await ensureContexts();
   const clips = await clipsPromise;
   // Guard against a slower earlier fetch resolving after a newer selection -
   // otherwise clicking B while A's clips are in flight renders A into B's detail.
   if (AppState.activeVideoId !== id) return;
   AppState.clips = clips;
-  // window.* read: kept to avoid a cycle with clips.js - see MODULE-TESTABILITY-PLAN
-  window._renderClips();
+  _renderClips();
   const video = AppState.videos.find(v => v.id === id);
   if (video) renderVideoDetail(video, null);
-  // window.* read: kept to avoid a cycle with clips.js - see MODULE-TESTABILITY-PLAN
-  else window.clearDetail();
+  else clearDetail();
 }
 
 // "Imported from" line (roadmap plan 08) - shown only for a recording brought
@@ -512,10 +516,9 @@ function renderVideoDetail(video, savedTimeline) {
     }
   };
   if (!deferPlayerRebuildForPip(buildPlayerArea)) buildPlayerArea();
-  // window.* reads: kept to avoid a cycle with videos-timeline.js - see MODULE-TESTABILITY-PLAN
   const timelineSectionBody = savedTimeline
-    ? window._renderTimelineHTML(savedTimeline)
-    : (video.has_timeline ? '' : window._timelineEmptyNoteHTML());
+    ? _renderTimelineHTML(savedTimeline)
+    : (video.has_timeline ? '' : _timelineEmptyNoteHTML());
   document.getElementById('detail').innerHTML = `
     <div><div class="detail-type-badge video-badge">&#127916; Recording</div></div>
 
@@ -573,10 +576,8 @@ function renderVideoDetail(video, savedTimeline) {
       </div>`,
       { actions: `<button class="btn ghost" id="btn-generate-timeline" data-act="generate-timeline" data-video-id="${video.id}">${video.has_timeline ? 'Regenerate Timeline' : 'Generate Timeline'}</button>` })}`;
 
-  // window.* read: kept to avoid a cycle with speakers.js - see MODULE-TESTABILITY-PLAN
-  if (window.loadSpeakers) window.loadSpeakers(video.id);
-  // window.* read: kept to avoid a cycle with transcript.js - see MODULE-TESTABILITY-PLAN
-  if (window.reloadVideoTranscriptIfOpen) window.reloadVideoTranscriptIfOpen(video.id);
+  loadSpeakers(video.id);
+  reloadVideoTranscriptIfOpen(video.id);
   _syncAnalysisLivePanel();
 
   if (!savedTimeline && video.has_timeline) {
@@ -584,8 +585,7 @@ function renderVideoDetail(video, savedTimeline) {
       .then(r => r.json())
       .then(v => {
         if (v.timeline && v.timeline.length) {
-          // window.* read: kept to avoid a cycle with videos-timeline.js - see MODULE-TESTABILITY-PLAN
-          document.getElementById('timeline-section').innerHTML = window._renderTimelineHTML(v.timeline);
+          document.getElementById('timeline-section').innerHTML = _renderTimelineHTML(v.timeline);
         }
       })
       .catch(() => {});
@@ -599,26 +599,21 @@ function openVideoActionsModal(videoId) {
 
   const groups = [
     { heading: 'Review', rows: [
-      // window.* read: kept to avoid a cycle with contexts.js - see MODULE-TESTABILITY-PLAN
-      { label: 'Approve Above Score', description: 'Automatically approve every clip in this recording above a score threshold you choose.', action: () => window.openAutoApproveModal(videoId) },
+      { label: 'Approve Above Score', description: 'Automatically approve every clip in this recording above a score threshold you choose.', action: () => openAutoApproveModal(videoId) },
     ]},
     { heading: 'Regenerate', rows: [
-      // window.* read: kept to avoid a cycle with contexts.js - see MODULE-TESTABILITY-PLAN
-      { label: 'Re-score All Clips', description: 'Regenerate scores and descriptions for every clip in this recording.', action: () => window.rescoreAllClips(videoId, document.createElement('button')) },
-      // window.* read: kept to avoid a cycle with contexts.js - see MODULE-TESTABILITY-PLAN
-      { label: 'Re-describe All Clips', description: 'Regenerate descriptions only - scores are kept as-is.', action: () => window.redescribeAllClips(videoId, document.createElement('button')) },
+      { label: 'Re-score All Clips', description: 'Regenerate scores and descriptions for every clip in this recording.', action: () => rescoreAllClips(videoId, document.createElement('button')) },
+      { label: 'Re-describe All Clips', description: 'Regenerate descriptions only - scores are kept as-is.', action: () => redescribeAllClips(videoId, document.createElement('button')) },
       { label: 'Re-detect Speakers', description: 'Re-run speaker detection on the existing transcript. Clips and scores are kept; named speakers re-attach to matching voices.', action: () => rediarizeVideo(videoId) },
       { label: 'Re-transcribe Recording', description: 'Re-run speech-to-text for the whole recording. Clips are kept but flagged for a re-score; regenerate clips to rebuild them from the new transcript.', action: () => retranscribeVideoRun(videoId) },
       { label: 'Re-extract Audio', description: 'Rebuild the audio tracks from the source file, e.g. after changing the track layout. Re-transcribe afterward to update the transcript.', action: () => reextractVideoRun(videoId) },
-      // window.* reads: kept to avoid a cycle with hotwords.js - see MODULE-TESTABILITY-PLAN
-      ...(window.hasEnabledSemanticHotwords() ? [
-        { label: 'Scan for Hot-words', description: 'Check every clip against your "Meaning" hot-words using the Similarity engine.', action: () => window.confirmScanHotwordsForVideo(videoId, document.createElement('button')) },
+      ...(hasEnabledSemanticHotwords() ? [
+        { label: 'Scan for Hot-words', description: 'Check every clip against your "Meaning" hot-words using the Similarity engine.', action: () => confirmScanHotwordsForVideo(videoId, document.createElement('button')) },
       ] : []),
     ]},
     { heading: 'Recording tools', rows: [
-      // window.* read: kept to avoid a cycle with split.js - see MODULE-TESTABILITY-PLAN
       ...(isSegment ? [] : [
-        { label: 'Split Recording', description: 'Break this recording into segments that can be analyzed independently.', action: () => window.openSplitEditor(videoId) },
+        { label: 'Split Recording', description: 'Break this recording into segments that can be analyzed independently.', action: () => openSplitEditor(videoId) },
       ]),
       ...(isSegment ? [
         { label: 'Undo Split', description: 'Merge this segment and its siblings back into the original recording, keeping all of their clips.', action: () => unsplitVideo(videoId) },
@@ -628,8 +623,7 @@ function openVideoActionsModal(videoId) {
     { heading: 'Danger Zone', rows: [
       { label: 'Regenerate Clips', description: 'Rebuild clips from the existing transcript. Replaces every clip - discarding approvals, edits, tags, and scores - with fresh, unscored candidates. Skips re-transcription.', danger: true, action: () => regenerateClipsRun(videoId) },
       { label: 'Re-analyze (full)', description: 'Re-run the entire pipeline from scratch. Replaces all clips, scores, and speakers for this recording.', danger: true, action: () => reanalyzeVideo(videoId) },
-      // window.* read: kept to avoid a cycle with contexts.js - see MODULE-TESTABILITY-PLAN
-      { label: 'Reset Approvals', description: 'Clear the approve/reject status on every clip in this recording.', danger: true, action: () => window.resetApprovals(videoId) },
+      { label: 'Reset Approvals', description: 'Clear the approve/reject status on every clip in this recording.', danger: true, action: () => resetApprovals(videoId) },
       { label: 'Remove Recording', description: 'Remove this recording from YuuClip. The source file on disk is not deleted.', danger: true, action: () => deleteVideo(videoId) },
     ]},
   ];
@@ -685,22 +679,19 @@ function deleteVideo(id) {
 
 async function _doDeleteVideo(id, name) {
   // Release the player so its backing export/preview file isn't locked during delete.
-  // window.* read: kept to avoid a cycle with clips.js - see MODULE-TESTABILITY-PLAN
-  if (AppState.activeVideoId === id) await window._releasePlayerBeforeDelete();
+  if (AppState.activeVideoId === id) await _releasePlayerBeforeDelete();
   const delRes = await fetch(`/api/videos/${id}`, {method: 'DELETE'});
   if (!delRes.ok) {
     const err = await delRes.json().catch(() => ({}));
     showToast(`Failed to remove recording: ${formatApiError(err)}`, 'error');
-    // window.* read: kept to avoid a cycle with clips.js - see MODULE-TESTABILITY-PLAN
-    if (AppState.activeClipId) window.selectClip(AppState.activeClipId);
+    if (AppState.activeClipId) selectClip(AppState.activeClipId);
     return;
   }
   if (AppState.activeVideoId === id) {
     AppState.activeVideoId = null;
     AppState.activeClipId  = null;
     document.getElementById('clip-list').innerHTML = '';
-    // window.* read: kept to avoid a cycle with clips.js - see MODULE-TESTABILITY-PLAN
-    window.clearDetail();
+    clearDetail();
   }
   await loadVideos();
   showToast(`"${name}" removed from YuuClip`);
@@ -845,8 +836,7 @@ function reanalyzeVideo(id) {
   if (_blockedByAnalyze('re-analyze this recording')) return;
   const video = AppState.videos.find(v => v.id === id);
   if (!video) return;
-  // window.* read: kept to avoid a cycle with analyze.js - see MODULE-TESTABILITY-PLAN
-  window.openReanalyzePanel(video);
+  openReanalyzePanel(video);
 }
 
 // Rebuild an analyze request the way the recording was originally analyzed
@@ -890,8 +880,7 @@ function rediarizeVideo(id) {
       await loadVideos();
       const v = AppState.videos.find(x => x.id === id);
       if (v && AppState.activeVideoId === id) renderVideoDetail(v, null);
-      // window.* read: kept to avoid a cycle with speakers.js - see MODULE-TESTABILITY-PLAN
-      if (window.loadSpeakers) window.loadSpeakers(id);
+      loadSpeakers(id);
       showToast('Speaker detection complete');
       SoundFx.play('analysis');
     },
@@ -1097,9 +1086,8 @@ function _openVideoFieldKebab(videoId, btn, field) {
       }, {revertMode: true})
     });
   }
-  // window.* reads: kept to avoid a cycle with videos-summary.js - see MODULE-TESTABILITY-PLAN
-  items.push(null, { label: 'Regenerate', action: () => window.summarizeVideo(videoId, null) });
-  if (!isTitle) items.push({ label: 'Regenerate (auto-save)', action: () => window.regenSummaryAuto(videoId, null) });
+  items.push(null, { label: 'Regenerate', action: () => summarizeVideo(videoId, null) });
+  if (!isTitle) items.push({ label: 'Regenerate (auto-save)', action: () => regenSummaryAuto(videoId, null) });
   showKebab(btn, items);
 }
 
@@ -1120,8 +1108,7 @@ async function onClipsSortChange() {
   try {
     AppState.clips = await fetch(_clipsListUrl(AppState.activeVideoId)).then(r => r.json());
   } catch { return; }
-  // window.* read: kept to avoid a cycle with clips.js - see MODULE-TESTABILITY-PLAN
-  window._renderClips();
+  _renderClips();
 }
 
 // ── in-detail action delegation ─────────────────────────────────────────────
@@ -1137,35 +1124,25 @@ function _handleDetailClick(e) {
   const act = el.dataset.act;
   const videoId = el.dataset.videoId != null ? parseInt(el.dataset.videoId) : null;
   switch (act) {
-    // window.* read: kept to avoid a cycle with analyze.js - see MODULE-TESTABILITY-PLAN
-    case 'open-new-recording-panel': window.openNewRecordingPanel(); break;
+    case 'open-new-recording-panel': openNewRecordingPanel(); break;
     case 'open-getting-started': openGettingStartedModal(); break;
     case 'video-title-kebab': openVideoTitleKebab(videoId, el); break;
     case 'video-summary-kebab': openVideoSummaryKebab(videoId, el); break;
-    // window.* read: kept to avoid a cycle with videos-summary.js - see MODULE-TESTABILITY-PLAN
-    case 'summarize-video': window.summarizeVideo(videoId, el); break;
+    case 'summarize-video': summarizeVideo(videoId, el); break;
     case 'reveal-in-folder': revealInFolder(AppState.activeVideoData.path); break;
-    // window.* read: kept to avoid a cycle with reel.js - see MODULE-TESTABILITY-PLAN
-    case 'open-batch-export': window.openBatchExportModal(videoId); break;
+    case 'open-batch-export': openBatchExportModal(videoId); break;
     case 'open-video-actions': openVideoActionsModal(videoId); break;
-    // window.* read: kept to avoid a cycle with namecorrections.js (via clips.js) - see MODULE-TESTABILITY-PLAN
-    case 'open-name-corrections': window.openNameCorrections(videoId); break;
-    // window.* read: kept to avoid a cycle with clipcreate.js (via clips.js) - see MODULE-TESTABILITY-PLAN
-    case 'open-clip-create-picker': window.openClipCreatePicker(videoId); break;
+    case 'open-name-corrections': openNameCorrections(videoId); break;
+    case 'open-clip-create-picker': openClipCreatePicker(videoId); break;
     case 'export-video-transcript': exportVideoTranscript(videoId, el); break;
-    // window.* read: kept to avoid a cycle with videos-timeline.js - see MODULE-TESTABILITY-PLAN
-    case 'generate-timeline': window.generateTimeline(videoId); break;
+    case 'generate-timeline': generateTimeline(videoId); break;
     case 'cancel-job': cancelJob(); break;
-    // window.* read: kept to avoid a cycle with contexts.js - see MODULE-TESTABILITY-PLAN
-    case 'open-context-manager': window.openContextManager(); break;
-    // window.* read: kept to avoid a cycle with contexts.js - see MODULE-TESTABILITY-PLAN
-    case 'rescore-clips': window.rescoreClips(videoId, el); break;
-    // window.* read: kept to avoid a cycle with contexts.js - see MODULE-TESTABILITY-PLAN
-    case 'rescore-failed-clips': window.rescoreFailedClips(videoId, el); break;
-    // window.* reads: kept to avoid a cycle with settings.js - see MODULE-TESTABILITY-PLAN
+    case 'open-context-manager': openContextManager(); break;
+    case 'rescore-clips': rescoreClips(videoId, el); break;
+    case 'rescore-failed-clips': rescoreFailedClips(videoId, el); break;
     case 'install-local-model':
-      window.openSettings();
-      setTimeout(() => window._scrollToSettingsSection('settings-sec-llm'), 120);
+      openSettings();
+      setTimeout(() => _scrollToSettingsSection('settings-sec-llm'), 120);
       break;
   }
 }
@@ -1174,8 +1151,7 @@ function _handleDetailChange(e) {
   const el = e.target.closest('[data-act="add-video-context"]');
   if (!el) return;
   const videoId = parseInt(el.dataset.videoId);
-  // window.* read: kept to avoid a cycle with contexts.js - see MODULE-TESTABILITY-PLAN
-  window.addVideoContext(videoId, el.value);
+  addVideoContext(videoId, el.value);
   el.value = '';
 }
 

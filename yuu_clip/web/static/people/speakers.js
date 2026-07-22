@@ -12,7 +12,8 @@ import {
   _blockedByAnalyze, _openSSE, _supersedeActiveStream, _clearActiveStream, _setActiveStream,
 } from '../core/jobs.js';
 import { selectClip } from '../clips/clips.js';
-import { updateSpeakerLabelsInTranscript } from '../analyze/transcript.js';
+import { updateSpeakerLabelsInTranscript, reloadVideoTranscriptIfOpen } from '../analyze/transcript.js';
+import { openPeopleView } from './voices.js';
 
 let _currentVideoId = null;
 
@@ -267,8 +268,7 @@ export async function _resolveSuggestion(speakerId, name) {
     showToast(updated.is_named ? `Speaker named ${updated.display_name}` : 'Suggestion dismissed');
     if (_currentVideoId) await loadSpeakers(_currentVideoId);
     if (AppState.activeClipId) selectClip(AppState.activeClipId);
-    // window.* read: kept to avoid a cycle with transcript.js - see MODULE-TESTABILITY-PLAN
-    if (_currentVideoId) window.reloadVideoTranscriptIfOpen(_currentVideoId);
+    if (_currentVideoId) reloadVideoTranscriptIfOpen(_currentVideoId);
   } catch (_) {
     showToast('Could not update speaker', 'error');
   }
@@ -286,8 +286,7 @@ export async function _resolveVoiceMatch(speakerId, sameVoice, matchName) {
       : 'Kept as a separate speaker');
     if (_currentVideoId) await loadSpeakers(_currentVideoId);
     if (AppState.activeClipId) selectClip(AppState.activeClipId);
-    // window.* read: kept to avoid a cycle with transcript.js - see MODULE-TESTABILITY-PLAN
-    if (_currentVideoId) window.reloadVideoTranscriptIfOpen(_currentVideoId);
+    if (_currentVideoId) reloadVideoTranscriptIfOpen(_currentVideoId);
   } catch (_) {
     showToast('Could not update speaker', 'error');
   }
@@ -325,8 +324,7 @@ export async function _mergeSpeakerInto(sourceId, targetId, targetName) {
         showToast(`Merged into ${targetName || 'the other speaker'}`);
         if (_currentVideoId) await loadSpeakers(_currentVideoId);
         if (AppState.activeClipId) selectClip(AppState.activeClipId);
-        // window.* read: kept to avoid a cycle with transcript.js - see MODULE-TESTABILITY-PLAN
-        if (_currentVideoId) window.reloadVideoTranscriptIfOpen(_currentVideoId);
+        if (_currentVideoId) reloadVideoTranscriptIfOpen(_currentVideoId);
       } catch (err) {
         showToast(`Could not merge: ${err.message}`, 'error');
       }
@@ -365,8 +363,7 @@ export async function _resolvePersonMatch(speakerId, samePerson, matchName) {
       : 'Kept as a separate person');
     if (_currentVideoId) await loadSpeakers(_currentVideoId);
     if (AppState.activeClipId) selectClip(AppState.activeClipId);
-    // window.* read: kept to avoid a cycle with transcript.js - see MODULE-TESTABILITY-PLAN
-    if (_currentVideoId) window.reloadVideoTranscriptIfOpen(_currentVideoId);
+    if (_currentVideoId) reloadVideoTranscriptIfOpen(_currentVideoId);
   } catch (err) {
     showToast(`Could not update: ${err.message}`, 'error');
   }
@@ -423,8 +420,7 @@ export function initSpeakerListeners() {
       return;
     }
     if (e.target.closest && e.target.closest('.speaker-open-people')) {
-      // window.* read: kept to avoid a cycle with voices.js - see MODULE-TESTABILITY-PLAN
-      if (window.openPeopleView) window.openPeopleView();
+      openPeopleView();
       return;
     }
     const samePersonBtn = e.target.closest && e.target.closest('.speaker-sameperson');

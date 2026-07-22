@@ -16,6 +16,7 @@ import {
 import { openContextManager } from '../library/contexts.js';
 import { getWhisperDownloadPct } from '../settings/modeldownload.js';
 import { SoundFx } from '../library/sounds.js';
+import { closeSettings } from '../settings/settings.js';
 
 // ── shared live panel state ───────────────────────────────────────────────────
 // _probedInfo and _panelDirty are read cross-file by videos.js (analyze-button
@@ -77,8 +78,7 @@ async function openNewRecordingPanel() {
   if (_isNewRecordingPanelOpen()) return;
   if (document.getElementById('btn-analyze').disabled) return;
   if (document.getElementById('settings-panel').classList.contains('visible')) {
-    // window.* read: kept to avoid a cycle with settings.js - see MODULE-TESTABILITY-PLAN
-    window.closeSettings(openNewRecordingPanel);
+    closeSettings(openNewRecordingPanel);
     return;
   }
   _reanalyzeTarget = null;
@@ -108,8 +108,7 @@ async function openNewRecordingPanel() {
 async function openReanalyzePanel(video) {
   if (document.getElementById('btn-analyze').disabled) return;
   if (document.getElementById('settings-panel').classList.contains('visible')) {
-    // window.* read: kept to avoid a cycle with settings.js - see MODULE-TESTABILITY-PLAN
-    window.closeSettings(() => openReanalyzePanel(video));
+    closeSettings(() => openReanalyzePanel(video));
     return;
   }
   _reanalyzeTarget = {
