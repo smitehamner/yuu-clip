@@ -197,6 +197,7 @@ function _applyModelPaths(m) {
     const el = document.getElementById(id);
     if (el) el.value = value;
   }
+  // window.* read: kept to avoid a cycle with settings.js - see MODULE-TESTABILITY-PLAN
   window._checkSettingsDirty();
 }
 
@@ -382,6 +383,7 @@ async function _finishGgufDownload(modelId) {
   const model = (_modelCatalog || []).find(x => x.id === modelId);
   _appendGgufLog('Done - the model is ready.');
   _teardownGgufDownload();
+  // window.* read: kept to avoid a cycle with settings.js - see MODULE-TESTABILITY-PLAN
   if (model && window.markModelPathsApplied) window.markModelPathsApplied(_modelPathFields(model));
   // Reuse the boot flow's config-reload endpoint: it calls ctx.reload_config() so
   // the just-written llm_model_path takes effect in the running server.
@@ -500,6 +502,7 @@ export async function _renderCapabilityTiers() {
   }
   list.innerHTML = (data.tiers || []).map(_capabilityTierHtml).join('');
   list.querySelectorAll('[data-section]').forEach(btn => {
+    // window.* read: kept to avoid a cycle with settings.js - see MODULE-TESTABILITY-PLAN
     btn.addEventListener('click', () => window._scrollToSettingsSection(btn.getAttribute('data-section')));
   });
   list.querySelectorAll('[data-prefetch]').forEach(btn => {

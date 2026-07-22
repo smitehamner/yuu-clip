@@ -85,22 +85,6 @@ function closeProjectMenu(refocusTrigger = false) {
   menu.classList.remove('open');
   document.getElementById('btn-project-switcher').setAttribute('aria-expanded', 'false');
 }
-document.getElementById('project-menu').addEventListener('keydown', e => {
-  _menuArrowKeydown(document.getElementById('project-menu'), e);
-});
-document.addEventListener('click', e => {
-  if (!document.getElementById('project-switcher-wrap').contains(e.target)) closeProjectMenu();
-});
-// Close when focus leaves the switcher - covers a panel/modal (or its focus
-// trap) opening while the menu is up, which would otherwise float over it.
-document.getElementById('project-switcher-wrap').addEventListener('focusout', e => {
-  if (!isProjectMenuOpen()) return;
-  const wrap = document.getElementById('project-switcher-wrap');
-  if (e.relatedTarget && wrap.contains(e.relatedTarget)) return;
-  closeProjectMenu();
-});
-document.getElementById('btn-project-switcher').addEventListener('click', toggleProjectMenu);
-
 async function switchProject(path) {
   try {
     const res = await fetch('/api/projects/switch', {
@@ -170,18 +154,40 @@ async function _pickFolderServerSide() {
   }
 }
 
-document.getElementById('open-project-path').addEventListener('keydown', e => {
-  if (e.key === 'Enter') { e.preventDefault(); _openProjectConfirm(); }
-});
-document.getElementById('open-project-modal').addEventListener('click', e => {
-  if (e.target === e.currentTarget) closeOpenProjectModal();
-});
-document.getElementById('btn-project-browse').addEventListener('click', browseForProjectFolder);
-document.getElementById('btn-open-project-cancel').addEventListener('click', closeOpenProjectModal);
-document.getElementById('btn-open-project-confirm').addEventListener('click', _openProjectConfirm);
+// Static index.html controls this module owns (the switcher dropdown + the
+// open-project modal), wired once from boot.js at first paint (see
+// initHotwordListeners in hotwords.js for the reference pattern) so importing
+// this module has no DOM side effect.
+function initProjectListeners() {
+  document.getElementById('project-menu').addEventListener('keydown', e => {
+    _menuArrowKeydown(document.getElementById('project-menu'), e);
+  });
+  document.addEventListener('click', e => {
+    if (!document.getElementById('project-switcher-wrap').contains(e.target)) closeProjectMenu();
+  });
+  // Close when focus leaves the switcher - covers a panel/modal (or its focus
+  // trap) opening while the menu is up, which would otherwise float over it.
+  document.getElementById('project-switcher-wrap').addEventListener('focusout', e => {
+    if (!isProjectMenuOpen()) return;
+    const wrap = document.getElementById('project-switcher-wrap');
+    if (e.relatedTarget && wrap.contains(e.relatedTarget)) return;
+    closeProjectMenu();
+  });
+  document.getElementById('btn-project-switcher').addEventListener('click', toggleProjectMenu);
+
+  document.getElementById('open-project-path').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); _openProjectConfirm(); }
+  });
+  document.getElementById('open-project-modal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeOpenProjectModal();
+  });
+  document.getElementById('btn-project-browse').addEventListener('click', browseForProjectFolder);
+  document.getElementById('btn-open-project-cancel').addEventListener('click', closeOpenProjectModal);
+  document.getElementById('btn-open-project-confirm').addEventListener('click', _openProjectConfirm);
+}
 
 export {
-  initProjectSwitcher, isProjectMenuOpen, toggleProjectMenu, closeProjectMenu,
+  initProjectSwitcher, initProjectListeners, isProjectMenuOpen, toggleProjectMenu, closeProjectMenu,
   openOpenProjectModal, closeOpenProjectModal, _openProjectConfirm, browseForProjectFolder,
   switchProject,
 };

@@ -116,10 +116,6 @@ import {
   _scrollToSettingsSection, _checkSettingsDirty, markModelPathsApplied,
 } from './settings/settings.js';
 import {
-  _updateExportNameTemplatePreview, _updateTitleCardPreview,
-} from './settings/settings-previews.js';
-import { _refreshInstallStatus } from './settings/settings-installs.js';
-import {
   initProjectSwitcher, isProjectMenuOpen, closeProjectMenu, closeOpenProjectModal,
 } from './settings/projects.js';
 // settings-backup.js has no external window consumer left (its two names,
@@ -131,16 +127,15 @@ import {
   initModelDownload, initModelPrefetch, getWhisperDownloadPct, _resetModelDownloads,
 } from './settings/modeldownload.js';
 import {
-  SoundFx, initSoundSettings, _soundSettingsDirty, commitSoundSettings,
+  SoundFx, commitSoundSettings,
 } from './library/sounds.js';
 import {
-  initHotwordSettings, ensureHotwordsCache, hasEnabledSemanticHotwords,
+  ensureHotwordsCache, hasEnabledSemanticHotwords,
   confirmScanHotwordsForVideo,
 } from './library/hotwords.js';
-import { initSensitiveTermSettings } from './library/sensitive.js';
 import {
   ensureExportPresetsCache, exportPresetLabel, exportPresetIsVertical,
-  exportPresetTargetSizeMb, populateExportPresetSelect, initExportPresetSettings,
+  exportPresetTargetSizeMb, populateExportPresetSelect,
 } from './library/exportpresets.js';
 import { loadSpeakers } from './people/speakers.js';
 import { openPeopleView } from './people/voices.js';
@@ -541,20 +536,11 @@ window._checkSettingsDirty = _checkSettingsDirty;
 // download completion) - the same window-shim convention as _checkSettingsDirty,
 // kept off a direct import to avoid a settings <-> modelcatalog cycle.
 window.markModelPathsApplied = markModelPathsApplied;
-// settings-previews.js - _updateExportNameTemplatePreview and
-// _updateTitleCardPreview are read as window.* by settings.js's
-// _applyExportFields (already-ESM, but its own migration predates this one and
-// never switched to an import - out of scope to touch settings.js here). Both of
-// this module's field oninput handlers are now addEventListener inside
-// settings-previews.js itself, so no inline handler reads either name.
-window._updateExportNameTemplatePreview = _updateExportNameTemplatePreview;
-window._updateTitleCardPreview = _updateTitleCardPreview;
-// settings-installs.js - _refreshInstallStatus is read as window.* by settings.js's
-// _applySettingsToUI (already-ESM, but its own migration predates this one and never
-// switched to an import - out of scope to touch settings.js here). installPackage
-// dropped: its only consumer was index.html's inline install-button onclick, now an
-// addEventListener inside settings-installs.js itself.
-window._refreshInstallStatus = _refreshInstallStatus;
+// settings-previews.js and settings-installs.js: no window shim left. Their
+// preview/install-status helpers were only read as window.* by settings.js,
+// which now imports both directly (settings/ bucket conversion) - both modules
+// stay in the bundle graph via that import, so no side-effect import is needed
+// here either.
 // projects.js - initProjectSwitcher is called as a bare global by boot.js (still
 // classic); isProjectMenuOpen and closeProjectMenu are called as bare globals by
 // shortcuts.js's Escape-key handler (already-ESM, but out of scope to switch it to
@@ -581,54 +567,52 @@ window._resetModelDownloads = _resetModelDownloads;
 // sounds.js - SoundFx is read as window.SoundFx by already-ESM callers
 // (analyze.js, clipbulk.js, clipexport.js, contexts.js, reel.js, videos.js,
 // jobs.js) and as a bare global by the still-classic exporteditor.js;
-// initSoundSettings, _soundSettingsDirty and commitSoundSettings are read as
-// window.* by settings.js (already-ESM, but its own migration predates this one
-// and never switched to an import - out of scope to touch settings.js here).
-// _onSoundUpload dropped: its only consumer was index.html's inline upload
-// onchange, now an addEventListener inside sounds.js itself.
+// commitSoundSettings is invoked directly by tests/ui/test_ui_sounds.py via
+// page.evaluate. initSoundSettings and _soundSettingsDirty dropped: settings.js
+// (settings/ bucket conversion) now imports both directly, and no other reader
+// remains. _onSoundUpload dropped: its only consumer was index.html's inline
+// upload onchange, now an addEventListener inside sounds.js itself.
 window.SoundFx = SoundFx;
-window.initSoundSettings = initSoundSettings;
-window._soundSettingsDirty = _soundSettingsDirty;
 window.commitSoundSettings = commitSoundSettings;
-// hotwords.js - initHotwordSettings, hasEnabledSemanticHotwords and
-// confirmScanHotwordsForVideo are read as window.* by already-ESM callers
-// (settings.js reads initHotwordSettings; videos.js reads
-// hasEnabledSemanticHotwords/confirmScanHotwordsForVideo - both predate this
-// migration and never switched to an import, out of scope to touch here);
+// hotwords.js - hasEnabledSemanticHotwords and confirmScanHotwordsForVideo are
+// read as window.* by videos.js (already-ESM, but its own migration predates
+// this one and never switched to an import - out of scope to touch here);
 // ensureHotwordsCache is called as a bare global by boot.js (still classic) and
 // invoked directly by tests/ui/test_ui_hotwords.py via page.evaluate.
-// addHotwordRow and scanHotwordsForVideo dropped: addHotwordRow's only caller
-// was index.html's inline onclick (now an addEventListener inside hotwords.js
-// itself) and scanHotwordsForVideo is only called by this module's own
+// initHotwordSettings dropped: settings.js (settings/ bucket conversion) now
+// imports it directly, and no other reader remains. addHotwordRow and
+// scanHotwordsForVideo dropped: addHotwordRow's only caller was index.html's
+// inline onclick (now an addEventListener inside hotwords.js itself) and
+// scanHotwordsForVideo is only called by this module's own
 // confirmScanHotwordsForVideo, so nothing outside the module reads either.
-window.initHotwordSettings = initHotwordSettings;
 window.ensureHotwordsCache = ensureHotwordsCache;
 window.hasEnabledSemanticHotwords = hasEnabledSemanticHotwords;
 window.confirmScanHotwordsForVideo = confirmScanHotwordsForVideo;
 
-// sensitive.js - initSensitiveTermSettings is read as window.* by settings.js
-// (already-ESM, still calls via window; predates this migration). Nothing else
-// outside the module reads it. ensureSensitiveTermsCache has no external caller
-// (unlike hotwords, the sensitive cache is primed only at Settings-open), and
-// addSensitiveTermRow's only caller was index.html's inline onclick (now an
-// addEventListener inside sensitive.js) - so neither needs a window shim.
-window.initSensitiveTermSettings = initSensitiveTermSettings;
+// sensitive.js - no window shim left. initSensitiveTermSettings was only read
+// as window.* by settings.js, which now imports it directly (settings/ bucket
+// conversion) - sensitive.js stays in the bundle graph via boot.js's
+// initSensitiveListeners import. ensureSensitiveTermsCache has no external
+// caller (unlike hotwords, the sensitive cache is primed only at
+// Settings-open), and addSensitiveTermRow's only caller was index.html's
+// inline onclick (now an addEventListener inside sensitive.js) - so neither
+// needs a window shim.
 // exportpresets.js - ensureExportPresetsCache is called as a bare global by
 // boot.js and exporteditor.js (still classic); exportPresetIsVertical also by
 // exporteditor.js (classic). exportPresetLabel is read as window.* by clips.js
 // and clipexport.js (already-ESM, but their own migrations predate this one and
 // never switched to an import - out of scope to touch them here);
 // exportPresetIsVertical/exportPresetTargetSizeMb/populateExportPresetSelect are
-// read as window.* by clipexport.js (same reason); initExportPresetSettings is
-// read as window.* by settings.js (same reason). addExportPresetRow dropped: its
-// only caller was index.html's inline onclick (now an addEventListener inside
-// exportpresets.js itself), so nothing outside the module needs it off window.
+// read as window.* by clipexport.js (same reason). initExportPresetSettings
+// dropped: settings.js (settings/ bucket conversion) now imports it directly,
+// and no other reader remains. addExportPresetRow dropped: its only caller was
+// index.html's inline onclick (now an addEventListener inside exportpresets.js
+// itself), so nothing outside the module needs it off window.
 window.ensureExportPresetsCache = ensureExportPresetsCache;
 window.exportPresetLabel = exportPresetLabel;
 window.exportPresetIsVertical = exportPresetIsVertical;
 window.exportPresetTargetSizeMb = exportPresetTargetSizeMb;
 window.populateExportPresetSelect = populateExportPresetSelect;
-window.initExportPresetSettings = initExportPresetSettings;
 // speakers.js - loadSpeakers is read as window.loadSpeakers by videos.js
 // (already-ESM, but its own migration predates this one and never switched to an
 // import - out of scope to touch videos.js here) and as a bare global by the

@@ -4,7 +4,7 @@
 import { AppState } from './state.js';
 import { initResize, initPlaybackRate, _applyPrereqWarnings } from './ui.js';
 import { _syncSortDirBtn } from './utils.js';
-import { initProjectSwitcher } from '../settings/projects.js';
+import { initProjectSwitcher, initProjectListeners } from '../settings/projects.js';
 import { _loadContexts, initContextsListeners } from '../library/contexts.js';
 import { loadVideos } from '../videos/videos.js';
 import { ensureHotwordsCache, initHotwordListeners } from '../library/hotwords.js';
@@ -19,6 +19,7 @@ import { renderGpuWarningChip } from './gpustatus.js';
 import { initUpdateCheckOnLaunch, wireUpdateBanner } from './updatecheck.js';
 import { initSpeakerListeners } from '../people/speakers.js';
 import { initVoicesListeners } from '../people/voices.js';
+import { initSettingsListeners } from '../settings/settings.js';
 
 // ── accessibility init ────────────────────────────────────────────────────────
 document.querySelectorAll('.modal-bg').forEach((bg, i) => {
@@ -38,6 +39,8 @@ document.querySelectorAll('.modal-bg').forEach((bg, i) => {
 initResize();
 initPlaybackRate();
 initProjectSwitcher();
+initProjectListeners();
+initSettingsListeners();
 _loadContexts();
 loadVideos();
 ensureHotwordsCache();

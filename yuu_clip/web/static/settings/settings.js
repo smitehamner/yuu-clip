@@ -11,6 +11,12 @@ import { languageOptionsHtml } from '../shared/whisperlang.js';
 import { _filterGlossary, closeGlossaryModal } from '../core/helpmodals.js';
 import { _isNewRecordingPanelOpen, _doCloseNewRecordingPanel } from '../analyze/analyze.js';
 import { checkForUpdatesNow, updateStatusText } from '../core/updatecheck.js';
+import { _soundSettingsDirty, initSoundSettings, commitSoundSettings } from '../library/sounds.js';
+import { initHotwordSettings } from '../library/hotwords.js';
+import { initSensitiveTermSettings } from '../library/sensitive.js';
+import { initExportPresetSettings } from '../library/exportpresets.js';
+import { _updateExportNameTemplatePreview, _updateTitleCardPreview } from './settings-previews.js';
+import { _refreshInstallStatus } from './settings-installs.js';
 
 // ── settings panel ────────────────────────────────────────────────────────────
 const _settingsFieldIds = [
@@ -76,7 +82,7 @@ function _checkSettingsDirty() {
     const row = el.closest('.settings-row') || el.closest('.settings-weight-row');
     if (row) row.classList.toggle('dirty', dirty);
   }
-  if (window._soundSettingsDirty?.()) anyDirty = true;
+  if (_soundSettingsDirty?.()) anyDirty = true;
   const btn = document.getElementById('btn-settings-save');
   if (btn) btn.disabled = !anyDirty;
 }
@@ -127,10 +133,10 @@ async function openSettings(scrollToSectionId) {
     await _ensureModelCatalog();
     // Sound rows must be rendered (from saved state) before _applySettingsToUI
     // runs the dirty check, or a discarded prior edit would re-enable Save.
-    await window.initSoundSettings();
-    await window.initHotwordSettings();
-    await window.initSensitiveTermSettings();
-    await window.initExportPresetSettings();
+    await initSoundSettings();
+    await initHotwordSettings();
+    await initSensitiveTermSettings();
+    await initExportPresetSettings();
     await initContentPresetSettings();
     _applySettingsToUI(cfg);
     // preventScroll: the panel should open at the top (showing the Capabilities
@@ -327,13 +333,13 @@ function _applyUiFields(cfg) {
 
 function _applyExportFields(cfg) {
   _setFieldVal('s-export-name-template', cfg.export_name_template || '{video}_clip{clip_id}_{start}');
-  window._updateExportNameTemplatePreview();
+  _updateExportNameTemplatePreview();
   _setColorField('s-title-card-bg-color', cfg.title_card_bg_color || '#000000');
   _setColorField('s-title-card-font-color', cfg.title_card_font_color || '#ffffff');
   _setSelectByNumber('s-title-card-scale', cfg.title_card_scale ?? 1.0);
   _setFieldVal('s-title-card-template', cfg.title_card_template ?? '{description}\n{start} · {duration}');
   _setFieldVal('s-title-card-duration', cfg.title_card_duration_s ?? 3.0);
-  window._updateTitleCardPreview();
+  _updateTitleCardPreview();
   _setFieldVal('s-caption-font-name', cfg.caption_font_name || '');
   _setFieldVal('s-caption-font-size', cfg.caption_font_size ? cfg.caption_font_size : '');
   _setFieldVal('s-caption-position', cfg.caption_position || 'bottom');
@@ -373,7 +379,7 @@ function _applySettingsToUI(cfg) {
   _applyUpdatesFields(cfg);
   _snapshotSettings();
   _checkSettingsDirty();
-  ['cuda-libs'].forEach(window._refreshInstallStatus);
+  ['cuda-libs'].forEach(_refreshInstallStatus);
   _refreshUpdateStatus();
 }
 
@@ -607,7 +613,7 @@ async function _doApplyContentPreset(id, addHotwords) {
   const body = await res.json();
   _activeContentPresetId = body.applied;
   _applyPresetWeightsToUI(body.weights);
-  if (addHotwords && body.hotwords_added) await window.initHotwordSettings();
+  if (addHotwords && body.hotwords_added) await initHotwordSettings();
   _renderContentPresetInfo();
   const added = body.hotwords_added ? ` · ${plural(body.hotwords_added, 'hot-word')} added` : '';
   showToast(`Applied content type${added} - re-score to apply the new weighting`, 'success');
@@ -751,7 +757,7 @@ async function saveSettings() {
       if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
       return;
     }
-    window.commitSoundSettings?.();
+    commitSoundSettings?.();
     _flashSettingsSaved();
     _snapshotSettings();
     _checkSettingsDirty();
@@ -877,8 +883,11 @@ function _wireStaticSettingsControls() {
   _wireUpdatesSection();
 }
 
-// Dirty-state tracking: re-check on any input/change in the settings panel
-document.addEventListener('DOMContentLoaded', () => {
+// Dirty-state tracking: re-check on any input/change in the settings panel.
+// Called once from boot.js at first paint (see initHotwordListeners in
+// hotwords.js for the reference pattern) so importing this module has no DOM
+// side effect.
+function initSettingsListeners() {
   const panel = document.getElementById('settings-panel');
   if (panel) {
     panel.addEventListener('input',  _checkSettingsDirty);
@@ -929,10 +938,11 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
-});
+}
 
 export {
   openSettings, closeSettings, applyTheme, applyAccent,
   _onDiarizationBackendChange, _updateDiarizationStatus,
   _scrollToSettingsSection, _checkSettingsDirty, markModelPathsApplied,
+  initSettingsListeners,
 };

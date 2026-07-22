@@ -38,8 +38,6 @@ _ALLOWED_MODULE_SIDE_EFFECTS = {
     "core/shortcuts.js",
     "core/ui.js",
     "core/utils.js",
-    "settings/projects.js",
-    "settings/settings.js",
     "videos/videos.js",
 }
 
