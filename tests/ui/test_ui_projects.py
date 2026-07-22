@@ -46,7 +46,7 @@ class TestProjectSwitcher:
         # Browse button is always shown now - Electron's native dialog, or the
         # server-side tkinter fallback in browser-dev mode.
         expect(page.locator("#btn-project-browse")).to_be_visible()
-        page.evaluate("closeOpenProjectModal()")
+        page.click("#btn-open-project-cancel")
 
     def test_menu_closes_on_outside_click(self, page: Page):
         page.goto(LIVE_URL)

@@ -88,7 +88,6 @@ import {
   openSettings,
   _onDiarizationBackendChange,
 } from './settings/settings.js';
-import { closeOpenProjectModal } from './settings/projects.js';
 // settings-backup.js has no external window consumer left (its two names,
 // backupProject and startRestore, were only read by index.html inline handlers,
 // now addEventListener inside settings-backup.js itself) - a bare side-effect
@@ -249,12 +248,16 @@ window.regenSummaryAuto = regenSummaryAuto;
 // sessions.js - SessionUI, isSessionCollapsed and sessionGroupHeaderLi dropped:
 // their only reader (videos.js) now imports all three directly (the
 // window-cycle-avoidance conversion). toggleGroupSelect is invoked directly by
-// tests/ui/test_ui_sessions.py via page.evaluate. Everything else stays
-// module-private: loadSessions, enterGroupingMode, suggestSessions and
-// selectSession are only called by this module's own internal logic, and
-// exitGroupingMode, confirmGroupSelection and openRecordingsActionsMenu are now
-// wired to their static index.html buttons via addEventListener inside
-// sessions.js itself (no inline onclick left).
+// tests/ui/test_ui_sessions.py via page.evaluate - a real click on the video
+// item was tried as a replacement but re-renders the list between the two
+// selections, which shifts layout under Playwright's actionability retry and
+// intermittently intercepts the click on an unrelated element (the resize
+// handle or the grouping bar); page.evaluate stays the deliberate choice here.
+// Everything else stays module-private: loadSessions, enterGroupingMode,
+// suggestSessions and selectSession are only called by this module's own
+// internal logic, and exitGroupingMode, confirmGroupSelection and
+// openRecordingsActionsMenu are now wired to their static index.html buttons
+// via addEventListener inside sessions.js itself (no inline onclick left).
 window.toggleGroupSelect = toggleGroupSelect;
 // clips.js - _renderClips and _renderClipFilterCounts are read as window.* by
 // jobs.js - NOT converted to a direct import: see the videos.js block above,
@@ -463,16 +466,18 @@ window._onDiarizationBackendChange = _onDiarizationBackendChange;
 // which now imports both directly (settings/ bucket conversion) - both modules
 // stay in the bundle graph via that import, so no side-effect import is needed
 // here either.
-// projects.js - closeOpenProjectModal is invoked directly by
-// tests/ui/test_ui_projects.py via page.evaluate. initProjectSwitcher,
-// isProjectMenuOpen and closeProjectMenu dropped: boot.js
-// (initProjectSwitcher) and shortcuts.js (isProjectMenuOpen/closeProjectMenu)
-// already import all three directly and no test pokes any of them.
-// toggleProjectMenu, browseForProjectFolder and _openProjectConfirm dropped
-// earlier: their only callers were this module's own now-removed index.html
-// inline handlers (now addEventListener inside projects.js itself), so
-// nothing outside the module needs them off window.
-window.closeOpenProjectModal = closeOpenProjectModal;
+// projects.js - no window shim left. closeOpenProjectModal dropped:
+// test_ui_projects.py's page.evaluate poke is retired in favor of a real
+// click on #btn-open-project-cancel (the same close path a user takes), and
+// no JS module reads it off window. initProjectSwitcher, isProjectMenuOpen
+// and closeProjectMenu dropped earlier: boot.js (initProjectSwitcher) and
+// shortcuts.js (isProjectMenuOpen/closeProjectMenu) already import all three
+// directly and no test pokes any of them. toggleProjectMenu,
+// browseForProjectFolder and _openProjectConfirm dropped earlier: their only
+// callers were this module's own now-removed index.html inline handlers (now
+// addEventListener inside projects.js itself), so nothing outside the
+// module needs them off window. The module stays in the bundle graph via
+// boot.js's direct import of initProjectSwitcher.
 // modeldownload.js - every remaining name is invoked directly by
 // tests/ui/test_ui_modeldownload.py / test_ui_whisper_prefetch.py via
 // page.evaluate (boot.js's own reads of initModelDownload/initModelPrefetch
