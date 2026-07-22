@@ -102,7 +102,6 @@ import {
 } from './library/sounds.js';
 import { ensureHotwordsCache } from './library/hotwords.js';
 import { openPeopleView } from './people/voices.js';
-import { openNameCorrections } from './people/namecorrections.js';
 import { openExportEditor } from './library/exporteditor.js';
 import {
   openSplitEditor, closeSplitEditor,
@@ -546,13 +545,14 @@ window.openPeopleView = openPeopleView;
 // delegated #detail listeners, so nothing outside the module reads them.
 // renderTranscriptLines dropped: its only reader was clipcreate.js, which now
 // imports it directly (clips/ bucket conversion).
-// namecorrections.js - openNameCorrections is invoked directly by
-// tests/ui/test_ui_namecorrections.py via page.evaluate (its videos.js read now
-// imports it directly too, the window-cycle-avoidance conversion).
-// isNameCorrectionsOpen dropped from the shim: it has no caller anywhere (kept
-// as a named export in case a future caller needs a
-// PanelNav('name-corrections')-open check).
-window.openNameCorrections = openNameCorrections;
+// namecorrections.js - no window shim left. openNameCorrections's page.evaluate
+// poke (tests/ui/test_ui_namecorrections.py) is retired - migrated to
+// tests/js/people/namecorrections.test.js, which imports it directly; videos.js
+// already imports it directly too (the window-cycle-avoidance conversion), so
+// the module stays in the bundle graph via that import. isNameCorrectionsOpen
+// dropped from the shim earlier: it has no caller anywhere (kept as a named
+// export in case a future caller needs a PanelNav('name-corrections')-open
+// check).
 // exporteditor.js - openExportEditor is invoked directly by
 // tests/ui/test_ui_exporteditor.py via page.evaluate (its clips.js read now
 // imports it directly too, the window-cycle-avoidance conversion).
