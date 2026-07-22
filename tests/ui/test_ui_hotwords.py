@@ -109,8 +109,15 @@ class TestHotwordSettingsSection:
             _open_settings(page)
             page.get_by_role("button", name="+ Add hot-word").click()
             new_row = page.locator("[data-hotword-row^='draft-']").last
-            new_row.locator(".hw-phrase").fill("uitest_dup")
-            new_row.locator(".hw-phrase").dispatch_event("change")
+            # A single controlled change (see test_editing_boost_persists_via_put
+            # above): fill() + a separate dispatch_event("change") races between
+            # one and two change events firing, which here means one or two save
+            # attempts and one or two error toasts - the second toast breaks the
+            # locator's strict-mode single-match requirement.
+            new_row.locator(".hw-phrase").evaluate(
+                "(el, phrase) => { el.value = phrase; el.dispatchEvent(new Event('change', {bubbles: true})); }",
+                "uitest_dup",
+            )
             expect(page.locator("#toast-container .toast.error")).to_contain_text("already exists")
         finally:
             _delete_hotword(page, hw.get("id"))

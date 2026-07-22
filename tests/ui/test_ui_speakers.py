@@ -94,16 +94,20 @@ class TestSpeakerNaming:
 
         # The PUT is an async fetch; wait for it to actually reach the route
         # rather than asserting on put_bodies before the request lands (the
-        # bare assert raced the network under full-suite load).
+        # bare assert raced the network under full-suite load). Read the body
+        # off the matched request itself (request_info.value), not the
+        # put_bodies side list - Playwright does not guarantee the "request"
+        # event fires after the page.route handler has finished running, so
+        # the list append can still race the assertion even inside this wait.
         with page.expect_request(
             lambda r: "/api/speakers/" in r.url and r.method == "PUT"
-        ):
+        ) as request_info:
             page.click(".colorpicker:has(.speaker-color-input) .colorpicker-trigger")
             hex_field = page.locator(".colorpicker:has(.speaker-color-input) .colorpicker-hexfield")
             hex_field.fill("abcdef")
             hex_field.dispatch_event("change")
 
-        assert any("abcdef" in body for body in put_bodies), put_bodies
+        assert "abcdef" in (request_info.value.post_data or ""), put_bodies
 
     def test_rename_patches_open_recording_transcript_in_place(self, page: Page):
         """Renaming a speaker updates the expanded full-transcript label in place -
