@@ -209,7 +209,9 @@ function addExportPresetRow() {
   host?.querySelector('[data-preset-row^="draft-"]:last-of-type .ep-label')?.focus();
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+// Called once from boot.js at first paint (see initHotwordListeners in hotwords.js
+// for the reference pattern) so importing this module has no DOM side effect.
+export function initExportPresetListeners() {
   const addBtn = document.getElementById('s-add-export-preset');
   if (addBtn && !addBtn.dataset.epWired) {
     addBtn.dataset.epWired = '1';
@@ -230,4 +232,4 @@ document.addEventListener('DOMContentLoaded', () => {
     const row = del?.closest('[data-preset-row]');
     if (row) _deleteExportPresetRow(row);
   });
-});
+}

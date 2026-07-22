@@ -10,6 +10,7 @@ import {
 } from '../core/jobs.js';
 import { loadVideos, renderVideoDetail, _clipsListUrl } from '../videos/videos.js';
 import { selectClip, _renderClips } from '../clips/clips.js';
+import { SoundFx } from './sounds.js';
 
 // ── context manager ───────────────────────────────────────────────────────────
 export function _parseWeight(id) {
@@ -437,12 +438,6 @@ async function _saveVideoContexts(videoId, context_ids) {
   }
 }
 
-// Global delegation for chip × buttons in the detail panel
-document.addEventListener('click', e => {
-  const rmBtn = e.target.closest('[data-rmctx]');
-  if (rmBtn && AppState.activeVideoId) removeVideoContext(AppState.activeVideoId, rmBtn.dataset.rmctx);
-});
-
 // ── re-score mode picker (LLM-only vs full) ───────────────────────────────────
 // Shared markup + reader so the per-recording dialog and the per-clip chooser
 // offer the identical choice. "LLM only" (default) keeps the on-screen activity
@@ -525,10 +520,10 @@ function _doRescoreClips(videoId, btn, endpoint = 'rescore-clips', includeFrames
       resetBtn();
       if (errorCount > 0) {
         showToast(`Re-scoring finished - ${plural(errorCount, 'clip')} failed (check log)`, 'error');
-        window.SoundFx.play('error');
+        SoundFx.play('error');
       } else {
         showToast('Re-scoring complete');
-        window.SoundFx.play('rescore');
+        SoundFx.play('rescore');
       }
       loadVideos().then(() => {
         if (AppState.activeVideoId === videoId) {
@@ -544,7 +539,7 @@ function _doRescoreClips(videoId, btn, endpoint = 'rescore-clips', includeFrames
       _clearActiveStream(handle);
       resetBtn();
       showToast(`Re-scoring failed - ${errMsg}`, 'error');
-      window.SoundFx.play('error');
+      SoundFx.play('error');
     },
   );
   _setActiveStream(handle, resetBtn);
@@ -813,7 +808,7 @@ export function rescoreClip(clipId, full = false) {
       teardown();
       if (hadError) {
         showToast('Re-score failed - check log for details', 'error');
-        window.SoundFx.play('error');
+        SoundFx.play('error');
         selectClip(clipId);
         return;
       }
@@ -835,19 +830,27 @@ export function rescoreClip(clipId, full = false) {
         selectClip(clipId);
       }
       showToast('Clip re-scored');
-      window.SoundFx.play('rescore');
+      SoundFx.play('rescore');
     },
     errMsg => {
       _clearActiveStream(handle);
       teardown();
       showToast(`Re-score failed - ${errMsg}`, 'error');
-      window.SoundFx.play('error');
+      SoundFx.play('error');
     },
   );
   _setActiveStream(handle, teardown);
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+// Called once from boot.js at first paint (see initHotwordListeners in hotwords.js
+// for the reference pattern) so importing this module has no DOM side effect.
+export function initContextsListeners() {
+  // Global delegation for chip × buttons in the detail panel.
+  document.addEventListener('click', e => {
+    const rmBtn = e.target.closest('[data-rmctx]');
+    if (rmBtn && AppState.activeVideoId) removeVideoContext(AppState.activeVideoId, rmBtn.dataset.rmctx);
+  });
+
   const editor = document.getElementById('context-editor');
   if (editor) {
     // The Characters section saves independently via its own API calls, so typing
@@ -895,4 +898,4 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('auto-approve-ok')?.addEventListener('click', () => doAutoApprove());
   document.getElementById('auto-approve-field')?.addEventListener('change', () => updateAutoApprovePreview());
   document.getElementById('auto-approve-slider')?.addEventListener('input', () => updateAutoApprovePreview());
-});
+}

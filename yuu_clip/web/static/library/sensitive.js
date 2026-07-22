@@ -162,7 +162,9 @@ function _renderSensitiveTermRows() {
   host.innerHTML = _renderTermGroups(terms, _sensitiveRowHtml);
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+// Called once from boot.js at first paint (see initHotwordListeners in hotwords.js
+// for the reference pattern) so importing this module has no DOM side effect.
+function initSensitiveListeners() {
   const host = document.getElementById('s-sensitive-rows');
   if (!host) return;
   host.addEventListener('change', e => {
@@ -175,6 +177,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (row) _deleteSensitiveTermRow(row);
   });
   document.getElementById('s-sensitive-add')?.addEventListener('click', addSensitiveTermRow);
-});
+}
 
-export { initSensitiveTermSettings, ensureSensitiveTermsCache };
+export { initSensitiveTermSettings, ensureSensitiveTermsCache, initSensitiveListeners };

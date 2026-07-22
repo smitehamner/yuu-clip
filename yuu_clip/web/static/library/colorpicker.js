@@ -338,19 +338,24 @@ function attach(input) {
   _wireHexField(ctx);
 }
 
-// Close the open popover on an outside click or Escape. Registered once.
+// Close the open popover on an outside click or Escape. Called once from boot.js
+// at first paint (see initHotwordListeners in hotwords.js for the reference
+// pattern) so importing this module has no DOM side effect.
 // A click that re-renders the popover (Save / remove a palette entry) detaches
 // its own target before this bubbling handler runs; such a target is no longer in
 // the document, so skip it rather than mistaking it for an outside click.
-document.addEventListener('click', e => {
-  if (!_openCtx) return;
-  if (!document.documentElement.contains(e.target)) return;
-  if (!_openCtx.pop.parentNode.contains(e.target)) _closePopover();
-});
-document.addEventListener('keydown', e => {
-  if (!_openCtx) return;
-  if (e.key === 'Escape') { _closePopover(true); return; }
-  if (e.key === 'Tab') _trapFocus(e);
-});
+function initColorPickerListeners() {
+  document.addEventListener('click', e => {
+    if (!_openCtx) return;
+    if (!document.documentElement.contains(e.target)) return;
+    if (!_openCtx.pop.parentNode.contains(e.target)) _closePopover();
+  });
+  document.addEventListener('keydown', e => {
+    if (!_openCtx) return;
+    if (e.key === 'Escape') { _closePopover(true); return; }
+    if (e.key === 'Tab') _trapFocus(e);
+  });
+}
 
 export const ColorPicker = { attach, _normalizeHex, RECENT_KEY, PALETTE_KEY };
+export { initColorPickerListeners };

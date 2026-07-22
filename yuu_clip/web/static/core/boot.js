@@ -5,10 +5,12 @@ import { AppState } from './state.js';
 import { initResize, initPlaybackRate, _applyPrereqWarnings } from './ui.js';
 import { _syncSortDirBtn } from './utils.js';
 import { initProjectSwitcher } from '../settings/projects.js';
-import { _loadContexts } from '../library/contexts.js';
+import { _loadContexts, initContextsListeners } from '../library/contexts.js';
 import { loadVideos } from '../videos/videos.js';
 import { ensureHotwordsCache, initHotwordListeners } from '../library/hotwords.js';
-import { ensureExportPresetsCache } from '../library/exportpresets.js';
+import { ensureExportPresetsCache, initExportPresetListeners } from '../library/exportpresets.js';
+import { initSensitiveListeners } from '../library/sensitive.js';
+import { initColorPickerListeners } from '../library/colorpicker.js';
 import { reattachAnalysis } from '../analyze/analyze.js';
 import { openGettingStartedModal } from './helpmodals.js';
 import { initModelDownload, initModelPrefetch } from '../settings/modeldownload.js';
@@ -42,7 +44,11 @@ ensureHotwordsCache();
 initHotwordListeners();
 initSpeakerListeners();
 initVoicesListeners();
+initContextsListeners();
+initSensitiveListeners();
+initColorPickerListeners();
 ensureExportPresetsCache();
+initExportPresetListeners();
 fetch('/api/status').then(r => r.json()).then(d => {
   if (d.version) {
     const versionLabel = (/^\d/.test(d.version) ? 'v' : '') + d.version;
