@@ -14,6 +14,7 @@ import { ColorPicker } from '../library/colorpicker.js';
 import { PanelNav } from '../core/panelnav.js';
 import { loadSpeakers } from './speakers.js';
 import { selectClip } from '../clips/clips.js';
+import { reloadVideoTranscriptIfOpen } from '../analyze/transcript.js';
 
 function isPeopleOpen() {
   return PanelNav.isOpen('people');
@@ -327,11 +328,15 @@ async function _backfillPeople(btn) {
 function _syncOpenRecording() {
   const videoId = AppState.activeVideoId;
   if (videoId != null) loadSpeakers(videoId);
-  if (videoId != null && window.reloadVideoTranscriptIfOpen) window.reloadVideoTranscriptIfOpen(videoId);
+  if (videoId != null) reloadVideoTranscriptIfOpen(videoId);
   if (AppState.activeClipId != null) selectClip(AppState.activeClipId);
 }
 
 // Static index.html nav button (fixed element, never recreated - one load-time listener).
-document.getElementById('btn-people')?.addEventListener('click', () => openPeopleView());
+// Called once from boot.js at first paint (see initHotwordListeners in hotwords.js for
+// the reference pattern) so importing this module has no DOM side effect.
+function initVoicesListeners() {
+  document.getElementById('btn-people')?.addEventListener('click', () => openPeopleView());
+}
 
-export { openPeopleView, isPeopleOpen };
+export { openPeopleView, isPeopleOpen, initVoicesListeners };

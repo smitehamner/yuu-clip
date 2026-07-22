@@ -42,8 +42,6 @@ _ALLOWED_MODULE_SIDE_EFFECTS = {
     "library/contexts.js",
     "library/exportpresets.js",
     "library/sensitive.js",
-    "people/speakers.js",
-    "people/voices.js",
     "settings/projects.js",
     "settings/settings.js",
     "videos/videos.js",

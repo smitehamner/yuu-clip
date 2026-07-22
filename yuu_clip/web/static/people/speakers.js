@@ -267,6 +267,7 @@ export async function _resolveSuggestion(speakerId, name) {
     showToast(updated.is_named ? `Speaker named ${updated.display_name}` : 'Suggestion dismissed');
     if (_currentVideoId) await loadSpeakers(_currentVideoId);
     if (AppState.activeClipId) selectClip(AppState.activeClipId);
+    // window.* read: kept to avoid a cycle with transcript.js - see MODULE-TESTABILITY-PLAN
     if (_currentVideoId) window.reloadVideoTranscriptIfOpen(_currentVideoId);
   } catch (_) {
     showToast('Could not update speaker', 'error');
@@ -285,6 +286,7 @@ export async function _resolveVoiceMatch(speakerId, sameVoice, matchName) {
       : 'Kept as a separate speaker');
     if (_currentVideoId) await loadSpeakers(_currentVideoId);
     if (AppState.activeClipId) selectClip(AppState.activeClipId);
+    // window.* read: kept to avoid a cycle with transcript.js - see MODULE-TESTABILITY-PLAN
     if (_currentVideoId) window.reloadVideoTranscriptIfOpen(_currentVideoId);
   } catch (_) {
     showToast('Could not update speaker', 'error');
@@ -323,6 +325,7 @@ export async function _mergeSpeakerInto(sourceId, targetId, targetName) {
         showToast(`Merged into ${targetName || 'the other speaker'}`);
         if (_currentVideoId) await loadSpeakers(_currentVideoId);
         if (AppState.activeClipId) selectClip(AppState.activeClipId);
+        // window.* read: kept to avoid a cycle with transcript.js - see MODULE-TESTABILITY-PLAN
         if (_currentVideoId) window.reloadVideoTranscriptIfOpen(_currentVideoId);
       } catch (err) {
         showToast(`Could not merge: ${err.message}`, 'error');
@@ -362,6 +365,7 @@ export async function _resolvePersonMatch(speakerId, samePerson, matchName) {
       : 'Kept as a separate person');
     if (_currentVideoId) await loadSpeakers(_currentVideoId);
     if (AppState.activeClipId) selectClip(AppState.activeClipId);
+    // window.* read: kept to avoid a cycle with transcript.js - see MODULE-TESTABILITY-PLAN
     if (_currentVideoId) window.reloadVideoTranscriptIfOpen(_currentVideoId);
   } catch (err) {
     showToast(`Could not update: ${err.message}`, 'error');
@@ -370,7 +374,9 @@ export async function _resolvePersonMatch(speakerId, samePerson, matchName) {
 
 // Event delegation on the persistent #detail element (its innerHTML is replaced
 // each render, so per-row handlers would be lost - the container listener isn't).
-document.addEventListener('DOMContentLoaded', () => {
+// Called once from boot.js at first paint (see initHotwordListeners in hotwords.js
+// for the reference pattern) so importing this module has no DOM side effect.
+export function initSpeakerListeners() {
   const detail = document.getElementById('detail');
   if (!detail) return;
   detail.addEventListener('click', e => {
@@ -417,6 +423,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     if (e.target.closest && e.target.closest('.speaker-open-people')) {
+      // window.* read: kept to avoid a cycle with voices.js - see MODULE-TESTABILITY-PLAN
       if (window.openPeopleView) window.openPeopleView();
       return;
     }
@@ -445,4 +452,4 @@ document.addEventListener('DOMContentLoaded', () => {
     const input = e.target.closest && e.target.closest('.speaker-name-input');
     if (input && e.key === 'Enter') { e.preventDefault(); input.blur(); }
   });
-});
+}

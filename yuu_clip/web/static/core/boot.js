@@ -15,6 +15,8 @@ import { initModelDownload, initModelPrefetch } from '../settings/modeldownload.
 import { _renderClips, _syncKindChips } from '../clips/clips.js';
 import { renderGpuWarningChip } from './gpustatus.js';
 import { initUpdateCheckOnLaunch, wireUpdateBanner } from './updatecheck.js';
+import { initSpeakerListeners } from '../people/speakers.js';
+import { initVoicesListeners } from '../people/voices.js';
 
 // ── accessibility init ────────────────────────────────────────────────────────
 document.querySelectorAll('.modal-bg').forEach((bg, i) => {
@@ -38,6 +40,8 @@ _loadContexts();
 loadVideos();
 ensureHotwordsCache();
 initHotwordListeners();
+initSpeakerListeners();
+initVoicesListeners();
 ensureExportPresetsCache();
 fetch('/api/status').then(r => r.json()).then(d => {
   if (d.version) {
