@@ -10,6 +10,8 @@ import { showToast, collapsibleCard, openLog } from '../core/utils.js';
 import { showKebab, showConfirm } from '../core/ui.js';
 import { streamSSE } from '../core/jobs.js';
 import { loadVideos, selectVideo, _renderVideoList } from './videos.js';
+import { openReelForSession } from '../analyze/reel.js';
+import { selectClip } from '../clips/clips.js';
 
 const COLLAPSE_KEY = 'yuuclip-session-collapsed';
 const DISMISS_KEY  = 'yuuclip-session-dismissed';
@@ -373,7 +375,7 @@ function _renderSessionDetail(session) {
   document.getElementById('session-detail-kebab').onclick =
     e => _openSessionMenu(session.id, e.currentTarget);
   document.getElementById('session-summarize-btn').onclick = () => _summarizeSession(session.id);
-  document.getElementById('session-reel-btn').onclick = () => window.openReelForSession(session.id, memberIds);
+  document.getElementById('session-reel-btn').onclick = () => openReelForSession(session.id, memberIds);
   _wireTimelineNavigation();
 }
 
@@ -433,7 +435,7 @@ function _wireTimelineNavigation() {
     const clipRow = e.target.closest('[data-open-clip]');
     if (clipRow) {
       await selectVideo(parseInt(clipRow.dataset.clipVideo, 10));
-      if (window.selectClip) window.selectClip(parseInt(clipRow.dataset.openClip, 10));
+      selectClip(parseInt(clipRow.dataset.openClip, 10));
       return;
     }
     const gotoRow = e.target.closest('[data-goto-video]');

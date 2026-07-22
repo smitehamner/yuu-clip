@@ -62,7 +62,6 @@ import {
   generateTimeline, closeTimelineIntervalModal, _renderTimelineHTML, _timelineEmptyNoteHTML,
 } from './videos/videos-timeline.js';
 import { summarizeVideo, regenSummaryAuto } from './videos/videos-summary.js';
-import { _renderRunMetaCard, _runTimingLine } from './videos/videos-runmeta.js';
 import {
   SessionUI, isSessionCollapsed, sessionGroupHeaderLi, toggleGroupSelect,
 } from './videos/sessions.js';
@@ -95,7 +94,7 @@ import {
   closeProfileManager,
 } from './analyze/analyze.js';
 import {
-  openHighlightReelsModal, openReelForSession, closeHighlightReelsModal, switchReelTab,
+  openHighlightReelsModal, closeHighlightReelsModal, switchReelTab,
   _reelMove, _reelToggle, closeReelPreview, openBatchExportModal, closeBatchExportModal,
 } from './analyze/reel.js';
 import {
@@ -286,11 +285,8 @@ window._timelineEmptyNoteHTML = _timelineEmptyNoteHTML;
 // own regenSummaryAuto, so nothing outside the module needs it off window.
 window.summarizeVideo = summarizeVideo;
 window.regenSummaryAuto = regenSummaryAuto;
-// videos-runmeta.js - _renderRunMetaCard and _runTimingLine are read as
-// window.* by videos.js (already-ESM, but out of scope to switch to an import
-// here).
-window._renderRunMetaCard = _renderRunMetaCard;
-window._runTimingLine = _runTimingLine;
+// videos-runmeta.js - _renderRunMetaCard and _runTimingLine dropped: their only
+// reader was videos.js, which now imports both directly (videos/ bucket conversion).
 // sessions.js - SessionUI, isSessionCollapsed and sessionGroupHeaderLi are read
 // as window.* by videos.js (already-ESM, but out of scope to switch to an import
 // here); toggleGroupSelect is invoked directly by tests/ui/test_ui_sessions.py
@@ -421,11 +417,8 @@ window.reattachAnalysis = reattachAnalysis;
 window._showAnalysisToast = _showAnalysisToast;
 window.closeProfileManager = closeProfileManager;
 // reel.js - openHighlightReelsModal and switchReelTab are invoked directly by
-// tests/ui/*.py via page.evaluate; openReelForSession is called as a bare
-// global by sessions.js (already-ESM, but sessions.js's own migration predates
-// this one and never switched it to an import - out of scope to touch
-// sessions.js here); closeHighlightReelsModal and closeReelPreview are called
-// as bare globals by shortcuts.js's Escape-key modal-closer map (same reason);
+// tests/ui/*.py via page.evaluate; closeHighlightReelsModal and closeReelPreview
+// are called as bare globals by shortcuts.js's Escape-key modal-closer map;
 // _reelMove and _reelToggle have no outside JS caller left (their only
 // external use was now-removed reel.js-owned onclick/onchange attributes) but
 // tests/ui/test_ui_reel.py calls both directly via page.evaluate;
@@ -440,9 +433,9 @@ window.closeProfileManager = closeProfileManager;
 // _onBatchCaptionsChange and _onBatchRetranscribeChange dropped: their only
 // callers were reel.js's own now-removed index.html inline handlers, now
 // addEventListener inside reel.js itself, so nothing outside the module needs
-// them off window anymore.
+// them off window anymore. openReelForSession dropped: sessions.js now imports
+// it directly (videos/ bucket conversion).
 window.openHighlightReelsModal = openHighlightReelsModal;
-window.openReelForSession = openReelForSession;
 window.closeHighlightReelsModal = closeHighlightReelsModal;
 window.switchReelTab = switchReelTab;
 window._reelMove = _reelMove;

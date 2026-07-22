@@ -35,7 +35,6 @@ _ALLOWED_MODULE_SIDE_EFFECTS = {
     "core/shortcuts.js",
     "core/ui.js",
     "core/utils.js",
-    "videos/videos.js",
 }
 
 
