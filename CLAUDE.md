@@ -215,6 +215,24 @@ last (first-paint entry). After any `static/*.js` edit run `yuu-dev bundle`. Ret
 shim entirely is the deferred vitest follow-on (convert the remaining `window.*` reads to
 imports; delete the `page.evaluate` internal pokes).
 
+**HARD RULE - no DOM side effects at module scope (enforced).** A module must not wire
+listeners when it is imported: no top-level `document.getElementById(...).addEventListener`,
+no `document.addEventListener('DOMContentLoaded', ...)`, and no module-scope bare call to a
+`_wireX()` helper. Put the wiring in an exported `init<Module>Listeners()` and call it once
+from `boot.js`. This is what lets a `tests/js/` vitest import any module on a bare DOM
+instead of seeding the whole `index.html`. `tests/unit/test_static_module_side_effects.py`
+enforces both patterns with allowlists that are now **empty** - a new violation fails the
+unit tier. `boot.js` is the one exempt module (it is the side-effect entry point).
+
+**Do NOT defer a cross-module `import` because it looks like a cycle.** esbuild bundles the
+graph into one scope and hoists function declarations, so a mutual import is fine as long as
+the imported name is used inside a function body (which is true of essentially every handler
+/ render call here) rather than at module-evaluation time. Verified empirically 2026-07-21.
+The one real exception is `core/jobs.js`, which keeps 9 `window.*` reads: importing there
+adds a jobs.js <-> videos/clips edge that esbuild handles but that breaks vitest's
+`vi.mock`/`importActual` resolution (the real `streamSSE` runs instead of the mock). Leave
+those alone - the in-code comments explain why.
+
 ## Project layout
 
 ```
