@@ -18,6 +18,11 @@ import {
   _parseTimingOffset, _reloadClipList,
 } from './clips.js';
 import { loadVideos } from '../videos/videos.js';
+import {
+  exportPresetLabel, exportPresetIsVertical, exportPresetTargetSizeMb, populateExportPresetSelect,
+} from '../library/exportpresets.js';
+import { openSettings } from '../settings/settings.js';
+import { SoundFx } from '../library/sounds.js';
 
 // ── per-format export row actions (Export presets - Plan 07) ───────────────
 function _downloadFile(filename) {
@@ -91,7 +96,7 @@ export function _handleExportFormatAction(action, data) {
 }
 
 function _confirmRegenerateExportFormat(clipId, data) {
-  const label = window.exportPresetLabel(data.presetName);
+  const label = exportPresetLabel(data.presetName);
   showConfirm(
     'Regenerate this format?',
     `Re-export "${escHtml(label)}" with the same settings, overwriting the existing file.`,
@@ -117,7 +122,7 @@ function _regenerateExportFormat(clipId, data) {
       if (!PanelNav.isOpen()) renderDetail(clip);
       await _reloadClipList(AppState.activeVideoId);
       showToast('Format regenerated');
-      window.SoundFx.play('export');
+      SoundFx.play('export');
     },
     [{label: 'Export', patterns: ['Exporting', 'OK Saved']}],
     'Exporting',
@@ -219,7 +224,7 @@ export function _onExportPresetChange(presetName) {
   softsubOpt.disabled = usingPreset;
   if (usingPreset && captionsSel.value === 'softsub') captionsSel.value = 'none';
   document.getElementById('export-framing').style.display =
-    window.exportPresetIsVertical(presetName) ? '' : 'none';
+    exportPresetIsVertical(presetName) ? '' : 'none';
   _updateExportTightCapWarning(presetName);
   _updateExportModeSummary();
 }
@@ -232,7 +237,7 @@ export function _onExportPresetChange(presetName) {
 const _TIGHT_CAP_TOTAL_KBPS = 900;
 
 function _exportTightCapWarning(presetName, clip) {
-  const capMb = window.exportPresetTargetSizeMb(presetName);
+  const capMb = exportPresetTargetSizeMb(presetName);
   if (!capMb || !clip || clip.start_ms == null || clip.end_ms == null) return '';
   const durationS = (clip.end_ms - clip.start_ms) / 1000;
   if (durationS <= 0) return '';
@@ -282,7 +287,7 @@ async function _autoFrameExport() {
       document.getElementById('export-autoframe-settings-link').addEventListener('click', e => {
         e.preventDefault();
         closeExportModal();
-        window.openSettings();
+        openSettings();
       });
       return;
     }
@@ -366,7 +371,7 @@ export async function exportClip(id) {
   _onExportRetranscribeChange(needsRetranscribe);
   document.getElementById('export-title-card').checked = false;
   await _prefillExportCaptionStyle();
-  await window.populateExportPresetSelect('');
+  await populateExportPresetSelect('');
   const savedCropX = AppState.activeClipData?.crop_x;
   _setExportFraming(savedCropX == null ? 0.5 : savedCropX);
   document.getElementById('export-autoframe-note').textContent = '';
@@ -433,7 +438,7 @@ export async function confirmExport() {
     return;
   }
 
-  if (window.exportPresetIsVertical(preset)) {
+  if (exportPresetIsVertical(preset)) {
     const framingRes = await fetch(`/api/clips/${id}/framing`, {
       method: 'PATCH', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({crop_x: _exportCropX}),
@@ -494,7 +499,7 @@ export async function confirmExport() {
       await _reloadClipList(AppState.activeVideoId);
       loadVideos();
       showToast('Clip exported successfully');
-      window.SoundFx.play('export');
+      SoundFx.play('export');
     },
     steps,
     retx ? 'Retranscribing' : 'Exporting',

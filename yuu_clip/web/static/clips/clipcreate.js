@@ -18,6 +18,8 @@ import { PanelNav } from '../core/panelnav.js';
 import { setupRecordingPreview, releaseVideoRespectingPip } from '../core/preview.js';
 import { showToast } from '../core/utils.js';
 import { selectClip, _reloadClipList } from './clips.js';
+import { renderTranscriptLines } from '../analyze/transcript.js';
+import { rescoreClip } from '../library/contexts.js';
 
 let _ccVideoId    = null;
 let _ccKind       = 'clip';
@@ -120,7 +122,7 @@ async function _ccLoadTranscript(videoId) {
         'until this recording is (re)transcribed. Use the time inputs above to pick a range.</div>';
       return;
     }
-    el.innerHTML = window.renderTranscriptLines(lines, { seekOffsetS: _ccSeekOffsetS, readOnly: true });
+    el.innerHTML = renderTranscriptLines(lines, { seekOffsetS: _ccSeekOffsetS, readOnly: true });
     el.querySelectorAll('.tline').forEach(row => row.classList.add('cc-pickable'));
     _ccRenderSelectionHighlight();
   } catch (_) {
@@ -279,7 +281,7 @@ async function _ccConfirmCreate() {
     // Both kinds auto-score on creation - clips via the Funny/Dramatic/Action prompt,
     // scenes via the scene rubric (the rescore route picks the prompt by kind).
     showToast(`${noun === 'scene' ? 'Scene' : 'Clip'} created - scoring…`);
-    window.rescoreClip(clip.id);
+    rescoreClip(clip.id);
   } catch (err) {
     showToast(`Could not create ${noun}: ${err.message}`, 'error');
     btn.disabled = false;

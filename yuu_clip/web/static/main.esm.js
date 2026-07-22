@@ -132,14 +132,11 @@ import {
   ensureHotwordsCache, hasEnabledSemanticHotwords,
   confirmScanHotwordsForVideo,
 } from './library/hotwords.js';
-import {
-  ensureExportPresetsCache, exportPresetLabel, exportPresetIsVertical,
-  exportPresetTargetSizeMb, populateExportPresetSelect,
-} from './library/exportpresets.js';
+import { ensureExportPresetsCache } from './library/exportpresets.js';
 import { loadSpeakers } from './people/speakers.js';
 import { openPeopleView } from './people/voices.js';
 import {
-  loadClipTranscript, reloadVideoTranscriptIfOpen, renderTranscriptLines,
+  loadClipTranscript, reloadVideoTranscriptIfOpen,
 } from './analyze/transcript.js';
 import { openNameCorrections } from './people/namecorrections.js';
 import { openExportEditor } from './library/exporteditor.js';
@@ -592,22 +589,16 @@ window.confirmScanHotwordsForVideo = confirmScanHotwordsForVideo;
 // Settings-open), and addSensitiveTermRow's only caller was index.html's
 // inline onclick (now an addEventListener inside sensitive.js) - so neither
 // needs a window shim.
-// exportpresets.js - ensureExportPresetsCache is called as a bare global by
-// boot.js and exporteditor.js (still classic); exportPresetIsVertical also by
-// exporteditor.js (classic). exportPresetLabel is read as window.* by clips.js
-// and clipexport.js (already-ESM, but their own migrations predate this one and
-// never switched to an import - out of scope to touch them here);
-// exportPresetIsVertical/exportPresetTargetSizeMb/populateExportPresetSelect are
-// read as window.* by clipexport.js (same reason). initExportPresetSettings
+// exportpresets.js - ensureExportPresetsCache is kept on the shim (out of scope
+// for the clips/ bucket conversion to re-examine). initExportPresetSettings
 // dropped: settings.js (settings/ bucket conversion) now imports it directly,
 // and no other reader remains. addExportPresetRow dropped: its only caller was
 // index.html's inline onclick (now an addEventListener inside exportpresets.js
-// itself), so nothing outside the module needs it off window.
+// itself), so nothing outside the module needs it off window. exportPresetLabel,
+// exportPresetIsVertical, exportPresetTargetSizeMb and populateExportPresetSelect
+// dropped: their only readers were clips.js and clipexport.js, which now import
+// them directly (clips/ bucket conversion).
 window.ensureExportPresetsCache = ensureExportPresetsCache;
-window.exportPresetLabel = exportPresetLabel;
-window.exportPresetIsVertical = exportPresetIsVertical;
-window.exportPresetTargetSizeMb = exportPresetTargetSizeMb;
-window.populateExportPresetSelect = populateExportPresetSelect;
 // speakers.js - loadSpeakers is read as window.loadSpeakers by videos.js
 // (already-ESM, but its own migration predates this one and never switched to an
 // import - out of scope to touch videos.js here) and as a bare global by the
@@ -622,16 +613,17 @@ window.loadSpeakers = loadSpeakers;
 // The People nav button's inline onclick is now an addEventListener inside voices.js.
 window.openPeopleView = openPeopleView;
 // transcript.js - reloadVideoTranscriptIfOpen is read as a bare global by the
-// still-classic namecorrections.js and as window.* by speakers.js/videos.js/voices.js
+// still-classic namecorrections.js and as window.* by speakers.js/videos.js
 // (already-ESM, but their own migrations predate this one and never switched to an
-// import - out of scope to touch them here); renderTranscriptLines is read as window.*
-// by clipcreate.js (already-ESM, same reason); loadClipTranscript is read as window.*
-// by clips.js (already-ESM, same reason). loadVideoTranscript, seekPlayerTo and
-// startEditCaption dropped: their only callers were this module's own internal logic
-// and its delegated #detail listeners, so nothing outside the module reads them.
+// import - out of scope to touch them here); loadClipTranscript is read as window.*
+// by clips.js (already-ESM, same reason - clips/ bucket conversion deferred this
+// one to avoid a cycle). loadVideoTranscript, seekPlayerTo and startEditCaption
+// dropped: their only callers were this module's own internal logic and its
+// delegated #detail listeners, so nothing outside the module reads them.
+// renderTranscriptLines dropped: its only reader was clipcreate.js, which now
+// imports it directly (clips/ bucket conversion).
 window.loadClipTranscript = loadClipTranscript;
 window.reloadVideoTranscriptIfOpen = reloadVideoTranscriptIfOpen;
-window.renderTranscriptLines = renderTranscriptLines;
 // namecorrections.js - openNameCorrections is read as window.* by videos.js
 // (already-ESM, but its own migration predates this one and never switched to an
 // import - out of scope to touch videos.js here) and invoked directly by

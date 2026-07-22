@@ -17,6 +17,9 @@ import {
 import { gateOnCapability } from '../settings/modelcatalog.js';
 import { loadVideos, _clipsListUrl } from '../videos/videos.js';
 import { deferPlayerRebuildForPip } from '../core/preview.js';
+import { exportPresetLabel } from '../library/exportpresets.js';
+import { openSettings, _scrollToSettingsSection } from '../settings/settings.js';
+import { openNewRecordingPanel } from '../analyze/analyze.js';
 
 // ── clip list & filtering ─────────────────────────────────────────────────────────────────────
 function _applyFilters() {
@@ -61,6 +64,7 @@ function toggleClipSortDir() {
 // so a re-render can't accidentally bypass the active search/status/score
 // filters. Call this - never _renderClipItems directly - after mutating AppState.clips.
 function _renderClips() {
+  // window.* read: kept to avoid a cycle with clipbulk.js - see MODULE-TESTABILITY-PLAN
   window._pruneClipSelection();
   const shown = _applyFilters();
   _renderClipItems(shown);
@@ -245,9 +249,9 @@ function _handleClipListClick(e) {
   const act = e.target.closest('[data-act]');
   if (act) {
     e.preventDefault();
-    if (act.dataset.act === 'open-settings') window.openSettings();
+    if (act.dataset.act === 'open-settings') openSettings();
     else if (act.dataset.act === 'clear-clip-filters') _clearClipFilters();
-    else if (act.dataset.act === 'open-new-recording-panel') window.openNewRecordingPanel();
+    else if (act.dataset.act === 'open-new-recording-panel') openNewRecordingPanel();
     return;
   }
   const li = e.target.closest('li[data-clip-id]');
@@ -282,6 +286,7 @@ function _renderClipItems(clips) {
       ? `No clips match the current filters - <a href="#" style="color:var(--accent);text-decoration:underline" data-act="clear-clip-filters">Clear filters</a>`
       : `No clips found - <a href="#" style="color:var(--accent);text-decoration:underline" data-act="open-new-recording-panel">Analyze another recording</a>`;
     list.innerHTML = `<li style="padding:10px 14px;color:var(--muted)">${filterMsg}</li>`;
+    // window.* read: kept to avoid a cycle with clipbulk.js - see MODULE-TESTABILITY-PLAN
     window._updateBulkToolbar();
     return;
   }
@@ -325,9 +330,11 @@ function _renderClipItems(clips) {
     const checkbox = li.querySelector('.clip-select-checkbox');
     checkbox.checked = AppState.selectedClipIds.has(c.id);
     checkbox.onclick = e => e.stopPropagation();
+    // window.* read: kept to avoid a cycle with clipbulk.js - see MODULE-TESTABILITY-PLAN
     checkbox.onchange = () => window._toggleClipSelection(c.id, checkbox.checked);
     list.appendChild(li);
   }
+  // window.* read: kept to avoid a cycle with clipbulk.js - see MODULE-TESTABILITY-PLAN
   window._updateBulkToolbar();
 }
 
@@ -493,7 +500,7 @@ function _exportFormatsHtml(clip) {
              data-embed-subs="${row.embed_subs ? '1' : ''}" data-title-card="${row.title_card ? '1' : ''}"
              style="border:1px solid var(--border);border-radius:6px;padding:8px">
           <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:baseline">
-            <strong style="color:var(--text)">${escHtml(window.exportPresetLabel(row.preset_name))}</strong>
+            <strong style="color:var(--text)">${escHtml(exportPresetLabel(row.preset_name))}</strong>
             <span>${escHtml(row.container.toUpperCase())}</span>
             <span>${_fmtSizeMb(row.size_bytes)}</span>
             <span>${_fmtAgo(row.created_at)}</span>
@@ -675,6 +682,7 @@ function renderDetail(clip) {
     ${_transcriptCardHTML(clip)}
   `;
 
+  // window.* read: kept to avoid a cycle with transcript.js - see MODULE-TESTABILITY-PLAN
   if (clip.transcript_excerpt && window.loadClipTranscript) window.loadClipTranscript(clip.id);
   _renderTagDatalist();
   _loadTagSuggestions().then(_renderTagDatalist);
@@ -966,6 +974,7 @@ function _handleDetailClick(e) {
   const formatBtn = e.target.closest('[data-export-action]');
   if (formatBtn) {
     const row = formatBtn.closest('.export-format-row');
+    // window.* read: kept to avoid a cycle with clipexport.js - see MODULE-TESTABILITY-PLAN
     if (row) window._handleExportFormatAction(formatBtn.dataset.exportAction, row.dataset);
     return;
   }
@@ -973,10 +982,11 @@ function _handleDetailClick(e) {
   if (!act) return;
   const clipId = Number(act.dataset.clipId);
   switch (act.dataset.act) {
+    // window.* read: kept to avoid a cycle with clipexport.js - see MODULE-TESTABILITY-PLAN
     case 'export-clip': window.exportClip(clipId); break;
     case 'open-llm-settings':
-      window.openSettings();
-      setTimeout(() => window._scrollToSettingsSection('settings-sec-llm'), 120);
+      openSettings();
+      setTimeout(() => _scrollToSettingsSection('settings-sec-llm'), 120);
       break;
     case 'clear-score-override': clearScoreOverride(clipId); break;
     case 'open-score-override': openScoreOverride(clipId); break;
@@ -984,8 +994,10 @@ function _handleDetailClick(e) {
     case 'open-clip-actions-modal': openClipActionsModal(clipId); break;
     case 'open-desc-long-kebab': openDescLongKebab(clipId, act); break;
     case 'open-desc-kebab': openDescKebab(clipId, act); break;
+    // window.* read: kept to avoid a cycle with exporteditor.js - see MODULE-TESTABILITY-PLAN
     case 'open-export-editor': window.openExportEditor(clipId); break;
     case 'select-related-clip': e.preventDefault(); selectClip(clipId); break;
+    // window.* read: kept to avoid a cycle with contexts.js - see MODULE-TESTABILITY-PLAN
     case 'rescore-clip': window.rescoreClip(clipId); break;
     case 'analyze-frames': analyzeFrames(clipId); break;
   }
@@ -1001,9 +1013,6 @@ function _handleDetailKeydown(e) {
     if (AppState.activeClipId) _addClipTag(AppState.activeClipId, value);
   }
 }
-
-document.getElementById('detail').addEventListener('click', _handleDetailClick);
-document.getElementById('detail').addEventListener('keydown', _handleDetailKeydown);
 
 function scoreRow(label, val, cls) {
   const icon = AXIS_ICONS[cls] || '';
@@ -1040,6 +1049,7 @@ function openClipActionsModal(clipId) {
   const groups = [];
 
   const scoringRows = [
+    // window.* read: kept to avoid a cycle with contexts.js - see MODULE-TESTABILITY-PLAN
     { label: 'Re-score', description: 'Re-run scoring and description generation for this clip.', action: () => window.rescoreClipChoose(clipId) },
   ];
   if (clip.score_overall_user != null) {
@@ -1050,6 +1060,7 @@ function openClipActionsModal(clipId) {
   groups.push({ heading: 'Scoring', rows: scoringRows });
 
   groups.push({ heading: 'Transcript', rows: [
+    // window.* read: kept to avoid a cycle with contexts.js - see MODULE-TESTABILITY-PLAN
     { label: 'Retranscribe', description: "Re-run transcription for just this clip's time range.", action: () => window.openRetranscribeModal(clipId) },
   ]});
 
@@ -1062,6 +1073,7 @@ function openClipActionsModal(clipId) {
   if (clip.has_export) {
     const multiFormat = (clip.exports || []).filter(e => e.exists).length > 1;
     const fileRows = [];
+    // window.* reads below: kept to avoid a cycle with clipexport.js - see MODULE-TESTABILITY-PLAN
     if (AppState.activeMediaFilename) {
       fileRows.push({ label: 'Download Export', description: `Save ${multiFormat ? 'every exported format' : 'the exported file'} (and any caption sidecars) to your downloads.`, action: () => window._downloadClipExport(clipId) });
     }
@@ -1234,6 +1246,7 @@ function openClipsActionsMenu(btn) {
   // All view can't infer intent, so it offers both (otherwise scene creation is
   // undiscoverable without first clicking the Scenes chip).
   const filter = AppState.clipKindFilter;
+  // window.* reads below: kept to avoid a cycle with clipcreate.js - see MODULE-TESTABILITY-PLAN
   const createItems = filter === 'scene'
     ? [{ label: 'New scene', action: () => window.openClipCreatePicker(AppState.activeVideoId, 'scene') }]
     : filter === 'clip'
@@ -1290,6 +1303,7 @@ function _openClipDescKebab(clipId, btn, field) {
       }, {revertMode: true})
     });
   }
+  // window.* read: kept to avoid a cycle with contexts.js - see MODULE-TESTABILITY-PLAN
   items.push(null, { label: 'Regenerate via Re-score', action: () => window.rescoreClip(clipId) });
   showKebab(btn, items);
 }
@@ -1554,19 +1568,28 @@ function _handleClipSidebarClick(e) {
   if (kebabBtn) { openClipsActionsMenu(kebabBtn); return; }
 }
 
-document.getElementById('clips-sidebar-group').addEventListener('click', _handleClipSidebarClick);
-document.getElementById('clip-search-input').addEventListener('input', e => setClipSearch(e.target.value));
-document.getElementById('clip-score-min').addEventListener('change', e => setClipScoreMin(e.target.value));
+// Delegated #detail click/keydown handling plus the static index.html clip-sidebar
+// and modal controls this module owns. Called once from boot.js at first paint (see
+// initHotwordListeners in hotwords.js for the reference pattern) so importing this
+// module has no DOM side effect.
+function initClipsListeners() {
+  document.getElementById('detail').addEventListener('click', _handleDetailClick);
+  document.getElementById('detail').addEventListener('keydown', _handleDetailKeydown);
 
-const _similarClipsModal = document.getElementById('similar-clips-modal');
-_similarClipsModal.addEventListener('click', e => { if (e.target === _similarClipsModal) closeSimilarClipsModal(); });
-document.getElementById('similar-clips-cancel-btn').addEventListener('click', () => closeSimilarClipsModal());
-document.getElementById('btn-find-similar-go').addEventListener('click', () => startFindSimilar());
+  document.getElementById('clips-sidebar-group').addEventListener('click', _handleClipSidebarClick);
+  document.getElementById('clip-search-input').addEventListener('input', e => setClipSearch(e.target.value));
+  document.getElementById('clip-score-min').addEventListener('change', e => setClipScoreMin(e.target.value));
 
-const _scoreOverrideModal = document.getElementById('score-override-modal');
-_scoreOverrideModal.addEventListener('click', e => { if (e.target === _scoreOverrideModal) closeScoreOverrideModal(); });
-document.getElementById('score-override-cancel-btn').addEventListener('click', () => closeScoreOverrideModal());
-document.getElementById('score-override-save-btn').addEventListener('click', () => _scoreOverrideSave());
+  const similarClipsModal = document.getElementById('similar-clips-modal');
+  similarClipsModal.addEventListener('click', e => { if (e.target === similarClipsModal) closeSimilarClipsModal(); });
+  document.getElementById('similar-clips-cancel-btn').addEventListener('click', () => closeSimilarClipsModal());
+  document.getElementById('btn-find-similar-go').addEventListener('click', () => startFindSimilar());
+
+  const scoreOverrideModal = document.getElementById('score-override-modal');
+  scoreOverrideModal.addEventListener('click', e => { if (e.target === scoreOverrideModal) closeScoreOverrideModal(); });
+  document.getElementById('score-override-cancel-btn').addEventListener('click', () => closeScoreOverrideModal());
+  document.getElementById('score-override-save-btn').addEventListener('click', () => _scoreOverrideSave());
+}
 
 // Public API - symbols with a classic (bundle.js) consumer, a still-classic
 // module reading this module's exports as window.* (shortcuts.js, jobs.js,
@@ -1579,6 +1602,7 @@ document.getElementById('score-override-save-btn').addEventListener('click', () 
 // wiring above) or its own internal logic, so nothing outside the module needs
 // them off window anymore.
 export {
+  initClipsListeners,
   selectClip, setStatus, undoLastStatus, renderDetail, renderPlayer, clearDetail, refreshClipDetail,
   _releasePlayerBeforeDelete,
   analyzeFrames,

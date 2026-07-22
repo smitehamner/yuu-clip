@@ -13,6 +13,7 @@ import {
   selectClip, renderDetail, clearDetail, _releasePlayerBeforeDelete,
   _applyFilters, _renderClips, _reloadClipList,
 } from './clips.js';
+import { SoundFx } from '../library/sounds.js';
 
 // ── multi-select ─────────────────────────────────────────────────────────────
 // Drops selected IDs for clips that no longer exist (e.g. after a delete).
@@ -179,7 +180,7 @@ function _doBulkExportClips(ids) {
       await _reloadClipList(AppState.activeVideoId);
       loadVideos();
       showToast(`Exported ${plural(ids.length, 'clip')}`);
-      window.SoundFx.play('export');
+      SoundFx.play('export');
     },
     [{label: 'Export', patterns: ['Exporting', 'OK', 'Skipping']}],
     'Bulk Exporting',
@@ -201,4 +202,9 @@ function _handleBulkToolbarClick(e) {
     case 'bulk-clear-selection': _clearClipSelection(); break;
   }
 }
-document.getElementById('clip-bulk-toolbar').addEventListener('click', _handleBulkToolbarClick);
+
+// Called once from boot.js at first paint (see initHotwordListeners in hotwords.js
+// for the reference pattern) so importing this module has no DOM side effect.
+export function initClipBulkListeners() {
+  document.getElementById('clip-bulk-toolbar').addEventListener('click', _handleBulkToolbarClick);
+}
