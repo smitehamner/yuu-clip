@@ -49,7 +49,7 @@ import {
 import { regenSummaryAuto } from './videos/videos-summary.js';
 import { toggleGroupSelect } from './videos/sessions.js';
 import {
-  selectClip, renderDetail, renderPlayer, refreshClipDetail,
+  renderDetail, renderPlayer, refreshClipDetail,
   analyzeFrames,
   toggleClipFilter,
   _applyFilters, _renderClips, _reloadClipList,
@@ -70,7 +70,7 @@ import {
 } from './analyze/reel.js';
 import {
   _deriveContextId,
-  openRetranscribeModal, closeRetranscribeModal, startRetranscribe,
+  closeRetranscribeModal,
 } from './library/contexts.js';
 import {
   openSettings,
@@ -300,11 +300,23 @@ window.toggleGroupSelect = toggleGroupSelect;
 // real poke. openScoreOverride dropped in the same pass: test_ui_clips.py now
 // clicks the detail view's own "Override Score" button
 // (`[data-act='open-score-override']`), rendered for any already-scored clip.
+// selectClip dropped 2026-07-23: test_ui_clips2.py's one poke
+// (TestGlobalKeyboardGuard) was redundant with the real click
+// select_first_video_and_clip already made - swapped to re-clicking the same
+// first row instead of calling the function directly. toggleClipFilter/
+// _applyFilters stay: one poke each activates a filter chip that's inside the
+// (initially collapsed) "More filters" expander - unclickable while hidden, so
+// there's no real trigger for "arrive with that filter already active" - and
+// the other computes an expected value for comparison, not a trigger.
+// openClipActionsModal stays: two of its three pokes in test_ui_clips2.py
+// (TestClipActionsModalGroups's merge tests) build a fabricated
+// AppState.clips pair with specific ids never actually selected/rendered in
+// the real DOM, so there's no real click path to open the modal for them -
+// the other poke there and test_ui_clips.py's own were real-click-swapped.
 // renderDetail/AppState stay - see the per-file notes on the 6 test files that
 // still poke them with synthetic clip data (test_ui_clips.py, test_ui_clips2.py,
 // test_ui_hotwords.py, test_ui_sensitive.py, test_ui_transcript.py,
 // test_ui_vision.py).
-window.selectClip = selectClip;
 window.renderDetail = renderDetail;
 window.renderPlayer = renderPlayer;
 window.refreshClipDetail = refreshClipDetail;
@@ -436,14 +448,15 @@ window.openHighlightReelsModal = openHighlightReelsModal;
 // #btn-world-contexts/#context-close-btn/#context-cancel-btn/#context-new-btn/
 // #btn-duplicate-context/#ce-add-character-btn/#ce-cancel-character-btn and a
 // real 'input' event on #ce-char-boost, same as a user would, so no
-// page.evaluate poke needs any of them off window anymore. openRetranscribeModal
-// is invoked directly by tests/ui/test_ui_clips2.py (its clips.js read now
-// imports it directly); closeRetranscribeModal is a genuine bare-global
-// consumer of its own shim: this module's own dynamically-built onclick string
-// (the _diarizationNoteHtml "Settings" link) is set as innerHTML and evaluated
-// in global scope when clicked (shortcuts.js's own read is already a direct
-// import); startRetranscribe is invoked directly by
-// tests/ui/test_ui_clips2.py. _loadContexts, _termContextOptions,
+// page.evaluate poke needs any of them off window anymore.
+// openRetranscribeModal/startRetranscribe dropped 2026-07-23:
+// test_ui_clips2.py now drives the real flow - the clip's Additional Actions
+// "Retranscribe" row opens the modal, and its own #retranscribe-start-btn
+// calls startRetranscribe(). closeRetranscribeModal stays: a genuine
+// bare-global consumer of its own shim (this module's own dynamically-built
+// onclick string - the _diarizationNoteHtml "Settings" link - is set as
+// innerHTML and evaluated in global scope when clicked; shortcuts.js's own
+// read is already a direct import). _loadContexts, _termContextOptions,
 // _renderTermGroups and closeAutoApproveModal dropped: boot.js
 // (_loadContexts), hotwords.js/sensitive.js (_termContextOptions/
 // _renderTermGroups) and shortcuts.js (closeAutoApproveModal) already import
@@ -459,9 +472,7 @@ window.openHighlightReelsModal = openHighlightReelsModal;
 // handlers or its own internal logic, so nothing outside the module needs
 // them off window anymore.
 window._deriveContextId = _deriveContextId;
-window.openRetranscribeModal = openRetranscribeModal;
 window.closeRetranscribeModal = closeRetranscribeModal;
-window.startRetranscribe = startRetranscribe;
 // settings.js - openSettings is read as a bare global from dynamically-built
 // onclick strings owned by other modules (analyze.js/clipexport.js/contexts.js's
 // _diarizationNoteHtml links, modelcatalog.js's "Open Settings" link).

@@ -266,8 +266,12 @@ class TestRetranscribeRefresh:
             ),
         )
 
-        page.evaluate("(id) => openRetranscribeModal(id)", clip_id)
-        page.evaluate("() => startRetranscribe()")
+        # Real clicks: the clip's Additional Actions "Retranscribe" row opens the
+        # modal, and its own #retranscribe-start-btn calls startRetranscribe().
+        page.click(".clip-actions button:has-text('Additional Actions')")
+        page.click("#actions-modal-body button:has-text('Retranscribe')")
+        page.wait_for_selector("#retranscribe-modal.visible", timeout=2000)
+        page.click("#retranscribe-start-btn")
 
         expect(page.locator("#detail")).to_contain_text("freshly retranscribed text", timeout=5000)
 
@@ -344,7 +348,9 @@ class TestGlobalKeyboardGuard:
         page.wait_for_selector(".clip-actions", timeout=5000)
         if page.evaluate("() => AppState.clips.length") < 2:
             pytest.skip("needs at least 2 clips to observe arrow-key navigation")
-        page.evaluate("() => selectClip(AppState.clips[0].id)")
+        # Real click on the first row (rather than calling selectClip directly)
+        # to make sure it - not just clips[0] in state - is the active clip.
+        page.locator("#clip-list li[data-clip-id]").first.click()
         page.locator("#clip-list li[data-clip-id]").first.focus()
         page.keyboard.press("ArrowDown")
         page.wait_for_function("""() => {
@@ -520,12 +526,9 @@ class TestClipActionsModalGroups:
     def test_groups_are_scoring_transcript_discover(self, page: Page):
         select_first_video_and_clip(page)
         page.wait_for_selector("#clip-tag-input", timeout=3000)
-        page.evaluate(
-            """() => {
-                AppState.activeClipData.description = 'a described clip';
-                openClipActionsModal(AppState.activeClipData.id);
-            }"""
-        )
+        page.evaluate("() => { AppState.activeClipData.description = 'a described clip'; }")
+        # Real click: the clip's own Additional Actions button.
+        page.click(".clip-actions button:has-text('Additional Actions')")
         page.wait_for_selector("#actions-modal.visible", timeout=2000)
         # text_content, not inner_text - .section-title is CSS-uppercased
         headings = page.locator("#actions-modal-body .section-title").all_text_contents()
@@ -861,9 +864,10 @@ class TestClipShowInFolder:
             """() => {
                 AppState.canReveal = false;
                 AppState.activeClipData.has_export = true;
-                openClipActionsModal(AppState.activeClipData.id);
             }"""
         )
+        # Real click: the clip's own Additional Actions button.
+        page.click(".clip-actions button:has-text('Additional Actions')")
         page.wait_for_selector("#actions-modal.visible", timeout=2000)
         expect(page.locator("#actions-modal-body .action-row:has-text('Show in Folder')")).to_have_count(0)
 
