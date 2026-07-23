@@ -285,7 +285,9 @@ class TestScoreOverrideModal:
     def _open_score_override(self, page: Page) -> None:
         clip_id = page.evaluate("() => AppState.clips?.[0]?.id")
         assert clip_id is not None, "No clips loaded on the live server"
-        page.evaluate(f"() => openScoreOverride({clip_id})")
+        # Real click: the detail view's own "Override Score" button (rendered
+        # for any already-scored clip) delegates to openScoreOverride(clipId).
+        page.click("[data-act='open-score-override']")
         page.wait_for_selector("#score-override-modal.visible", timeout=2000)
 
     def test_opens_score_override_modal(self, page: Page):
@@ -411,10 +413,12 @@ class TestTightCapWarning:
         page.wait_for_selector("#detail .clip-badge", timeout=3000)
         page.click(".op-actions [data-act='export-clip']")
         page.wait_for_selector("#export-settings-modal.visible", timeout=3000)
-        page.evaluate(
-            "([clip, preset]) => { AppState.activeClipData = clip; _updateExportTightCapWarning(preset); }",
-            [clip, preset],
-        )
+        # The fixture project has no real long scene, so activeClipData is still
+        # hand-built - but the actual trigger under test is real: selecting the
+        # preset fires #export-preset's own change listener
+        # (_onExportPresetChange -> _updateExportTightCapWarning for real).
+        page.evaluate("(clip) => { AppState.activeClipData = clip; }", clip)
+        page.select_option("#export-preset", preset)
 
     def test_warns_for_long_scene_under_tight_cap(self, page: Page):
         self._open_and_set_clip(
@@ -460,22 +464,22 @@ class TestVerticalFramingControl:
 
     def test_framing_shown_for_vertical_preset(self, page: Page):
         self._open_export_modal(page)
+        # #export-preset's own change listener calls _onExportPresetChange for real.
         page.select_option("#export-preset", "tiktok-9x16")
-        page.evaluate("() => _onExportPresetChange('tiktok-9x16')")
         expect(page.locator("#export-framing")).to_be_visible()
         page.evaluate("closeExportModal()")
 
     def test_framing_hidden_again_for_non_vertical_preset(self, page: Page):
         self._open_export_modal(page)
-        page.evaluate("() => _onExportPresetChange('tiktok-9x16')")
+        page.select_option("#export-preset", "tiktok-9x16")
         expect(page.locator("#export-framing")).to_be_visible()
-        page.evaluate("() => _onExportPresetChange('')")
+        page.select_option("#export-preset", "")
         expect(page.locator("#export-framing")).to_be_hidden()
         page.evaluate("closeExportModal()")
 
     def test_position_buttons_move_the_crop_box(self, page: Page):
         self._open_export_modal(page)
-        page.evaluate("() => _onExportPresetChange('tiktok-9x16')")
+        page.select_option("#export-preset", "tiktok-9x16")
         page.click("#export-framing [data-frame-pos='1']")
         assert page.eval_on_selector("#export-framing-box", "el => el.style.left") == "68.36%"
         assert page.eval_on_selector(
@@ -497,7 +501,7 @@ class TestAutoFrameButton:
         page.wait_for_selector("#detail .clip-badge", timeout=3000)
         page.click(".op-actions [data-act='export-clip']")
         page.wait_for_selector("#export-settings-modal.visible", timeout=3000)
-        page.evaluate("() => _onExportPresetChange('tiktok-9x16')")
+        page.select_option("#export-preset", "tiktok-9x16")
 
     def _mock_suggest(self, page: Page, status: int, body: dict):
         page.route(
@@ -522,7 +526,8 @@ class TestAutoFrameButton:
 
     def test_no_face_leaves_position_and_notes(self, page: Page):
         self._open_vertical(page)
-        page.evaluate("() => _setExportFraming(0.5)")
+        # Real click: the "Center" position button (data-frame-pos="0.5").
+        page.click("#export-framing [data-frame-pos='0.5']")
         self._mock_suggest(page, 200, {"crop_x": None})
         page.click("#export-autoframe-btn")
         expect(page.locator("#export-autoframe-note")).to_contain_text("No face found")
@@ -576,20 +581,21 @@ class TestExportModeSummary:
 
     def test_batch_export_has_same_summary(self, page: Page):
         select_video_with_clips(page)
-        page.evaluate("() => openBatchExportModal(AppState.activeVideoId)")
+        # Real click: the recording detail's own "Export Approved" button.
+        page.click("[data-act='open-batch-export']")
         page.wait_for_selector("#batch-export-modal.visible", timeout=3000)
         summary = page.locator("#batch-mode-summary")
         expect(summary).to_contain_text("Quick export")
         page.select_option("#batch-captions", "hardsub")
         expect(summary).to_contain_text("Precise export")
-        page.evaluate("closeBatchExportModal()")
+        page.click("#batch-cancel-btn")
 
     def test_batch_export_captions_default_to_softsub(self, page: Page):
         select_video_with_clips(page)
-        page.evaluate("() => openBatchExportModal(AppState.activeVideoId)")
+        page.click("[data-act='open-batch-export']")
         page.wait_for_selector("#batch-export-modal.visible", timeout=3000)
         assert page.locator("#batch-captions").input_value() == "softsub"
-        page.evaluate("closeBatchExportModal()")
+        page.click("#batch-cancel-btn")
 
 
 # ---------------------------------------------------------------------------
@@ -640,22 +646,22 @@ class TestExportRetranscribeSmartDefault:
     def test_batch_export_checked_when_stale(self, page: Page):
         select_video_with_clips(page)
         self._mock_status(page, needs_retranscribe=True, model="medium")
-        page.evaluate("() => openBatchExportModal(AppState.activeVideoId)")
+        page.click("[data-act='open-batch-export']")
         page.wait_for_selector("#batch-export-modal.visible", timeout=3000)
         expect(page.locator("#batch-retranscribe")).to_be_checked()
         assert page.locator("#batch-retranscribe-model").input_value() == "medium"
         expect(page.locator("#batch-retranscribe-model")).to_be_enabled()
-        page.evaluate("closeBatchExportModal()")
+        page.click("#batch-cancel-btn")
 
     def test_batch_export_unchecked_when_already_matching(self, page: Page):
         select_video_with_clips(page)
         self._mock_status(page, needs_retranscribe=False, model="large-v3")
-        page.evaluate("() => openBatchExportModal(AppState.activeVideoId)")
+        page.click("[data-act='open-batch-export']")
         page.wait_for_selector("#batch-export-modal.visible", timeout=3000)
         expect(page.locator("#batch-retranscribe")).not_to_be_checked()
         assert page.locator("#batch-retranscribe-model").input_value() == "large-v3"
         expect(page.locator("#batch-retranscribe-model")).to_be_disabled()
-        page.evaluate("closeBatchExportModal()")
+        page.click("#batch-cancel-btn")
 
 
 # ---------------------------------------------------------------------------

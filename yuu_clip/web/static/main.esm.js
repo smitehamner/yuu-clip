@@ -49,18 +49,16 @@ import {
 import { regenSummaryAuto } from './videos/videos-summary.js';
 import { toggleGroupSelect } from './videos/sessions.js';
 import {
-  selectClip, setStatus, renderDetail, renderPlayer, refreshClipDetail,
+  selectClip, renderDetail, renderPlayer, refreshClipDetail,
   analyzeFrames,
   toggleClipFilter,
   _applyFilters, _renderClips, _reloadClipList,
   _renderClipFilterCounts,
-  openScoreOverride,
   openClipActionsModal,
 } from './clips/clips.js';
 import { undoLastBulkStatus } from './clips/clipbulk.js';
 import {
   closeExportModal,
-  _onExportPresetChange, _updateExportTightCapWarning, _setExportFraming,
 } from './clips/clipexport.js';
 import { openClipCreatePicker } from './clips/clipcreate.js';
 import {
@@ -68,7 +66,7 @@ import {
   startAnalyze,
 } from './analyze/analyze.js';
 import {
-  openHighlightReelsModal, openBatchExportModal, closeBatchExportModal,
+  openHighlightReelsModal,
 } from './analyze/reel.js';
 import {
   _deriveContextId,
@@ -297,8 +295,16 @@ window.toggleGroupSelect = toggleGroupSelect;
 // clicks the real `button[data-filter='approved']` chip (always present in
 // the sidebar, no video selection needed), which reaches the real
 // toggleClipFilter -> _syncFilterChips path - no other reader anywhere.
+// setStatus dropped 2026-07-23: shortcuts.js already imports it directly, and
+// its only "reader" in test_ui_clips.py was a prose comment naming it, not a
+// real poke. openScoreOverride dropped in the same pass: test_ui_clips.py now
+// clicks the detail view's own "Override Score" button
+// (`[data-act='open-score-override']`), rendered for any already-scored clip.
+// renderDetail/AppState stay - see the per-file notes on the 6 test files that
+// still poke them with synthetic clip data (test_ui_clips.py, test_ui_clips2.py,
+// test_ui_hotwords.py, test_ui_sensitive.py, test_ui_transcript.py,
+// test_ui_vision.py).
 window.selectClip = selectClip;
-window.setStatus = setStatus;
 window.renderDetail = renderDetail;
 window.renderPlayer = renderPlayer;
 window.refreshClipDetail = refreshClipDetail;
@@ -308,7 +314,6 @@ window._applyFilters = _applyFilters;
 window._renderClips = _renderClips;
 window._reloadClipList = _reloadClipList;
 window._renderClipFilterCounts = _renderClipFilterCounts;
-window.openScoreOverride = openScoreOverride;
 window.openClipActionsModal = openClipActionsModal;
 // clipbulk.js - undoLastBulkStatus is read as a bare global by clips.js's
 // undoLastStatus (not yet converted to a direct import - out of scope for
@@ -328,12 +333,15 @@ window.undoLastBulkStatus = undoLastBulkStatus;
 // tests/ui/test_ui_clips.py / test_ui_clips2.py / test_ui_smoke.py now click
 // the real Export button (.op-actions [data-act='export-clip']) and the real
 // #export-confirm-btn, same as a user would, instead of calling the export
-// flow's functions by name. _onExportPresetChange, _updateExportTightCapWarning
-// and _setExportFraming have no outside JS caller left (their only external
-// use was the now-removed index.html inline handlers) but
-// tests/ui/test_ui_clips.py and test_ui_clips2.py call all three directly via
-// page.evaluate. _renderExportModeSummary dropped from the window shim: reel.js (now ESM)
-// imports it directly instead of reading it as a bare global.
+// flow's functions by name. _onExportPresetChange/_updateExportTightCapWarning/
+// _setExportFraming dropped 2026-07-23: test_ui_clips.py now drives all three
+// through their real triggers - selecting `#export-preset` (whose own `change`
+// listener calls _onExportPresetChange, which itself calls
+// _updateExportTightCapWarning) and clicking the framing position buttons
+// (`#export-framing [data-frame-pos]`, including the exact 0-0.5-1 values
+// _setExportFraming needs) - no other reader anywhere. _renderExportModeSummary
+// dropped from the window shim: reel.js (now ESM) imports it directly instead
+// of reading it as a bare global.
 // _handleExportFormatAction, _downloadClipExport, _revealClipExport and
 // _copyClipExportPaths dropped: their only reader (clips.js) now imports all
 // four directly (the window-cycle-avoidance conversion). _onExportCaptionsChange,
@@ -343,9 +351,6 @@ window.undoLastBulkStatus = undoLastBulkStatus;
 // (now addEventListener inside clipexport.js itself) or its own internal logic,
 // so nothing outside the module needs them off window anymore.
 window.closeExportModal = closeExportModal;
-window._onExportPresetChange = _onExportPresetChange;
-window._updateExportTightCapWarning = _updateExportTightCapWarning;
-window._setExportFraming = _setExportFraming;
 // clipcreate.js - openClipCreatePicker is invoked directly by
 // tests/ui/test_ui_clipcreate.py via page.evaluate (its readers in clips.js and
 // videos.js now both import it directly, the window-cycle-avoidance conversion).
@@ -396,12 +401,16 @@ window.openReanalyzePanel = openReanalyzePanel;
 window.closeNewRecordingPanel = closeNewRecordingPanel;
 window.startAnalyze = startAnalyze;
 // reel.js - openHighlightReelsModal is invoked directly by
-// tests/ui/test_ui_reel.py and tests/ui/test_ui_sessions.py via page.evaluate;
-// openBatchExportModal is read as window.* by videos.js (already-ESM, out of
-// scope to touch here) and invoked directly by tests/ui/test_ui_clips.py;
-// closeBatchExportModal is invoked directly by tests/ui/test_ui_clips.py
-// (shortcuts.js's own read already imports it directly). closeReelPreview
-// dropped: shortcuts.js already imports it directly and no test pokes it.
+// tests/ui/test_ui_reel.py and tests/ui/test_ui_sessions.py via page.evaluate
+// (test_ui_sessions.py's own poke real-swapped onto #btn-highlight-reels
+// 2026-07-23, but test_ui_reel.py still needs it for a 'view'-mode open the
+// button can't reach). openBatchExportModal/closeBatchExportModal dropped
+// 2026-07-23: the claim that videos.js read the former off `window.*` was
+// stale - it already imports it directly - and test_ui_clips.py's pokes of
+// both real-swapped onto the recording detail's own "Export Approved" button
+// (`[data-act='open-batch-export']`) and the modal's `#batch-cancel-btn`.
+// closeReelPreview dropped: shortcuts.js already imports it directly and no
+// test pokes it.
 // closeHighlightReelsModal/switchReelTab/_reelMove/_reelToggle dropped
 // 2026-07-22: test_ui_reel.py's pokes were real-click-swapped onto the modal's
 // own close button (#reel-close-btn), its tab buttons
@@ -417,8 +426,6 @@ window.startAnalyze = startAnalyze;
 // them off window anymore. openReelForSession dropped: sessions.js now imports
 // it directly (videos/ bucket conversion).
 window.openHighlightReelsModal = openHighlightReelsModal;
-window.openBatchExportModal = openBatchExportModal;
-window.closeBatchExportModal = closeBatchExportModal;
 // contexts.js - _deriveContextId is invoked directly by
 // tests/ui/test_ui_contexts.py via page.evaluate to compute an expected value
 // for comparison (the ID-derivation behavior itself is already exercised
