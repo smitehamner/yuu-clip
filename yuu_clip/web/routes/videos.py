@@ -176,6 +176,11 @@ def _register_split_and_edit_routes(router: APIRouter, ctx: ProjectContext) -> N
             _validate_split_points(pts, duration_s)
 
             # Idempotent: re-splitting deletes and recreates existing segments.
+            # Re-parent any clips a prior split already migrated onto those segments
+            # (restoring absolute timing) before the delete cascades over them -
+            # _migrate_clips_to_segments below then re-assigns them from the parent
+            # onto whichever new segment they fall in.
+            _reparent_segment_clips_to_parent(db, video, ctx.export_dir, ctx.config.export_name_template)
             _delete_existing_segments(db, video_id)
             boundaries = [0.0] + pts + [duration_s]
             segment_ids = _create_segments(db, video, boundaries, body.segment_names)
@@ -214,22 +219,17 @@ def _register_split_and_edit_routes(router: APIRouter, ctx: ProjectContext) -> N
             if not video:
                 raise HTTPException(404, "Video not found")
             parent = db.get(Video, video.parent_video_id) if video.parent_video_id is not None else video
+            if not parent:
+                raise HTTPException(404, "Video not found")
             _reject_if_video_analyzing(ctx, parent, "merging its segments")
 
             segments = db.query(Video).filter_by(parent_video_id=parent.id).all()
             if not segments:
                 raise HTTPException(400, "This recording has no segments to merge")
 
-            merged_clips = 0
-            for seg in segments:
-                offset_ms = int((seg.segment_start_s or 0) * 1000)
-                clips = db.query(ClipCandidate).filter_by(video_id=seg.id).all()
-                for clip in clips:
-                    clip.video_id = parent.id
-                    _shift_clip_times(clip, parent, offset_ms, ctx.export_dir, ctx.config.export_name_template)
-                    merged_clips += 1
-            db.flush()  # persist the clip re-parenting before segment cascade-delete
-
+            merged_clips = _reparent_segment_clips_to_parent(
+                db, parent, ctx.export_dir, ctx.config.export_name_template,
+            )
             _delete_existing_segments(db, parent.id)
             db.commit()
             _log.info(
@@ -815,6 +815,27 @@ def _shift_clip_times(
             old_file.rename(new_file)
         except OSError as exc:
             _log.warning("Could not rename export file %s -> %s: %s", old_file, new_file, exc)
+
+
+def _reparent_segment_clips_to_parent(
+    db, parent: Video, export_dir: Path, name_template: str = DEFAULT_EXPORT_NAME_TEMPLATE,
+) -> int:
+    """Move every existing segment's clips back onto *parent*, restoring absolute timing.
+
+    Shared by unsplit (permanent) and re-split (transient - run right before
+    _delete_existing_segments so its ORM cascade never destroys clips a prior
+    split had migrated onto the segments being replaced).
+    """
+    reparented = 0
+    for seg in db.query(Video).filter_by(parent_video_id=parent.id).all():
+        offset_ms = int((seg.segment_start_s or 0) * 1000)
+        clips = db.query(ClipCandidate).filter_by(video_id=seg.id).all()
+        for clip in clips:
+            clip.video_id = parent.id
+            _shift_clip_times(clip, parent, offset_ms, export_dir, name_template)
+            reparented += 1
+    db.flush()
+    return reparented
 
 
 def _validate_split_points(pts: list[float], duration_s: float) -> None:

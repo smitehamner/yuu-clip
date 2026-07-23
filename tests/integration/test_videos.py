@@ -1673,9 +1673,9 @@ class TestUnsplitVideo:
 
 
 class TestSplitVideoOrphanCleanup:
-    """Re-splitting an analyzed segment must not orphan or FK-violate clips."""
+    """Re-splitting a recording must never destroy clips already migrated onto its segments."""
 
-    def test_resplit_after_clips_exist_on_segment(self, client, project_dir):
+    def test_resplit_reparents_previously_migrated_clips(self, client, project_dir):
         from yuu_clip.db.models import ClipCandidate, make_session
 
         vid_id = client.get("/api/videos").json()[0]["id"]
@@ -1684,32 +1684,82 @@ class TestSplitVideoOrphanCleanup:
             f"/api/videos/{vid_id}/split", json={"split_points": [120.0]}
         ).json()["segment_ids"]
 
-        # Simulate a clip having been generated for the first segment
+        # Simulate a clip already migrated onto the first segment (as an earlier
+        # split with migrate_clips=True would have done), including an approved
+        # status - re-splitting must not silently discard it.
         db = make_session(project_dir / ".yuu-clip" / "project.db")
         try:
-            db.add(ClipCandidate(
+            clip = ClipCandidate(
                 video_id=seg_ids[0],
                 start_ms=0, end_ms=30_000,
                 score_overall=0.5, score_funny=0.0,
                 score_dramatic=0.0, score_action=0.0,
-                status="pending",
-            ))
+                status="approved",
+            )
+            db.add(clip)
             db.commit()
+            clip_id = clip.id
         finally:
             db.close()
 
-        # Re-split - should not raise FK violation or leave orphan clips
+        # Re-split with new points and no migration this time - should not raise
+        # an FK violation, and the clip must survive by being re-parented onto the
+        # parent (restoring absolute timing) rather than deleted with its segment.
         r = client.post(
             f"/api/videos/{vid_id}/split", json={"split_points": [180.0, 360.0]}
         )
         assert r.status_code == 200
         assert len(r.json()["segment_ids"]) == 3
 
-        # The clip on the now-deleted segment must be gone
         db2 = make_session(project_dir / ".yuu-clip" / "project.db")
         try:
-            orphan = db2.query(ClipCandidate).filter_by(video_id=seg_ids[0]).first()
-            assert orphan is None
+            assert db2.query(ClipCandidate).filter_by(video_id=seg_ids[0]).first() is None
+            survivor = db2.get(ClipCandidate, clip_id)
+            assert survivor is not None
+            assert survivor.video_id == vid_id
+            assert (survivor.start_ms, survivor.end_ms) == (0, 30_000)
+            assert survivor.status == "approved"
+        finally:
+            db2.close()
+
+    def test_resplit_with_migrate_clips_reassigns_to_new_segment(self, client, project_dir):
+        from yuu_clip.db.models import ClipCandidate, make_session
+
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        seg_ids = client.post(
+            f"/api/videos/{vid_id}/split",
+            json={"split_points": [120.0], "migrate_clips": True},
+        ).json()["segment_ids"]
+
+        # Approve one of the auto-migrated clips so the re-split has to carry an
+        # approved clip through the reparent -> delete -> re-migrate round trip.
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            clip = db.query(ClipCandidate).filter_by(video_id=seg_ids[0]).first()
+            clip.status = "approved"
+            clip_id = clip.id
+            original_start_ms, original_end_ms = clip.start_ms, clip.end_ms
+            db.commit()
+        finally:
+            db.close()
+
+        r = client.post(
+            f"/api/videos/{vid_id}/split",
+            json={"split_points": [180.0, 360.0], "migrate_clips": True},
+        )
+        assert r.status_code == 200
+        new_seg_ids = r.json()["segment_ids"]
+
+        db2 = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            survivor = db2.get(ClipCandidate, clip_id)
+            assert survivor is not None
+            assert survivor.status == "approved"
+            # The clip's absolute start (unchanged by the round trip) still falls in
+            # the new segment 0 ([0-180s]), so it lands there with the same times
+            # (segment 0 still starts at 0s either way).
+            assert survivor.video_id == new_seg_ids[0]
+            assert (survivor.start_ms, survivor.end_ms) == (original_start_ms, original_end_ms)
         finally:
             db2.close()
 

@@ -138,6 +138,19 @@ function httpGet(url, timeoutMs) {
   });
 }
 
+function httpPost(url, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const req = http.request(url, { method: 'POST', timeout: timeoutMs }, res => {
+      let body = '';
+      res.on('data', d => (body += d));
+      res.on('end', () => resolve(body));
+    });
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
+    req.end();
+  });
+}
+
 function pollReady(port, attempts = 120, delayMs = 500) {
   const t0 = Date.now();
   return new Promise(async (resolve, reject) => {
@@ -1295,6 +1308,12 @@ async function handleClose() {
     if (response !== 1) {
       logSetup('Main window close cancelled by user (analysis in progress)');
       return;
+    }
+
+    try {
+      await httpPost(`http://127.0.0.1:${appPort}/api/analyze/cancel`, 5000);
+    } catch (err) {
+      logSetup(`Close-time analyze cancel failed (continuing to quit): ${err.message}`);
     }
   }
 
