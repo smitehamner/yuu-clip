@@ -250,13 +250,54 @@ except the two items below).
     `openGlossaryModal` restoration).
   - **Next buckets by holder count** (regenerate before trusting - numbers shift):
     `test_ui_clips.py` (10) and `test_ui_clips2.py` (~8-9) remain flagged - the `renderDetail`
-    cross-file project, do not start without asking. `test_ui_page.py`/`test_ui_panelnav.py`
-    (5 each) not yet inspected. `test_ui_hotwords.py`/`test_ui_sessions.py`/`test_ui_video.py`
-    (4 each, though `test_ui_video.py` was already triaged down from 9 to 4 in the prior
-    session - the remaining 4 are `renderVideoDetail`/`_renderVideoList`/`openVideoActionsModal`/
-    `regenSummaryAuto`, several already documented LEAVE IT). `test_ui_modeldownload.py` (4,
-    partially informed by this session - `initModelDownload`/`_resetModelDownloads` are real
-    pokes there, not yet fully triaged for a swap).
+    cross-file project, do not start without asking. `test_ui_hotwords.py`/`test_ui_sessions.py`/
+    `test_ui_video.py` (4 each, though `test_ui_video.py` was already triaged down from 9 to 4 in
+    the prior session - the remaining 4 are `renderVideoDetail`/`_renderVideoList`/
+    `openVideoActionsModal`/`regenSummaryAuto`, several already documented LEAVE IT).
+    `test_ui_modeldownload.py` (4, partially informed by a prior session -
+    `initModelDownload`/`_resetModelDownloads` are real pokes there, not yet fully triaged for
+    a swap).
+
+  **2026-07-23 Phase 2 continuation session (test_ui_page.py + test_ui_panelnav.py buckets),
+  77 -> 74, 1 gated commit:** re-ran the inventory fresh first (confirmed 77).
+  `test_ui_page.py`'s 5 holders: `openAboutModal`/`closeAboutModal` real-swapped to the real
+  `#btn-hamburger` -> `#hamburger-item-about` open path and a real `#about-modal-close-btn`
+  click - no other reader anywhere. `_syncFilterChips` (a regression guard for a chip-selector
+  scope bug) real-swapped to a click on `button[data-filter='approved']` - that chip is always
+  present in the sidebar regardless of whether a video is selected, and its own click handler
+  (`toggleClipFilter` in `clips.js`) already calls `_syncFilterChips()` for real, so the test's
+  synthetic `AppState.clipFilters = new Set(...)` + direct function poke was unnecessary.
+  `openDiffModal` stays LEAVE IT: its 3 real production callers (revert-description,
+  re-scored-descriptions review, generated-summary review) each need either a live LLM call or
+  specific historical DB state to reach, while the Python test is deliberately testing the diff
+  modal's OWN generic dirty-check/discard/Escape behavior via a hand-built fields array and
+  capture callback - decoupled from any one caller on purpose, so there is no real trigger to
+  swap onto without conflating what's under test. `AppState` stays LEAVE IT: its two synthetic
+  writes here (`AppState.analyzeFilename = 'busy.mkv'`/`null` in `TestJobGuardWhileAnalyzing`)
+  simulate an in-progress analyze job without actually running one, and it is also shared
+  broadly (16 files) regardless. `test_ui_panelnav.py`'s 5 holders were **all triaged as
+  genuine, zero changes** - the file was already well-documented inline: `_confirmCancel` +
+  `closeSplitEditor` are a deliberate dirty-guard bypass for reliable fixture teardown
+  regardless of test outcome (shared with `test_ui_split.py`); `openControlsModal` and
+  `openSplitEditor` each have an explicit code comment explaining why the real click path is
+  unreachable (`#panelnav-root` is `position:absolute;inset:0` with no positioned ancestor
+  bounding it, so an open panel covers the *entire* viewport including the header/hamburger,
+  confirmed by reading `index.src.html` before trusting the existing comment); `AppState` here
+  is a read of real state set by a real prior click (`select_first_video_and_clip`), not a
+  synthetic seed, but the name stays for the same broad-sharing reason as above. This is the
+  second bucket this plan has found fully genuine after `test_ui_keyboard.py` - not a
+  diminishing-returns signal on its own since `test_ui_page.py` in the same session still found
+  2 real swaps.
+  - Gate: bundle, test-js 359 (unchanged, no JS test touched), test-unit 1069, test-api 2992,
+    targeted `test_ui_page.py` + `test_ui_panelnav.py` + `test_ui_keyboard.py` + `test_ui_split.py`
+    (64 passed, checked the latter two since they share `openGlossaryModal`/`openControlsModal`/
+    `openSplitEditor`/`closeSplitEditor`/`_confirmCancel`), full test-ui 641 (unchanged count -
+    trigger swapped, no tests added/removed), lint clean.
+  - Shim: 77 -> 74 (74 confirmed by regenerating the inventory fresh).
+  - **Next buckets by holder count** (regenerate before trusting): `test_ui_clips.py`/
+    `test_ui_clips2.py` still flagged, do not start without asking. `test_ui_hotwords.py`/
+    `test_ui_sessions.py`/`test_ui_video.py` (4 each) and `test_ui_modeldownload.py` (4) are the
+    next uninspected/partially-inspected targets.
 
 - [ ] **In-process LLM/scoring jobs lack progress + a Cancel** - found in the v0.1.27
   manual checks: "Generate timeline" and "Suggest names" show no progress and offer no way

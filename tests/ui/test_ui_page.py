@@ -59,10 +59,11 @@ class TestPageLoad:
         page.goto(LIVE_URL)
         # Wait for the /api/status fetch that populates both version displays
         expect(page.locator("#version-tag")).to_have_text(re.compile(r"^v\d"))
-        page.evaluate("openAboutModal()")
+        page.click("#btn-hamburger")
+        page.click("#hamburger-item-about")
         page.wait_for_selector("#about-modal.visible")
         expect(page.locator("#about-version")).to_have_text(re.compile(r"^Version v\d"))
-        page.evaluate("closeAboutModal()")
+        page.click("#about-modal-close-btn")
 
 
 @skip_no_server
@@ -201,10 +202,11 @@ class TestVideoSidebarControls:
     def test_clip_chip_sync_leaves_video_chips_alone(self, page: Page):
         # Regression: _syncFilterChips (clips) used to match every .clip-chip,
         # stripping the active state off the videos "All" chip on video select.
+        # A real click on a clip filter chip (always present in the sidebar,
+        # independent of any selected video) reaches the same real
+        # toggleClipFilter -> _syncFilterChips path.
         page.goto(LIVE_URL)
-        page.evaluate(
-            "() => { AppState.clipFilters = new Set(['approved']); _syncFilterChips(); }"
-        )
+        page.click("button[data-filter='approved']")
         expect(page.locator("button[data-vfilter='all']")).to_have_attribute(
             "aria-pressed", "true"
         )

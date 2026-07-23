@@ -28,7 +28,6 @@ import {
   showKebab, _applyPrereqWarnings, showUndoToast,
 } from './core/ui.js';
 import {
-  openAboutModal, closeAboutModal,
   openHelpModal, closeHelpModal,
   openGlossaryModal,
 } from './core/helpmodals.js';
@@ -53,7 +52,7 @@ import { toggleGroupSelect } from './videos/sessions.js';
 import {
   selectClip, setStatus, renderDetail, renderPlayer, refreshClipDetail,
   analyzeFrames,
-  toggleClipFilter, _syncFilterChips,
+  toggleClipFilter,
   _applyFilters, _renderClips, _reloadClipList,
   _renderClipFilterCounts,
   openScoreOverride,
@@ -173,9 +172,9 @@ window.openDiffModal = openDiffModal;
 window.showKebab = showKebab;
 window._applyPrereqWarnings = _applyPrereqWarnings;
 window.showUndoToast = showUndoToast;
-// helpmodals.js - openAboutModal/closeAboutModal/openHelpModal/closeHelpModal
-// are invoked directly by tests/ui/*.py via page.evaluate. _filterGlossary
-// dropped: settings.js (its only reader) already imports it directly.
+// helpmodals.js - openHelpModal/closeHelpModal are invoked directly by
+// tests/ui/*.py via page.evaluate. _filterGlossary dropped: settings.js (its
+// only reader) already imports it directly.
 // openGettingStartedModal/closeGettingStartedModal dropped 2026-07-22:
 // test_ui_whisper_prefetch.py::TestGettingStartedModal now drives the real
 // first-run flow (a fresh, un-seeded browser context so boot.js's own
@@ -188,8 +187,9 @@ window.showUndoToast = showUndoToast;
 // directly to stack the glossary modal on top of an already-open Settings
 // panel / controls modal for Escape-layering tests - the real hamburger
 // button is unreachable there by design (same class as toggleHamburger).
-window.openAboutModal = openAboutModal;
-window.closeAboutModal = closeAboutModal;
+// openAboutModal/closeAboutModal dropped 2026-07-22: test_ui_page.py now opens
+// it via the real #btn-hamburger -> #hamburger-item-about path and closes it
+// via the real #about-modal-close-btn - no other reader anywhere in tests/.
 window.openHelpModal = openHelpModal;
 window.closeHelpModal = closeHelpModal;
 window.openGlossaryModal = openGlossaryModal;
@@ -295,6 +295,10 @@ window.toggleGroupSelect = toggleGroupSelect;
 // earlier: their only callers were clips.js's own inline handlers (now
 // data-act delegation or static index.html wiring inside clips.js itself) or
 // its own internal logic, so nothing outside the module needs them off window.
+// _syncFilterChips dropped 2026-07-22: test_ui_page.py's regression test now
+// clicks the real `button[data-filter='approved']` chip (always present in
+// the sidebar, no video selection needed), which reaches the real
+// toggleClipFilter -> _syncFilterChips path - no other reader anywhere.
 window.selectClip = selectClip;
 window.setStatus = setStatus;
 window.renderDetail = renderDetail;
@@ -302,7 +306,6 @@ window.renderPlayer = renderPlayer;
 window.refreshClipDetail = refreshClipDetail;
 window.analyzeFrames = analyzeFrames;
 window.toggleClipFilter = toggleClipFilter;
-window._syncFilterChips = _syncFilterChips;
 window._applyFilters = _applyFilters;
 window._renderClips = _renderClips;
 window._reloadClipList = _reloadClipList;
