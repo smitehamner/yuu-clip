@@ -550,6 +550,12 @@ async function _doStartAnalyze() {
     _panelDirty = false;
     _doCloseNewRecordingPanel();
     openLog();
+    // Held for the whole chain (cleared when the last segment finishes, in
+    // _analyzeSegmentsSequentially's terminal branch) so _blockedByAnalyze
+    // protects every segment's run, not just the one currently streaming -
+    // otherwise a competing action supersedes the per-segment stream mid-chain
+    // and the remaining segments silently never start (bug-hunt 2.4).
+    AppState.analyzeFilename = path.split(/[\\/]/).pop();
     _analyzeSegmentsSequentially(
       path, model, profile, energyMode, sceneMode, contextNames, subtitleSource, diarize, segments, 0,
     );
@@ -640,6 +646,7 @@ async function _analyzeSegmentsSequentially(
   path, model, profile, energyMode, sceneMode, contextNames, subtitleSource, diarize, segments, index,
 ) {
   if (index >= segments.length) {
+    AppState.analyzeFilename = null;
     loadVideos().then(() =>
       showToast(`Analysis complete - ${plural(segments.length, 'segment')}`)
     );
@@ -1334,6 +1341,6 @@ export {
   _doCloseNewRecordingPanel,
   _renderSubtitleSourcePicker,
   renderEstimate, startAnalyze, reattachAnalysis,
-  _showAnalysisToast, _warmPreviewProxy,
+  _showAnalysisToast, _warmPreviewProxy, _analyzeSegmentsSequentially,
   closeProfileManager,
 };

@@ -770,11 +770,19 @@ async function _doSplitAndReanalyze(keepExported) {
 
   closeSplitEditor();
   openLog();
+  // Held for the whole chain (cleared when the last segment finishes, in
+  // _reanalyzeSegmentsSequentially's terminal branch) so _blockedByAnalyze
+  // protects every segment's run, not just the one currently streaming - a
+  // segment shares its parent's filename (see _create_segments), so this also
+  // matches the sidebar/detail "Analyzing..." lookups that key off it
+  // (bug-hunt 2.4).
+  AppState.analyzeFilename = parentVideo.filename;
   _reanalyzeSegmentsSequentially(activeIds, 0, reanalyzeParams);
 }
 
-async function _reanalyzeSegmentsSequentially(segmentIds, index, params) {
+export async function _reanalyzeSegmentsSequentially(segmentIds, index, params) {
   if (index >= segmentIds.length) {
+    AppState.analyzeFilename = null;
     loadVideos().then(() =>
       showToast(`Reanalysis complete - ${plural(segmentIds.length, 'segment')}`)
     );
