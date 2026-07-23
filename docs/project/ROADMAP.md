@@ -91,17 +91,39 @@ except the two items below).
   8 more dead lines dropped (comment-only or already-fully-migrated survivors), one full
   Playwright-to-vitest port (`openNameCorrections` -> `tests/js/people/namecorrections.test.js`,
   the template for any pure-DOM-render panel), and one poke-to-real-click swap
-  (`closeOpenProjectModal` -> a click on the modal's own Cancel button). Shim now **109
+  (`closeOpenProjectModal` -> a click on the modal's own Cancel button). Shim now **98
   lines** (was 118). Key finding for whoever resumes: a large fraction of the remaining
-  ~90 names are NOT good vitest candidates - several files sampled this session
+  names are NOT good vitest candidates - several files sampled this session
   (`test_ui_exporteditor.py`, `test_ui_hotwords.py`, `test_ui_sensitive.py`,
   `test_ui_help.py`) are genuinely Playwright-appropriate throughout (real server/DB CRUD,
   mouse-drag + geometry, external-request blocking, focus/keyboard/escape), so budget this
   as "triage each name, port the pure-DOM ones, click-swap the modal-close ones, leave the
   rest documented as genuine" rather than "convert 90 names to vitest tests" - expect
-  well under half to actually be portable. **Regenerate the inventory with the
-  corrected 2026-07-22 script before resuming - don't reuse any prior N/dead/genuine
-  counts, all of them were wrong at least once.**
+  well under half to actually be portable.
+
+  **2026-07-22 Phase 2 continuation session landed 2 more gated commits, 109 -> 98:** the
+  contexts.js bucket (`test_ui_contexts.py`) was fully triaged - 8 poke-to-real-click swaps
+  (`openContextManager`/`closeContextManager`/`openNewContext`/`cancelContextEdit`/
+  `duplicateContext`/`openCharacterForm`/`cancelCharacterEdit`/`_updateCharBoostLabel`, all
+  onto real buttons/inputs that already existed), `_deriveContextId` left as a genuine poke
+  (used only to compute an expected value for comparison; its actual derivation behavior is
+  already covered by real `page.fill()` typing in the same file). A cross-file `exportClip`/
+  `confirmExport` sweep (`test_ui_clips.py`/`test_ui_clips2.py`/`test_ui_smoke.py`, 10 call
+  sites) swapped onto the real Export button and `#export-confirm-btn`. One more genuinely
+  dead line found (`revealInFolder` - its only "reader" left was a comment in
+  `test_ui_clips2.py` naming it in prose, not a real poke). A `toggleHamburger` swap landed
+  2 of 3 sites (`test_ui_clips2.py`) but was reverted for the third
+  (`test_ui_keyboard.py::test_hamburger_menu_peels_before_modal`) after a real run showed
+  the real button is covered by a modal overlay there by design - same lesson as the
+  `toggleGroupSelect` revert in the prior session: verify swaps with an actual run, and
+  revert on any real failure rather than fighting the timing. **Regenerate the inventory
+  with the corrected 2026-07-22 script before resuming - don't reuse any prior N/dead/
+  genuine counts, several were wrong at least once.** Next buckets by holder count (as of
+  this session's end): `test_ui_clips.py` (10, mostly `renderDetail`/synthetic-clip pokes -
+  likely LEAVE IT, used identically across 6 files), `test_ui_clips2.py` (9, same reason),
+  `test_ui_video.py` (9), `test_ui_keyboard.py` (8, mostly modal-stack setup pokes - likely
+  LEAVE IT), `test_ui_reel.py`/`test_ui_analyze.py`/`test_ui_settings.py`/
+  `test_ui_whisper_prefetch.py` (6 each, not yet inspected).
 
 - [ ] **In-process LLM/scoring jobs lack progress + a Cancel** - found in the v0.1.27
   manual checks: "Generate timeline" and "Suggest names" show no progress and offer no way
