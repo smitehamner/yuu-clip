@@ -2744,6 +2744,53 @@ class TestComputeWaveformGuards:
         assert r.status_code == 404
         assert r.json()["detail"] == "Source video file not found on disk"
 
+    def _last_sse_payload(self, client, url):
+        import json
+        with client.stream("GET", url) as resp:
+            lines = [line for line in resp.iter_lines() if line.startswith("data: ")]
+        return lines, json.loads(lines[-1][len("data: "):])
+
+    def test_probe_failure_ends_with_a_failure_done_sentinel(self, client, project_dir, monkeypatch):
+        # bug-hunt 4.1 - a probe failure used to end the stream with the bare
+        # success "__DONE__" sentinel; a reader that only checks the sentinel
+        # form (not every log line) would report the job as complete.
+        import yuu_clip.analyze.probe as probe_mod
+
+        def _boom(path):
+            raise RuntimeError("ffprobe exploded")
+        monkeypatch.setattr(probe_mod, "probe_video", _boom)
+
+        (project_dir / "session.mkv").write_bytes(b"fake bytes")
+        vid_id = client.get("/api/videos").json()[0]["id"]
+
+        lines, done = self._last_sse_payload(client, f"/api/videos/{vid_id}/compute-waveform")
+        assert any("Error inspecting video" in line for line in lines)
+        assert done == {
+            "type": "__DONE__", "ok": False,
+            "error": "Could not inspect the video: ffprobe exploded",
+        }
+
+    def test_no_audio_streams_ends_with_a_failure_done_sentinel(self, client, project_dir, monkeypatch):
+        from pathlib import Path
+
+        from yuu_clip.analyze.probe import VideoInfo
+
+        def _no_audio(path):
+            return VideoInfo(path=Path(path), duration_ms=1000, fps=30.0, width=640, height=480, audio_streams=[])
+
+        import yuu_clip.analyze.probe as probe_mod
+        monkeypatch.setattr(probe_mod, "probe_video", _no_audio)
+
+        (project_dir / "session.mkv").write_bytes(b"fake bytes")
+        vid_id = client.get("/api/videos").json()[0]["id"]
+
+        lines, done = self._last_sse_payload(client, f"/api/videos/{vid_id}/compute-waveform")
+        assert any("No audio streams found" in line for line in lines)
+        assert done == {
+            "type": "__DONE__", "ok": False,
+            "error": "No audio streams found - waveform unavailable",
+        }
+
 
 # ---------------------------------------------------------------------------
 
@@ -2860,6 +2907,8 @@ class TestVideoProxy:
         assert served.content == b"proxy-bytes"
 
     def test_generate_reports_failure(self, client, project_dir, monkeypatch):
+        import json
+
         self._write_source(project_dir)
 
         def boom(source, out, *, duration_ms=None, progress_cb=None, ffmpeg=None):
@@ -2869,7 +2918,15 @@ class TestVideoProxy:
 
         stream = client.get("/api/videos/1/proxy/generate").text
         assert "Preview generation failed" in stream
-        assert "__DONE__" in stream
+        # bug-hunt 4.1 - an encode failure used to end the stream with the bare
+        # success "__DONE__" sentinel (a substring of the failure form too, so
+        # this must parse the terminal line rather than just check containment).
+        lines = [line for line in stream.splitlines() if line.startswith("data: ")]
+        done = json.loads(lines[-1][len("data: "):])
+        assert done == {
+            "type": "__DONE__", "ok": False,
+            "error": "Preview generation failed: encoder exploded",
+        }
         assert client.get("/api/videos/1/proxy-status").json()["available"] is False
 
     def test_split_segments_inherit_proxy_pointer(self, client, project_dir, monkeypatch):

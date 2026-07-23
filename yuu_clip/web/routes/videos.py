@@ -33,6 +33,7 @@ from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.file_deletion import delete_files, locked_files_error
 from yuu_clip.web.media import media_file_response
 from yuu_clip.web.routes.common import active_job, json_list, srt_to_vtt, sse_response
+from yuu_clip.web.sse import _done_event
 
 _log = get_logger(__name__)
 
@@ -416,12 +417,12 @@ def _register_media_routes(router: APIRouter, ctx: ProjectContext) -> None:
                 except Exception as exc:
                     _log.error("compute_waveform: probe failed for video %d: %s", video_id, exc, exc_info=True)
                     yield f"data: {json_lib.dumps(f'[Error inspecting video: {exc}]')}\n\n"
-                    yield f"data: {json_lib.dumps('__DONE__')}\n\n"
+                    yield _done_event(ok=False, error=f"Could not inspect the video: {exc}")
                     return
 
                 if not info.audio_streams:
                     yield f"data: {json_lib.dumps('[No audio streams found - waveform unavailable]')}\n\n"
-                    yield f"data: {json_lib.dumps('__DONE__')}\n\n"
+                    yield _done_event(ok=False, error="No audio streams found - waveform unavailable")
                     return
 
                 track_data = _sync_waveform_track_data(ctx, video_id, info.audio_streams)
@@ -594,6 +595,7 @@ def _register_media_routes(router: APIRouter, ctx: ProjectContext) -> None:
 
                 yield f"data: {json_lib.dumps('Building 720p preview…')}\n\n"
                 last_pct = -100
+                failure = None
                 while True:
                     kind, payload = await queue.get()
                     if kind == "progress":
@@ -605,9 +607,13 @@ def _register_media_routes(router: APIRouter, ctx: ProjectContext) -> None:
                         yield f"data: {json_lib.dumps('720p preview ready')}\n\n"
                         break
                     else:  # error
-                        yield f"data: {json_lib.dumps(f'[Preview generation failed: {payload}]')}\n\n"
+                        failure = str(payload)
+                        yield f"data: {json_lib.dumps(f'[Preview generation failed: {failure}]')}\n\n"
                         break
-                yield f"data: {json_lib.dumps('__DONE__')}\n\n"
+                yield _done_event(
+                    ok=failure is None,
+                    error=f"Preview generation failed: {failure}" if failure else "",
+                )
 
         return sse_response(event_stream())
 
