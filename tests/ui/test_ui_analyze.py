@@ -126,6 +126,25 @@ class TestAnalyzeModal:
         self._open_panel(page)
         expect(page.locator("#btn-start-analyze")).to_be_disabled()
 
+    def test_start_button_recovers_from_a_network_rejection(self, page: Page):
+        # bug-hunt 3.5 - a fetch rejection (server briefly unreachable) on
+        # /api/analyze/start must restore the button the same as a non-ok
+        # response, not leave it stuck reading "Starting…" forever.
+        page.goto(LIVE_URL)
+        self._open_panel(page)
+        page.route("**/api/probe", _fulfill_json({
+            "duration_s": 10, "audio_tracks": 1, "srt_sidecar": None, "subtitle_streams": [],
+        }))
+        page.fill("#analyze-path", "D:/recordings/session.mkv")
+        expect(page.locator("#btn-start-analyze")).to_be_enabled(timeout=3000)
+
+        page.route("**/api/llm/download-status", _fulfill_json({"whisper_downloading": False}))
+        page.route("**/api/analyze/start", lambda route: route.abort())
+
+        page.click("#btn-start-analyze")
+        expect(page.locator("#btn-start-analyze")).to_have_text("Start Analysis")
+        expect(page.locator("#btn-start-analyze")).to_be_enabled()
+
     def test_energy_mode_dropdown_visible_in_advanced(self, page: Page):
         page.goto(LIVE_URL)
         self._open_panel(page)
@@ -622,6 +641,34 @@ class TestImportFromUrl:
         expect(page.locator("#import-url-inspect-area")).to_contain_text("Epic Gaming Moment")
         expect(page.locator("#import-url-inspect-area")).to_contain_text("SomeStreamer")
         expect(page.locator("#btn-start-import")).to_be_visible()
+
+    def test_start_import_button_recovers_from_a_network_rejection(self, page: Page):
+        # bug-hunt 3.5 - a fetch rejection on /api/import-url/start must
+        # restore the Download button the same as a non-ok response, not
+        # leave it stuck reading "Starting…" forever.
+        page.goto(LIVE_URL)
+        self._open_panel(page)
+        page.click("#btn-show-import-url")
+        page.route("**/api/import-url/inspect", _fulfill_json({
+            "title": "Epic Gaming Moment", "uploader": "SomeStreamer", "duration_s": 3600,
+            "upload_date": "2026-06-15", "category": "Just Chatting",
+            "estimated_size_bytes": 500_000_000, "video_id": "abc123",
+            "already_imported": False, "existing_filename": None,
+        }))
+        page.route("**/api/estimate", _fulfill_json({
+            "steps": [{"name": "Transcribe", "seconds": 60, "note": "1 track", "hms": "1m 00s"}],
+            "total_hms": "1m 00s", "total_seconds": 60, "pct_of_video": 1.7,
+            "source": "estimated", "warn_hours": 2.0, "long_run_warning": False,
+        }))
+        page.fill("#import-url-input", "https://www.youtube.com/watch?v=abc123")
+        page.click("#btn-check-url")
+        page.wait_for_selector("#btn-start-import")
+
+        page.route("**/api/import-url/start", lambda route: route.abort())
+
+        page.click("#btn-start-import")
+        expect(page.locator("#btn-start-import")).to_have_text("Download")
+        expect(page.locator("#btn-start-import")).to_be_enabled()
 
     def test_check_link_shows_error_for_unsupported_url(self, page: Page):
         page.goto(LIVE_URL)

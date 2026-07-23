@@ -581,11 +581,22 @@ async function _doStartAnalyze() {
   };
   if (target) { payload.video_id = target.id; payload.force = true; }
 
-  const startRes = await fetch('/api/analyze/start', {
-    method:  'POST',
-    headers: {'Content-Type': 'application/json'},
-    body:    JSON.stringify(payload),
-  });
+  let startRes;
+  try {
+    startRes = await fetch('/api/analyze/start', {
+      method:  'POST',
+      headers: {'Content-Type': 'application/json'},
+      body:    JSON.stringify(payload),
+    });
+  } catch (err) {
+    // A network rejection (server briefly unreachable) must restore the button
+    // the same as a non-ok response - otherwise it's stuck reading "Starting…"
+    // until the panel is closed and reopened (bug-hunt 3.5).
+    showToast(netErrMsg(err), 'error');
+    btn.disabled = false;
+    btn.textContent = target ? 'Re-analyze' : 'Start Analysis';
+    return;
+  }
 
   if (!startRes.ok) {
     const err = await startRes.json().catch(() => ({}));
@@ -919,10 +930,21 @@ async function startImportUrlDownload() {
   btn.disabled = true;
   btn.textContent = 'Starting…';
 
-  const startRes = await fetch('/api/import-url/start', {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body:   JSON.stringify({url: _importUrlUrl}),
-  });
+  let startRes;
+  try {
+    startRes = await fetch('/api/import-url/start', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body:   JSON.stringify({url: _importUrlUrl}),
+    });
+  } catch (err) {
+    // A network rejection must restore the button the same as a non-ok
+    // response - otherwise it's stuck reading "Starting…" until the panel is
+    // closed and reopened (bug-hunt 3.5).
+    showToast(netErrMsg(err), 'error');
+    btn.disabled = false;
+    btn.textContent = 'Download';
+    return;
+  }
   if (!startRes.ok) {
     const err = await startRes.json().catch(() => ({}));
     showToast(formatApiError(err) || 'Failed to start download', 'error');
