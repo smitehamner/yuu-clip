@@ -229,6 +229,12 @@ window.gateOnCapability = gateOnCapability;
 // item, and the Additional Actions modal's Remove Recording row) - the same
 // request-shape behavior each poke was standing in for is already covered
 // browserless in tests/js/videos/videosdelete.test.js.
+// renderVideoDetail stays: test_ui_transcript.py pokes it 3 times to simulate
+// a background re-render (e.g. after a rescore) or a hand-built
+// transcript_srt_stale state no fixture recording produces - genuine, no
+// cheap real trigger. test_ui_video.py's own "reader" (2026-07-23 check) was
+// a prose comment about tests already moved to
+// tests/js/videos/videodetail.test.js, not a real poke.
 window.loadVideos = loadVideos;
 window.renderVideoDetail = renderVideoDetail;
 window.onClipsSortChange = onClipsSortChange;
