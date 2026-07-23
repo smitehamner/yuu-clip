@@ -199,6 +199,19 @@ def test_restore_inspect_refused_while_analyzing(client):
     assert resp.status_code == 409
 
 
+def test_restore_refused_while_counted_job_running(client):
+    # Same contract as /api/projects/switch: ANY running job (rescore, timeline,
+    # proxy) blocks a restore - switch_project would rebind ctx under it.
+    client.app.state.ctx.active_jobs = 1
+    try:
+        resp = client.post("/api/restore/inspect", content=b"whatever")
+        assert resp.status_code == 409
+        backup_resp = client.post("/api/backup", json={})
+        assert backup_resp.status_code == 409
+    finally:
+        client.app.state.ctx.active_jobs = 0
+
+
 # --- CLI restore command (used by the first-run wizard) ---------------------
 
 

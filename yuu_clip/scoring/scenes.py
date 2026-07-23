@@ -86,7 +86,7 @@ def _detect_keyframes(video_path: str) -> list[int]:
                 "-of", "csv=print_section=0",
                 video_path,
             ],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True, encoding="utf-8", errors="replace", timeout=30,
         )
         cuts: list[int] = []
         for line in result.stdout.splitlines():

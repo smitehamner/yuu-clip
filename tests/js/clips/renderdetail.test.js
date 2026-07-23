@@ -1,9 +1,19 @@
 // renderDetail transcript-card states (static/clips/clips.js). Ported from
 // tests/ui/test_ui_transcript.py::TestTextlessVisualClipTranscriptCard: renderDetail
-// builds #detail as pure HTML (it only calls window.loadClipTranscript when defined -
-// undefined here, so no fetch), so happy-dom drives it directly. A textless "visual"
-// clip gets an explicit no-dialogue state; a talk clip keeps its transcript.
+// builds #detail as pure HTML, so happy-dom drives it directly. Its two async
+// follow-ups (loadClipTranscript for a talk clip, the /api/tags suggestion load)
+// are stubbed so no real fetch escapes the test. A textless "visual" clip gets an
+// explicit no-dialogue state; a talk clip keeps its transcript.
+vi.mock('../../../yuu_clip/web/static/analyze/transcript.js', async (importActual) => ({
+  ...(await importActual()),
+  loadClipTranscript: vi.fn(),
+}));
+
 import { renderDetail } from '../../../yuu_clip/web/static/clips/clips.js';
+
+beforeEach(() => {
+  globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ tags: [] }) }));
+});
 
 function clip(id, overrides = {}) {
   return {

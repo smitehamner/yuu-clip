@@ -10,6 +10,7 @@ _apply_source_metadata).
 """
 from __future__ import annotations
 
+import glob
 import json
 import re
 import shutil
@@ -333,7 +334,7 @@ def _find_downloaded_file(output_dir: Path, stem: str) -> Optional[Path]:
     container (e.g. .mp4), so the extension can't be assumed. Ignore the metadata
     sidecar and any leftover yt-dlp fragment."""
     candidates = [
-        p for p in output_dir.glob(f"{stem}.*")
+        p for p in output_dir.glob(f"{glob.escape(stem)}.*")
         if p.is_file()
         and not p.name.endswith(_SIDECAR_SUFFIX)
         and p.suffix.lower() not in {".part", ".ytdl"}

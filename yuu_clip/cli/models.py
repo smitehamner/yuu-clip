@@ -179,7 +179,9 @@ def _download_gguf(url: str, dest: Path, display_name: str) -> None:
     if part.exists():
         part.unlink()
     request = urllib.request.Request(url, headers={"User-Agent": "yuu-clip"})
-    with urllib.request.urlopen(request) as response:
+    # Socket timeout so a mid-download network stall fails the SSE job instead
+    # of blocking response.read() forever with a stuck progress line.
+    with urllib.request.urlopen(request, timeout=30) as response:
         total = int(response.headers.get("Content-Length") or 0)
         _stream_to_file(response, part, total, display_name)
     _verify_complete(part, total)

@@ -1037,7 +1037,9 @@ def run_ffmpeg(args: list[str], timeout: Optional[float] = None) -> subprocess.C
     ffmpeg, ffprobe = find_ffmpeg()
     tool = args[0]
     exe = ffprobe if tool == "ffprobe" else ffmpeg
-    result = subprocess.run([exe, *args[1:]], capture_output=True, text=True, timeout=timeout)
+    result = subprocess.run(
+        [exe, *args[1:]], capture_output=True, encoding="utf-8", errors="replace", timeout=timeout
+    )
     if result.returncode != 0:
         raise RuntimeError(f"{tool} failed (exit {result.returncode}):\n{result.stderr.strip()}")
     return result

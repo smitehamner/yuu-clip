@@ -63,10 +63,13 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     router = APIRouter()
 
     def _guard_idle() -> None:
-        if analyze_in_flight(ctx):
+        # Same busy check as /api/projects/switch: restore_apply rebinds ctx in
+        # place, so ANY running job (rescore, timeline, proxy encode) would keep
+        # writing into the restored project's database mid-switch.
+        if analyze_in_flight(ctx) or ctx.active_jobs > 0 or ctx.proxy_generating:
             raise HTTPException(
                 409,
-                "An analysis is still running - wait for it to finish or cancel it "
+                "A job is still running - wait for it to finish or cancel it "
                 "before backing up or restoring the project.",
             )
 

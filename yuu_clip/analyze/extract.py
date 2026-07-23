@@ -138,7 +138,12 @@ def extract_audio_track(
         cmd += ["-ss", str(start_s)]
     cmd += ["-i", _ffmpeg_path(video_path)]
     if end_s is not None:
-        cmd += ["-to", str(end_s)]
+        # -ss before -i resets output timestamps to 0, so an output-side -to
+        # would act as a duration (start_s extra seconds). Use an explicit -t.
+        if start_s is not None:
+            cmd += ["-t", str(end_s - start_s)]
+        else:
+            cmd += ["-to", str(end_s)]
     cmd += [
         "-map", f"0:{stream_index}",       # select exact stream by container index
         "-ac", str(channels),
@@ -148,7 +153,7 @@ def extract_audio_track(
         _ffmpeg_path(output_path),
     ]
 
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, encoding="utf-8", errors="replace")
 
     if result.returncode != 0:
         raise RuntimeError(
@@ -231,7 +236,7 @@ def _probe_duration_s(ffprobe: str, path: Path) -> Optional[float]:
     result = subprocess.run(
         [ffprobe, "-v", "error", "-show_entries", "format=duration",
          "-of", "default=noprint_wrappers=1:nokey=1", _ffmpeg_path(path)],
-        capture_output=True, text=True,
+        capture_output=True, encoding="utf-8", errors="replace",
     )
     try:
         return float(result.stdout.strip())
@@ -308,7 +313,7 @@ def export_clip(
         caption_style,
     )
 
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, encoding="utf-8", errors="replace")
 
     if result.returncode != 0:
         raise RuntimeError(
@@ -326,7 +331,7 @@ def _null_sink() -> str:
 
 
 def _run_ffmpeg(cmd: list[str]) -> None:
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, encoding="utf-8", errors="replace")
     if result.returncode != 0:
         raise RuntimeError(f"FFmpeg encode failed:\n{result.stderr.strip()}")
 

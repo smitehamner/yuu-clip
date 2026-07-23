@@ -4,6 +4,7 @@
 """Where a clip's exported files live on disk, and query-param validation for exports."""
 from __future__ import annotations
 
+import glob
 from pathlib import Path
 from typing import Optional
 
@@ -38,7 +39,7 @@ def srt_sidecar_paths(
     """Existing SRT sidecars for a clip: per-label ({stem}.player_voice.srt) plus
     the merged {stem}.srt. Video files are excluded - this is captions only."""
     stem = clip_stem(clip, video, name_template)
-    files = list(export_dir.glob(f"{stem}.*.srt"))
+    files = list(export_dir.glob(f"{glob.escape(stem)}.*.srt"))
     merged = export_dir / f"{stem}.srt"
     if merged.exists():
         files.append(merged)
@@ -54,7 +55,7 @@ def all_sidecar_paths(
     export_srt_sidecars when multiple audio tracks are transcribed.
     """
     stem = clip_stem(clip, video, name_template)
-    srt_files = list(export_dir.glob(f"{stem}.*.srt"))
+    srt_files = list(export_dir.glob(f"{glob.escape(stem)}.*.srt"))
     merged_srt = export_dir / f"{stem}.srt"
     if merged_srt.exists():
         srt_files.append(merged_srt)

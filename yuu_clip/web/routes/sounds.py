@@ -72,7 +72,11 @@ def _builtin_url(name: str) -> str:
 
 def make_router(ctx: ProjectContext) -> APIRouter:
     router = APIRouter()
-    sounds_dir = ctx.data_dir / "sounds"
+
+    # Derived per-request: switch_project() mutates ctx in place, so a value
+    # captured at router-build time would keep pointing at the boot project.
+    def _sounds_dir() -> Path:
+        return ctx.data_dir / "sounds"
 
     @router.get("/api/sounds")
     def list_sounds():
@@ -83,6 +87,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             if (media / filename).exists()
         ]
         custom = []
+        sounds_dir = _sounds_dir()
         if sounds_dir.exists():
             for entry in sorted(sounds_dir.iterdir()):
                 if entry.is_file() and entry.suffix.lower() in _AUDIO_MEDIA_TYPES:
@@ -95,7 +100,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         if kind == "builtin":
             path = _media_dir() / safe
         elif kind == "custom":
-            path = sounds_dir / safe
+            path = _sounds_dir() / safe
         else:
             raise HTTPException(400, "Unknown sound kind")
         if not path.is_file():
@@ -115,6 +120,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             raise HTTPException(400, "Empty upload")
         if len(body) > _MAX_UPLOAD_BYTES:
             raise HTTPException(413, "Sound file too large (max 25 MB)")
+        sounds_dir = _sounds_dir()
         sounds_dir.mkdir(parents=True, exist_ok=True)
         (sounds_dir / safe).write_bytes(body)
         _log.info("Uploaded notification sound %r (%d bytes)", safe, len(body))
@@ -123,7 +129,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     @router.delete("/api/sounds/custom")
     def delete_sound(name: str):
         safe = _safe_name(name)
-        path = sounds_dir / safe
+        path = _sounds_dir() / safe
         if path.is_file():
             path.unlink()
             _log.info("Deleted notification sound %r", safe)

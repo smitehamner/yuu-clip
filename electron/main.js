@@ -45,6 +45,7 @@ protocol.registerSchemesAsPrivileged([
 
 let projectDir      = DEFAULT_PROJECT_DIR;
 let pyProc          = null;
+let pySpawnError    = null;  // spawn 'error' (e.g. ENOENT) - pollReady turns it into the fatal dialog
 let mainWindow      = null;
 let appPort         = BASE_PORT;
 let wizardWin       = null;
@@ -141,6 +142,12 @@ function pollReady(port, attempts = 120, delayMs = 500) {
   const t0 = Date.now();
   return new Promise(async (resolve, reject) => {
     for (let i = 0; i < attempts; i++) {
+      if (pySpawnError) {
+        return reject(startupError(
+          'YuuClip could not start its engine.\n\n' +
+          'Start YuuClip again. If it keeps happening, open the log and send it to us.',
+          SETUP_LOG));
+      }
       if (pyProc && pyProc.exitCode !== null) {
         logSetup(`Backend exited during startup (code ${pyProc.exitCode}) after ${i} poll attempts`);
         return reject(startupError(
@@ -362,16 +369,19 @@ function registerWizardIPC(wizardWin) {
     const destPath = path.join(MODELS_DIR, DEFAULT_LLAMACPP_MODEL.filename);
     fs.mkdirSync(MODELS_DIR, { recursive: true });
     logSetup(`GGUF model download starting: ${url}`);
-    activeGgufController = new AbortController();
+    // Compare before clearing: an aborted download's late .catch must not null
+    // out the controller a newly started download just installed.
+    const controller = new AbortController();
+    activeGgufController = controller;
     downloadFileWithProgress(url, destPath, pct => send({ progress: pct }),
-                             { signal: activeGgufController.signal })
+                             { signal: controller.signal })
       .then(() => {
-        activeGgufController = null;
+        if (activeGgufController === controller) activeGgufController = null;
         logSetup(`GGUF model download complete: ${destPath}`);
         send({ done: true, path: destPath });
       })
       .catch(err => {
-        activeGgufController = null;
+        if (activeGgufController === controller) activeGgufController = null;
         if (err && (err.name === 'AbortError' || err.code === 'ABORT_ERR')) return; // cancel event already sent
         logSetup(`GGUF model download failed: ${err.message}`);
         send({ error: describeDownloadFailure(err.message) });
@@ -834,7 +844,7 @@ async function promptPythonMissing() {
     await dialog.showMessageBox({
       type: 'error', title: 'YuuClip installation is damaged',
       message:
-        'The Python runtime bundled with YuuClip ismissing or damaged.\n\n' +
+        'The Python runtime bundled with YuuClip is missing or damaged.\n\n' +
         'Try reinstalling YuuClip. If the problem persists, please report it.',
       buttons: ['Quit'], defaultId: 0,
     });
@@ -943,7 +953,7 @@ async function resolvePort() {
 
   if (await isYuuClipOnPort(BASE_PORT)) {
     await dialog.showMessageBox({
-      type: 'warning', title: 'YuuClip isalready running',
+      type: 'warning', title: 'YuuClip is already running',
       message: 'Another YuuClip instance is already using port 8080.\n\nClose it first, then relaunch.',
       buttons: ['OK'],
     });
@@ -999,10 +1009,19 @@ function spawnBackend(port) {
 
   const python = backendPython();
   logSetup(`Spawning backend: ${python} ${args.join(' ')}`);
+  pySpawnError = null;
   pyProc = spawn(python, args, {
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
     env,
+  });
+
+  // Without a listener a failed spawn (missing/blocked python) raises an
+  // unhandled 'error' event - the app would vanish via uncaughtException
+  // instead of showing the fatal dialog (pollReady watches pySpawnError).
+  pyProc.on('error', err => {
+    logSetup(`Backend failed to spawn: ${err.message}`);
+    pySpawnError = err;
   });
 
   pyProc.stdout.on('data', d => process.stdout.write(d));
@@ -1350,6 +1369,7 @@ app.whenReady().then(async () => {
 app.on('window-all-closed', () => {
   if (!startupComplete) return;
   logSetup('All windows closed - shutting down');
+  isQuitting = true;  // keep the backend exit handler from racing a "stopped unexpectedly" dialog
   if (pyProc) { pyProc.kill(); pyProc = null; }
   app.quit();
 });

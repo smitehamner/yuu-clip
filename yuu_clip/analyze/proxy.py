@@ -57,7 +57,7 @@ def nvenc_available(ffmpeg: Optional[str] = None) -> bool:
         ff = ffmpeg or find_ffmpeg()[0]
         result = subprocess.run(
             [ff, "-hide_banner", "-encoders"],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True, encoding="utf-8", errors="replace", timeout=30,
         )
         _nvenc_cache = _NVENC_ENCODER in result.stdout
     except Exception as exc:  # missing ffmpeg, timeout, etc. - treat as no NVENC
@@ -103,7 +103,7 @@ def _run_with_progress(cmd: list[str], duration_ms: Optional[int],
     tail: deque[str] = deque(maxlen=20)
     proc = subprocess.Popen(
         full, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        text=True, bufsize=1,
+        encoding="utf-8", errors="replace", bufsize=1,
     )
     assert proc.stdout is not None
     try:

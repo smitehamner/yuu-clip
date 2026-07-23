@@ -756,13 +756,16 @@ export function closeRetranscribeModal() {
 
 export function startRetranscribe() {
   if (!_retranscribeClipId) return;
+  // Capture now: reopening the modal for another clip mid-job would repoint the
+  // module-level id, making onDone select the wrong clip when this job finishes.
+  const clipId = _retranscribeClipId;
   const model = document.getElementById('retranscribe-model').value;
   const speakerLabels = document.getElementById('retranscribe-speaker-labels').checked;
   closeRetranscribeModal();
   openLog();
   streamSSE(
-    `/api/clips/${_retranscribeClipId}/retranscribe?model=${encodeURIComponent(model)}&speaker_labels=${speakerLabels}`,
-    () => { selectClip(_retranscribeClipId); showToast('Retranscription complete'); },
+    `/api/clips/${clipId}/retranscribe?model=${encodeURIComponent(model)}&speaker_labels=${speakerLabels}`,
+    () => { selectClip(clipId); showToast('Retranscription complete'); },
     [{label: 'Transcribe', patterns: ['Retranscribing', 'OK']}],
     'Retranscribing',
     true,

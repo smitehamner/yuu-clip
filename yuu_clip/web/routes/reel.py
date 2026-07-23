@@ -252,7 +252,12 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         comp_path = reel_composition_path(reel_path)
         if not comp_path.exists():
             return None
-        comp = _json.loads(comp_path.read_text(encoding="utf-8"))
+        try:
+            comp = _json.loads(comp_path.read_text(encoding="utf-8"))
+        except (ValueError, OSError):
+            # A truncated manifest (crash mid-write) must not 500 the whole
+            # reels list - staleness is simply unknown for this reel.
+            return None
         clip_ids = [entry["id"] for entry in comp.get("clips", [])]
         if not clip_ids:
             return None

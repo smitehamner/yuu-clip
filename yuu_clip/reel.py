@@ -10,6 +10,7 @@ Requires ffmpeg on PATH.
 """
 from __future__ import annotations
 
+import glob
 import json
 import logging
 import tempfile
@@ -385,7 +386,7 @@ def _select_clip_export_file(clip, video, export_dir: Path, name_template: str) 
     default_file = next((p for p in candidate_export_paths(export_dir, base) if p.exists()), None)
     if default_file is not None:
         return default_file
-    preset_candidates = [p for p in export_dir.glob(f"{base}_*") if p.suffix in EXPORT_VIDEO_EXTENSIONS]
+    preset_candidates = [p for p in export_dir.glob(f"{glob.escape(base)}_*") if p.suffix in EXPORT_VIDEO_EXTENSIONS]
     if not preset_candidates:
         return None
     return max(preset_candidates, key=lambda p: p.stat().st_mtime)

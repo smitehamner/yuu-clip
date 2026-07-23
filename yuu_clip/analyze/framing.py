@@ -79,7 +79,7 @@ def _extract_frame(ffmpeg: str, src: Path, timestamp_s: float, out_path: Path) -
     result = subprocess.run(
         [ffmpeg, "-y", "-ss", str(timestamp_s), "-i", src.as_posix(),
          "-frames:v", "1", "-vf", f"scale=-2:{_FRAME_HEIGHT}", out_path.as_posix()],
-        capture_output=True, text=True,
+        capture_output=True, encoding="utf-8", errors="replace",
     )
     if result.returncode != 0:
         _log.debug("Frame extract failed at %.2fs: %s", timestamp_s, result.stderr.strip()[-200:])

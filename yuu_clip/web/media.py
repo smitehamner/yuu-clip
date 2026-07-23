@@ -68,8 +68,16 @@ def media_file_response(path: Path, request: Request, media_type: Optional[str] 
     if range_header and range_header.startswith("bytes="):
         first, _, last = range_header[len("bytes="):].partition("-")
         try:
-            start = int(first) if first else 0
-            end = int(last) if last else file_size - 1
+            if first:
+                start = int(first)
+                end = int(last) if last else file_size - 1
+            else:
+                # RFC 7233 suffix form "bytes=-N": the LAST N bytes of the file.
+                suffix_len = int(last)
+                if suffix_len <= 0:
+                    return Response(status_code=416, headers={"content-range": f"bytes */{file_size}"})
+                start = max(0, file_size - suffix_len)
+                end = file_size - 1
         except ValueError:
             raise HTTPException(416, "Invalid range header")
         if start > end or start >= file_size:

@@ -49,7 +49,20 @@ function downloadFileWithProgress(url, destPath, onProgress, opts = {}) {
   const { signal, redirectsLeft = 5 } = opts;
   return new Promise((resolve, reject) => {
     const tmpPath = `${destPath}.part`;
-    const cleanupAndReject = (err) => { fs.unlink(tmpPath, () => {}); reject(err); };
+    let fileStream = null;
+    // Destroy the write stream BEFORE unlinking: on Windows, unlink of a
+    // still-open file fails (EPERM), stranding the .part and its fd - a retry
+    // then hits "file blocked" on its own leftover handle.
+    const cleanupAndReject = (err) => {
+      const unlinkTmp = () => fs.unlink(tmpPath, () => {});
+      if (fileStream && !fileStream.destroyed) {
+        fileStream.on('close', unlinkTmp);
+        fileStream.destroy();
+      } else {
+        unlinkTmp();
+      }
+      reject(err);
+    };
     const req = https.get(url, { headers: { 'User-Agent': 'yuu-clip' }, signal }, res => {
       if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
         res.resume();
@@ -65,7 +78,7 @@ function downloadFileWithProgress(url, destPath, onProgress, opts = {}) {
       }
       const total = parseInt(res.headers['content-length'] || '0', 10);
       let received = 0;
-      const fileStream = fs.createWriteStream(tmpPath);
+      fileStream = fs.createWriteStream(tmpPath);
       res.on('data', chunk => {
         received += chunk.length;
         if (total > 0) onProgress(Math.round((received / total) * 100));
@@ -76,7 +89,7 @@ function downloadFileWithProgress(url, destPath, onProgress, opts = {}) {
           cleanupAndReject(new Error(`Downloaded size (${received}) doesn't match expected (${total}) - try again`));
           return;
         }
-        fs.rename(tmpPath, destPath, err => (err ? reject(err) : resolve()));
+        fs.rename(tmpPath, destPath, err => (err ? cleanupAndReject(err) : resolve()));
       });
       fileStream.on('error', cleanupAndReject);
       res.on('error', cleanupAndReject);

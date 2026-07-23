@@ -82,7 +82,10 @@ def resolve_preset(name: Optional[str], custom_presets: list[dict]) -> Optional[
         return builtin
     for raw in custom_presets or []:
         if raw.get("name") == name:
-            return ExportPreset(**raw)
+            # Tolerate unknown keys (hand-edited or future-version config) the
+            # same way Config.load ignores unrecognised fields.
+            known = ExportPreset.__dataclass_fields__
+            return ExportPreset(**{k: v for k, v in raw.items() if k in known})
     return None
 
 

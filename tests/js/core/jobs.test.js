@@ -106,6 +106,12 @@ describe('_driveStepFromMarker', () => {
     expect(stepClass(1)).toContain('active');
     expect(document.getElementById('step-1').textContent).not.toContain('/');
   });
+  it('a done: 0 marker renders "0/N (0%)" instead of falling back to elapsed-only', () => {
+    // The @@PROGRESS contract allows done: 0 - zero is a real count, not "no counts yet".
+    startJobUI(twoSteps, 'Test');
+    _driveStepFromMarker(parseProgress(marker({ stage: 'score', done: 0, total: 12 })));
+    expect(document.getElementById('step-1').textContent).toContain('0/12 (0%)');
+  });
 });
 
 describe('updateJobUI step advancement', () => {

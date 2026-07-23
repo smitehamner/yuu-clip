@@ -79,6 +79,19 @@ def _video_transcript_text(db, video_id: int) -> str:
     return " ".join(s.text.strip() for s in segs)
 
 
+def _redescribable_clip_ids(db, video_id: int) -> list[int]:
+    # Scoped to kind='clip' like the rescore route: describe_clip uses the clip
+    # rubric and must never overwrite scene descriptions (shared table).
+    return [
+        c.id for c in
+        db.query(ClipCandidate)
+        .filter_by(video_id=video_id, kind="clip")
+        .order_by(ClipCandidate.start_ms)
+        .all()
+        if c.transcript_excerpt
+    ]
+
+
 def _ms_to_hms(ms: int) -> str:
     s = ms // 1000
     h, rem = divmod(s, 3600)
@@ -705,14 +718,7 @@ def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> Non
             if not video:
                 raise HTTPException(404, "Video not found")
             context_names = json_list(video.context_names_json)
-            clip_ids = [
-                c.id for c in
-                db.query(ClipCandidate)
-                .filter_by(video_id=video_id)
-                .order_by(ClipCandidate.start_ms)
-                .all()
-                if c.transcript_excerpt
-            ]
+            clip_ids = _redescribable_clip_ids(db, video_id)
         finally:
             db.close()
 

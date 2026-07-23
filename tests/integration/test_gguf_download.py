@@ -136,7 +136,7 @@ class _FakeResponse:
 
 def _patch_urlopen(monkeypatch, response: _FakeResponse):
     monkeypatch.setattr(
-        models_cli.urllib.request, "urlopen", lambda request: response
+        models_cli.urllib.request, "urlopen", lambda request, **_kwargs: response
     )
 
 
@@ -216,7 +216,7 @@ class TestDownloadGgufCommand:
         dest = models_dir / entry.gguf_filename
         dest.write_bytes(b"ALREADY-HERE")
 
-        def fail_if_called(request):
+        def fail_if_called(request, **_kwargs):
             raise AssertionError("must not download when the file already exists")
 
         monkeypatch.setattr(models_cli.urllib.request, "urlopen", fail_if_called)
@@ -237,7 +237,7 @@ def _counting_urlopen(monkeypatch):
     a test can assert exactly which files were fetched and how many times."""
     urls: list[str] = []
 
-    def fake_urlopen(request):
+    def fake_urlopen(request, **_kwargs):
         urls.append(request.full_url)
         return _FakeResponse(b"MODEL-BYTES")
 

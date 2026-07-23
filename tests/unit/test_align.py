@@ -99,8 +99,8 @@ class TestRealignWords:
 
 
 class TestRealignSegmentWords:
-    def _seg(self, language, path="C:/missing.mp4"):
-        video = types.SimpleNamespace(path=path)
+    def _seg(self, language, path="C:/missing.mp4", segment_start_s=None):
+        video = types.SimpleNamespace(path=path, segment_start_s=segment_start_s)
         track = types.SimpleNamespace(video=video, stream_index=1)
         transcript = types.SimpleNamespace(audio_track=track, language=language)
         return types.SimpleNamespace(
@@ -127,6 +127,47 @@ class TestRealignSegmentWords:
         transcript = types.SimpleNamespace(audio_track=track, language="en")
         seg = types.SimpleNamespace(id=1, transcript=transcript, start_ms=0, end_ms=3000, text="hello")
         assert align.realign_segment_words(seg) is None
+
+    def test_split_segment_extraction_rebased_by_parent_offset(self, monkeypatch, tmp_path):
+        # A split segment's transcript times are segment-relative but video.path
+        # is the shared parent media - the extraction window must add
+        # segment_start_s, while realign_words keeps segment-relative anchors.
+        source = tmp_path / "parent.mp4"
+        source.write_bytes(b"stub")
+        windows: list[dict] = []
+
+        def _capture(*_a, **kwargs):
+            windows.append(kwargs)
+
+        monkeypatch.setattr("yuu_clip.analyze.extract.extract_audio_track", _capture)
+        monkeypatch.setattr(
+            align, "realign_words",
+            lambda _wav, start_ms, end_ms, _text, _lang: [
+                {"text": "hello", "start_ms": start_ms, "end_ms": end_ms}
+            ],
+        )
+        seg = self._seg("en", path=str(source), segment_start_s=600.0)
+
+        result = align.realign_segment_words(seg)
+
+        assert windows == [{"start_s": 601.0, "end_s": 603.0}]
+        assert result == [{"text": "hello", "start_ms": 1000, "end_ms": 3000}]
+
+    def test_unsplit_recording_extraction_uses_raw_times(self, monkeypatch, tmp_path):
+        source = tmp_path / "recording.mp4"
+        source.write_bytes(b"stub")
+        windows: list[dict] = []
+
+        def _capture(*_a, **kwargs):
+            windows.append(kwargs)
+
+        monkeypatch.setattr("yuu_clip.analyze.extract.extract_audio_track", _capture)
+        monkeypatch.setattr(align, "realign_words", lambda *_a: None)
+        seg = self._seg("en", path=str(source))
+
+        align.realign_segment_words(seg)
+
+        assert windows == [{"start_s": 1.0, "end_s": 3.0}]
 
     def test_extraction_failure_returns_none(self, monkeypatch, tmp_path):
         # Source exists but the ffmpeg extract raises: realign must swallow it and

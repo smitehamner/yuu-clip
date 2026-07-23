@@ -342,7 +342,8 @@ function _stepPillLabel(idx) {
   if (waiting) return {text: `${def.label} · ${waiting}`, pct: null};
   const elapsedMs = Date.now() - _stepStartTime;
   const progress  = _stepProgress[idx];
-  if (!progress || !progress.current) {
+  // == null, not falsy: the @@PROGRESS contract allows done: 0 ("0/N (0%)").
+  if (!progress || progress.current == null) {
     const est = _estimateHmsFor(def);
     return {
       text: est ? `${def.label} · ${_fmtElapsed(elapsedMs)} (~${est})` : `${def.label} · ${_fmtElapsed(elapsedMs)}`,

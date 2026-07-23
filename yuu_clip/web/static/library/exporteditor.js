@@ -525,6 +525,10 @@ async function _edExport() {
     [{ label: 'Export', patterns: ['Exporting', 'OK Saved'] }],
     'Exporting',
     true,
+    null,
+    false,
+    {},
+    () => { btn.disabled = false; },
   );
   setJobCancel({
     url:     '/api/analyze/cancel',

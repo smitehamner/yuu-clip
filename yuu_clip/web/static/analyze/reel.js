@@ -522,7 +522,7 @@ async function startDemo() {
     body:   JSON.stringify(body),
   });
   if (!res.ok) {
-    const e = await res.json();
+    const e = await res.json().catch(() => ({}));
     statusEl.style.color = 'var(--red)';
     statusEl.textContent = e.detail || 'Failed to start reel build.';
     return;

@@ -233,6 +233,14 @@ class TestResolvePreset:
     def test_unknown_returns_none(self):
         assert resolve_preset("does-not-exist", []) is None
 
+    def test_unknown_keys_in_stored_preset_are_ignored(self):
+        # A hand-edited or future-version config must not 500 every export.
+        custom = [{"name": "my-preset", "label": "Mine", "container": "mkv",
+                   "crf": 23, "audio_kbps": 128, "added_in_v99": True}]
+        preset = resolve_preset("my-preset", custom)
+        assert preset is not None
+        assert preset.container == "mkv"
+
 
 # ---------------------------------------------------------------------------
 # /api/export-presets CRUD routes

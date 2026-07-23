@@ -329,6 +329,20 @@ class TestListReels:
         entry = client.get("/api/demo/list").json()[0]
         assert entry["stale"] is True
 
+    def test_corrupt_composition_manifest_does_not_break_the_list(self, client, project_dir):
+        from yuu_clip.reel import reel_composition_path
+
+        reels_dir = project_dir / ".yuu-clip" / "reels"
+        reels_dir.mkdir(parents=True, exist_ok=True)
+        reel = reels_dir / "damaged.mkv"
+        reel.write_bytes(b"x")
+        reel_composition_path(reel).write_text('{"clips": [truncated', encoding="utf-8")
+
+        resp = client.get("/api/demo/list")
+        assert resp.status_code == 200
+        entry = resp.json()[0]
+        assert entry["stale"] is None
+
 
 class TestDeleteReel:
     def _make_reel(self, project_dir, name="del_me.mkv", with_sidecars=False):

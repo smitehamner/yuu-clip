@@ -27,7 +27,7 @@ def test_missing_binary_raises_install_hint(monkeypatch):
 def test_nonzero_exit_surfaces_stderr(monkeypatch):
     monkeypatch.setattr(config_mod, "find_ffmpeg", lambda: ("ffmpeg.exe", "ffprobe.exe"))
 
-    def _fake_run(args, capture_output, text, timeout):
+    def _fake_run(args, **_kwargs):
         return types.SimpleNamespace(returncode=1, stderr="Invalid data found", stdout="")
 
     monkeypatch.setattr(subprocess, "run", _fake_run)
@@ -40,7 +40,7 @@ def test_ffprobe_resolves_probe_binary(monkeypatch):
     used = {}
     monkeypatch.setattr(config_mod, "find_ffmpeg", lambda: ("ffmpeg.exe", "ffprobe.exe"))
 
-    def _fake_run(args, capture_output, text, timeout):
+    def _fake_run(args, **_kwargs):
         used["exe"] = args[0]
         return types.SimpleNamespace(returncode=0, stderr="", stdout="10.0")
 
@@ -102,7 +102,7 @@ class TestRetranscribeResolvesBundledFfmpeg:
 
         used = {}
 
-        def _fake_run(args, capture_output, text, timeout):
+        def _fake_run(args, **_kwargs):
             used["exe"] = args[0]
             return types.SimpleNamespace(returncode=0, stderr="", stdout="")
 

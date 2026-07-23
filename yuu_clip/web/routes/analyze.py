@@ -849,7 +849,7 @@ def _probe_subtitle_streams(p: Path) -> list[dict]:
         raw = _sp.run(
             [ffprobe, "-v", "error", "-print_format", "json",
              "-show_streams", "-select_streams", "s", str(p)],
-            capture_output=True, text=True, timeout=120,
+            capture_output=True, encoding="utf-8", errors="replace", timeout=120,
         )
         if raw.returncode == 0:
             return [

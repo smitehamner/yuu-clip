@@ -70,6 +70,32 @@ class TestCollectTranscriptSegments:
 
 
 # ---------------------------------------------------------------------------
+# _redescribable_clip_ids - Regenerate descriptions selection
+# ---------------------------------------------------------------------------
+
+class TestRedescribableClipIds:
+    def test_scene_rows_and_excerptless_clips_excluded(self, tmp_path):
+        from yuu_clip.db.models import ClipCandidate, Video, make_session
+        from yuu_clip.web.routes.scoring import _redescribable_clip_ids
+        session = make_session(tmp_path / "t.db")
+        v = Video(path=str(tmp_path / "v.mkv"), filename="v.mkv", status="done", duration_ms=60_000)
+        session.add(v)
+        session.flush()
+        clip = ClipCandidate(video_id=v.id, start_ms=0, end_ms=5_000, kind="clip",
+                             transcript_excerpt="hello")
+        scene = ClipCandidate(video_id=v.id, start_ms=0, end_ms=30_000, kind="scene",
+                              transcript_excerpt="scene text")
+        silent = ClipCandidate(video_id=v.id, start_ms=6_000, end_ms=9_000, kind="clip")
+        session.add_all([clip, scene, silent])
+        session.flush()
+        try:
+            ids = _redescribable_clip_ids(session, v.id)
+        finally:
+            session.close()
+        assert ids == [clip.id]
+
+
+# ---------------------------------------------------------------------------
 # regenerate_summary guards
 # ---------------------------------------------------------------------------
 

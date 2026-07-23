@@ -477,6 +477,27 @@ class TestShareDeleteMediaServing:
         r = client.get("/media/exports/sample.mkv", headers={"Range": "bytes=999-1099"})
         assert r.status_code == 416
 
+    def test_suffix_range_serves_file_tail(self, client, project_dir):
+        # RFC 7233 "bytes=-N" means the LAST N bytes (Safari probes with bytes=-1).
+        body = bytes(range(256)) * 10  # 2560 bytes
+        (project_dir / ".yuu-clip" / "exports" / "sample.mkv").write_bytes(body)
+        r = client.get("/media/exports/sample.mkv", headers={"Range": "bytes=-20"})
+        assert r.status_code == 206
+        assert r.headers["content-range"] == "bytes 2540-2559/2560"
+        assert r.content == body[-20:]
+
+    def test_suffix_range_larger_than_file_serves_whole_file(self, client, project_dir):
+        (project_dir / ".yuu-clip" / "exports" / "sample.mkv").write_bytes(b"x" * 10)
+        r = client.get("/media/exports/sample.mkv", headers={"Range": "bytes=-999"})
+        assert r.status_code == 206
+        assert r.headers["content-range"] == "bytes 0-9/10"
+        assert r.content == b"x" * 10
+
+    def test_zero_suffix_range_returns_416(self, client, project_dir):
+        (project_dir / ".yuu-clip" / "exports" / "sample.mkv").write_bytes(b"x" * 10)
+        r = client.get("/media/exports/sample.mkv", headers={"Range": "bytes=-0"})
+        assert r.status_code == 416
+
     def test_missing_export_returns_404(self, client):
         assert client.get("/media/exports/nope.mkv").status_code == 404
 

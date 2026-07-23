@@ -190,12 +190,18 @@ def realign_segment_words(seg) -> Optional[list[dict]]:
 
     from yuu_clip.analyze.extract import extract_audio_track
 
+    # Transcript times are segment-relative, but video.path is the shared parent
+    # media for a split segment - rebase the extraction window by the segment's
+    # start offset. Returned word timings stay segment-relative (realign_words
+    # anchors them to seg.start_ms).
+    offset_s = video.segment_start_s or 0.0
     with tempfile.TemporaryDirectory() as tmp_dir:
         span_wav = Path(tmp_dir) / "segment.wav"
         try:
             extract_audio_track(
                 source, track.stream_index, span_wav,
-                start_s=seg.start_ms / 1000.0, end_s=seg.end_ms / 1000.0,
+                start_s=offset_s + seg.start_ms / 1000.0,
+                end_s=offset_s + seg.end_ms / 1000.0,
             )
         except Exception as exc:
             log.warning("Segment audio extraction failed for realign (seg %s): %s", seg.id, exc)
