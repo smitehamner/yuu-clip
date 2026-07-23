@@ -139,13 +139,30 @@ def test_serve_exhausted_ports_fails_with_plain_message(monkeypatch):
 
 # --- serve: process-matching pure functions -----------------------------
 
-def test_stale_serve_pids_matches_only_this_repo(monkeypatch):
+def test_stale_serve_pids_matches_only_this_repos_own_interpreter():
     root = serve_mod.REPO_ROOT
+    root_str = str(root)
+    our_venv_python = f'"{root_str}\\.venv\\Scripts\\python.exe"'
+    foreign_venv_python = '"D:\\other\\.venv\\Scripts\\python.exe"'
     processes = [
-        _proc(1, "python.exe", f"python -m yuu_clip.cli serve --project {root}"),
-        _proc(2, "python.exe", "python -m yuu_clip.dev serve"),
-        _proc(3, "python.exe", "python -m yuu_clip.cli serve --project D:\\other"),
-        _proc(4, "chrome.exe", f"chrome yuu_clip.cli serve {root}"),
+        _proc(1, "python.exe", f"{our_venv_python} -m yuu_clip.cli serve --project {root_str} --no-open"),
+        _proc(2, "python.exe", f"{our_venv_python} -m yuu_clip.dev serve"),
+        _proc(3, "python.exe", f"{foreign_venv_python} -m yuu_clip.cli serve --project D:\\other"),
+        _proc(4, "chrome.exe", f"chrome yuu_clip.cli serve {root_str}"),
+        # A foreign checkout's own venv pointed at OUR repo via --project (e.g.
+        # its data dir happens to be this repo) must not be mistaken for a
+        # stale server of ours - only the interpreter path counts, not args.
+        _proc(5, "python.exe", f"{foreign_venv_python} -m yuu_clip.cli serve --project {root_str}"),
+    ]
+    assert serve_mod.stale_serve_pids(processes, root) == [1]
+
+
+def test_stale_serve_pids_matches_regardless_of_drive_letter_case():
+    root = serve_mod.REPO_ROOT
+    differently_cased_root = str(root).swapcase()
+    venv_python = f'"{differently_cased_root}\\.venv\\Scripts\\python.exe"'
+    processes = [
+        _proc(1, "python.exe", f"{venv_python} -m yuu_clip.cli serve --project {differently_cased_root} --no-open"),
     ]
     assert serve_mod.stale_serve_pids(processes, root) == [1]
 

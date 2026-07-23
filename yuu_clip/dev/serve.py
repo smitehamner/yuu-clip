@@ -28,13 +28,23 @@ SERVE_MATCH = "yuu_clip.cli serve"
 PORT_FALLBACK_TRIES = 20
 
 
+def _interpreter_segment(command_line: str) -> str:
+    """The interpreter-path portion of a Win32 CommandLine, before its first
+    flag - so a --project path that merely happens to point at this repo
+    can't be mistaken for this repo's own venv actually running the process."""
+    idx = command_line.find(" -m ")
+    return command_line[:idx] if idx != -1 else command_line
+
+
 def stale_serve_pids(processes: list[procs.ProcInfo], repo_root: Path) -> list[int]:
-    root = str(repo_root)
+    # Case/slash-normalized like tests.py's _runs_from_this_repo - Windows
+    # paths are case-insensitive, so a plain `in` check can miss a real match.
+    root = str(repo_root).replace("\\", "/").lower()
     return [
         proc.pid for proc in processes
         if proc.name.lower() == "python.exe"
         and SERVE_MATCH in proc.command_line
-        and root in proc.command_line
+        and root in _interpreter_segment(proc.command_line).replace("\\", "/").lower()
     ]
 
 
