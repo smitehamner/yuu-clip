@@ -18,9 +18,6 @@ import { ColorPicker } from './library/colorpicker.js';
 import { PanelNav } from './core/panelnav.js';
 import * as jobs from './core/jobs.js';
 import {
-  showToast, copyText,
-} from './core/utils.js';
-import {
   showAlert, showConfirm, _confirmCancel,
   toggleHamburger, closeHamburger,
   openControlsModal,
@@ -49,9 +46,9 @@ import {
 import { regenSummaryAuto } from './videos/videos-summary.js';
 import { toggleGroupSelect } from './videos/sessions.js';
 import {
-  renderDetail, renderPlayer, refreshClipDetail,
+  renderDetail,
   toggleClipFilter,
-  _applyFilters, _renderClips, _reloadClipList,
+  _applyFilters, _renderClips,
   _renderClipFilterCounts,
   openClipActionsModal,
 } from './clips/clips.js';
@@ -97,8 +94,13 @@ window.AppState = AppState;
 Object.assign(window, format);
 window.ColorPicker = ColorPicker;
 window.PanelNav = PanelNav;
-// utils.js - showToast/copyText are invoked directly by tests/ui/*.py
-// via page.evaluate; no JS module reads either of them off window anymore.
+// utils.js - no window shim left. showToast/copyText dropped 2026-07-23:
+// their only remaining "readers" were vi.mock factory identifiers in the
+// tests/js layer (clipbulk/transcript.test.js) and, for copyText, a mocked
+// electronAPI stub property in the wizard test (test_ui_wizard.py) - neither
+// a real window poke. Every JS caller imports each directly, and the old
+// tests/ui page.evaluate pokes the prior note referenced were migrated to
+// the vitest vi.mock layer.
 // revealInFolder dropped (2026-07-22): its only "reader" left was a comment in
 // test_ui_clips2.py naming it in prose (the actual poke moved to
 // tests/js/clips/clipexport.test.js already) - every real caller
@@ -112,8 +114,6 @@ window.PanelNav = PanelNav;
 // helpers) to the tests/js vitest unit layer. openLog dropped 2026-07-22:
 // every real caller already imports it directly and its only "reader" in
 // test_ui_analyze.py was a comment, not a real poke.
-window.showToast = showToast;
-window.copyText = copyText;
 // jobs.js is cross-cutting - every export here still has at least one classic
 // window.* consumer or a still-present inline handler, so none can be dropped yet.
 // Its mutable shared-state (_jobStepDefs/_activeStepIdx/_jobStartTime) is now read
@@ -327,14 +327,15 @@ window.toggleGroupSelect = toggleGroupSelect;
 // dropped 2026-07-23: clips.js's own data-act delegation already calls it
 // internally, and its only "reader" in test_ui_vision.py was a prose comment
 // about a prior migration, not a real poke - tests/js/clips/vision.test.js
-// already imports it directly.
+// already imports it directly. renderPlayer/refreshClipDetail/_reloadClipList
+// dropped 2026-07-23: their only "readers" were vi.mock factory identifiers
+// in the tests/js layer (clipexport/clipbulk/transcript.test.js), not real
+// window pokes - every JS caller (clipexport.js/clips.js/transcript.js/etc.)
+// imports each directly and no tests/ui/*.py pokes any of them.
 window.renderDetail = renderDetail;
-window.renderPlayer = renderPlayer;
-window.refreshClipDetail = refreshClipDetail;
 window.toggleClipFilter = toggleClipFilter;
 window._applyFilters = _applyFilters;
 window._renderClips = _renderClips;
-window._reloadClipList = _reloadClipList;
 window._renderClipFilterCounts = _renderClipFilterCounts;
 window.openClipActionsModal = openClipActionsModal;
 // clipbulk.js - undoLastBulkStatus is read as a bare global by clips.js's
