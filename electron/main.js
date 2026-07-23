@@ -21,6 +21,7 @@ const { mimeTypeFor, isPathInside, rangeResponseInit } = require('./media-serve'
 const { buildProjectConfigFromWizard, resolveProjectDir } = require('./wizard-config');
 const { decideSetupMode } = require('./startup-mode');
 const { buildRestoreArgs, parseRestoreExit } = require('./restore-backup');
+const { mergePathEntries } = require('./registry-path');
 const {
   VENV_DIR, VENV_PYTHON, VENV_PIP, BUNDLED_PYTHON, BUNDLED_FFMPEG_DIR,
   BUNDLED_LLAMA_SERVER_DIR,
@@ -243,7 +244,8 @@ function refreshPathFromRegistry() {
   const user    = readRegPath('HKCU\\Environment');
   if (!machine && !user) return;
   const expand = s => s.replace(/%([^%]+)%/g, (_, name) => process.env[name] || `%${name}%`);
-  process.env.PATH = [expand(machine), expand(user)].filter(Boolean).join(';');
+  const registryPath = [expand(machine), expand(user)].filter(Boolean).join(';');
+  process.env.PATH = mergePathEntries(process.env.PATH, registryPath);
 }
 
 
