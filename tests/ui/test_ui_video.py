@@ -43,8 +43,7 @@ class TestContextsSelfHeal:
         page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
         # Simulate the boot load not having populated (or having failed) yet.
         page.evaluate("AppState.contexts = []")
-        video_id = page.evaluate("AppState.videos[0].id")
-        page.evaluate("(id) => selectVideo(id)", video_id)
+        page.click("#video-list li[data-video-id]")
         # Built-in contexts guarantee a non-empty list once ensureContexts refetches.
         page.wait_for_function("() => AppState.contexts.length > 0", timeout=5000)
 
@@ -96,7 +95,10 @@ class TestDeleteVideoConfirm:
             if route.request.method == "DELETE"
             else route.continue_(),
         )
-        page.evaluate(f"() => deleteVideo({video_id})")
+        page.click("#video-list li[data-video-id]")
+        page.click(".vid-actions button:has-text('Additional Actions')")
+        page.wait_for_selector("#actions-modal.visible", timeout=2000)
+        page.click("#actions-modal .action-row:has-text('Remove Recording')")
         page.wait_for_selector("#confirm-modal.visible", timeout=2000)
         return video_id
 
@@ -204,55 +206,11 @@ class TestVideoActionsModal:
         expect(page.locator("#split-editor-panel")).to_be_visible(timeout=3000)
 
 
-@skip_no_server
-class TestNativeMediaProtocolUrlBuilder:
-    """Roadmap plan 10 - utils.js:_buildMediaUrl is the single point that picks
-    between the packaged app's native "yuu-media://" scheme and the unchanged
-    HTTP route. Playwright can't exercise the real Electron protocol handler
-    (electron/main.js), so this only covers the URL-builder logic itself, with
-    window.electronAPI.mediaProtocol stubbed to simulate the packaged app.
-    """
-
-    def test_http_url_when_no_electron_api(self, page: Page):
-        page.goto(LIVE_URL)
-        url = page.evaluate("_buildMediaUrl(7, 'source', 'D:/recordings/session.mp4')")
-        assert url == "/api/videos/7/source"
-
-    def test_http_url_when_stub_present_but_path_missing(self, page: Page):
-        page.goto(LIVE_URL)
-        page.evaluate("window.electronAPI = { mediaProtocol: true }")
-        url = page.evaluate("_buildMediaUrl(7, 'proxy', null)")
-        assert url == "/api/videos/7/proxy"
-
-    def test_native_url_for_source_when_stubbed(self, page: Page):
-        page.goto(LIVE_URL)
-        page.evaluate("window.electronAPI = { mediaProtocol: true }")
-        raw_path = "D:\\recordings\\session.mp4"
-        encoded = page.evaluate("(p) => encodeURIComponent(p.replace(/\\\\/g, '/'))", raw_path)
-        url = page.evaluate("(p) => _buildMediaUrl(7, 'source', p)", raw_path)
-        assert url == f"yuu-media://media/{encoded}"
-
-    def test_native_url_for_proxy_when_stubbed(self, page: Page):
-        page.goto(LIVE_URL)
-        page.evaluate("window.electronAPI = { mediaProtocol: true }")
-        raw_path = "D:\\recordings\\proxy.mp4"
-        encoded = page.evaluate("(p) => encodeURIComponent(p.replace(/\\\\/g, '/'))", raw_path)
-        url = page.evaluate("(p) => _buildMediaUrl(7, 'proxy', p)", raw_path)
-        assert url == f"yuu-media://media/{encoded}"
-
-    def test_native_url_encodes_spaces_and_unicode(self, page: Page):
-        page.goto(LIVE_URL)
-        page.evaluate("window.electronAPI = { mediaProtocol: true }")
-        raw_path = "D:/recordings/クリップ 2026 (final).mp4"
-        encoded = page.evaluate("(p) => encodeURIComponent(p)", raw_path)
-        url = page.evaluate("(p) => _buildMediaUrl(7, 'source', p)", raw_path)
-        assert url == f"yuu-media://media/{encoded}"
-
-    def test_native_url_normalizes_windows_backslashes(self, page: Page):
-        page.goto(LIVE_URL)
-        page.evaluate("window.electronAPI = { mediaProtocol: true }")
-        url = page.evaluate("(p) => _buildMediaUrl(7, 'source', p)", "C:\\Users\\me\\Videos\\clip.mp4")
-        assert url == f"yuu-media://media/{'C%3A%2FUsers%2Fme%2FVideos%2Fclip.mp4'}"
+# TestNativeMediaProtocolUrlBuilder (utils.js:_buildMediaUrl - the transport
+# picker between the packaged app's native "yuu-media://" scheme and the
+# unchanged HTTP route) moved to tests/js/core/preview.test.js (vitest): it is
+# a pure function with window.electronAPI.mediaProtocol stubbed, no DOM or
+# navigation involved, so it runs browserless.
 
 
 @skip_no_server

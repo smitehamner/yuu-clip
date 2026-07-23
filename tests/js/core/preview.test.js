@@ -8,8 +8,48 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../../../yuu_clip/web/static/core/jobs.js', () => ({ streamSSE: vi.fn() }));
 
 import {
-  _isPipElement, releaseVideoRespectingPip, deferPlayerRebuildForPip,
+  _isPipElement, releaseVideoRespectingPip, deferPlayerRebuildForPip, _buildMediaUrl,
 } from '../../../yuu_clip/web/static/core/preview.js';
+
+afterEach(() => { delete window.electronAPI; });
+
+describe('_buildMediaUrl', () => {
+  it('uses the HTTP route when electronAPI is absent', () => {
+    expect(_buildMediaUrl(7, 'source', 'D:/recordings/session.mp4')).toBe('/api/videos/7/source');
+  });
+
+  it('uses the HTTP route when electronAPI is present but the path is missing', () => {
+    window.electronAPI = { mediaProtocol: true };
+    expect(_buildMediaUrl(7, 'proxy', null)).toBe('/api/videos/7/proxy');
+  });
+
+  it('builds a native yuu-media:// url for the source when electronAPI has mediaProtocol', () => {
+    window.electronAPI = { mediaProtocol: true };
+    const raw = 'D:\\recordings\\session.mp4';
+    const encoded = encodeURIComponent(raw.replace(/\\/g, '/'));
+    expect(_buildMediaUrl(7, 'source', raw)).toBe(`yuu-media://media/${encoded}`);
+  });
+
+  it('builds a native yuu-media:// url for the proxy when electronAPI has mediaProtocol', () => {
+    window.electronAPI = { mediaProtocol: true };
+    const raw = 'D:\\recordings\\proxy.mp4';
+    const encoded = encodeURIComponent(raw.replace(/\\/g, '/'));
+    expect(_buildMediaUrl(7, 'proxy', raw)).toBe(`yuu-media://media/${encoded}`);
+  });
+
+  it('encodes spaces and unicode in the normalized path', () => {
+    window.electronAPI = { mediaProtocol: true };
+    const raw = 'D:/recordings/クリップ 2026 (final).mp4';
+    const encoded = encodeURIComponent(raw);
+    expect(_buildMediaUrl(7, 'source', raw)).toBe(`yuu-media://media/${encoded}`);
+  });
+
+  it('normalizes Windows backslashes before encoding', () => {
+    window.electronAPI = { mediaProtocol: true };
+    expect(_buildMediaUrl(7, 'source', 'C:\\Users\\me\\Videos\\clip.mp4'))
+      .toBe('yuu-media://media/C%3A%2FUsers%2Fme%2FVideos%2Fclip.mp4');
+  });
+});
 
 function setPipElement(el) {
   Object.defineProperty(document, 'pictureInPictureElement', {

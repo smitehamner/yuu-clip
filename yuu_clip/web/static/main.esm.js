@@ -17,13 +17,12 @@ import * as format from './core/format.js';
 import { ColorPicker } from './library/colorpicker.js';
 import { PanelNav } from './core/panelnav.js';
 import * as jobs from './core/jobs.js';
-import { _buildMediaUrl, setupRecordingPreview } from './core/preview.js';
 import {
   openLog, showToast, copyText,
 } from './core/utils.js';
 import {
   showAlert, showConfirm, _confirmCancel,
-  closeActionsModal, toggleHamburger, closeHamburger,
+  toggleHamburger, closeHamburger,
   openControlsModal,
   openDiffModal,
   showKebab, _applyPrereqWarnings, showUndoToast,
@@ -44,7 +43,7 @@ import {
   gateOnCapability,
 } from './settings/modelcatalog.js';
 import {
-  loadVideos, selectVideo, renderVideoDetail, deleteVideo,
+  loadVideos, renderVideoDetail,
   onClipsSortChange, _clipsSortParam, _clipsListUrl,
   _updateDemoButton,
   _syncAnalysisLivePanel,
@@ -136,20 +135,20 @@ window.copyText = copyText;
 // is the one function conftest teardown calls to close a dangling stream. The old
 // window get/set accessor-bridge for that state is gone.
 Object.assign(window, jobs);
-// preview.js is cross-cutting - setupRecordingPreview has classic consumers
-// (clipcreate.js, videos.js, split.js, exporteditor.js); _buildMediaUrl has no
-// JS consumer left but tests/ui/test_ui_video.py evaluates it as a page global.
-window._buildMediaUrl = _buildMediaUrl;
-window.setupRecordingPreview = setupRecordingPreview;
+// preview.js - no window shim left. setupRecordingPreview's classic
+// consumers (clipcreate.js, videos.js, split.js, exporteditor.js) all import
+// it directly now; _buildMediaUrl's only test dependency
+// (tests/ui/test_ui_video.py::TestNativeMediaProtocolUrlBuilder) moved to
+// tests/js/core/preview.test.js (2026-07-22) since it is a pure function.
 // ui.js - showAlert/openDiffModal/showKebab/_applyPrereqWarnings/
 // showUndoToast/playbackRatePref/applyPlaybackRate have no JS reader left and
 // are kept only for tests/ui/*.py or tests/js/*.test.js page.evaluate pokes.
-// _confirmCancel/closeActionsModal/toggleHamburger/openControlsModal are ALSO
-// invoked directly by tests/ui/*.py, even though shortcuts.js's own read of
-// each already imports it directly. toggleHamburger's two test_ui_clips2.py
-// pokes became real #btn-hamburger clicks (2026-07-22), but
-// test_ui_keyboard.py's test_hamburger_menu_peels_before_modal still needs the
-// poke: #controls-modal's overlay covers the real button there by design (the
+// _confirmCancel/toggleHamburger/openControlsModal are ALSO invoked directly
+// by tests/ui/*.py, even though shortcuts.js's own read of each already
+// imports it directly. toggleHamburger's two test_ui_clips2.py pokes became
+// real #btn-hamburger clicks (2026-07-22), but test_ui_keyboard.py's
+// test_hamburger_menu_peels_before_modal still needs the poke:
+// #controls-modal's overlay covers the real button there by design (the
 // test verifies Escape-layering works even though the real UI would never let
 // a user reach the hamburger while a modal sits on top) - a real click
 // reliably fails to register there, so the shim line stays. closeHamburger
@@ -162,10 +161,12 @@ window.setupRecordingPreview = setupRecordingPreview;
 // directly and no test pokes any of them. _confirmOk, _diffAcceptNew,
 // _diffAcceptEdit and _fieldEditSave dropped earlier: their only consumers
 // were ui.js's own inline handlers, now addEventListener inside ui.js itself.
+// closeActionsModal dropped 2026-07-22: shortcuts.js already imports it
+// directly and its only remaining "reader" was a comment naming it in
+// test_ui_video.py, not a real poke.
 window.showAlert = showAlert;
 window.showConfirm = showConfirm;
 window._confirmCancel = _confirmCancel;
-window.closeActionsModal = closeActionsModal;
 window.toggleHamburger = toggleHamburger;
 window.closeHamburger = closeHamburger;
 window.openControlsModal = openControlsModal;
@@ -221,10 +222,13 @@ window.gateOnCapability = gateOnCapability;
 // _syncVideoFilterChips, _clearVideoFilters) dropped earlier: their only callers
 // were videos.js's own inline handlers (now data-act delegation) or its own
 // internal logic, so nothing outside the module needs them off window.
+// selectVideo/deleteVideo dropped 2026-07-22: both had exactly one remaining
+// tests/ui/test_ui_video.py poke, swapped for a real click (the video-list
+// item, and the Additional Actions modal's Remove Recording row) - the same
+// request-shape behavior each poke was standing in for is already covered
+// browserless in tests/js/videos/videosdelete.test.js.
 window.loadVideos = loadVideos;
-window.selectVideo = selectVideo;
 window.renderVideoDetail = renderVideoDetail;
-window.deleteVideo = deleteVideo;
 window.onClipsSortChange = onClipsSortChange;
 window._clipsSortParam = _clipsSortParam;
 window._clipsListUrl = _clipsListUrl;

@@ -118,12 +118,51 @@ except the two items below).
   `toggleGroupSelect` revert in the prior session: verify swaps with an actual run, and
   revert on any real failure rather than fighting the timing. **Regenerate the inventory
   with the corrected 2026-07-22 script before resuming - don't reuse any prior N/dead/
-  genuine counts, several were wrong at least once.** Next buckets by holder count (as of
-  this session's end): `test_ui_clips.py` (10, mostly `renderDetail`/synthetic-clip pokes -
-  likely LEAVE IT, used identically across 6 files), `test_ui_clips2.py` (9, same reason),
-  `test_ui_video.py` (9), `test_ui_keyboard.py` (8, mostly modal-stack setup pokes - likely
-  LEAVE IT), `test_ui_reel.py`/`test_ui_analyze.py`/`test_ui_settings.py`/
+  genuine counts, several were wrong at least once.**
+
+  **2026-07-22 Phase 2 further-continuation session (test_ui_video.py bucket), 98 -> 93,
+  1 gated commit:** re-ran the inventory fresh first (confirmed 98, no further script bugs).
+  `test_ui_video.py`'s 9 holders triaged one by one rather than assumed from the holder-count
+  note alone: `setupRecordingPreview` and `closeActionsModal` were both fully dead (every real
+  production consumer already imports them directly - `clipcreate.js`/`videos.js`/`split.js`/
+  `exporteditor.js` for the former, `shortcuts.js` for the latter - and their only "reader" in
+  `test_ui_video.py` was a stale comment from an earlier migration, not a real poke); dropped
+  both, 2 lines. `_buildMediaUrl` was a genuine poke (`TestNativeMediaProtocolUrlBuilder`) but
+  a pure function with no DOM/navigation/geometry at all - ported to
+  `tests/js/core/preview.test.js` (6 cases), which then made its own shim line dead too, so it
+  dropped as a same-commit follow-on (net: the vitest port enables a shim drop, same pattern as
+  `openNameCorrections` two sessions ago but for a pure-function file split rather than a whole
+  file). `selectVideo` and `deleteVideo` were each real-click-swapped: `selectVideo`'s one poke
+  became a click on the first `#video-list li[data-video-id]`; `deleteVideo`'s poke became a
+  real path through the Additional Actions modal's "Remove Recording" danger row (mirroring the
+  existing `Split Recording` row-click pattern in `TestVideoActionsModal`) - both then dropped
+  too since neither had another reader. `AppState` and `_renderVideoList` are synthetic-state
+  seeding shortcuts (`TestRecordingFilterCounts._seed` writes hand-built `AppState.videos` no
+  fixture combination produces) - LEAVE IT, same class as the `renderDetail` pattern below.
+  `regenSummaryAuto` is also LEAVE IT: its confirm-copy and DELETE/SSE request-shape are
+  already covered browserless in `tests/js/videos/videos-summary.test.js` (and
+  `videosdelete.test.js` for `deleteVideo`'s own request shape) - what's left in Playwright is
+  only the real `#confirm-modal` DOM wiring, and `regenSummaryAuto`'s real trigger (a kebab
+  item on a video with a generated summary) has no fixture precondition to reach without a live
+  LLM call, so the detached-button poke stays as the cheapest way to open that modal. Shim: 98
+  -> 93 (5 lines: 2 dead, 1 vitest-port-enabled, 2 real-click-enabled). Gate: bundle, test-js
+  356 (350 -> 356, +6 `_buildMediaUrl` cases), test-unit ratchet 5, test-api 2992, targeted
+  `test_ui_video.py` 20 passed (26 -> 20, -6 for the migrated class), full test-ui 644 (650 ->
+  644), lint clean.
+
+  Next buckets by holder count (regenerate the inventory before trusting these - numbers shift
+  as prior buckets get retriaged): `test_ui_clips.py` (10, mostly `renderDetail`/synthetic-clip
+  pokes - likely LEAVE IT, used identically across 6 files, see the flag below - do not attempt
+  without asking first), `test_ui_clips2.py` (8, same reason), `test_ui_keyboard.py` (8, mostly
+  modal-stack setup pokes - likely LEAVE IT per the `toggleHamburger` lesson above, but read
+  each name), `test_ui_reel.py`/`test_ui_analyze.py`/`test_ui_settings.py`/
   `test_ui_whisper_prefetch.py` (6 each, not yet inspected).
+
+  **Flag before touching**: `renderDetail` (the single biggest remaining name, reused
+  identically via a synthetic `AppState.clips`/`activeClipData` + `renderDetail(...)` pattern
+  across 6 files - `test_ui_clips.py`, `test_ui_clips2.py`, `test_ui_hotwords.py`,
+  `test_ui_sensitive.py`, `test_ui_transcript.py`, `test_ui_vision.py`) is a cross-file project
+  on its own, not a normal bucket pass - ask the owner before attempting it.
 
 - [ ] **In-process LLM/scoring jobs lack progress + a Cancel** - found in the v0.1.27
   manual checks: "Generate timeline" and "Suggest names" show no progress and offer no way
