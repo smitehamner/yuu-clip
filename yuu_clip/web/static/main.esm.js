@@ -74,8 +74,7 @@ import {
   renderEstimate, startAnalyze, reattachAnalysis,
 } from './analyze/analyze.js';
 import {
-  openHighlightReelsModal, closeHighlightReelsModal, switchReelTab,
-  _reelMove, _reelToggle, openBatchExportModal, closeBatchExportModal,
+  openHighlightReelsModal, openBatchExportModal, closeBatchExportModal,
 } from './analyze/reel.js';
 import {
   _deriveContextId,
@@ -383,18 +382,19 @@ window._renderSubtitleSourcePicker = _renderSubtitleSourcePicker;
 window.renderEstimate = renderEstimate;
 window.startAnalyze = startAnalyze;
 window.reattachAnalysis = reattachAnalysis;
-// reel.js - openHighlightReelsModal, switchReelTab and closeHighlightReelsModal
-// are invoked directly by tests/ui/*.py via page.evaluate (shortcuts.js's own
-// read of closeHighlightReelsModal already imports it directly); _reelMove and
-// _reelToggle have no outside JS caller left (their only external use was
-// now-removed reel.js-owned onclick/onchange attributes) but
-// tests/ui/test_ui_reel.py calls both directly via page.evaluate;
+// reel.js - openHighlightReelsModal is invoked directly by
+// tests/ui/test_ui_reel.py and tests/ui/test_ui_sessions.py via page.evaluate;
 // openBatchExportModal is read as window.* by videos.js (already-ESM, out of
 // scope to touch here) and invoked directly by tests/ui/test_ui_clips.py;
 // closeBatchExportModal is invoked directly by tests/ui/test_ui_clips.py
 // (shortcuts.js's own read already imports it directly). closeReelPreview
 // dropped: shortcuts.js already imports it directly and no test pokes it.
-// loadReelClips, _toggleReelPoolStatus, startDemo,
+// closeHighlightReelsModal/switchReelTab/_reelMove/_reelToggle dropped
+// 2026-07-22: test_ui_reel.py's pokes were real-click-swapped onto the modal's
+// own close button (#reel-close-btn), its tab buttons
+// (#reel-tab-btn-build/view), and each row's Move up/down button + include
+// checkbox - all of which already wired these functions as real onclick/
+// onchange handlers. loadReelClips, _toggleReelPoolStatus, startDemo,
 // closeDemoModal, updateReelEstimate, exportUnexportedReelClips,
 // _onReelCaptionsChange, _onReelWordHighlightChange, previewReelPlaylist,
 // _reelPreviewStep, confirmBatchExport, updateBatchEstimate,
@@ -404,10 +404,6 @@ window.reattachAnalysis = reattachAnalysis;
 // them off window anymore. openReelForSession dropped: sessions.js now imports
 // it directly (videos/ bucket conversion).
 window.openHighlightReelsModal = openHighlightReelsModal;
-window.closeHighlightReelsModal = closeHighlightReelsModal;
-window.switchReelTab = switchReelTab;
-window._reelMove = _reelMove;
-window._reelToggle = _reelToggle;
 window.openBatchExportModal = openBatchExportModal;
 window.closeBatchExportModal = closeBatchExportModal;
 // contexts.js - _deriveContextId is invoked directly by

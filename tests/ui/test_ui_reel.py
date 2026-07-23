@@ -135,10 +135,11 @@ class TestReelBuilderCuration:
 
     def test_curation_survives_tab_switch(self, page: Page):
         self._open_build(page)
-        page.evaluate("_reelMove(0, 1)")       # order: second, first, third
-        page.evaluate("_reelToggle(2, false)")  # exclude "third"
-        page.evaluate("switchReelTab('view')")
-        page.evaluate("switchReelTab('build')")
+        rows = page.locator(".reel-clip-row")
+        rows.nth(0).locator("button[title='Move down']").click()  # order: second, first, third
+        rows.nth(2).locator('input[type="checkbox"]').uncheck()  # exclude "third"
+        page.click("#reel-tab-btn-view")
+        page.click("#reel-tab-btn-build")
         page.locator(".reel-clip-row").first.wait_for()
         assert self._names(page) == ["second", "first", "third"]
         expect(page.locator(".reel-clip-row").last).to_have_class("reel-clip-row excluded")
@@ -163,9 +164,10 @@ class TestReelBuilderCuration:
 
     def test_reopening_modal_resets_curation(self, page: Page):
         self._open_build(page)
-        page.evaluate("_reelMove(0, 1)")
-        page.evaluate("_reelToggle(2, false)")
-        page.evaluate("closeHighlightReelsModal()")
+        rows = page.locator(".reel-clip-row")
+        rows.nth(0).locator("button[title='Move down']").click()
+        rows.nth(2).locator('input[type="checkbox"]').uncheck()
+        page.click("#reel-close-btn")
         page.evaluate("openHighlightReelsModal('build')")
         page.locator(".reel-clip-row").first.wait_for()
         assert self._names(page) == ["first", "second", "third"]
@@ -199,7 +201,7 @@ class TestReelBuilderFooterVisible:
         assert box is not None
         assert box["y"] >= 0
         assert box["y"] + box["height"] <= 900 + 1
-        page.evaluate("closeHighlightReelsModal()")
+        page.click("#reel-close-btn")
 
 
 _FAKE_PENDING_CLIP = {

@@ -150,13 +150,37 @@ except the two items below).
   `test_ui_video.py` 20 passed (26 -> 20, -6 for the migrated class), full test-ui 644 (650 ->
   644), lint clean.
 
+  **`test_ui_keyboard.py` bucket (8 holders) triaged, zero changes:** every name
+  (`AppState`, `showAlert`, `toggleHamburger`, `openControlsModal`, `showKebab`,
+  `openGlossaryModal`, `openSplitEditor`, `closeSplitEditor`) is a setup poke used to
+  construct a specific stacked-modal or synthetic-data state before a keyboard/focus
+  assertion runs (a fabricated split-editor video with a controlled `duration_ms`, a
+  fabricated kebab menu with test-only callbacks, a modal deliberately opened before an
+  unreachable-by-real-click hamburger) - the file's entire point is CC-2/CC-3/CC-4
+  Escape/Tab layering, which needs deterministic stacking, not the normal open path. This
+  confirms the `toggleHamburger` lesson from the prior session generalizes to the rest of
+  the file. Left untouched.
+
+  **`test_ui_reel.py` bucket (6 holders), 93 -> 89, 1 gated commit:** `AppState` is a
+  read-only `wait_for_function` poll (`AppState.canReveal === true`), not migratable.
+  `openHighlightReelsModal` stays a poke - it is real (`#btn-highlight-reels` opens it) but
+  shared with `test_ui_sessions.py`, so converting only this bucket's call sites would not
+  drop the shim line; left for whichever session next touches `test_ui_sessions.py`.
+  `switchReelTab`, `_reelMove`, `_reelToggle` and `closeHighlightReelsModal` were each the
+  SOLE poked reader and each already has a real wired control in `reel.js`
+  (`renderReelClipList`'s per-row `onclick`/`onchange`, `#reel-tab-btn-build`/`-view`,
+  `#reel-close-btn`) - swapped to `page.click("#reel-tab-btn-view")`, clicking the row's
+  "Move down" button and unchecking its include checkbox, and `page.click("#reel-close-btn")`
+  respectively. All 4 shim lines dropped. Gate: bundle, test-js 356 (unchanged - no JS test
+  touched), targeted `test_ui_reel.py` 19 passed and `test_ui_sessions.py` 9 passed (checked
+  since it shares `openHighlightReelsModal`), test-api 2992, full test-ui 644 (unchanged
+  count - triggers swapped, no tests added/removed), lint clean.
+
   Next buckets by holder count (regenerate the inventory before trusting these - numbers shift
   as prior buckets get retriaged): `test_ui_clips.py` (10, mostly `renderDetail`/synthetic-clip
   pokes - likely LEAVE IT, used identically across 6 files, see the flag below - do not attempt
-  without asking first), `test_ui_clips2.py` (8, same reason), `test_ui_keyboard.py` (8, mostly
-  modal-stack setup pokes - likely LEAVE IT per the `toggleHamburger` lesson above, but read
-  each name), `test_ui_reel.py`/`test_ui_analyze.py`/`test_ui_settings.py`/
-  `test_ui_whisper_prefetch.py` (6 each, not yet inspected).
+  without asking first), `test_ui_clips2.py` (8, same reason), `test_ui_analyze.py`/
+  `test_ui_settings.py`/`test_ui_whisper_prefetch.py` (6 each, not yet inspected).
 
   **Flag before touching**: `renderDetail` (the single biggest remaining name, reused
   identically via a synthetic `AppState.clips`/`activeClipData` + `renderDetail(...)` pattern
