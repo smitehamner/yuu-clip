@@ -411,6 +411,30 @@ except the two items below).
     individually inspected, or proposing the Phase 3 structural consolidation per the plan's
     stop-gate guidance.
 
+  **2026-07-23 - a new false-positive class found, 58 -> 53, 1 gated commit.** Re-ran the
+  inventory fresh (confirmed 58), then surveyed: every remaining `test_ui_*.py` bucket had
+  already been individually triaged in a prior session, leaving only 1-2-holder un-inspected
+  files - the diminishing-returns shape the stop-gate predicts. But the `js:` column of the
+  inventory (vitest-file references, never systematically worked before) turned up 5 shim
+  lines whose ONLY "readers" were `vi.mock()` factory identifiers in `tests/js/*.test.js` -
+  which mock the module *export* (requiring a direct import, not a `window` poke) - plus, for
+  `copyText`, a mocked `electronAPI` stub property in `test_ui_wizard.py` (a *different*
+  bundle entirely). None was a real `window` read: verified no `window.X` anywhere, no
+  `tests/ui/*.py` `page.evaluate` poke, and every JS caller own-imports the name. Dropped
+  `showToast`, `copyText`, `renderPlayer`, `refreshClipDetail`, `_reloadClipList` (and their
+  now-unused imports); fixed the stale `main.esm.js` comments that still claimed showToast/
+  copyText were poked by `tests/ui/*.py`. This is a **new false-positive class** to add to the
+  known list (prose comments, cross-bundle wizard stubs): the conservative whole-file scan
+  counts `vi.mock` factory keys as readers - always confirm a `js:`-only holder is a real
+  `window.X` read, not a mock-factory identifier, before assuming it's genuine. Shim: 58 ->
+  53. Gate: bundle, test-js 359, test-unit 1069, test-api 2992, full test-ui 641, lint clean,
+  typecheck 0 new. **Triage has now stabilized** - after this, no `js:`-only false positives
+  remain and every large bucket is closed; what's left is 20 GENUINE production-coupling lines
+  plus ~33 documented-genuine Playwright/`AppState` holders in 1-2-holder files. This is the
+  Phase 3 stop-gate: the remaining work is the one-time structural consolidation (split the
+  shim into a "genuine production coupling" block vs. one consolidated test-only-hooks block),
+  which the plan says to propose to the owner rather than continue marginal bucket triage.
+
 - [ ] **In-process LLM/scoring jobs lack progress + a Cancel** - found in the v0.1.27
   manual checks: "Generate timeline" and "Suggest names" show no progress and offer no way
   to cancel, and a sweep found this is one class, not two bugs. Every *subprocess* job
