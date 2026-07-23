@@ -2,7 +2,7 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { buildProjectConfigFromWizard } = require('../wizard-config');
+const { buildProjectConfigFromWizard, resolveProjectDir } = require('../wizard-config');
 
 const baseCfg = {
   whisperModel: 'base',
@@ -84,4 +84,27 @@ test('model prefetch unchecked maps to model_prefetch_disabled true', () => {
 test('absent modelPrefetch keeps prefetch enabled (default-on)', () => {
   const pyCfg = buildProjectConfigFromWizard(baseCfg);
   assert.equal(pyCfg.model_prefetch_disabled, false);
+});
+
+// ── resolveProjectDir (belt-and-braces guard on setup:complete) ───────────────
+
+const DEFAULT_DIR = 'C:\\Users\\test\\Videos\\yuu-clip';
+
+test('an absolute projectDir passes through unchanged', () => {
+  assert.equal(
+    resolveProjectDir({ projectDir: 'D:\\Recordings\\yuu-clip' }, DEFAULT_DIR),
+    'D:\\Recordings\\yuu-clip'
+  );
+});
+
+test('an empty projectDir falls back to the default', () => {
+  assert.equal(resolveProjectDir({ projectDir: '' }, DEFAULT_DIR), DEFAULT_DIR);
+});
+
+test('a missing projectDir field falls back to the default', () => {
+  assert.equal(resolveProjectDir({}, DEFAULT_DIR), DEFAULT_DIR);
+});
+
+test('a relative projectDir falls back to the default', () => {
+  assert.equal(resolveProjectDir({ projectDir: 'yuu-clip' }, DEFAULT_DIR), DEFAULT_DIR);
 });

@@ -18,7 +18,7 @@ const { recommendWhisperModel } = require('./whisper-select');
 const { modelFileDialogOptions } = require('./model-file-dialog');
 const { recommendLocalModel } = require('./recommend-model');
 const { mimeTypeFor, isPathInside, rangeResponseInit } = require('./media-serve');
-const { buildProjectConfigFromWizard } = require('./wizard-config');
+const { buildProjectConfigFromWizard, resolveProjectDir } = require('./wizard-config');
 const { decideSetupMode } = require('./startup-mode');
 const { buildRestoreArgs, parseRestoreExit } = require('./restore-backup');
 const {
@@ -583,6 +583,11 @@ function showSetupWizard({ rerun = false, updated = false } = {}) {
     logSetup(`Setup wizard opened (mode=${mode})`);
 
     ipcMain.once('setup:complete', (_, cfg) => {
+      const resolvedProjectDir = resolveProjectDir(cfg, DEFAULT_PROJECT_DIR);
+      if (resolvedProjectDir !== cfg.projectDir) {
+        logSetup(`Setup complete rejected an invalid projectDir (${JSON.stringify(cfg.projectDir)}) - falling back to ${resolvedProjectDir}`);
+        cfg = { ...cfg, projectDir: resolvedProjectDir };
+      }
       saveElectronConfig({ projectDir: cfg.projectDir, setupSchemaVersion: SETUP_SCHEMA_VERSION });
       // A restored project already carries its own config.json - writing the
       // wizard defaults over it would wipe the user's saved settings.

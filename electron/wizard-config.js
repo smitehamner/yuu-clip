@@ -1,8 +1,20 @@
 'use strict';
 
+const path = require('node:path');
+
 // Pure cfg -> pyCfg mapping for the setup wizard's `setup:complete` handler,
 // split out of main.js so the per-backend branching that seeds the backend's
 // config.json can be unit-tested without Electron.
+
+// Belt-and-braces guard for `setup:complete`: the renderer disables Launch
+// until a folder is chosen (#project-dir is a readonly field only ever set
+// from the OS folder picker or a saved default, both always absolute), but an
+// empty or relative value here would otherwise get mkdir'd and handed to the
+// Python process as --project.
+function resolveProjectDir(cfg, defaultDir) {
+  if (cfg.projectDir && path.isAbsolute(cfg.projectDir)) return cfg.projectDir;
+  return defaultDir;
+}
 
 function buildProjectConfigFromWizard(cfg) {
   const pyCfg = {
@@ -40,4 +52,4 @@ function buildProjectConfigFromWizard(cfg) {
   return pyCfg;
 }
 
-module.exports = { buildProjectConfigFromWizard };
+module.exports = { buildProjectConfigFromWizard, resolveProjectDir };

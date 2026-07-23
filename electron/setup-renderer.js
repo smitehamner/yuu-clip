@@ -38,10 +38,12 @@ function updateLaunchBtn() {
   const hint = document.getElementById('launch-hint');
   const blockedByFfmpeg  = !status || !status.ffmpegOk;
   const blockedByWork    = anyInstalling() || downloadingGguf;
-  btn.disabled = blockedByFfmpeg || blockedByWork;
+  const blockedByNoDir   = !document.getElementById('project-dir').value.trim();
+  btn.disabled = blockedByFfmpeg || blockedByWork || blockedByNoDir;
   btn.textContent = rerunMode ? 'Apply & Close' : 'Launch';
   hint.textContent = blockedByFfmpeg && status ? 'FFmpeg is required before you can launch'
     : blockedByWork ? 'Waiting for the download to finish…'
+    : blockedByNoDir ? 'Choose a project folder before you can launch'
     : '';
   const recheck = document.getElementById('recheck-btn');
   const restart = document.getElementById('restart-btn');
@@ -401,6 +403,7 @@ document.addEventListener('click', e => {
 document.getElementById('browse-btn').addEventListener('click', async () => {
   const dir = await api.pickFolder();
   if (dir) document.getElementById('project-dir').value = dir;
+  updateLaunchBtn();
 });
 
 // Restore-from-backup is a first-run choice only: rerun/update already have a
