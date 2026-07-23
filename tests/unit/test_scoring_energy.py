@@ -284,6 +284,74 @@ class TestAudioEnergyScorerHappyPath:
         # Score should be 0.0 (below baseline) - quiet clip in a loud video
         assert result.score_action == 0.0
 
+    def test_baseline_computed_once_per_video_across_multiple_clips(self, tmp_path):
+        # bug-hunt 4.5 - the whole-video baseline query used to re-run on
+        # every single clip; one scorer instance (as build_clip_scorers wires
+        # up for a whole run) must compute it once per video_id and reuse it.
+        from unittest.mock import MagicMock, patch
+
+        import yuu_clip.scoring.energy as energy_mod
+
+        scorer, clip, session = self._make_db_with_energy(tmp_path)
+        video_id = clip.video.audio_tracks[0].video_id
+        clip.video_id = video_id
+
+        clip2 = MagicMock()
+        clip2.start_ms = clip.start_ms
+        clip2.end_ms = clip.end_ms
+        clip2.video_id = video_id
+        clip2.video.audio_tracks = clip.video.audio_tracks
+
+        try:
+            with patch.object(
+                energy_mod, "_compute_baseline", wraps=energy_mod._compute_baseline,
+            ) as spy:
+                r1 = scorer.score(clip, session)
+                r2 = scorer.score(clip2, session)
+        finally:
+            session.close()
+
+        assert spy.call_count == 1
+        assert r1.notes["baseline_db"] == r2.notes["baseline_db"]
+
+    def test_baseline_cache_is_scoped_per_video(self, tmp_path):
+        from unittest.mock import MagicMock
+
+        from yuu_clip.db.models import AudioEnergy, AudioTrack, Video
+
+        scorer, clip, session = self._make_db_with_energy(tmp_path)
+        video_id_1 = clip.video.audio_tracks[0].video_id
+        clip.video_id = video_id_1
+
+        v2 = Video(path="/fake/v2.mkv", filename="v2.mkv", status="done", duration_ms=600_000)
+        session.add(v2)
+        session.flush()
+        track2 = AudioTrack(
+            video_id=v2.id, stream_index=0, label="combined",
+            do_transcribe=True, do_score=True, relevance_weight=1.0,
+        )
+        session.add(track2)
+        session.flush()
+        for s in range(30):
+            session.add(AudioEnergy(audio_track_id=track2.id, second_offset=s, rms_db=-60.0 if s < 10 else 5.0))
+        session.flush()
+        db_track2 = session.query(AudioTrack).filter_by(id=track2.id).one()
+
+        clip2 = MagicMock()
+        clip2.start_ms = 0
+        clip2.end_ms = 10_000
+        clip2.video_id = v2.id
+        clip2.video.audio_tracks = [db_track2]
+
+        try:
+            r1 = scorer.score(clip, session)
+            r2 = scorer.score(clip2, session)
+        finally:
+            session.close()
+
+        assert video_id_1 != v2.id
+        assert r1.notes["baseline_db"] != r2.notes["baseline_db"]
+
 # ---------------------------------------------------------------------------
 # AudioEnergy - weighted per-second series and baseline
 # ---------------------------------------------------------------------------

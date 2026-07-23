@@ -171,6 +171,12 @@ class AudioEnergyScorer:
     def __init__(self, config: "Config") -> None:
         self._config = config
         self.weight  = config.scorer_energy_weight
+        # (mean_all, baseline) is the same for every clip of a given video - this
+        # scorer instance lives for the whole run, so cache it per video_id instead
+        # of re-querying and re-aggregating every AudioEnergy row for the video on
+        # every single clip (a 2h recording x 150 clips otherwise refetches and
+        # re-aggregates ~2M rows once per clip).
+        self._baseline_cache: dict[int, tuple[float, float] | None] = {}
 
     def is_available(self) -> bool:
         if not self._config.scorer_energy_enabled:
@@ -212,12 +218,15 @@ class AudioEnergyScorer:
             return ScoreResult()
         clip_mean_db = sum(clip_series) / len(clip_series)
 
-        all_rows = (
-            session.query(AudioEnergy)
-            .filter(AudioEnergy.audio_track_id.in_(scorable_track_ids))
-            .all()
-        )
-        baseline_pair = _compute_baseline(_weighted_second_series(all_rows, track_map))
+        video_id = clip.video_id
+        if video_id not in self._baseline_cache:
+            all_rows = (
+                session.query(AudioEnergy)
+                .filter(AudioEnergy.audio_track_id.in_(scorable_track_ids))
+                .all()
+            )
+            self._baseline_cache[video_id] = _compute_baseline(_weighted_second_series(all_rows, track_map))
+        baseline_pair = self._baseline_cache[video_id]
         if baseline_pair is None:
             return ScoreResult()
 
