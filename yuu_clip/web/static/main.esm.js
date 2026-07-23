@@ -19,7 +19,7 @@ import { PanelNav } from './core/panelnav.js';
 import * as jobs from './core/jobs.js';
 import { _buildMediaUrl, setupRecordingPreview } from './core/preview.js';
 import {
-  openLog, showToast, revealInFolder, copyText,
+  openLog, showToast, copyText,
 } from './core/utils.js';
 import {
   showAlert, showConfirm, _confirmCancel,
@@ -65,7 +65,7 @@ import {
 } from './clips/clips.js';
 import { undoLastBulkStatus } from './clips/clipbulk.js';
 import {
-  exportClip, closeExportModal, confirmExport,
+  closeExportModal,
   _onExportPresetChange, _updateExportTightCapWarning, _setExportFraming,
 } from './clips/clipexport.js';
 import { openClipCreatePicker } from './clips/clipcreate.js';
@@ -79,9 +79,7 @@ import {
   _reelMove, _reelToggle, openBatchExportModal, closeBatchExportModal,
 } from './analyze/reel.js';
 import {
-  openContextManager, closeContextManager, openNewContext,
-  cancelContextEdit, duplicateContext, _deriveContextId,
-  openCharacterForm, cancelCharacterEdit, _updateCharBoostLabel,
+  _deriveContextId,
   openRetranscribeModal, closeRetranscribeModal, startRetranscribe,
 } from './library/contexts.js';
 import {
@@ -115,9 +113,13 @@ window.AppState = AppState;
 Object.assign(window, format);
 window.ColorPicker = ColorPicker;
 window.PanelNav = PanelNav;
-// utils.js - openLog/showToast/revealInFolder/copyText are invoked directly by
-// tests/ui/*.py via page.evaluate; no JS module reads any of them off window
-// anymore. clearLog/appendLog dropped: tests/js/core/utils.test.js already
+// utils.js - openLog/showToast/copyText are invoked directly by tests/ui/*.py
+// via page.evaluate; no JS module reads either of them off window anymore.
+// revealInFolder dropped (2026-07-22): its only "reader" left was a comment in
+// test_ui_clips2.py naming it in prose (the actual poke moved to
+// tests/js/clips/clipexport.test.js already) - every real caller
+// (videos.js/clipexport.js/reel.js) already imports it directly.
+// clearLog/appendLog dropped: tests/js/core/utils.test.js already
 // imports both directly. _syncSortDirBtn, _diarizationReadiness, netErrMsg and
 // collapsibleCard dropped: every remaining reader (clips.js/videos.js/boot.js
 // etc.) now imports them directly. toggleLog, isCardCollapsed,
@@ -126,7 +128,6 @@ window.PanelNav = PanelNav;
 // helpers) to the tests/js vitest unit layer.
 window.openLog = openLog;
 window.showToast = showToast;
-window.revealInFolder = revealInFolder;
 window.copyText = copyText;
 // jobs.js is cross-cutting - every export here still has at least one classic
 // window.* consumer or a still-present inline handler, so none can be dropped yet.
@@ -301,17 +302,19 @@ window.openClipActionsModal = openClipActionsModal;
 // inside clipbulk.js itself, so nothing outside the module needs them off
 // window anymore.
 window.undoLastBulkStatus = undoLastBulkStatus;
-// clipexport.js - exportClip and closeExportModal are invoked directly by
-// tests/ui/test_ui_clips.py / test_ui_clips2.py via page.evaluate;
-// closeExportModal is ALSO a genuine bare-global consumer of its own shim: the
-// module's own dynamically-built onclick strings (the _diarizationNoteHtml
-// "Settings" link and the MediaPipe-missing "install it in Settings" link) are
-// set as innerHTML and evaluated in global scope when clicked. confirmExport,
-// _onExportPresetChange, _updateExportTightCapWarning and _setExportFraming
-// have no outside JS caller left (their only external use was the now-removed
-// index.html inline handlers) but tests/ui/test_ui_clips.py and
-// test_ui_clips2.py call all of them directly via page.evaluate.
-// _renderExportModeSummary dropped from the window shim: reel.js (now ESM)
+// clipexport.js - closeExportModal is a genuine bare-global consumer of its
+// own shim: the module's own dynamically-built onclick strings (the
+// _diarizationNoteHtml "Settings" link and the MediaPipe-missing "install it
+// in Settings" link) are set as innerHTML and evaluated in global scope when
+// clicked. exportClip and confirmExport dropped (2026-07-22):
+// tests/ui/test_ui_clips.py / test_ui_clips2.py / test_ui_smoke.py now click
+// the real Export button (.op-actions [data-act='export-clip']) and the real
+// #export-confirm-btn, same as a user would, instead of calling the export
+// flow's functions by name. _onExportPresetChange, _updateExportTightCapWarning
+// and _setExportFraming have no outside JS caller left (their only external
+// use was the now-removed index.html inline handlers) but
+// tests/ui/test_ui_clips.py and test_ui_clips2.py call all three directly via
+// page.evaluate. _renderExportModeSummary dropped from the window shim: reel.js (now ESM)
 // imports it directly instead of reading it as a bare global.
 // _handleExportFormatAction, _downloadClipExport, _revealClipExport and
 // _copyClipExportPaths dropped: their only reader (clips.js) now imports all
@@ -321,9 +324,7 @@ window.undoLastBulkStatus = undoLastBulkStatus;
 // dropped earlier: their only callers were this module's own inline handlers
 // (now addEventListener inside clipexport.js itself) or its own internal logic,
 // so nothing outside the module needs them off window anymore.
-window.exportClip = exportClip;
 window.closeExportModal = closeExportModal;
-window.confirmExport = confirmExport;
 window._onExportPresetChange = _onExportPresetChange;
 window._updateExportTightCapWarning = _updateExportTightCapWarning;
 window._setExportFraming = _setExportFraming;
@@ -398,17 +399,22 @@ window._reelMove = _reelMove;
 window._reelToggle = _reelToggle;
 window.openBatchExportModal = openBatchExportModal;
 window.closeBatchExportModal = closeBatchExportModal;
-// contexts.js - _parseWeight, openNewContext, cancelContextEdit, duplicateContext,
-// _deriveContextId, openCharacterForm and _updateCharBoostLabel are invoked
-// directly by tests/ui/test_ui_contexts.py / test_ui_utils.py via page.evaluate;
-// openContextManager and closeContextManager are invoked directly by
-// tests/ui/test_ui_contexts.py (shortcuts.js's own read of closeContextManager
-// already imports it directly); openRetranscribeModal is invoked directly by
-// tests/ui/test_ui_clips2.py (its clips.js read now imports it directly);
-// closeRetranscribeModal is a genuine bare-global consumer of its own shim:
-// this module's own dynamically-built onclick string (the
-// _diarizationNoteHtml "Settings" link) is set as innerHTML and evaluated in
-// global scope when clicked (shortcuts.js's own read is already a direct
+// contexts.js - _deriveContextId is invoked directly by
+// tests/ui/test_ui_contexts.py via page.evaluate to compute an expected value
+// for comparison (the ID-derivation behavior itself is already exercised
+// end-to-end by real page.fill() typing in the same file); openContextManager,
+// closeContextManager, openNewContext, cancelContextEdit, duplicateContext,
+// openCharacterForm, cancelCharacterEdit and _updateCharBoostLabel dropped
+// (2026-07-22): test_ui_contexts.py now drives them via real clicks on
+// #btn-world-contexts/#context-close-btn/#context-cancel-btn/#context-new-btn/
+// #btn-duplicate-context/#ce-add-character-btn/#ce-cancel-character-btn and a
+// real 'input' event on #ce-char-boost, same as a user would, so no
+// page.evaluate poke needs any of them off window anymore. openRetranscribeModal
+// is invoked directly by tests/ui/test_ui_clips2.py (its clips.js read now
+// imports it directly); closeRetranscribeModal is a genuine bare-global
+// consumer of its own shim: this module's own dynamically-built onclick string
+// (the _diarizationNoteHtml "Settings" link) is set as innerHTML and evaluated
+// in global scope when clicked (shortcuts.js's own read is already a direct
 // import); startRetranscribe is invoked directly by
 // tests/ui/test_ui_clips2.py. _loadContexts, _termContextOptions,
 // _renderTermGroups and closeAutoApproveModal dropped: boot.js
@@ -425,15 +431,7 @@ window.closeBatchExportModal = closeBatchExportModal;
 // their only callers were contexts.js's own now-removed index.html inline
 // handlers or its own internal logic, so nothing outside the module needs
 // them off window anymore.
-window.openContextManager = openContextManager;
-window.closeContextManager = closeContextManager;
-window.openNewContext = openNewContext;
-window.cancelContextEdit = cancelContextEdit;
-window.duplicateContext = duplicateContext;
 window._deriveContextId = _deriveContextId;
-window.openCharacterForm = openCharacterForm;
-window.cancelCharacterEdit = cancelCharacterEdit;
-window._updateCharBoostLabel = _updateCharBoostLabel;
 window.openRetranscribeModal = openRetranscribeModal;
 window.closeRetranscribeModal = closeRetranscribeModal;
 window.startRetranscribe = startRetranscribe;

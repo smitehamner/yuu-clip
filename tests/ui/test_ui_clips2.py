@@ -90,7 +90,7 @@ class TestExportPresetPicker:
     def _open_export_modal(self, page: Page):
         select_first_video_and_clip(page)
         page.wait_for_selector("#detail .clip-badge", timeout=3000)
-        page.evaluate("() => exportClip(AppState.activeClipId)")
+        page.click(".op-actions [data-act='export-clip']")
         page.wait_for_selector("#export-settings-modal.visible", timeout=3000)
 
     def test_picker_lists_original_quality_and_builtin_presets(self, page: Page):
@@ -131,7 +131,7 @@ class TestExportWordHighlight:
     def _open_export_modal(self, page: Page):
         select_first_video_and_clip(page)
         page.wait_for_selector("#detail .clip-badge", timeout=3000)
-        page.evaluate("() => exportClip(AppState.activeClipId)")
+        page.click(".op-actions [data-act='export-clip']")
         page.wait_for_selector("#export-settings-modal.visible", timeout=3000)
         # The Caption style controls live in a collapsed <details>; open it so the
         # word-highlight checkbox and chunk-size input are interactable.
@@ -165,7 +165,7 @@ class TestExportWordHighlight:
         page.route(f"**/api/clips/{clip_id}/export**",
                    lambda route: route.fulfill(status=200, content_type="text/event-stream", body="data: done\n\n"))
         with page.expect_request(f"**/api/clips/{clip_id}/export**") as req_info:
-            page.evaluate("confirmExport()")
+            page.click("#export-confirm-btn")
         url = req_info.value.url
         assert "word_highlight=true" in url
         assert "word_chunk_size=6" in url

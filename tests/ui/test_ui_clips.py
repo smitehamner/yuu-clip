@@ -392,7 +392,7 @@ class TestExportModalDefaults:
     def test_captions_default_is_softsub(self, page: Page):
         select_first_video_and_clip(page)
         page.wait_for_selector("#detail .clip-badge", timeout=3000)
-        page.evaluate("() => exportClip(AppState.activeClipId)")
+        page.click(".op-actions [data-act='export-clip']")
         page.wait_for_selector("#export-settings-modal.visible", timeout=3000)
         assert page.eval_on_selector("#export-captions", "el => el.value") == "softsub"
         # endJobUI removes .visible after a 2 s setTimeout
@@ -409,7 +409,7 @@ class TestTightCapWarning:
     def _open_and_set_clip(self, page: Page, clip: dict, preset: str):
         select_first_video_and_clip(page)
         page.wait_for_selector("#detail .clip-badge", timeout=3000)
-        page.evaluate("() => exportClip(AppState.activeClipId)")
+        page.click(".op-actions [data-act='export-clip']")
         page.wait_for_selector("#export-settings-modal.visible", timeout=3000)
         page.evaluate(
             "([clip, preset]) => { AppState.activeClipData = clip; _updateExportTightCapWarning(preset); }",
@@ -450,7 +450,7 @@ class TestVerticalFramingControl:
     def _open_export_modal(self, page: Page):
         select_first_video_and_clip(page)
         page.wait_for_selector("#detail .clip-badge", timeout=3000)
-        page.evaluate("() => exportClip(AppState.activeClipId)")
+        page.click(".op-actions [data-act='export-clip']")
         page.wait_for_selector("#export-settings-modal.visible", timeout=3000)
 
     def test_framing_hidden_by_default(self, page: Page):
@@ -495,7 +495,7 @@ class TestAutoFrameButton:
     def _open_vertical(self, page: Page):
         select_first_video_and_clip(page)
         page.wait_for_selector("#detail .clip-badge", timeout=3000)
-        page.evaluate("() => exportClip(AppState.activeClipId)")
+        page.click(".op-actions [data-act='export-clip']")
         page.wait_for_selector("#export-settings-modal.visible", timeout=3000)
         page.evaluate("() => _onExportPresetChange('tiktok-9x16')")
 
@@ -548,7 +548,7 @@ class TestExportModeSummary:
     def _open_export_modal(self, page: Page):
         select_first_video_and_clip(page)
         page.wait_for_selector("#detail .clip-badge", timeout=3000)
-        page.evaluate("() => exportClip(AppState.activeClipId)")
+        page.click(".op-actions [data-act='export-clip']")
         page.wait_for_selector("#export-settings-modal.visible", timeout=3000)
 
     def test_default_is_quick_export(self, page: Page):
@@ -620,7 +620,7 @@ class TestExportRetranscribeSmartDefault:
     def test_single_clip_export_checked_when_stale(self, page: Page):
         select_first_video_and_clip(page)
         self._mock_status(page, needs_retranscribe=True, model="small")
-        page.evaluate("() => exportClip(AppState.activeClipId)")
+        page.click(".op-actions [data-act='export-clip']")
         page.wait_for_selector("#export-settings-modal.visible", timeout=3000)
         expect(page.locator("#export-retranscribe")).to_be_checked()
         assert page.locator("#export-retranscribe-model").input_value() == "small"
@@ -630,7 +630,7 @@ class TestExportRetranscribeSmartDefault:
     def test_single_clip_export_unchecked_when_already_matching(self, page: Page):
         select_first_video_and_clip(page)
         self._mock_status(page, needs_retranscribe=False, model="large-v3")
-        page.evaluate("() => exportClip(AppState.activeClipId)")
+        page.click(".op-actions [data-act='export-clip']")
         page.wait_for_selector("#export-settings-modal.visible", timeout=3000)
         expect(page.locator("#export-retranscribe")).not_to_be_checked()
         assert page.locator("#export-retranscribe-model").input_value() == "large-v3"

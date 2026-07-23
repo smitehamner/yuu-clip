@@ -16,13 +16,15 @@ from playwright.sync_api import Page, expect
 
 
 def _open_manager(page: Page) -> None:
-    page.evaluate("openContextManager()")
+    page.click("#btn-world-contexts")
     page.wait_for_selector("#context-modal.visible")
     page.wait_for_selector("#context-list-items [data-edit-ctx]")
 
 
 def _close_manager(page: Page) -> None:
-    page.evaluate("cancelContextEdit(); closeContextManager()")
+    if page.locator("#context-editor").is_visible():
+        page.click("#context-cancel-btn")
+    page.click("#context-close-btn")
     page.wait_for_selector("#context-modal.visible", state="hidden")
 
 
@@ -81,7 +83,7 @@ class TestTemplateEditorActions:
         # Read live values first - the user may have edited the template's content
         original_name = page.eval_on_selector("#ce-display-name", "el => el.value")
         original_setting = page.eval_on_selector("#ce-setting", "el => el.value")
-        page.evaluate("duplicateContext()")
+        page.click("#btn-duplicate-context")
         assert page.evaluate("AppState.editingContextId") is None
         expect(page.locator("#ce-context-id")).to_be_enabled()
         copy_name = f"{original_name} copy"
@@ -100,14 +102,14 @@ class TestTemplateEditorActions:
 class TestContextIdDerivation:
     def test_new_context_derives_id_from_name(self, page: Page):
         _open_manager(page)
-        page.evaluate("openNewContext()")
+        page.click("#context-new-btn")
         page.fill("#ce-display-name", "My Cool Game!")
         assert page.eval_on_selector("#ce-context-id", "el => el.value") == "my-cool-game"
         _close_manager(page)
 
     def test_hand_edited_id_stops_following_the_name(self, page: Page):
         _open_manager(page)
-        page.evaluate("openNewContext()")
+        page.click("#context-new-btn")
         page.fill("#ce-display-name", "First Name")
         page.fill("#ce-context-id", "custom-id")
         page.fill("#ce-display-name", "Second Name")
@@ -116,7 +118,7 @@ class TestContextIdDerivation:
 
     def test_new_context_focuses_name_not_id(self, page: Page):
         _open_manager(page)
-        page.evaluate("openNewContext()")
+        page.click("#context-new-btn")
         expect(page.locator("#ce-display-name")).to_be_focused()
         _close_manager(page)
 
@@ -138,7 +140,7 @@ def _route_characters(page: Page, characters: list) -> None:
 class TestCharacterSection:
     def test_new_unsaved_context_hides_add_shows_note(self, page: Page):
         _open_manager(page)
-        page.evaluate("openNewContext()")
+        page.click("#context-new-btn")
         expect(page.locator("#ce-characters-note")).to_be_visible()
         expect(page.locator("#ce-add-character-btn")).not_to_be_visible()
         _close_manager(page)
@@ -169,12 +171,15 @@ class TestCharacterSection:
         _route_characters(page, [])
         _open_manager(page)
         _edit_template(page)
-        page.evaluate("openCharacterForm()")
+        page.click("#ce-add-character-btn")
         expect(page.locator("#ce-character-form")).to_be_visible()
         expect(page.locator("#ce-add-character-btn")).not_to_be_visible()
-        page.evaluate("document.getElementById('ce-char-boost').value = 0.5; _updateCharBoostLabel()")
+        page.eval_on_selector(
+            "#ce-char-boost",
+            "el => { el.value = 0.5; el.dispatchEvent(new Event('input', {bubbles: true})); }",
+        )
         assert page.eval_on_selector("#ce-char-boost-label", "el => el.textContent") == "50%"
-        page.evaluate("cancelCharacterEdit()")
+        page.click("#ce-cancel-character-btn")
         expect(page.locator("#ce-character-form")).not_to_be_visible()
         expect(page.locator("#ce-add-character-btn")).to_be_visible()
         _close_manager(page)
