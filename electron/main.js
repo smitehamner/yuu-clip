@@ -174,6 +174,8 @@ function pollReady(port, attempts = 120, delayMs = 500) {
         logSetup(`Backend ready after ${i + 1} attempts (${Date.now() - t0} ms)`);
         return resolve();
       } catch (_) { /* not ready yet */ }
+      const elapsedS = Math.round((Date.now() - t0) / 1000);
+      updateLoadingStatus(wizardWin, elapsedS > 0 ? `Waiting for backend… (${elapsedS}s)` : 'Waiting for backend');
       await new Promise(r => setTimeout(r, delayMs));
     }
     logSetup(`Backend did not respond after ${attempts} attempts (${Date.now() - t0} ms)`);
