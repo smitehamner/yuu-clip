@@ -225,3 +225,78 @@ class TestComputeScenesFastModeSegment:
             session.close()
         assert [r.timecode_ms for r in rows] == [5_000, 30_000]
         assert n == 2
+
+
+# ---------------------------------------------------------------------------
+# _detect_keyframes - bug-hunt 4.2: the ffprobe timeout was too short for a
+# long recording (the exact case "fast" mode targets), and a non-zero exit
+# was never checked, silently degrading to transcript-gaps-only with no trace.
+# ---------------------------------------------------------------------------
+
+class TestDetectKeyframes:
+    def test_extracts_keyframe_timestamps_from_a_successful_run(self, monkeypatch):
+        import subprocess
+        import types
+
+        from yuu_clip import config as config_mod
+        from yuu_clip.scoring import scenes
+
+        monkeypatch.setattr(config_mod, "find_ffmpeg", lambda: ("ffmpeg.exe", "ffprobe.exe"))
+        stdout = "5.000000,K\n5.500000,\n15.000000,K__\n"
+        monkeypatch.setattr(
+            subprocess, "run",
+            lambda *a, **kw: types.SimpleNamespace(returncode=0, stdout=stdout, stderr=""),
+        )
+        assert scenes._detect_keyframes("v.mkv") == [5_000, 15_000]
+
+    def test_uses_a_generous_timeout_for_a_full_packet_demux(self, monkeypatch):
+        # A full-file packet scan scales with recording length/bitrate; the old
+        # 30s timeout contradicted the module's own "10h+ VODs" fast-mode claim.
+        import subprocess
+        import types
+
+        from yuu_clip import config as config_mod
+        from yuu_clip.scoring import scenes
+
+        monkeypatch.setattr(config_mod, "find_ffmpeg", lambda: ("ffmpeg.exe", "ffprobe.exe"))
+        captured = {}
+
+        def _fake_run(*args, **kwargs):
+            captured["timeout"] = kwargs.get("timeout")
+            return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        monkeypatch.setattr(subprocess, "run", _fake_run)
+        scenes._detect_keyframes("v.mkv")
+        assert captured["timeout"] >= 300
+
+    def test_nonzero_exit_logs_a_warning_and_returns_empty(self, monkeypatch, caplog):
+        import logging
+        import subprocess
+        import types
+
+        from yuu_clip import config as config_mod
+        from yuu_clip.scoring import scenes
+
+        monkeypatch.setattr(config_mod, "find_ffmpeg", lambda: ("ffmpeg.exe", "ffprobe.exe"))
+        monkeypatch.setattr(
+            subprocess, "run",
+            lambda *a, **kw: types.SimpleNamespace(returncode=1, stdout="", stderr="Invalid data found"),
+        )
+        with caplog.at_level(logging.WARNING, logger="yuu_clip.scoring.scenes"):
+            result = scenes._detect_keyframes("v.mkv")
+        assert result == []
+        assert any("ffprobe exited 1" in r.message for r in caplog.records)
+
+    def test_timeout_expiry_still_degrades_gracefully(self, monkeypatch):
+        import subprocess
+
+        from yuu_clip import config as config_mod
+        from yuu_clip.scoring import scenes
+
+        monkeypatch.setattr(config_mod, "find_ffmpeg", lambda: ("ffmpeg.exe", "ffprobe.exe"))
+
+        def _timeout(*a, **kw):
+            raise subprocess.TimeoutExpired(cmd="ffprobe", timeout=kw.get("timeout"))
+
+        monkeypatch.setattr(subprocess, "run", _timeout)
+        assert scenes._detect_keyframes("v.mkv") == []

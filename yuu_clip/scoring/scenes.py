@@ -73,6 +73,13 @@ def _detect_transcript(video: "Video", session: "Session", gap_s: float) -> list
     return sorted(cuts)
 
 
+
+# Unlike probe.py's metadata-only read (120s), this demuxes every packet in the
+# file to read its flags - real I/O that scales with recording length/bitrate,
+# not the "instant" the docstring above implies for a 10h+ VOD.
+_KEYFRAME_TIMEOUT_S = 600
+
+
 def _detect_keyframes(video_path: str) -> list[int]:
     """Extract I-frame timestamps in ms via ffprobe (no decoding, instant)."""
     from yuu_clip.config import find_ffmpeg
@@ -86,8 +93,15 @@ def _detect_keyframes(video_path: str) -> list[int]:
                 "-of", "csv=print_section=0",
                 video_path,
             ],
-            capture_output=True, encoding="utf-8", errors="replace", timeout=30,
+            capture_output=True, encoding="utf-8", errors="replace", timeout=_KEYFRAME_TIMEOUT_S,
         )
+        if result.returncode != 0:
+            log.warning(
+                "Keyframe extraction: ffprobe exited %d for %s - falling back to "
+                "transcript-gaps-only scene detection. stderr: %s",
+                result.returncode, video_path, result.stderr.strip(),
+            )
+            return []
         cuts: list[int] = []
         for line in result.stdout.splitlines():
             parts = line.strip().split(",")
