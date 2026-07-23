@@ -394,6 +394,24 @@ function _clipsListUrl(videoId) {
   return `/api/videos/${videoId}/clips?sort=${_clipsSortParam()}`;
 }
 
+// Canonical clip-list fetch: every AppState.clips reload goes through this so a
+// non-200 response (most often "database is locked" from a concurrent analyze)
+// never lands its {detail: ...} error body into AppState.clips - the next
+// _renderClips would then throw ("filter is not a function") and the clip list
+// stops rendering until a full page reload. Returns null on any failure
+// (network error, non-ok response, or a non-array body) so callers can bail
+// and keep whatever list is already showing, rather than replacing it.
+async function fetchClipsList(videoId) {
+  try {
+    const res = await fetch(_clipsListUrl(videoId));
+    if (!res.ok) return null;
+    const data = await res.json();
+    return Array.isArray(data) ? data : null;
+  } catch {
+    return null;
+  }
+}
+
 async function selectVideo(id) {
   if (isSplitEditorOpen()) {
     // _splitPoints is split.js's shared live-edit state, imported as a live ESM
@@ -440,14 +458,13 @@ async function selectVideo(id) {
   // Load clips and (if the boot fetch hasn't populated them yet) contexts in
   // parallel, so the detail's context chips/dropdown never render from an empty
   // list on the first video opened after load.
-  const clipsPromise = fetch(_clipsListUrl(id)).then(r => r.json());
+  const clipsPromise = fetchClipsList(id);
   await ensureContexts();
   const clips = await clipsPromise;
   // Guard against a slower earlier fetch resolving after a newer selection -
   // otherwise clicking B while A's clips are in flight renders A into B's detail.
   if (AppState.activeVideoId !== id) return;
-  AppState.clips = clips;
-  _renderClips();
+  if (clips) { AppState.clips = clips; _renderClips(); }
   const video = AppState.videos.find(v => v.id === id);
   if (video) renderVideoDetail(video, null);
   else clearDetail();
@@ -1105,10 +1122,8 @@ async function _patchVideoField(videoId, action, field, newTitle, newSummary) {
 async function onClipsSortChange() {
   if (!AppState.activeVideoId) return;
   localStorage.setItem('clips-sort', _clipsSortParam());
-  try {
-    AppState.clips = await fetch(_clipsListUrl(AppState.activeVideoId)).then(r => r.json());
-  } catch { return; }
-  _renderClips();
+  const clips = await fetchClipsList(AppState.activeVideoId);
+  if (clips) { AppState.clips = clips; _renderClips(); }
 }
 
 // ── in-detail action delegation ─────────────────────────────────────────────
@@ -1171,7 +1186,7 @@ function initVideosListeners() {
 export {
   initVideosListeners,
   loadVideos, selectVideo, renderVideoDetail, deleteVideo,
-  onClipsSortChange, _clipsSortParam, _clipsListUrl,
+  onClipsSortChange, _clipsSortParam, fetchClipsList,
   _reanalyzeParams,
   _needsModelCtaHTML,
   _updateDemoButton, _updateStartIngestButton,

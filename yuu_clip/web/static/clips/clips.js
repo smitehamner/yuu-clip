@@ -15,7 +15,7 @@ import {
   _supersedeActiveStream, FRAMES_STEPS, SCORE_STEPS, applyJobBlockedState,
 } from '../core/jobs.js';
 import { gateOnCapability } from '../settings/modelcatalog.js';
-import { loadVideos, _clipsListUrl } from '../videos/videos.js';
+import { loadVideos, fetchClipsList } from '../videos/videos.js';
 import { deferPlayerRebuildForPip } from '../core/preview.js';
 import { exportPresetLabel } from '../library/exportpresets.js';
 import { openSettings, _scrollToSettingsSection } from '../settings/settings.js';
@@ -1100,8 +1100,8 @@ function openClipActionsModal(clipId) {
 
 async function _reloadClipList(videoId) {
   if (!videoId) return;
-  AppState.clips = await fetch(_clipsListUrl(videoId)).then(r => r.json());
-  _renderClips();
+  const clips = await fetchClipsList(videoId);
+  if (clips) { AppState.clips = clips; _renderClips(); }
 }
 
 function _replaceClipInList(updated) {
@@ -1350,11 +1350,10 @@ async function setStatus(id, status) {
     }
     AppState.activeClipId = id;
     const [clipsData, clipDetail] = await Promise.all([
-      fetch(_clipsListUrl(AppState.activeVideoId)).then(r => r.json()),
+      fetchClipsList(AppState.activeVideoId),
       fetch(`/api/clips/${id}`).then(r => r.json()),
     ]);
-    AppState.clips = clipsData;
-    _renderClips();
+    if (clipsData) { AppState.clips = clipsData; _renderClips(); }
     renderDetail(clipDetail);
     loadVideos();
 

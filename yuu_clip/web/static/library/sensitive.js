@@ -11,7 +11,7 @@ import { AppState } from '../core/state.js';
 import { plural, escHtml, formatApiError } from '../core/format.js';
 import { showToast } from '../core/utils.js';
 import { ensureContexts, _termContextOptions, _renderTermGroups } from './contexts.js';
-import { _clipsListUrl } from '../videos/videos.js';
+import { fetchClipsList } from '../videos/videos.js';
 import { _renderClips, selectClip } from '../clips/clips.js';
 
 let _draftSeq = 0;
@@ -113,7 +113,7 @@ function addSensitiveTermRow() {
 async function _refreshActiveVideoClipsForSensitive() {
   const videoId = AppState.activeVideoId;
   if (!videoId) return;
-  const clips = await fetch(_clipsListUrl(videoId)).then(r => r.json()).catch(() => null);
+  const clips = await fetchClipsList(videoId);
   if (clips) { AppState.clips = clips; _renderClips(); if (AppState.activeClipId) selectClip(AppState.activeClipId); }
 }
 

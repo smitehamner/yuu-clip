@@ -5,7 +5,7 @@
 import { AppState } from '../../../yuu_clip/web/static/core/state.js';
 import {
   _applyVideoFilters, _reanalyzeParams, _analysisLivePanelHTML, _syncAnalysisLivePanel,
-  _autoSelectAnalyzingId,
+  _autoSelectAnalyzingId, fetchClipsList,
 } from '../../../yuu_clip/web/static/videos/videos.js';
 import { startJobUI, updateJobUI, endJobUI } from '../../../yuu_clip/web/static/core/jobs.js';
 
@@ -159,5 +159,37 @@ describe('_reanalyzeParams', () => {
     const params = await _reanalyzeParams(null);
     expect(params.model).toBe('base');
     expect(params.energy_mode).toBe('fast');
+  });
+});
+
+// bug-hunt 3.4: a non-200 FastAPI response is still valid JSON ({"detail": ...}),
+// so an unchecked fetch(...).then(r => r.json()) parses it fine and lands the
+// error body straight into AppState.clips - the next render then throws
+// ("filter is not a function") and the clip list stops rendering until a full
+// page reload. fetchClipsList is the single fetch every AppState.clips reload
+// now goes through so that class of bug can't recur at any of its call sites.
+describe('fetchClipsList', () => {
+  afterEach(() => { delete globalThis.fetch; });
+
+  it('returns the array on a normal 200 response', async () => {
+    globalThis.fetch = () => Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: 1 }]) });
+    expect(await fetchClipsList(7)).toEqual([{ id: 1 }]);
+  });
+
+  it('returns null (not the error body) on a non-200 response with a JSON detail', async () => {
+    globalThis.fetch = () => Promise.resolve({
+      ok: false, status: 503, json: () => Promise.resolve({ detail: 'database is locked' }),
+    });
+    expect(await fetchClipsList(7)).toBeNull();
+  });
+
+  it('returns null when the parsed body is not an array', async () => {
+    globalThis.fetch = () => Promise.resolve({ ok: true, json: () => Promise.resolve({ not: 'a list' }) });
+    expect(await fetchClipsList(7)).toBeNull();
+  });
+
+  it('returns null on a network failure', async () => {
+    globalThis.fetch = () => Promise.reject(new Error('offline'));
+    expect(await fetchClipsList(7)).toBeNull();
   });
 });

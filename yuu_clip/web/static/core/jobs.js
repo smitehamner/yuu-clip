@@ -327,7 +327,9 @@ function _debouncedClipListRefresh() {
     // window.* reads: a direct import here adds a jobs.js <-> videos/clips edge that
     // esbuild bundles fine, but it breaks vitest's vi.mock/importActual resolution -
     // the real streamSSE runs instead of the mock. See MODULE-TESTABILITY-PLAN.
-    AppState.clips = await fetch(window._clipsListUrl(AppState.activeVideoId)).then(r => r.json());
+    const clips = await window._fetchClipsList(AppState.activeVideoId);
+    if (!clips) return;
+    AppState.clips = clips;
     window._renderClips();
   }, 1200);
 }

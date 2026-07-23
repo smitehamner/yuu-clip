@@ -8,7 +8,7 @@ import {
   _blockedByAnalyze, _openSSE, streamSSE, setJobCancel, _setActiveStream, _clearActiveStream,
   _supersedeActiveStream, startJobUI, updateJobUI, endJobUI, SCORE_STEPS,
 } from '../core/jobs.js';
-import { loadVideos, renderVideoDetail, _clipsListUrl } from '../videos/videos.js';
+import { loadVideos, renderVideoDetail, fetchClipsList } from '../videos/videos.js';
 import { selectClip, _renderClips } from '../clips/clips.js';
 import { SoundFx } from './sounds.js';
 
@@ -529,8 +529,8 @@ function _doRescoreClips(videoId, btn, endpoint = 'rescore-clips', includeFrames
         if (AppState.activeVideoId === videoId) {
           const v = AppState.videos.find(v => v.id === videoId);
           if (v) renderVideoDetail(v, null);
-          fetch(_clipsListUrl(videoId)).then(r => r.json()).then(clips => {
-            AppState.clips = clips; _renderClips();
+          fetchClipsList(videoId).then(clips => {
+            if (clips) { AppState.clips = clips; _renderClips(); }
           });
         }
       });
@@ -607,13 +607,13 @@ function _doRedescribeClips(videoId, btn) {
         showToast('Descriptions regenerated');
       }
       if (AppState.activeVideoId === videoId) {
-        fetch(_clipsListUrl(videoId))
-          .then(r => r.json())
-          .then(clips => {
+        fetchClipsList(videoId).then(clips => {
+          if (clips) {
             AppState.clips = clips;
             _renderClips();
             if (AppState.activeClipId) selectClip(AppState.activeClipId);
-          });
+          }
+        });
       }
     },
     errMsg => {
@@ -646,8 +646,8 @@ async function _doResetApprovals(videoId) {
     return;
   }
   const data = await res.json();
-  AppState.clips = await fetch(_clipsListUrl(videoId)).then(r => r.json());
-  _renderClips();
+  const clips = await fetchClipsList(videoId);
+  if (clips) { AppState.clips = clips; _renderClips(); }
   showToast(`Reset ${plural(data.reset, 'clip')} to Unreviewed`);
 }
 
@@ -717,8 +717,8 @@ async function doAutoApprove() {
     return;
   }
   const data = await res.json();
-  AppState.clips = await fetch(_clipsListUrl(videoId)).then(r => r.json());
-  _renderClips();
+  const clips = await fetchClipsList(videoId);
+  if (clips) { AppState.clips = clips; _renderClips(); }
   showToast(`Approved ${plural(data.approved, 'clip')}`);
 }
 

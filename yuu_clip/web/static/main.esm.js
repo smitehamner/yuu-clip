@@ -35,7 +35,7 @@ import {
 } from './settings/modelcatalog.js';
 import {
   loadVideos, renderVideoDetail,
-  onClipsSortChange, _clipsSortParam, _clipsListUrl,
+  onClipsSortChange, _clipsSortParam, fetchClipsList,
   _updateDemoButton,
   _syncAnalysisLivePanel,
   _renderVideoList,
@@ -114,7 +114,7 @@ Object.assign(window, jobs);    // jobs.js is cross-cutting; its exports still
 // direct import: a jobs.js<->videos/clips edge breaks vitest's
 // vi.mock(importActual) resolution (the plan's one documented exception).
 window.loadVideos = loadVideos;
-window._clipsListUrl = _clipsListUrl;
+window._fetchClipsList = fetchClipsList;
 window._updateDemoButton = _updateDemoButton;
 window._syncAnalysisLivePanel = _syncAnalysisLivePanel;
 window._renderClips = _renderClips;
