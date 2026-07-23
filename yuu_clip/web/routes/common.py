@@ -80,9 +80,16 @@ def module_findable(module: str) -> bool:
 
 
 def analyze_in_flight(ctx) -> bool:
-    """Whether an analyze operation is currently running, across both the
-    reattachable AnalyzeJob (ctx.analyze_job) and the legacy bare-subprocess
-    tracking (ctx.analyze_proc)."""
+    """Whether an analyze operation is running OR queued, across the reattachable
+    AnalyzeJob (ctx.analyze_job), the legacy bare-subprocess tracking
+    (ctx.analyze_proc), and a command queued by /api/analyze/start that hasn't
+    launched yet (ctx.analyze_cmd - cleared once /api/analyze/events launches it,
+    or by cancel). Without the last check, another heavy route's reject_if_busy
+    can pass during that one-round-trip window and launch alongside the analyze
+    that then starts a moment later.
+    """
+    if ctx.analyze_cmd is not None:
+        return True
     job = ctx.analyze_job
     if job is not None and not job.done:
         return True

@@ -327,3 +327,69 @@ class TestJsonList:
         import json
         assert self._fn(json.dumps([])) == []
 
+
+# ---------------------------------------------------------------------------
+# common.py - analyze_in_flight / job_in_flight (bug-hunt 2.5: a queued-but-
+# unlaunched /api/analyze/start command must count as busy too, closing the
+# one-round-trip window where another heavy route's reject_if_busy would
+# otherwise pass before /api/analyze/events launches the queued command).
+# ---------------------------------------------------------------------------
+
+class _FakeCtx:
+    def __init__(self, analyze_cmd=None, analyze_job=None, analyze_proc=None,
+                 active_jobs=0, proxy_generating=False):
+        self.analyze_cmd = analyze_cmd
+        self.analyze_job = analyze_job
+        self.analyze_proc = analyze_proc
+        self.active_jobs = active_jobs
+        self.proxy_generating = proxy_generating
+
+
+class TestAnalyzeInFlight:
+    def _fn(self, ctx):
+        from yuu_clip.web.routes.common import analyze_in_flight
+        return analyze_in_flight(ctx)
+
+    def test_idle_ctx_is_not_in_flight(self):
+        assert self._fn(_FakeCtx()) is False
+
+    def test_queued_but_unlaunched_command_counts_as_in_flight(self):
+        assert self._fn(_FakeCtx(analyze_cmd=["python", "-m", "yuu_clip.cli"])) is True
+
+    def test_running_analyze_job_counts_as_in_flight(self):
+        from types import SimpleNamespace
+        assert self._fn(_FakeCtx(analyze_job=SimpleNamespace(done=False))) is True
+
+    def test_finished_analyze_job_does_not_count(self):
+        from types import SimpleNamespace
+        assert self._fn(_FakeCtx(analyze_job=SimpleNamespace(done=True))) is False
+
+    def test_live_legacy_subprocess_counts_as_in_flight(self):
+        from types import SimpleNamespace
+        assert self._fn(_FakeCtx(analyze_proc=SimpleNamespace(returncode=None))) is True
+
+    def test_exited_legacy_subprocess_does_not_count(self):
+        from types import SimpleNamespace
+        assert self._fn(_FakeCtx(analyze_proc=SimpleNamespace(returncode=0))) is False
+
+
+class TestJobInFlight:
+    def _fn(self, ctx):
+        from yuu_clip.web.routes.common import job_in_flight
+        return job_in_flight(ctx)
+
+    def test_idle_ctx_is_not_busy(self):
+        assert self._fn(_FakeCtx()) is False
+
+    def test_queued_but_unlaunched_analyze_makes_the_app_busy(self):
+        # The exact race this fix closes: another route's reject_if_busy must
+        # see the app as busy during the window between /api/analyze/start
+        # queuing the command and /api/analyze/events launching it.
+        assert self._fn(_FakeCtx(analyze_cmd=["python", "-m", "yuu_clip.cli"])) is True
+
+    def test_counted_job_makes_the_app_busy(self):
+        assert self._fn(_FakeCtx(active_jobs=1)) is True
+
+    def test_proxy_generation_makes_the_app_busy(self):
+        assert self._fn(_FakeCtx(proxy_generating=True)) is True
+

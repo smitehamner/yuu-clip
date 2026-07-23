@@ -72,6 +72,19 @@ class TestDemoEventsSSE:
         assert isinstance(done, dict) and done["type"] == "__DONE__" and done["ok"] is False
         assert ctx.demo_cmd is None
 
+    def test_events_rejected_while_analyze_is_queued_but_not_yet_launched(self, client):
+        # bug-hunt 2.5: /api/analyze/start only sets ctx.analyze_cmd - the analyze
+        # job itself doesn't launch until /api/analyze/events connects. That window
+        # must still count as busy, or a reel start slipping in during it would run
+        # alongside the analyze that launches a moment later.
+        ctx = client.app.state.ctx
+        ctx.demo_cmd = [sys.executable, "-c", "print('ok')"]
+        ctx.analyze_cmd = [sys.executable, "-m", "yuu_clip.cli"]
+        r = client.get("/api/demo/events")
+        assert r.status_code == 409
+        # Rejected before launch - the queued reel command is untouched.
+        assert ctx.demo_cmd is not None
+
 
 # ---------------------------------------------------------------------------
 # _safe_filename

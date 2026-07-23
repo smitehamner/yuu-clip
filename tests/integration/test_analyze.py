@@ -136,6 +136,10 @@ class TestIngestStart:
 
     def test_all_energy_modes_accepted(self, client, video_path):
         for mode in ("none", "fast", "full"):
+            # A queued-but-unlaunched command counts as busy (bug-hunt 2.5), so
+            # clear the previous iteration's queue slot - this test only cares
+            # about energy_mode validation, not the start->events launch handoff.
+            client.app.state.ctx.analyze_cmd = None
             r = client.post("/api/analyze/start", json={
                 "path": str(video_path),
                 "model": "medium",

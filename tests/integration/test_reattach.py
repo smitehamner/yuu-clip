@@ -297,6 +297,7 @@ class TestRejectWhileAnalyzing:
         from yuu_clip.web.routes.common import reject_if_busy
 
         class _Ctx:
+            analyze_cmd = None
             analyze_job = None
             analyze_proc = None
             active_jobs = 0
