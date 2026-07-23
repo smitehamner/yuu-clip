@@ -105,6 +105,21 @@ class TestSplitMarkers:
         expect(split_editor.locator("#split-editor-panel")).to_be_visible()
         expect(split_editor.locator("#split-markers-layer .split-marker")).to_have_count(1)
 
+    def test_opening_new_recording_panel_closes_dirty_split_editor_instead_of_opening_underneath(self, split_editor: Page):
+        # bug-hunt 3.2 - openNewRecordingPanel() is reachable while the Split
+        # Editor is open not just via the (visually blocked) header button, but
+        # e.g. dropping a video file onto the window calls it directly. It must
+        # not open underneath the PanelNav overlay (invisible, and would
+        # silently reset the shared split state) - it must close the flow
+        # first, respecting its own dirty guard, same as the Back button.
+        _place_split_point(split_editor)
+        split_editor.evaluate("openNewRecordingPanel()")
+        expect(split_editor.locator("#confirm-modal")).to_be_visible()
+        expect(split_editor.locator("#new-recording-panel")).to_be_hidden()
+        split_editor.click("#confirm-ok-btn")
+        expect(split_editor.locator("#split-editor-panel")).to_be_hidden()
+        expect(split_editor.locator("#new-recording-panel")).to_be_hidden()
+
 
 @skip_no_server
 class TestSplitActions:

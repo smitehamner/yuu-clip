@@ -1,6 +1,7 @@
 // Feature-map - Analyze (start + SSE progress) + Import from URL, both in the New Recording panel.
 //   API: routes/analyze.py, routes/imports.py · Tests: tests/ui/test_ui_analyze.py
 import { AppState } from '../core/state.js';
+import { PanelNav } from '../core/panelnav.js';
 import { escHtml, plural, formatApiError, _msToHms, _fmtElapsed } from '../core/format.js';
 import { showConfirm } from '../core/ui.js';
 import { showToast, openLog, appendLog, netErrMsg, _diarizationReadiness, _diarizationNoteHtml } from '../core/utils.js';
@@ -77,6 +78,13 @@ function _reanalyzeWarningHtml(target) {
 async function openNewRecordingPanel() {
   if (_isNewRecordingPanelOpen()) return;
   if (document.getElementById('btn-analyze').disabled) return;
+  // A PanelNav flow (e.g. the Split Editor) covers the detail panel but not the
+  // always-visible header Analyze button. Opening underneath it would reset the
+  // shared split-editor state (hidePreSplitSection below) while an invisible
+  // dirty-trackable panel stays "open" behind the overlay (bug-hunt 3.2) - close
+  // it first (respecting its own dirty guard) and let the user click Analyze
+  // again once it's actually gone, rather than opening on top of it.
+  if (PanelNav.isOpen()) { PanelNav.close(); return; }
   if (document.getElementById('settings-panel').classList.contains('visible')) {
     closeSettings(openNewRecordingPanel);
     return;

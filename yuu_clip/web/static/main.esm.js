@@ -57,7 +57,7 @@ import {
 import { openClipCreatePicker } from './clips/clipcreate.js';
 import {
   openReanalyzePanel, closeNewRecordingPanel,
-  startAnalyze,
+  startAnalyze, openNewRecordingPanel,
 } from './analyze/analyze.js';
 import {
   openHighlightReelsModal,
@@ -155,7 +155,10 @@ window.openSettings = openSettings;                      // analyze/contexts/cli
 //    modal/panel to verify Escape/focus layering and the real button is covered:
 //    showAlert, showKebab, toggleHamburger, openControlsModal, openGlossaryModal,
 //    openSplitEditor, closeSplitEditor, _confirmCancel (teardown dirty-guard
-//    bypass), toggleClipFilter (chip hidden inside a collapsed expander).
+//    bypass), toggleClipFilter (chip hidden inside a collapsed expander),
+//    openNewRecordingPanel (its header button sits under the PanelNav overlay
+//    when a flow like the Split Editor is open - the real click can't reach it,
+//    but a drag-and-drop file onto the window calls it directly; bug-hunt 3.2).
 //  * No reachable precondition - startAnalyze's button is disabled until a real
 //    probe against a real file succeeds (the fixture has none);
 //    openHighlightReelsModal is poked with a 'view' arg the single real
@@ -177,7 +180,7 @@ Object.assign(window, {
   renderVideoDetail, _renderVideoList, regenSummaryAuto, toggleGroupSelect,
   renderDetail, toggleClipFilter, _applyFilters, openClipActionsModal,
   openClipCreatePicker,
-  openReanalyzePanel, startAnalyze,
+  openReanalyzePanel, startAnalyze, openNewRecordingPanel,
   openHighlightReelsModal,
   _deriveContextId,
   SoundFx, commitSoundSettings,
