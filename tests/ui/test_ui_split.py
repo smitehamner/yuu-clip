@@ -59,6 +59,18 @@ class TestSplitMarkers:
         marker.click(position={"x": 5, "y": 30})
         expect(split_editor.locator("#split-markers-layer .split-marker")).to_have_count(1)
 
+    def test_clicking_a_marker_body_preserves_custom_segment_names(self, split_editor: Page):
+        # bug-hunt 3.1 - a plain click-to-preview on a marker (no drag) changes
+        # no split point, so it must not silently reset custom segment names to
+        # their auto-generated "Part N" default.
+        _place_split_point(split_editor)
+        name_input = split_editor.locator('input[data-split-role="name"]').first
+        name_input.fill("Intro")
+        name_input.dispatch_event("change")
+        marker = split_editor.locator("#split-markers-layer .split-marker")
+        marker.click(position={"x": 5, "y": 30})
+        expect(name_input).to_have_value("Intro")
+
     def test_clicking_a_suggestion_pin_snaps_a_point_to_that_second(self, split_editor: Page):
         # Regression: the ESM migration dropped the suggestion-pin click handler
         # (inline onclick removed, no delegated listener added), so clicking a

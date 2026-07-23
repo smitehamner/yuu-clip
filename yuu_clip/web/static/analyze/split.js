@@ -462,10 +462,12 @@ function _splitMarkerPointerDown(e, sec) {
   function onUp() {
     _dragActive    = false;
     if (!moved) _splitSeekTo(sec);
+    // Only a real drag changes any split point - a plain click-to-preview must
+    // never silently wipe custom segment names (bug-hunt 3.1).
+    else _rebuildSplitNames();
     _dragMarkerSec = null;
     window.removeEventListener('pointermove', onMove);
     window.removeEventListener('pointerup',   onUp);
-    _rebuildSplitNames();
     _renderSplitEditor();
   }
 
