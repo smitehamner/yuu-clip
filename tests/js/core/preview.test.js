@@ -5,10 +5,12 @@
 // preview.js does not drag in the SSE machinery.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../../yuu_clip/web/static/core/jobs.js', () => ({ streamSSE: vi.fn() }));
+vi.mock('../../../yuu_clip/web/static/core/jobs.js', () => ({ _openSSE: vi.fn() }));
 
+import { _openSSE } from '../../../yuu_clip/web/static/core/jobs.js';
 import {
   _isPipElement, releaseVideoRespectingPip, deferPlayerRebuildForPip, _buildMediaUrl,
+  _buildRecordingProxy,
 } from '../../../yuu_clip/web/static/core/preview.js';
 
 afterEach(() => { delete window.electronAPI; });
@@ -139,5 +141,54 @@ describe('deferPlayerRebuildForPip', () => {
     );
     expect(leaveHandlers).toHaveLength(1);
     vid.dispatchEvent(new Event('leavepictureinpicture')); // drain the queued rebuild
+  });
+});
+
+// bug-hunt 2.3: a background proxy build must never supersede a live analyze/
+// score/export progress stream, which is exactly what streamSSE's
+// _supersedeActiveStream() would do. _buildRecordingProxy must go through the
+// raw, non-superseding _openSSE instead.
+describe('_buildRecordingProxy', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  it('drains via the non-superseding _openSSE, not streamSSE', () => {
+    const badge = document.createElement('div');
+    _buildRecordingProxy(document.createElement('video'), badge, 7, () => true);
+
+    expect(_openSSE).toHaveBeenCalledTimes(1);
+    expect(_openSSE.mock.calls[0][0]).toBe('/api/videos/7/proxy/generate');
+  });
+
+  it('surfaces the encode percentage on the badge via onLine', () => {
+    const badge = document.createElement('div');
+    _buildRecordingProxy(document.createElement('video'), badge, 7, () => true);
+
+    const onLine = _openSSE.mock.calls[0][1];
+    onLine('frame= 10 42% done');
+
+    expect(badge.textContent).toContain('42%');
+  });
+
+  it('on error, resets the badge to a clickable retry button rather than leaving it stuck building', () => {
+    const badge = document.createElement('div');
+    _buildRecordingProxy(document.createElement('video'), badge, 7, () => true);
+
+    const onError = _openSSE.mock.calls[0][3];
+    onError('[Error: subprocess exited with code 1]');
+
+    expect(badge.classList.contains('preview-badge-build')).toBe(true);
+    expect(typeof badge.onclick).toBe('function');
+  });
+
+  it('on completion, checks proxy-status and switches the badge to proxy quality when it landed', async () => {
+    vi.stubGlobal('fetch', vi.fn(() =>
+      Promise.resolve({ ok: true, json: async () => ({ available: true, proxy_path: '/tmp/proxy.mp4' }) })));
+    const badge = document.createElement('div');
+    _buildRecordingProxy(document.createElement('video'), badge, 7, () => true);
+
+    const onDone = _openSSE.mock.calls[0][2];
+    await onDone();
+
+    expect(badge.classList.contains('preview-badge-proxy')).toBe(true);
   });
 });

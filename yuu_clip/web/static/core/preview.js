@@ -8,7 +8,7 @@
 // mode never has electronAPI, so it always gets the unchanged HTTP URL. absPath
 // may be null (e.g. a proxy that hasn't been generated/looked up yet), which
 // simply falls back to HTTP for that one request.
-import { streamSSE } from './jobs.js';
+import { _openSSE } from './jobs.js';
 
 // ── Picture-in-Picture safety (B23/B24) ───────────────────────────────────────
 // Detaching a <video>, or clearing its src, while the browser holds it in native
@@ -130,11 +130,20 @@ function _useRecordingProxy(videoEl, badgeEl, videoId, isCurrent, startS = null,
   _setPreviewBadge(badgeEl, 'proxy');
 }
 
-function _buildRecordingProxy(videoEl, badgeEl, videoId, isCurrent, startS = null) {
+export function _buildRecordingProxy(videoEl, badgeEl, videoId, isCurrent, startS = null) {
   if (!isCurrent()) return;
   _setPreviewBadge(badgeEl, 'building');
-  streamSSE(
+  const retryBadge = () => _setPreviewBadge(badgeEl, 'original', null, () => _buildRecordingProxy(videoEl, badgeEl, videoId, isCurrent, startS));
+  // Raw _openSSE, not streamSSE: this is a background convenience (no global job
+  // pill), and streamSSE's _supersedeActiveStream() would tear down a live
+  // analyze/score/export progress stream just because a preview proxy started
+  // building alongside it (bug-hunt 2.3).
+  _openSSE(
     `/api/videos/${videoId}/proxy/generate`,
+    msg => {    // onLine: surface the encode percentage on the badge
+      const m = typeof msg === 'string' ? /(\d+)%/.exec(msg) : null;
+      if (m && isCurrent()) _setPreviewBadge(badgeEl, 'building', m[1]);
+    },
     async () => {
       if (!isCurrent()) return;
       const status = await fetch(`/api/videos/${videoId}/proxy-status`)
@@ -143,14 +152,10 @@ function _buildRecordingProxy(videoEl, badgeEl, videoId, isCurrent, startS = nul
       if (status?.available) _useRecordingProxy(videoEl, badgeEl, videoId, isCurrent, startS, status.proxy_path);
       // Another open is still encoding - poll until its proxy lands.
       else if (status?.generating) setTimeout(() => _buildRecordingProxy(videoEl, badgeEl, videoId, isCurrent, startS), 5000);
-      else _setPreviewBadge(badgeEl, 'original', null, () => _buildRecordingProxy(videoEl, badgeEl, videoId, isCurrent, startS));
+      else retryBadge();
     },
-    null,        // no global job pill - this is a background convenience
-    'Preview',
-    false,
-    line => {    // onLine: surface the encode percentage on the badge
-      const m = /(\d+)%/.exec(line);
-      if (m && isCurrent()) _setPreviewBadge(badgeEl, 'building', m[1]);
+    () => {     // onError: a failed background build is a convenience miss, not
+      if (isCurrent()) retryBadge();  // an error to surface - just offer a retry.
     },
   );
 }

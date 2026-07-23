@@ -6,7 +6,7 @@ import { escHtml, plural, formatApiError } from '../core/format.js';
 import { setupRecordingPreview, releaseVideoRespectingPip } from '../core/preview.js';
 import { showToast, netErrMsg, openLog, appendLog } from '../core/utils.js';
 import { showConfirm } from '../core/ui.js';
-import { streamSSE, INGEST_STEPS, _waitWhileAnalyzePaused } from '../core/jobs.js';
+import { streamSSE, _openSSE, INGEST_STEPS, _waitWhileAnalyzePaused } from '../core/jobs.js';
 import { loadVideos, _reanalyzeParams } from '../videos/videos.js';
 
 // ── shared live split-editor state ────────────────────────────────────────────
@@ -198,13 +198,19 @@ function _splitSeekTo(sec) {
 // Preview proxy (720p, fast scrubbing) is handled by the shared
 // setupRecordingPreview() in preview.js - see openSplitEditor.
 
-async function _generateWaveform() {
+export async function _generateWaveform() {
   const btn = document.querySelector('#split-waveform-notice button');
   if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
   const notice = document.getElementById('split-waveform-notice');
+  const resetButton = () => { if (btn) { btn.disabled = false; btn.textContent = 'Generate Waveform'; } };
 
-  streamSSE(
+  // Raw _openSSE, not streamSSE: this is a background convenience (no global job
+  // pill), and streamSSE's _supersedeActiveStream() would tear down a live
+  // analyze/score/export progress stream just because the Split Editor's waveform
+  // started generating alongside it (bug-hunt 2.3).
+  _openSSE(
     `/api/videos/${_splitVideoId}/compute-waveform`,
+    () => {},  // onLine: no live progress text needed for this one
     async () => {
       // Reload energy data and redraw
       const res = await fetch(`/api/videos/${_splitVideoId}/energy`).then(r => r.ok ? r.json() : null);
@@ -226,11 +232,9 @@ async function _generateWaveform() {
           return;
         }
       }
-      if (btn) { btn.disabled = false; btn.textContent = 'Generate Waveform'; }
+      resetButton();
     },
-    null,
-    'Waveform',
-    false,
+    () => resetButton(),  // onError: a failed waveform build just re-arms the button
   );
 }
 
