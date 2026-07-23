@@ -30,7 +30,7 @@ const {
 } = require('./constants');
 const { rotateLogs, logSetup } = require('./logging');
 const { loadElectronConfig, saveElectronConfig, writeProjectConfig } = require('./electron-config');
-const { runCmd, downloadFileWithProgress, pipStatusReporter, WIZARD_INSTALLABLE, checkVenvModule } = require('./install');
+const { runCmd, downloadFileWithProgress, cleanupStalePartFiles, pipStatusReporter, WIZARD_INSTALLABLE, checkVenvModule } = require('./install');
 
 // Roadmap plan 10 - the "yuu-media" scheme must be registered as privileged
 // before app.ready fires (Electron requirement); the actual request handler
@@ -1337,6 +1337,14 @@ app.whenReady().then(async () => {
   rotateLogs();
   logSetup(`YuuClip ${app.getVersion()} starting - ${process.platform} ${process.arch} node/${process.versions.node}`);
   registerMediaProtocol();
+
+  // No download can be in-flight this early in a fresh process - safe to sweep
+  // any .part left behind by a GGUF download that never got to clean up after
+  // itself (e.g. the app was quit or crashed mid-download in a prior run).
+  if (!activeGgufController) {
+    const stranded = cleanupStalePartFiles(MODELS_DIR);
+    if (stranded.length) logSetup(`Removed ${stranded.length} stranded .part download(s): ${stranded.join(', ')}`);
+  }
 
   const knownQuits = [
     'Python not found',

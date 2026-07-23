@@ -9,6 +9,7 @@
 const { spawn } = require('child_process');
 const fs        = require('fs');
 const https     = require('https');
+const path      = require('path');
 const { VENV_PYTHON } = require('./constants');
 
 // Async command runner - keeps the event loop free during long pip installs.
@@ -98,6 +99,31 @@ function downloadFileWithProgress(url, destPath, onProgress, opts = {}) {
   });
 }
 
+// Removes any stale `.part` files left in modelsDir by a download that never
+// finished - e.g. the user quit the whole app while it was streaming, so
+// nothing was left running to unlink it the way downloadFileWithProgress's
+// own cleanupAndReject does on a normal failure or cancel. Otherwise a
+// multi-GB .part sits there forever, only ever reclaimed if the user happens
+// to retry the exact same download. Safe to call any time no download is
+// in-flight in this process (e.g. app startup, or whenever the wizard opens).
+function cleanupStalePartFiles(modelsDir) {
+  let entries;
+  try {
+    entries = fs.readdirSync(modelsDir);
+  } catch (_) {
+    return [];
+  }
+  const removed = [];
+  for (const name of entries) {
+    if (!name.endsWith('.part')) continue;
+    try {
+      fs.unlinkSync(path.join(modelsDir, name));
+      removed.push(name);
+    } catch (_) {}
+  }
+  return removed;
+}
+
 // Wraps an onStatus callback so a pip run only reports each condensed status
 // line once (raw pip repeats download-progress lines many times per second).
 function pipStatusReporter(onStatus) {
@@ -152,6 +178,7 @@ function checkVenvModule(importName) {
 module.exports = {
   runCmd,
   downloadFileWithProgress,
+  cleanupStalePartFiles,
   pipStatusReporter,
   formatPipLine,
   WIZARD_INSTALLABLE,
