@@ -207,9 +207,22 @@ class TestAnalyzeCoordination:
 
 @skip_no_server
 class TestGettingStartedModal:
-    def test_modal_opens_on_first_run_and_marks_seen_on_close(self, page: Page):
-        page.evaluate("() => { localStorage.removeItem('yuu-getting-started-seen'); openGettingStartedModal(); }")
-        page.wait_for_selector("#getting-started-modal.visible", timeout=8000)
-        page.evaluate("() => closeGettingStartedModal()")
-        page.wait_for_selector("#getting-started-modal.visible", state="hidden", timeout=8000)
-        assert page.evaluate("() => localStorage.getItem('yuu-getting-started-seen')") == "1"
+    def test_modal_opens_on_first_run_and_marks_seen_on_close(self, browser):
+        # A real first run: the shared `page` fixture seeds the seen-flag via an
+        # init script (so the modal never blocks other tests), which would also
+        # overwrite a manual localStorage.removeItem() on any re-navigation - so
+        # this test needs its own fresh, unseeded context instead of a poke.
+        # With no flag set, boot.js's own
+        # `if (!localStorage.getItem('yuu-getting-started-seen')) openGettingStartedModal()`
+        # opens the modal for real; the real close button marks it seen.
+        context = browser.new_context()
+        try:
+            fresh_page = context.new_page()
+            fresh_page.set_default_timeout(10_000)
+            fresh_page.goto(LIVE_URL, wait_until="domcontentloaded")
+            fresh_page.wait_for_selector("#getting-started-modal.visible", timeout=8000)
+            fresh_page.click("#getting-started-close-btn")
+            fresh_page.wait_for_selector("#getting-started-modal.visible", state="hidden", timeout=8000)
+            assert fresh_page.evaluate("() => localStorage.getItem('yuu-getting-started-seen')") == "1"
+        finally:
+            context.close()

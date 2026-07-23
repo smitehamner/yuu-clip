@@ -206,6 +206,58 @@ except the two items below).
   `test_ui_sensitive.py`, `test_ui_transcript.py`, `test_ui_vision.py`) is a cross-file project
   on its own, not a normal bucket pass - ask the owner before attempting it.
 
+  **2026-07-22 Phase 2 continuation session (test_ui_settings.py + test_ui_whisper_prefetch.py
+  buckets), 85 -> 77, 1 gated commit:** re-ran the inventory fresh first (confirmed 85).
+  `test_ui_settings.py`'s 6 holders: `_renderCapabilityTiers`'s only "reader" here was a prose
+  comment (settings.js/modeldownload.js already import it directly, and
+  `tests/js/settings/modelcatalog.test.js` already imports it directly too) - dropped, same
+  false-positive class flagged repeatedly in prior sessions. `playbackRatePref`/
+  `applyPlaybackRate` (`TestPlaybackSpeed`, 3 of its 5 tests) are pure logic - localStorage plus
+  a detached `<video>`'s `.playbackRate` property, no real navigation/geometry - ported
+  verbatim to `tests/js/core/ui.test.js`; the other 2 tests in that class stay in Playwright
+  (one needs the real capture-phase `initPlaybackRate()` listener wired by `boot.js`, one needs
+  the live Settings-panel select). `_onDiarizationBackendChange` (`TestSpeakerClusterThreshold`,
+  4 tests) real-swapped to `page.select_option("#s-diarization-backend", ...)` - the select's
+  own `change` listener already calls it. `closeGlossaryModal` (`TestGlossaryFilter`) real-swapped
+  to a click on `#glossary-modal-close-btn`; its open half looked identical
+  (`page.evaluate("openGlossaryModal()")`) and was swapped too, at first - **but a full-suite
+  run caught a second, unrelated poke of the same name in `test_ui_keyboard.py` (2 tests) that a
+  per-file-only grep had missed**, where the glossary modal is deliberately stacked on top of an
+  already-open Settings panel / controls modal for Escape-layering assertions and the real
+  `#btn-hamburger` path is unreachable by design (same class as the `toggleHamburger` keep).
+  `openGlossaryModal`'s shim line was restored once this was found - **a concrete instance of the
+  standing lesson to check a name's real-poke status across ALL of `tests/`, not just the bucket
+  file at hand, before dropping any shim line.** `test_ui_whisper_prefetch.py`'s 6 holders:
+  `initModelPrefetch`'s only "readers" (here and in `test_ui_model_catalog.py`) were prose
+  comments - `boot.js` already imports it directly - dropped. `initModelDownload`/
+  `_resetModelDownloads` have real pokes in the not-yet-triaged `test_ui_modeldownload.py`
+  bucket, so their shim lines stay regardless of this file's comment-only mentions.
+  `startAnalyze` stays LEAVE IT: its real trigger, `#btn-start-analyze`, is disabled until a
+  probe against a real file succeeds, and the fixture project has no file at the test's
+  synthetic path - no safe real-click path. `openGettingStartedModal`/`closeGettingStartedModal`
+  (`TestGettingStartedModal`) real-flow-swapped: the shared `page` fixture seeds the seen-flag
+  via an init script on every navigation (so the modal can't block other tests), which would
+  also stomp a manual `localStorage.removeItem()` before any re-navigation - so the test opens a
+  brand-new, unseeded browser context instead (via the `browser` fixture), letting `boot.js`'s
+  own first-run check open the modal for real, then closes it with a real click on
+  `#getting-started-close-btn`. Gate: bundle, test-js 359 (356 -> 359, +3 for the playbackRatePref/
+  applyPlaybackRate port), test-unit 1069, test-api 2992, targeted `test_ui_settings.py` +
+  `test_ui_whisper_prefetch.py` (85 passed) and `test_ui_modeldownload.py` + `test_ui_model_catalog.py`
+  (25 passed, checked since they share `initModelDownload`/`_resetModelDownloads`/
+  `initModelPrefetch`), full test-ui 641 (644 -> 641, -3 for the migrated `TestPlaybackSpeed`
+  tests), lint clean, typecheck 0 new errors.
+  - Shim: 85 -> 77 (77 confirmed by regenerating the inventory fresh after the
+    `openGlossaryModal` restoration).
+  - **Next buckets by holder count** (regenerate before trusting - numbers shift):
+    `test_ui_clips.py` (10) and `test_ui_clips2.py` (~8-9) remain flagged - the `renderDetail`
+    cross-file project, do not start without asking. `test_ui_page.py`/`test_ui_panelnav.py`
+    (5 each) not yet inspected. `test_ui_hotwords.py`/`test_ui_sessions.py`/`test_ui_video.py`
+    (4 each, though `test_ui_video.py` was already triaged down from 9 to 4 in the prior
+    session - the remaining 4 are `renderVideoDetail`/`_renderVideoList`/`openVideoActionsModal`/
+    `regenSummaryAuto`, several already documented LEAVE IT). `test_ui_modeldownload.py` (4,
+    partially informed by this session - `initModelDownload`/`_resetModelDownloads` are real
+    pokes there, not yet fully triaged for a swap).
+
 - [ ] **In-process LLM/scoring jobs lack progress + a Cancel** - found in the v0.1.27
   manual checks: "Generate timeline" and "Suggest names" show no progress and offer no way
   to cancel, and a sweep found this is one class, not two bugs. Every *subprocess* job

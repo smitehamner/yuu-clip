@@ -26,20 +26,17 @@ import {
   openControlsModal,
   openDiffModal,
   showKebab, _applyPrereqWarnings, showUndoToast,
-  playbackRatePref, applyPlaybackRate,
 } from './core/ui.js';
 import {
-  openGettingStartedModal, closeGettingStartedModal,
   openAboutModal, closeAboutModal,
   openHelpModal, closeHelpModal,
-  openGlossaryModal, closeGlossaryModal,
+  openGlossaryModal,
 } from './core/helpmodals.js';
 // shortcuts.js's only export is initShortcuts(), the keydown listener
 // registration - imported and called once from boot.js (see
 // MODULE-TESTABILITY-PLAN), which main.esm.js already pulls in below.
 import {
   refreshModelCatalog,
-  _renderCapabilityTiers,
   gateOnCapability,
 } from './settings/modelcatalog.js';
 import {
@@ -81,7 +78,6 @@ import {
 } from './library/contexts.js';
 import {
   openSettings,
-  _onDiarizationBackendChange,
 } from './settings/settings.js';
 // settings-backup.js has no external window consumer left (its two names,
 // backupProject and startRestore, were only read by index.html inline handlers,
@@ -89,7 +85,7 @@ import {
 // import keeps esbuild pulling it into the bundle and runs its static wiring.
 import './settings/settings-backup.js';
 import {
-  initModelDownload, initModelPrefetch, _resetModelDownloads,
+  initModelDownload, _resetModelDownloads,
 } from './settings/modeldownload.js';
 import {
   SoundFx, commitSoundSettings,
@@ -140,8 +136,12 @@ Object.assign(window, jobs);
 // (tests/ui/test_ui_video.py::TestNativeMediaProtocolUrlBuilder) moved to
 // tests/js/core/preview.test.js (2026-07-22) since it is a pure function.
 // ui.js - showAlert/openDiffModal/showKebab/_applyPrereqWarnings/
-// showUndoToast/playbackRatePref/applyPlaybackRate have no JS reader left and
-// are kept only for tests/ui/*.py or tests/js/*.test.js page.evaluate pokes.
+// showUndoToast have no JS reader left and are kept only for tests/ui/*.py or
+// tests/js/*.test.js page.evaluate pokes. playbackRatePref/applyPlaybackRate
+// dropped 2026-07-22: their only pokes (test_ui_settings.py::TestPlaybackSpeed)
+// were pure logic (localStorage read + a detached <video>'s .playbackRate
+// property, no real navigation/geometry) and ported verbatim to
+// tests/js/core/ui.test.js.
 // _confirmCancel/toggleHamburger/openControlsModal are ALSO invoked directly
 // by tests/ui/*.py, even though shortcuts.js's own read of each already
 // imports it directly. toggleHamburger's two test_ui_clips2.py pokes became
@@ -173,30 +173,37 @@ window.openDiffModal = openDiffModal;
 window.showKebab = showKebab;
 window._applyPrereqWarnings = _applyPrereqWarnings;
 window.showUndoToast = showUndoToast;
-window.playbackRatePref = playbackRatePref;
-window.applyPlaybackRate = applyPlaybackRate;
-// helpmodals.js - every remaining name here is invoked directly by
-// tests/ui/*.py via page.evaluate. _filterGlossary dropped: settings.js (its
-// only reader) already imports it directly.
-window.openGettingStartedModal = openGettingStartedModal;
-window.closeGettingStartedModal = closeGettingStartedModal;
+// helpmodals.js - openAboutModal/closeAboutModal/openHelpModal/closeHelpModal
+// are invoked directly by tests/ui/*.py via page.evaluate. _filterGlossary
+// dropped: settings.js (its only reader) already imports it directly.
+// openGettingStartedModal/closeGettingStartedModal dropped 2026-07-22:
+// test_ui_whisper_prefetch.py::TestGettingStartedModal now drives the real
+// first-run flow (a fresh, un-seeded browser context so boot.js's own
+// `if (!localStorage.getItem('yuu-getting-started-seen')) openGettingStartedModal()`
+// opens it for real) and closes it via the real #getting-started-close-btn.
+// closeGlossaryModal dropped 2026-07-22: test_ui_settings.py::TestGlossaryFilter
+// now closes it via the real #glossary-modal-close-btn. openGlossaryModal
+// STAYS: test_ui_settings.py opens it via the real #btn-hamburger ->
+// #hamburger-item-glossary path now, but test_ui_keyboard.py still pokes it
+// directly to stack the glossary modal on top of an already-open Settings
+// panel / controls modal for Escape-layering tests - the real hamburger
+// button is unreachable there by design (same class as toggleHamburger).
 window.openAboutModal = openAboutModal;
 window.closeAboutModal = closeAboutModal;
 window.openHelpModal = openHelpModal;
 window.closeHelpModal = closeHelpModal;
 window.openGlossaryModal = openGlossaryModal;
-window.closeGlossaryModal = closeGlossaryModal;
 // modelcatalog.js - refreshModelCatalog and gateOnCapability are invoked
-// directly by tests/ui/test_ui_model_catalog.py via page.evaluate;
-// _renderCapabilityTiers has no outside JS caller left (settings.js and
-// modeldownload.js both import it directly) but is poked by
-// tests/ui/test_ui_settings.py and tests/js/settings/modelcatalog.test.js.
+// directly by tests/ui/test_ui_model_catalog.py via page.evaluate.
+// _renderCapabilityTiers dropped 2026-07-22: settings.js and modeldownload.js
+// already import it directly, and its only "reader" in test_ui_settings.py was
+// a prose comment naming it, not a real poke - tests/js/settings/
+// modelcatalog.test.js already imports it directly too.
 // _ensureModelCatalog and _updateLlmCapabilities dropped: settings.js/
 // modeldownload.js already import both directly and no test pokes either.
 // prefetchModel and downloadGgufModel dropped earlier: both are wired
 // internally via addEventListener/data-* delegation and have no outside caller.
 window.refreshModelCatalog = refreshModelCatalog;
-window._renderCapabilityTiers = _renderCapabilityTiers;
 window.gateOnCapability = gateOnCapability;
 // videos.js is cross-cutting - every remaining name here still has at least one
 // classic (bundle.js) consumer or a tests/ui/*.py page.evaluate. _clipsSortParam is
@@ -449,9 +456,11 @@ window.closeRetranscribeModal = closeRetranscribeModal;
 window.startRetranscribe = startRetranscribe;
 // settings.js - openSettings is read as a bare global from dynamically-built
 // onclick strings owned by other modules (analyze.js/clipexport.js/contexts.js's
-// _diarizationNoteHtml links, modelcatalog.js's "Open Settings" link);
-// _onDiarizationBackendChange is invoked directly by tests/ui/test_ui_settings.py
-// via page.evaluate. applyTheme/applyAccent dropped: their page.evaluate pokes
+// _diarizationNoteHtml links, modelcatalog.js's "Open Settings" link).
+// _onDiarizationBackendChange dropped 2026-07-22:
+// test_ui_settings.py::TestSpeakerClusterThreshold now drives the real
+// #s-diarization-backend select instead of poking the handler directly.
+// applyTheme/applyAccent dropped: their page.evaluate pokes
 // in test_ui_theme.py were already migrated to tests/js/settings/settings.test.js,
 // which imports both directly. _updateDiarizationStatus dropped: it has no
 // external caller anywhere (settings.js calls it only from its own internal
@@ -470,7 +479,6 @@ window.startRetranscribe = startRetranscribe;
 // addEventListener inside settings.js itself) or its own internal logic, so
 // nothing outside the module needs them off window anymore.
 window.openSettings = openSettings;
-window._onDiarizationBackendChange = _onDiarizationBackendChange;
 // settings-previews.js and settings-installs.js: no window shim left. Their
 // preview/install-status helpers were only read as window.* by settings.js,
 // which now imports both directly (settings/ bucket conversion) - both modules
@@ -488,16 +496,17 @@ window._onDiarizationBackendChange = _onDiarizationBackendChange;
 // addEventListener inside projects.js itself), so nothing outside the
 // module needs them off window. The module stays in the bundle graph via
 // boot.js's direct import of initProjectSwitcher.
-// modeldownload.js - every remaining name is invoked directly by
-// tests/ui/test_ui_modeldownload.py / test_ui_whisper_prefetch.py via
-// page.evaluate (boot.js's own reads of initModelDownload/initModelPrefetch
-// already import both directly). getWhisperDownloadPct dropped: its only reader was analyze.js
-// (analyze/ bucket conversion), which now imports it directly, and no other
-// reader remains. _cancelDownload dropped: its only caller is this module's own
-// row-action onclick (property assignment inside _wireRowActions), so nothing
-// outside the module needs it off window.
+// modeldownload.js - initModelDownload/_resetModelDownloads are invoked
+// directly by tests/ui/test_ui_modeldownload.py via page.evaluate.
+// initModelPrefetch dropped 2026-07-22: boot.js already imports it directly,
+// and its only "readers" in test_ui_whisper_prefetch.py/test_ui_model_catalog.py
+// were prose comments naming it, not real pokes. getWhisperDownloadPct
+// dropped: its only reader was analyze.js (analyze/ bucket conversion), which
+// now imports it directly, and no other reader remains. _cancelDownload
+// dropped: its only caller is this module's own row-action onclick (property
+// assignment inside _wireRowActions), so nothing outside the module needs it
+// off window.
 window.initModelDownload = initModelDownload;
-window.initModelPrefetch = initModelPrefetch;
 window._resetModelDownloads = _resetModelDownloads;
 // sounds.js - SoundFx and commitSoundSettings are invoked directly by
 // tests/ui/test_ui_sounds.py / tests/js/library/sounds.test.js via

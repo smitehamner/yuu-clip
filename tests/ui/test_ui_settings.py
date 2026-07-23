@@ -656,9 +656,15 @@ class TestCaptionStyleSettings:
 @skip_no_server
 class TestGlossaryFilter:
     def _open_glossary(self, page: Page) -> None:
-        page.evaluate("openGlossaryModal()")
+        # Real path: open the hamburger menu, then its Glossary item -
+        # openGlossaryModal() has no other reader once this poke drops.
+        page.click("#btn-hamburger")
+        page.click("#hamburger-item-glossary")
         page.wait_for_selector("#glossary-modal.visible")
         page.wait_for_selector("#glossary-content .glossary-term", timeout=3000)
+
+    def _close_glossary(self, page: Page) -> None:
+        page.click("#glossary-modal-close-btn")
 
     def test_filter_narrows_to_matching_terms(self, page: Page):
         self._open_glossary(page)
@@ -674,7 +680,7 @@ class TestGlossaryFilter:
             "els => els.filter(e => e.style.display === 'none').length",
         )
         assert hidden_sections > 0, "sections without matches should be hidden"
-        page.evaluate("closeGlossaryModal()")
+        self._close_glossary(page)
 
     def test_no_matches_message(self, page: Page):
         self._open_glossary(page)
@@ -682,7 +688,7 @@ class TestGlossaryFilter:
         expect(page.locator("#glossary-no-matches")).to_be_visible()
         page.fill("#glossary-filter", "")
         expect(page.locator("#glossary-no-matches")).not_to_be_visible()
-        page.evaluate("closeGlossaryModal()")
+        self._close_glossary(page)
 
     def test_escape_clears_filter_then_closes(self, page: Page):
         self._open_glossary(page)
@@ -698,7 +704,7 @@ class TestGlossaryFilter:
     def test_reopen_resets_filter(self, page: Page):
         self._open_glossary(page)
         page.fill("#glossary-filter", "clip")
-        page.evaluate("closeGlossaryModal()")
+        self._close_glossary(page)
         self._open_glossary(page)
         assert page.locator("#glossary-filter").input_value() == ""
         visible_terms = page.eval_on_selector_all(
@@ -707,7 +713,7 @@ class TestGlossaryFilter:
         )
         all_terms = page.eval_on_selector_all("#glossary-content .glossary-term", "els => els.length")
         assert visible_terms == all_terms
-        page.evaluate("closeGlossaryModal()")
+        self._close_glossary(page)
 
 
 # The Help & Guides modal now renders bundled docs in-app - see
@@ -926,40 +932,13 @@ class TestExportPresetSettingsSection:
 class TestPlaybackSpeed:
     """A single global preference (yuuclip-playback-rate) drives playbackRate on
     every <video>: read via playbackRatePref, pushed to loaded videos by a
-    capture-phase loadedmetadata listener and to live videos by applyPlaybackRate."""
+    capture-phase loadedmetadata listener and to live videos by applyPlaybackRate.
 
-    def test_pref_defaults_to_one(self, page: Page):
-        page.goto(LIVE_URL)
-        rate = page.evaluate(
-            "() => { localStorage.removeItem('yuuclip-playback-rate'); return playbackRatePref(); }"
-        )
-        assert rate == 1
-
-    def test_pref_reads_stored_value(self, page: Page):
-        page.goto(LIVE_URL)
-        rate = page.evaluate(
-            """() => {
-              localStorage.setItem('yuuclip-playback-rate', '1.5');
-              const r = playbackRatePref();
-              localStorage.removeItem('yuuclip-playback-rate');
-              return r;
-            }"""
-        )
-        assert rate == 1.5
-
-    def test_apply_sets_rate_on_live_videos(self, page: Page):
-        page.goto(LIVE_URL)
-        rate = page.evaluate(
-            """() => {
-              const v = document.createElement('video');
-              document.body.appendChild(v);
-              applyPlaybackRate(1.25);
-              const r = v.playbackRate;
-              v.remove();
-              return r;
-            }"""
-        )
-        assert rate == 1.25
+    playbackRatePref/applyPlaybackRate's own logic is pure (localStorage plus a
+    detached <video>'s .playbackRate property) and was ported to
+    tests/js/core/ui.test.js (2026-07-22). What's left here needs the real page:
+    the capture-phase listener boot.js wires via initPlaybackRate(), and the live
+    Settings-panel select."""
 
     def test_loaded_video_gets_saved_rate(self, page: Page):
         page.goto(LIVE_URL)
@@ -1059,7 +1038,7 @@ class TestSpeakerClusterThreshold:
 
     def test_cluster_threshold_shown_for_speechbrain(self, page: Page):
         self._open_settings(page)
-        page.evaluate("_onDiarizationBackendChange('speechbrain')")
+        page.select_option("#s-diarization-backend", "speechbrain")
         field = page.locator("#s-speaker-cluster-threshold")
         expect(field).to_be_visible()
         # Assert the control's contract, not its live-config value (which the user
@@ -1071,12 +1050,12 @@ class TestSpeakerClusterThreshold:
 
     def test_cluster_threshold_hidden_when_off(self, page: Page):
         self._open_settings(page)
-        page.evaluate("_onDiarizationBackendChange('null')")
+        page.select_option("#s-diarization-backend", "null")
         expect(page.locator("#s-speaker-cluster-threshold")).to_be_hidden()
 
     def test_min_cluster_seconds_shown_for_speechbrain(self, page: Page):
         self._open_settings(page)
-        page.evaluate("_onDiarizationBackendChange('speechbrain')")
+        page.select_option("#s-diarization-backend", "speechbrain")
         field = page.locator("#s-speaker-min-cluster-seconds")
         expect(field).to_be_visible()
         expect(field).to_have_attribute("type", "number")
@@ -1084,5 +1063,5 @@ class TestSpeakerClusterThreshold:
 
     def test_min_cluster_seconds_hidden_when_off(self, page: Page):
         self._open_settings(page)
-        page.evaluate("_onDiarizationBackendChange('null')")
+        page.select_option("#s-diarization-backend", "null")
         expect(page.locator("#s-speaker-min-cluster-seconds")).to_be_hidden()
