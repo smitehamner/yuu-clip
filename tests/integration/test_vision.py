@@ -440,6 +440,7 @@ class TestCancelAnalyzeFrames:
         ctx = client.app.state.ctx
         ctx.frames_cancelled = False
         ctx.analyze_proc = SimpleNamespace(returncode=None, pid=4242)
+        ctx.analyze_proc_kind = "frames"
 
         resp = client.post("/api/clips/1/analyze-frames/cancel")
         assert resp.status_code == 200
@@ -453,6 +454,29 @@ class TestCancelAnalyzeFrames:
         assert resp.status_code == 200
         assert resp.json() == {"status": "cancelled"}
         assert client.app.state.ctx.frames_cancelled is False
+
+    def test_cancel_does_not_kill_a_different_jobs_proc(self, client: TestClient, monkeypatch):
+        """A stale/cross-tab cancel click must not kill an unrelated running job just
+        because it happens to hold the shared analyze_proc slot (bug-hunt 2.2)."""
+        from types import SimpleNamespace
+
+        from yuu_clip.web.routes.clips import edit as edit_mod
+        terminated: list = []
+
+        async def fake_terminate(proc):
+            terminated.append(proc)
+
+        monkeypatch.setattr(edit_mod, "terminate_process_tree_async", fake_terminate)
+        ctx = client.app.state.ctx
+        ctx.frames_cancelled = False
+        ctx.analyze_proc = SimpleNamespace(returncode=None, pid=9999)
+        ctx.analyze_proc_kind = "export"  # some other job owns the slot
+
+        resp = client.post("/api/clips/1/analyze-frames/cancel")
+        assert resp.status_code == 200
+        assert terminated == []
+        assert ctx.frames_cancelled is False
+        assert ctx.analyze_proc is not None  # the other job's proc survives
 
 
 class TestVisionServerHelpers:

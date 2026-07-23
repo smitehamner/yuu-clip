@@ -69,6 +69,11 @@ class ProjectContext:
         self.demo_cmd:          list[str] | None = None
         self.import_cmd:        list[str] | None = None
         self.analyze_proc:      object | None    = None  # asyncio.subprocess.Process
+        # Which job currently owns analyze_proc (e.g. "import", "frames"); None for
+        # callers that don't identify themselves. Lets a job-specific cancel endpoint
+        # (cancel_import, cancel_analyze_frames) confirm it's killing its own job
+        # rather than whatever unrelated job happens to hold the shared slot.
+        self.analyze_proc_kind: str | None = None
         self.import_cancelled:  bool             = False
         # Set by the frame-analysis cancel endpoint so subprocess_sse emits the
         # cancel message (not a generic error) when the killed subprocess exits.

@@ -164,11 +164,19 @@ async def subprocess_sse(
     cancel_message: str = "",
     clear_cmd_attr: str | None = None,
     track_active_job: bool = False,
+    job_kind: str | None = None,
 ) -> StreamingResponse:
     """Run *cmd* as a subprocess and stream its stdout as an SSE response.
 
     If *ctx* is a ProjectContext, the running process is stored on
     ``ctx.analyze_proc`` so it can be terminated via the cancel endpoint.
+
+    *job_kind* names this job on ``ctx.analyze_proc_kind`` (e.g. ``"import"``,
+    ``"frames"``) so a job-specific cancel endpoint can confirm it's about to
+    kill its own job rather than whatever unrelated job currently holds the
+    shared slot. Callers with no job-specific cancel endpoint (score, export,
+    retranscribe, demo - all reachable only via the generic /api/analyze/cancel)
+    can omit it.
 
     *cancel_flag_attr* names a boolean ``ctx`` attribute a cancel endpoint sets
     to signal a user-initiated cancel (e.g. ``'import_cancelled'``). When it is
@@ -206,6 +214,7 @@ async def subprocess_sse(
             _log.info("Subprocess started (pid %s): %s", proc.pid, cmd[3] if len(cmd) > 3 else cmd[0])
             if ctx is not None:
                 ctx.analyze_proc = proc
+                ctx.analyze_proc_kind = job_kind
                 ctx.subprocess_procs.add(proc)
                 # Counted only once the proc exists and is registered, so the cancel
                 # endpoint can release this exact proc's slot idempotently.
@@ -247,6 +256,7 @@ async def subprocess_sse(
                     # an overlapping job may have already claimed it (see deps.py).
                     if ctx.analyze_proc is proc:
                         ctx.analyze_proc = None
+                        ctx.analyze_proc_kind = None
                     if clear_cmd_attr is not None:
                         setattr(ctx, clear_cmd_attr, None)
         except Exception:

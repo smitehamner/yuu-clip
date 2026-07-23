@@ -24,6 +24,7 @@ from yuu_clip.url_import import (
     validate_import_url,
 )
 from yuu_clip.web.deps import ProjectContext
+from yuu_clip.web.routes.common import reject_if_busy
 from yuu_clip.web.sse import subprocess_sse, terminate_process_tree_async
 
 _log = get_logger(__name__)
@@ -79,17 +80,18 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         """Stream the download subprocess output as SSE. Call /api/import-url/start first."""
         if not ctx.import_cmd:
             raise HTTPException(400, "No import queued. Call /api/import-url/start first.")
+        reject_if_busy(ctx, "Importing from a URL")
         return await subprocess_sse(
             ctx.import_cmd, ctx.project_dir, ctx,
             cancel_flag_attr="import_cancelled", cancel_message="[Import cancelled]",
-            clear_cmd_attr="import_cmd", track_active_job=True,
+            clear_cmd_attr="import_cmd", track_active_job=True, job_kind="import",
         )
 
     @router.post("/api/import-url/cancel")
     async def cancel_import():
         """Terminate the running URL-import download subprocess, if any."""
         proc = ctx.analyze_proc
-        if proc is not None and getattr(proc, "returncode", None) is None:
+        if proc is not None and getattr(proc, "returncode", None) is None and ctx.analyze_proc_kind == "import":
             ctx.import_cancelled = True
             _log.warning("URL import cancelled by user")
             await terminate_process_tree_async(proc)
