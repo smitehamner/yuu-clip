@@ -101,18 +101,24 @@ class TestAnalyzeModal:
     def test_captions_select_offers_srt_picker(self, page: Page):
         page.goto(LIVE_URL)
         self._open_panel(page)
-        page.evaluate("_renderSubtitleSourcePicker({srt_sidecar: null, subtitle_streams: []})")
+        page.route("**/api/probe", _fulfill_json(
+            {"duration_s": 10, "audio_tracks": 1, "srt_sidecar": None, "subtitle_streams": []}
+        ))
+        page.fill("#analyze-path", "D:/recordings/session.mkv")
         select = page.locator("#analyze-subtitle-source")
-        expect(select).to_be_visible()
+        expect(select).to_be_visible(timeout=3000)
         expect(select.locator("option[value='__pick-srt__']")).to_have_text("Choose SRT file…")
 
     def test_captions_default_to_sidecar_when_present(self, page: Page):
         page.goto(LIVE_URL)
         self._open_panel(page)
-        page.evaluate(
-            "_renderSubtitleSourcePicker({srt_sidecar: 'C:\\\\clips\\\\session.srt', subtitle_streams: []})"
-        )
+        page.route("**/api/probe", _fulfill_json({
+            "duration_s": 10, "audio_tracks": 1,
+            "srt_sidecar": "C:\\clips\\session.srt", "subtitle_streams": [],
+        }))
+        page.fill("#analyze-path", "D:/recordings/session.mkv")
         select = page.locator("#analyze-subtitle-source")
+        select.wait_for(timeout=3000)
         assert select.input_value() == r"C:\clips\session.srt"
 
     def test_start_analyze_button_disabled_on_open(self, page: Page):

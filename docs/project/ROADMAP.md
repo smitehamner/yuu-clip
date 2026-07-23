@@ -176,11 +176,29 @@ except the two items below).
   since it shares `openHighlightReelsModal`), test-api 2992, full test-ui 644 (unchanged
   count - triggers swapped, no tests added/removed), lint clean.
 
+  **`test_ui_analyze.py` bucket (6 holders), 89 -> 85, 1 gated commit:** three of the six
+  inventory hits were false positives - `openLog`, `renderEstimate` and `reattachAnalysis`
+  each appeared only in a prose comment (not a real `page.evaluate` call), every real
+  production consumer already imports them directly (utils.js's callers for `openLog`,
+  `boot.js` for `reattachAnalysis`), and `renderEstimate`'s vitest coverage
+  (`tests/js/analyze/estimate.test.js`) already imports it directly too - dropped all 3.
+  `_renderSubtitleSourcePicker`'s two real pokes (hand-built `{srt_sidecar, subtitle_streams}`
+  objects) were swapped for the actual trigger: filling `#analyze-path` schedules a real
+  `/api/probe` call (debounced, already stubbable - this file already stubs that endpoint
+  elsewhere), which calls `_renderSubtitleSourcePicker` for real with the stubbed response;
+  dropped that shim line too. `openReanalyzePanel` (3 sites) stays LEAVE IT: it needs a
+  fabricated video with a specific `analyze_run.settings`/`exported`-count combination the
+  fixture project can't reproduce via any click sequence. `startAnalyze` stays - its only
+  real poke is in `test_ui_whisper_prefetch.py`, a different bucket, unaffected by this pass.
+  Gate: bundle, test-js 356 (unchanged), test-unit ratchet 5, test-api 2992, targeted
+  `test_ui_analyze.py` 56 passed and `test_ui_whisper_prefetch.py` 10 passed (checked since
+  it shares `startAnalyze`), full test-ui 644 (unchanged count), lint clean.
+
   Next buckets by holder count (regenerate the inventory before trusting these - numbers shift
   as prior buckets get retriaged): `test_ui_clips.py` (10, mostly `renderDetail`/synthetic-clip
   pokes - likely LEAVE IT, used identically across 6 files, see the flag below - do not attempt
-  without asking first), `test_ui_clips2.py` (8, same reason), `test_ui_analyze.py`/
-  `test_ui_settings.py`/`test_ui_whisper_prefetch.py` (6 each, not yet inspected).
+  without asking first), `test_ui_clips2.py` (8, same reason), `test_ui_settings.py`/
+  `test_ui_whisper_prefetch.py` (6 each, not yet inspected).
 
   **Flag before touching**: `renderDetail` (the single biggest remaining name, reused
   identically via a synthetic `AppState.clips`/`activeClipData` + `renderDetail(...)` pattern

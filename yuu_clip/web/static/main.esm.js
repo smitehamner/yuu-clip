@@ -18,7 +18,7 @@ import { ColorPicker } from './library/colorpicker.js';
 import { PanelNav } from './core/panelnav.js';
 import * as jobs from './core/jobs.js';
 import {
-  openLog, showToast, copyText,
+  showToast, copyText,
 } from './core/utils.js';
 import {
   showAlert, showConfirm, _confirmCancel,
@@ -70,8 +70,7 @@ import {
 import { openClipCreatePicker } from './clips/clipcreate.js';
 import {
   openReanalyzePanel, closeNewRecordingPanel,
-  _renderSubtitleSourcePicker,
-  renderEstimate, startAnalyze, reattachAnalysis,
+  startAnalyze,
 } from './analyze/analyze.js';
 import {
   openHighlightReelsModal, openBatchExportModal, closeBatchExportModal,
@@ -111,7 +110,7 @@ window.AppState = AppState;
 Object.assign(window, format);
 window.ColorPicker = ColorPicker;
 window.PanelNav = PanelNav;
-// utils.js - openLog/showToast/copyText are invoked directly by tests/ui/*.py
+// utils.js - showToast/copyText are invoked directly by tests/ui/*.py
 // via page.evaluate; no JS module reads either of them off window anymore.
 // revealInFolder dropped (2026-07-22): its only "reader" left was a comment in
 // test_ui_clips2.py naming it in prose (the actual poke moved to
@@ -123,8 +122,9 @@ window.PanelNav = PanelNav;
 // etc.) now imports them directly. toggleLog, isCardCollapsed,
 // _diarizationReason and _diarizationNoteHtml were dropped earlier as their
 // only external consumers migrated to ESM imports or (the diarization
-// helpers) to the tests/js vitest unit layer.
-window.openLog = openLog;
+// helpers) to the tests/js vitest unit layer. openLog dropped 2026-07-22:
+// every real caller already imports it directly and its only "reader" in
+// test_ui_analyze.py was a comment, not a real poke.
 window.showToast = showToast;
 window.copyText = copyText;
 // jobs.js is cross-cutting - every export here still has at least one classic
@@ -349,13 +349,21 @@ window.openClipCreatePicker = openClipCreatePicker;
 // (not yet converted to a direct import) and by this module's own
 // dynamically-built onclick string (the _diarizationNoteHtml "Settings" link);
 // openReanalyzePanel is invoked directly by tests/ui/test_ui_analyze.py via
-// page.evaluate (its readers in clips.js and videos.js now import it
-// directly). renderEstimate, startAnalyze and _renderSubtitleSourcePicker
-// have no outside JS caller left (their only external use was now-removed
-// index.html inline handlers) but tests/ui/test_ui_analyze.py and
-// test_ui_whisper_prefetch.py call them directly via page.evaluate.
-// reattachAnalysis is invoked directly by tests/ui/test_ui_analyze.py via
-// page.evaluate (boot.js's own read already imports it directly).
+// page.evaluate with a hand-built video object (its readers in clips.js and
+// videos.js now import it directly) - the fabricated analyze_run.settings/
+// exported-clip-count combinations it exercises have no fixture-data
+// equivalent to reach via a real click. startAnalyze has no outside JS caller
+// left (its only external use was a now-removed index.html inline handler)
+// but tests/ui/test_ui_whisper_prefetch.py calls it directly via
+// page.evaluate. renderEstimate, reattachAnalysis and
+// _renderSubtitleSourcePicker dropped 2026-07-22: renderEstimate and
+// reattachAnalysis had no real poke left anywhere (test_ui_analyze.py's
+// mentions were comments, not calls) and boot.js/tests/js/analyze/
+// estimate.test.js already import each directly;
+// _renderSubtitleSourcePicker's two test_ui_analyze.py pokes were swapped for
+// the real trigger (filling #analyze-path, which schedules a real
+// /api/probe-driven render) since the file already stubs that endpoint for
+// other tests in the same class.
 // _showAnalysisToast dropped: its only page.evaluate poke (test_ui_toasts.py)
 // was already migrated to tests/js/analyze/analyze.test.js, which imports it
 // directly. closeProfileManager dropped: shortcuts.js already imports it
@@ -378,10 +386,7 @@ window.openClipCreatePicker = openClipCreatePicker;
 // logic, so nothing outside the module needs them off window anymore.
 window.openReanalyzePanel = openReanalyzePanel;
 window.closeNewRecordingPanel = closeNewRecordingPanel;
-window._renderSubtitleSourcePicker = _renderSubtitleSourcePicker;
-window.renderEstimate = renderEstimate;
 window.startAnalyze = startAnalyze;
-window.reattachAnalysis = reattachAnalysis;
 // reel.js - openHighlightReelsModal is invoked directly by
 // tests/ui/test_ui_reel.py and tests/ui/test_ui_sessions.py via page.evaluate;
 // openBatchExportModal is read as window.* by videos.js (already-ESM, out of
