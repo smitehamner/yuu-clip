@@ -29,6 +29,10 @@ class TestEscapePeelsTopmostLayer:
     def test_hamburger_menu_peels_before_modal(self, page: Page):
         page.evaluate("openControlsModal()")
         page.wait_for_selector("#controls-modal.visible")
+        # A real click can't reach #btn-hamburger here - #controls-modal's
+        # overlay covers it (the whole point of this test is verifying Escape
+        # layering works even though the real UI would never let a user open
+        # the hamburger menu while a modal sits on top).
         page.evaluate("toggleHamburger()")
         page.wait_for_selector("#hamburger-menu.open")
         page.keyboard.press("Escape")

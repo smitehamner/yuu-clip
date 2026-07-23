@@ -146,7 +146,14 @@ window.setupRecordingPreview = setupRecordingPreview;
 // are kept only for tests/ui/*.py or tests/js/*.test.js page.evaluate pokes.
 // _confirmCancel/closeActionsModal/toggleHamburger/openControlsModal are ALSO
 // invoked directly by tests/ui/*.py, even though shortcuts.js's own read of
-// each already imports it directly. closeHamburger and showConfirm stay for a
+// each already imports it directly. toggleHamburger's two test_ui_clips2.py
+// pokes became real #btn-hamburger clicks (2026-07-22), but
+// test_ui_keyboard.py's test_hamburger_menu_peels_before_modal still needs the
+// poke: #controls-modal's overlay covers the real button there by design (the
+// test verifies Escape-layering works even though the real UI would never let
+// a user reach the hamburger while a modal sits on top) - a real click
+// reliably fails to register there, so the shim line stays. closeHamburger
+// and showConfirm stay for a
 // real reason: helpmodals.js and panelnav.js still read them off `window.*`
 // explicitly. closeAlertModal, openActionsModal, topmostVisibleModal,
 // _menuArrowKeydown, isHamburgerOpen, closeControlsModal, _diffDiscard,

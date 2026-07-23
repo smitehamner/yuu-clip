@@ -743,14 +743,14 @@ class TestRefreshHamburgerItem:
     def test_hidden_in_plain_browser(self, page: Page):
         page.goto(LIVE_URL)
         assert page.evaluate("() => window.electronAPI") is None
-        page.evaluate("toggleHamburger()")
+        page.click("#btn-hamburger")
         page.wait_for_selector("#hamburger-menu.open")
         expect(page.locator("#btn-refresh")).to_be_hidden()
 
     def test_shown_when_electron_api_present(self, page: Page):
         page.add_init_script("window.electronAPI = { runSetupWizard: () => {} };")
         page.goto(LIVE_URL)
-        page.evaluate("toggleHamburger()")
+        page.click("#btn-hamburger")
         page.wait_for_selector("#hamburger-menu.open")
         expect(page.locator("#btn-refresh")).to_be_visible()
 
