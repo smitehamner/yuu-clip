@@ -1164,8 +1164,8 @@ function initVideosListeners() {
   document.getElementById('detail').addEventListener('change', _handleDetailChange);
 }
 
-// Public API - symbols with a classic (bundle.js) consumer, an inline handler in
-// index.html's static markup, or a tests/ui/*.py page.evaluate. Internal helpers
+// Public API - symbols another already-ESM module reads off window, an inline
+// handler in index.html's static markup, or a tests/ui/*.py page.evaluate. Internal helpers
 // (re-analyze/re-run actions, the two kebab openers, etc.) stay module-private -
 // see main.esm.js for what each surviving name here still needs it for.
 export {

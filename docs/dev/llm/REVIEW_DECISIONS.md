@@ -11,6 +11,145 @@ same thing without the context. Most recent first.
 
 ---
 
+## Phase 6 docs and comments - window.X shim-drain slice (2026-07-23)
+
+Docs-and-comments phase over the shim-drain arc (`25e44dc^..HEAD`, HEAD `9d21aac`).
+Applied one obsolete-comment fix class: three per-module "Public API" export-block header
+comments (`analyze/analyze.js`, `clips/clips.js`, `videos/videos.js`) still described one
+consumer type as a "classic (bundle.js) consumer" / "still-classic module". The classic
+`bundle.js`/`bundle.manifest` were retired when the ESM migration completed (main.esm.js:3-4,
+ARCHITECTURE.md:183-185), so that consumer no longer exists - rewrote each to the accurate
+current set (another already-ESM module reading the export off window, an inline handler in
+index.html, or a tests/ui page.evaluate). Comment-only; rebundled. This is the obsolete-comment
+class Phase 4 corrected inside `main.esm.js` but did not reach in the individual modules.
+
+The following were reviewed and deliberately left as-is:
+
+### `main.esm.js` residual-shim banner + GROUP 1/2 comments - current and accurate
+The two-group shim banner (rewritten Phase 3, attributions corrected Phase 4) matches the
+live code: GROUP 1 lines each name a live runtime reader, GROUP 2 records per-cluster why each
+test-only hook can't be dropped. Nothing stale remains here.
+
+### `core/jobs.js` 9 near-identical "window.* read" comments - kept
+The 9 repeated `// window.* read: a direct import here adds a jobs.js <-> videos/clips edge
+that ... breaks vitest's vi.mock` comments mark the documented exception (CLAUDE.md:231-234).
+Each guards a distinct call site against being "fixed" to an import; the repetition is the
+point (a reader editing any one site sees the warning). WHY comment, keep.
+
+### `core/boot.js` + `analyze/split.js` window-bridge WHY comments - kept
+`boot.js`'s `window._prereqs`/`_aiPrivacyMode`/`_visionEnabled` comment and `split.js`'s
+live get/set accessor-bridge comment both describe mechanisms that still exist; they explain a
+non-obvious current coupling (the vitest follow-on bridge), not a retired one. Accurate, keep.
+
+### Project docs (CLAUDE.md frontend section, ARCHITECTURE.md, ROADMAP) - verified current
+CLAUDE.md's "shrinking residual window.X = X shim" section and jobs.js "9 window.* reads" count
+match the code; ARCHITECTURE.md's shim section explicitly flags the old all-window pattern as
+stale-if-cited; ROADMAP's shim-drain entry was fully removed in 9d21aac (plan CLOSED). No doc
+edit warranted.
+
+---
+
+## Phase 5 logging - window.X shim-drain slice (2026-07-23)
+
+Logging-coverage phase over the same shim-drain arc (`25e44dc^..HEAD`, HEAD `9d21aac`).
+Browser-side "logging" here is `showToast` error surfacing plus `appendLog` to the in-app
+log panel - the frontend deliberately carries almost no `console.*` (one documented
+`console.warn` in `utils.js`). **No code changes were warranted**; the conversion introduced
+no swallowed error. Confirmed and deliberately left as-is:
+
+### The conversion left the SSE/job error paths intact and fully surfaced
+`core/jobs.js` `_openSSE`/`streamSSE` remain the exemplar: `_openSSE` handles `!res.ok`
+(reads the error body), a stream that ends without a completion signal, a mid-stream
+connection loss, and the outer fetch rejection - each routed to `onError`; `streamSSE`'s
+`onError` appends the bracketed line to the log, toasts it, plays the error sound, tears the
+job UI down, and calls the caller's `onError`. Both done-sentinel forms (`"__DONE__"` and
+`{type:'__DONE__', ok:false, error}`) route a failure to `onError` via `isDoneSentinel`/
+`doneError`, so no reader reports a failed job as done. `analyze.js`, `videos.js`,
+`clips.js`, `settings/projects.js`, `core/utils.js` all surface fetch `!ok`/catch via
+`showToast` or an inline error region. Nothing to add.
+
+### Every empty / identifier catch in the arc is a deliberate tolerant fallback
+`sessions.js`/`clips.js`/`preview.js` `try { videoEl.currentTime = ... } catch {}` (a
+media-element seek that can throw before metadata loads), `clips.js:788` (re-fetch the clip
+after analyze-frames; falls back to the cached copy, and the frame job already reported its
+own failure), `videos.js:333` `_restoreView` (corrupt/missing saved-view JSON -> ignore),
+`videos-timeline.js:67` and `utils.js` `_exportRetranscribeDefault` (populate a modal / a
+checkbox default from `/api/config`; a failure keeps the safe built-in default),
+`analyze.js:747`/`:766` (preview warm + completion warning, each carrying a WHY comment that
+a failure must never surface as an error), `projects.js:27` (switcher stays hidden if the
+list can't load). None is an error path a user needs told about; adding a log/toast to any
+of them would be noise on a benign, self-healing condition - same basis as the 2026-07-13
+`_cardCollapseState` / `copyText` decisions.
+
+### No log spam introduced
+The conversion added no per-frame / per-SSE-event / per-render `console.*` or `appendLog`
+call. The in-app log panel is still bounded to `_MAX_LOG_LINES` (500) with its documented
+reflow-cost WHY, and the full log always remains in `.yuu-clip/yuu-clip.log`.
+
+### BUILT in Phase 9 (owner-approved): top-level `window.onerror` / `unhandledrejection` reporter
+The frontend had **no global uncaught-error surface**. This is exactly the Phase-2 bug class:
+a bare-identifier `ReferenceError` on a rare path (Escape with nothing open) shipped and failed
+silently - nothing logged it and nothing told the user. Built as `core/errorreporter.js`
+(`initGlobalErrorReporter()`, wired FIRST from `boot.js` so it catches errors from later boot
+steps): every uncaught `error` and `unhandledrejection` is mirrored to `console.error`, appended
+to the in-app log panel (`appendLog`, so a non-technical user can open + copy it for a bug
+report), and surfaced as a persistent error toast whose "Show log" action calls the existing
+`openLog()`. A looping error (same signature within 5 s) is logged every time but toasted at
+most once, so a per-render throw can't stack identical toasts. Uses only the existing
+`showToast`/`appendLog`/`openLog` surfaces - no new infrastructure, no server round-trip.
+Covered by `tests/js/core/errorreporter.test.js` (5 tests). This is the durable closing of the
+diagnosability gap that let the Phase-2 bug ship - do not re-flag it as missing.
+
+---
+
+## Phase 4 refactor - window.X shim-drain slice (2026-07-23)
+
+Refactor phase over the shim-drain arc (`25e44dc^..HEAD`, HEAD `9d21aac`) that converted
+the frontend off `window.*` globals onto ESM imports and consolidated the residual shim in
+`main.esm.js` into two labeled groups. Applied: corrected two stale reader-attributions in
+the GROUP 1 shim comments that the Phase-3 comment rewrite missed - `closeNewRecordingPanel`
+was labeled "shortcuts.js + analyze.js onclick-string" but Phase 2 converted shortcuts.js to
+`import` it (no window read remains), so its only live reader is the analyze.js onclick-string;
+`openSettings` was labeled "... onclick-string + bare-global" but every JS caller (clips,
+videos, clipexport, settings) now imports it, so the "+ bare-global" clause is dead and the
+line survives only via the onclick-strings (added clipexport to the list). Comment-only;
+rebundled. Gate: `yuu-dev test-js` 367, `test-unit` 1069, `lint` clean.
+
+The following were reviewed and deliberately left as-is:
+
+### GROUP 1 shim lines all verified alive; GROUP 2 kept whole - not drained
+Decision: Keep every current shim entry.
+Rationale: Grepped every GROUP 1 name's claimed runtime reader - all confirmed live: jobs.js
+reads loadVideos/_clipsListUrl/_updateDemoButton/_syncAnalysisLivePanel/_renderClips/
+_renderClipFilterCounts off window (the documented vi.mock exception); format.js reads
+window._clipsSortParam; helpmodals.js reads window.closeHamburger; panelnav.js reads
+window.showConfirm; sidebar/header/split-editor inline handlers and the `_diarizationNoteHtml`
+onclick-strings (evaluated in global scope) keep the rest. `undoLastBulkStatus` is a genuine
+clips.js bare-global (clips.js does not import it). No GROUP 1 line is droppable. GROUP 2 is
+the deferred vitest follow-on's territory (each cluster's per-name note records why it can't
+be reached by a real click yet) - draining it is out of this slice's scope, same basis as the
+2026-07-16 "residual shim - kept in full" entry.
+
+### No unused imports, no arc-orphaned dead code, `_diarizationNoteHtml` already shared
+Decision: Keep as-is (nothing to fix).
+Rationale: A full-tree scan for imports used zero times in their file found none - the 68-read
+conversion left no import residue. `_diarizationNoteHtml` (a candidate DRY target, appears in
+analyze.js / contexts.js / clipexport.js) is already centralized in `core/utils.js` and
+imported by all three consumers - clean, not duplicated. `boot.js` is a long module-scope init
+sequence but it is the one CLAUDE.md-exempt side-effect entry point (one concern: first-paint
+wiring); its `window._prereqs`/`_aiPrivacyMode`/`_visionEnabled`/`refreshServerState` globals
+are the already-documented shared-mutable-state bridge for the vitest follow-on, not drainable
+here.
+
+### `const data = await res.json()` idiom kept - not "naming drift"
+Decision: Keep `data` for a parsed JSON response body.
+Rationale: This appears at ~30 sites across the frontend as the established name for a fetch's
+parsed JSON payload; it predates the arc (not introduced by the conversion) and is an idiomatic
+local for the immediately-destructured response body. Renaming to a bespoke name per call site
+would be churn against a consistent convention for no legibility gain.
+
+---
+
 ## Phase 6 docs and comments - pre-public polish (dev-CLI / wizard / whisper-catalog) (2026-07-18)
 
 Docs-and-comments phase over the hand-written new/changed logic since baseline `6848574`

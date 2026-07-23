@@ -135,9 +135,9 @@ window.toggleVideoFilter = toggleVideoFilter;
 // onclick attribute, evaluated in global scope when clicked):
 window.undoLastBulkStatus = undoLastBulkStatus;          // clips.js bare-global
 window.closeExportModal = closeExportModal;              // clipexport.js onclick-string
-window.closeNewRecordingPanel = closeNewRecordingPanel;  // shortcuts.js + analyze.js onclick-string
+window.closeNewRecordingPanel = closeNewRecordingPanel;  // analyze.js onclick-string
 window.closeRetranscribeModal = closeRetranscribeModal;  // contexts.js onclick-string
-window.openSettings = openSettings;                      // analyze/contexts/modelcatalog onclick-string + bare-global
+window.openSettings = openSettings;                      // analyze/contexts/clipexport/modelcatalog onclick-string
 
 // ---- GROUP 2: test-only hooks (reachable ONLY via a tests/ui page.evaluate
 //      poke; no production JS/HTML reader) ----

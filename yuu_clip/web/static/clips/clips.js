@@ -1587,9 +1587,9 @@ function initClipsListeners() {
   document.getElementById('score-override-save-btn').addEventListener('click', () => _scoreOverrideSave());
 }
 
-// Public API - symbols with a classic (bundle.js) consumer, a still-classic
-// module reading this module's exports as window.* (shortcuts.js, jobs.js,
-// videos.js), or a tests/ui/*.py page.evaluate. setClipSearch, setClipScoreMin,
+// Public API - symbols another already-ESM module reads off window as this
+// module's exports (shortcuts.js, jobs.js, videos.js), or a tests/ui/*.py
+// page.evaluate. setClipSearch, setClipScoreMin,
 // _clearClipFilters, setClipKindFilter, toggleClipSortDir, deleteClip,
 // deleteExport, mergeClips, scanDuplicates, openClipsActionsMenu,
 // _scoreOverrideSave, clearScoreOverride, openDescKebab, openDescLongKebab,

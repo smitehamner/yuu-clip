@@ -1321,9 +1321,9 @@ function initAnalyzeListeners() {
   });
 }
 
-// Public API - symbols with a still-classic (bundle.js) bare-global consumer, an
-// already-ESM caller reading this module's exports as window.* (clips.js,
-// videos.js), or a tests/ui/*.py page.evaluate. Internal helpers (the profile
+// Public API - symbols another already-ESM module reads off window as this
+// module's exports (clips.js, videos.js), or a tests/ui/*.py page.evaluate
+// reaches. Internal helpers (the profile
 // manager, Import from URL, drag-and-drop, etc.) stay module-private -
 // see main.esm.js for what each surviving name here still needs it for.
 // _probedInfo/_panelDirty are NOT here - videos.js imports them directly (see

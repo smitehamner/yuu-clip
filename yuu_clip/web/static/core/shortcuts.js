@@ -18,7 +18,7 @@ import {
   _applyFilters,
 } from '../clips/clips.js';
 import { exportClip, closeExportModal } from '../clips/clipexport.js';
-import { closeProfileManager } from '../analyze/analyze.js';
+import { closeProfileManager, _isNewRecordingPanelOpen, closeNewRecordingPanel } from '../analyze/analyze.js';
 import { closeHighlightReelsModal, closeReelPreview, closeBatchExportModal } from '../analyze/reel.js';
 import { closeContextManager, closeAutoApproveModal, closeRetranscribeModal } from '../library/contexts.js';
 import { closeTimelineIntervalModal } from '../videos/videos-timeline.js';

@@ -33,6 +33,12 @@ import { initSoundsListeners } from '../library/sounds.js';
 import { initSessionsListeners } from '../videos/sessions.js';
 import { initVideosTimelineListeners } from '../videos/videos-timeline.js';
 import { initSplitListeners } from '../analyze/split.js';
+import { initGlobalErrorReporter } from './errorreporter.js';
+
+// ── global error reporter ──────────────────────────────────────────────────────
+// First, so an uncaught error thrown by any later boot step (or any handler wired
+// below) surfaces to the user instead of dying silently in the console.
+initGlobalErrorReporter();
 
 // ── accessibility init ────────────────────────────────────────────────────────
 document.querySelectorAll('.modal-bg').forEach((bg, i) => {
