@@ -980,6 +980,14 @@ def _migrate_transcript_to_segments(
             db.flush()
 
             for seg in segs:
+                # words_json is in the same track-absolute ms frame as start_ms/end_ms
+                # (see TranscriptSegment.words_json) - shift each word by the same
+                # offset as the segment itself, or word-highlight captions silently
+                # fall back to static ones on the migrated copy (bug-hunt 4.4).
+                shifted_words = [
+                    {**w, "start_ms": w["start_ms"] - offset_ms, "end_ms": w["end_ms"] - offset_ms}
+                    for w in seg.words
+                ]
                 db.add(TranscriptSegment(
                     transcript_id=new_transcript.id,
                     start_ms=seg.start_ms - offset_ms,
@@ -989,6 +997,7 @@ def _migrate_transcript_to_segments(
                     speaker_label=seg.speaker_label,
                     speaker_id=seg.speaker_id,
                     speaker_edited=seg.speaker_edited,
+                    words=shifted_words,
                 ))
                 migrated += 1
     db.flush()

@@ -1305,6 +1305,56 @@ class TestSplitVideoTranscriptMigration:
         assert seg1_lines[0]["start_ms"] == 10_000
         assert seg1_lines[0]["end_ms"] == 20_000
 
+    def test_migrate_transcript_shifts_word_timings_too(self, client, project_dir):
+        # bug-hunt 4.4 - words_json (per-word timing for word-highlight captions)
+        # used to be silently dropped on migration; it must shift by the same
+        # offset as the segment itself (same absolute-ms frame per the model docstring).
+        from yuu_clip.db.models import AudioTrack, Transcript, TranscriptSegment, make_session
+
+        vid_id = self._video_id(client)
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            track = db.query(AudioTrack).filter_by(video_id=vid_id).one()
+            transcript = Transcript(audio_track_id=track.id, model_name="test-model")
+            db.add(transcript)
+            db.flush()
+            db.add(TranscriptSegment(
+                transcript_id=transcript.id, start_ms=100_000, end_ms=110_000, text="after the split",
+                words=[
+                    {"text": "after", "start_ms": 100_000, "end_ms": 100_500},
+                    {"text": "the", "start_ms": 100_500, "end_ms": 100_700},
+                    {"text": "split", "start_ms": 100_700, "end_ms": 101_000},
+                ],
+            ))
+            db.commit()
+        finally:
+            db.close()
+
+        r = client.post(
+            f"/api/videos/{vid_id}/split",
+            json={"split_points": [90.0], "migrate_clips": True},
+        )
+        seg1_id = r.json()["segment_ids"][1]
+
+        db2 = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            migrated_seg = (
+                db2.query(TranscriptSegment)
+                .join(Transcript)
+                .join(AudioTrack)
+                .filter(AudioTrack.video_id == seg1_id)
+                .one()
+            )
+            words = migrated_seg.words
+        finally:
+            db2.close()
+
+        assert words == [
+            {"text": "after", "start_ms": 10_000, "end_ms": 10_500},
+            {"text": "the", "start_ms": 10_500, "end_ms": 10_700},
+            {"text": "split", "start_ms": 10_700, "end_ms": 11_000},
+        ]
+
     def test_migrate_transcript_leaves_parent_track_untouched(self, client, project_dir):
         from yuu_clip.db.models import AudioTrack, make_session
 
