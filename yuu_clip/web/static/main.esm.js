@@ -50,7 +50,6 @@ import { regenSummaryAuto } from './videos/videos-summary.js';
 import { toggleGroupSelect } from './videos/sessions.js';
 import {
   renderDetail, renderPlayer, refreshClipDetail,
-  analyzeFrames,
   toggleClipFilter,
   _applyFilters, _renderClips, _reloadClipList,
   _renderClipFilterCounts,
@@ -313,14 +312,19 @@ window.toggleGroupSelect = toggleGroupSelect;
 // AppState.clips pair with specific ids never actually selected/rendered in
 // the real DOM, so there's no real click path to open the modal for them -
 // the other poke there and test_ui_clips.py's own were real-click-swapped.
-// renderDetail/AppState stay - see the per-file notes on the 6 test files that
+// renderDetail/AppState stay - see the per-file notes on the 5 test files that
 // still poke them with synthetic clip data (test_ui_clips.py, test_ui_clips2.py,
-// test_ui_hotwords.py, test_ui_sensitive.py, test_ui_transcript.py,
-// test_ui_vision.py).
+// test_ui_hotwords.py, test_ui_sensitive.py, test_ui_vision.py).
+// test_ui_transcript.py's own "reader" was a prose comment naming renderDetail
+// (it only actually calls the unrelated videos.js renderVideoDetail), not a
+// real poke - same false-positive class flagged repeatedly. analyzeFrames
+// dropped 2026-07-23: clips.js's own data-act delegation already calls it
+// internally, and its only "reader" in test_ui_vision.py was a prose comment
+// about a prior migration, not a real poke - tests/js/clips/vision.test.js
+// already imports it directly.
 window.renderDetail = renderDetail;
 window.renderPlayer = renderPlayer;
 window.refreshClipDetail = refreshClipDetail;
-window.analyzeFrames = analyzeFrames;
 window.toggleClipFilter = toggleClipFilter;
 window._applyFilters = _applyFilters;
 window._renderClips = _renderClips;
