@@ -370,6 +370,21 @@ def _import_subtitles(subtitle_source: str, video_path: Path, track_objs, sessio
         if tmp_file:
             Path(tmp_file.name).unlink(missing_ok=True)
 
+    # An imported SRT (file, or an embedded stream extracted from the whole source
+    # file above) always carries parent-absolute timestamps. When the target is a
+    # split segment, its transcript convention is segment-relative - rebase onto
+    # the segment window and drop lines that start outside it, matching how
+    # videos.py's _migrate_transcript_to_segments assigns a line to whichever
+    # segment its start time falls in (bug-hunt 4.3).
+    if video.segment_start_s is not None and video.segment_end_s is not None:
+        seg_start_ms = int(video.segment_start_s * 1000)
+        seg_end_ms = int(video.segment_end_s * 1000)
+        parsed = [
+            (start_ms - seg_start_ms, end_ms - seg_start_ms, text)
+            for start_ms, end_ms, text in parsed
+            if seg_start_ms <= start_ms < seg_end_ms
+        ]
+
     console.print(f"  Imported {len(parsed)} subtitle segment(s)")
 
     transcripts = []

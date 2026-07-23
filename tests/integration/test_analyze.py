@@ -3193,6 +3193,43 @@ class TestImportSubtitles:
         assert result == []
         assert "Subtitle import failed" in capsys.readouterr().out
 
+    def test_srt_rebased_and_windowed_for_a_split_segment(self, tmp_path):
+        # bug-hunt 4.3 - an imported SRT always carries parent-absolute
+        # timestamps, but a split segment's transcript convention is
+        # segment-relative. A line must be rebased onto the segment window
+        # and dropped if its start falls outside it (matching how
+        # _migrate_transcript_to_segments assigns a line by its start time).
+        from yuu_clip.db.models import TranscriptSegment
+        from yuu_clip.pipeline import ingest as _pipeline
+
+        srt = tmp_path / "caps.srt"
+        srt.write_text(
+            "1\n00:00:00,000 --> 00:00:02,000\nBefore segment\n\n"
+            "2\n00:01:00,000 --> 00:01:02,000\nInside segment\n\n"
+            "3\n00:02:00,000 --> 00:02:02,000\nAt the boundary (excluded)",
+            encoding="utf-8",
+        )
+        session, video, tracks = self._seed(tmp_path)
+        video.segment_start_s = 60.0
+        video.segment_end_s = 120.0
+        session.flush()
+        try:
+            transcripts = _pipeline._import_subtitles(
+                str(srt), tmp_path / "v.mkv", tracks, session, video,
+            )
+            session.flush()
+            segs = (
+                session.query(TranscriptSegment)
+                .filter_by(transcript_id=transcripts[0].id)
+                .order_by(TranscriptSegment.start_ms)
+                .all()
+            )
+            assert [(s.start_ms, s.end_ms, s.text) for s in segs] == [
+                (0, 2000, "Inside segment"),
+            ]
+        finally:
+            session.close()
+
     def test_stream_extract_failure_surfaces_ffmpeg_stderr(self, tmp_path, capsys):
         import subprocess as _subprocess
         import unittest.mock as mock
