@@ -25,7 +25,7 @@ import {
   toggleHamburger, closeHamburger,
   openControlsModal,
   openDiffModal,
-  showKebab, _applyPrereqWarnings, showUndoToast,
+  showKebab, showUndoToast,
 } from './core/ui.js';
 import {
   openHelpModal, closeHelpModal,
@@ -45,7 +45,6 @@ import {
   _syncAnalysisLivePanel,
   _renderVideoList,
   setVideoSearch, setVideoSort, toggleVideoSortDir, toggleVideoFilter,
-  openVideoActionsModal,
 } from './videos/videos.js';
 import { regenSummaryAuto } from './videos/videos-summary.js';
 import { toggleGroupSelect } from './videos/sessions.js';
@@ -84,12 +83,8 @@ import {
 // import keeps esbuild pulling it into the bundle and runs its static wiring.
 import './settings/settings-backup.js';
 import {
-  initModelDownload, _resetModelDownloads,
-} from './settings/modeldownload.js';
-import {
   SoundFx, commitSoundSettings,
 } from './library/sounds.js';
-import { ensureHotwordsCache } from './library/hotwords.js';
 import { openPeopleView } from './people/voices.js';
 import { openExportEditor } from './library/exporteditor.js';
 import {
@@ -134,13 +129,16 @@ Object.assign(window, jobs);
 // it directly now; _buildMediaUrl's only test dependency
 // (tests/ui/test_ui_video.py::TestNativeMediaProtocolUrlBuilder) moved to
 // tests/js/core/preview.test.js (2026-07-22) since it is a pure function.
-// ui.js - showAlert/openDiffModal/showKebab/_applyPrereqWarnings/
-// showUndoToast have no JS reader left and are kept only for tests/ui/*.py or
-// tests/js/*.test.js page.evaluate pokes. playbackRatePref/applyPlaybackRate
-// dropped 2026-07-22: their only pokes (test_ui_settings.py::TestPlaybackSpeed)
-// were pure logic (localStorage read + a detached <video>'s .playbackRate
-// property, no real navigation/geometry) and ported verbatim to
-// tests/js/core/ui.test.js.
+// ui.js - showAlert/openDiffModal/showKebab/showUndoToast have no JS reader
+// left and are kept only for tests/ui/*.py or tests/js/*.test.js page.evaluate
+// pokes. playbackRatePref/applyPlaybackRate dropped 2026-07-22: their only
+// pokes (test_ui_settings.py::TestPlaybackSpeed) were pure logic (localStorage
+// read + a detached <video>'s .playbackRate property, no real
+// navigation/geometry) and ported verbatim to tests/js/core/ui.test.js.
+// _applyPrereqWarnings dropped 2026-07-23: boot.js already imports it
+// directly, and its only "reader" in test_ui_modeldownload.py was a prose
+// comment about a test already moved to tests/js/core/ui.test.js, not a real
+// poke.
 // _confirmCancel/toggleHamburger/openControlsModal are ALSO invoked directly
 // by tests/ui/*.py, even though shortcuts.js's own read of each already
 // imports it directly. toggleHamburger's two test_ui_clips2.py pokes became
@@ -170,7 +168,6 @@ window.closeHamburger = closeHamburger;
 window.openControlsModal = openControlsModal;
 window.openDiffModal = openDiffModal;
 window.showKebab = showKebab;
-window._applyPrereqWarnings = _applyPrereqWarnings;
 window.showUndoToast = showUndoToast;
 // helpmodals.js - openHelpModal/closeHelpModal are invoked directly by
 // tests/ui/*.py via page.evaluate. _filterGlossary dropped: settings.js (its
@@ -218,8 +215,10 @@ window.gateOnCapability = gateOnCapability;
 // reverted, kept on the window shim deliberately. onClipsSortChange/
 // setVideoSearch/setVideoSort/toggleVideoSortDir/toggleVideoFilter are read by
 // index.html's inline onclick/onchange attributes (sidebar.html), not any JS
-// module. openVideoActionsModal has no outside JS caller left but is invoked
-// directly by tests/ui/test_ui_hotwords.py via page.evaluate.
+// module. openVideoActionsModal dropped 2026-07-23: its only poke
+// (test_ui_hotwords.py) real-swapped to a click on the video detail's own
+// ".vid-actions button:has-text('Additional Actions')" - the same real path
+// open_split_editor (conftest.py) already uses.
 // _needsModelCtaHTML and _updateStartIngestButton dropped: their only readers
 // (videos-summary.js/videos-timeline.js and analyze.js) already import both
 // directly. Eleven names (reanalyzeVideo,
@@ -245,7 +244,6 @@ window.setVideoSearch = setVideoSearch;
 window.setVideoSort = setVideoSort;
 window.toggleVideoSortDir = toggleVideoSortDir;
 window.toggleVideoFilter = toggleVideoFilter;
-window.openVideoActionsModal = openVideoActionsModal;
 // videos-timeline.js - no window shim left. generateTimeline,
 // _renderTimelineHTML and _timelineEmptyNoteHTML were only read by videos.js,
 // which imports all three directly; closeTimelineIntervalModal was only read
@@ -499,8 +497,15 @@ window.openSettings = openSettings;
 // addEventListener inside projects.js itself), so nothing outside the
 // module needs them off window. The module stays in the bundle graph via
 // boot.js's direct import of initProjectSwitcher.
-// modeldownload.js - initModelDownload/_resetModelDownloads are invoked
-// directly by tests/ui/test_ui_modeldownload.py via page.evaluate.
+// modeldownload.js - no window shim left. initModelDownload dropped 2026-07-23:
+// test_ui_modeldownload.py now re-navigates once its routes are registered (the
+// same _reboot_against_stubs pattern test_ui_whisper_prefetch.py already used),
+// so boot.js's own real call runs fresh against the stubs - no in-place
+// re-invoke needed. _resetModelDownloads dropped in the same pass: it was
+// test-only scaffolding ("Test support" per its own code comment) whose sole
+// purpose was resetting state the real boot flow had already touched before a
+// test's stubs existed - the re-navigation above makes that unnecessary too, so
+// the function itself was deleted from modeldownload.js, not just unshimmed.
 // initModelPrefetch dropped 2026-07-22: boot.js already imports it directly,
 // and its only "readers" in test_ui_whisper_prefetch.py/test_ui_model_catalog.py
 // were prose comments naming it, not real pokes. getWhisperDownloadPct
@@ -509,8 +514,6 @@ window.openSettings = openSettings;
 // dropped: its only caller is this module's own row-action onclick (property
 // assignment inside _wireRowActions), so nothing outside the module needs it
 // off window.
-window.initModelDownload = initModelDownload;
-window._resetModelDownloads = _resetModelDownloads;
 // sounds.js - SoundFx and commitSoundSettings are invoked directly by
 // tests/ui/test_ui_sounds.py / tests/js/library/sounds.test.js via
 // page.evaluate / direct import; every JS reader (clipbulk.js, clipexport.js,
@@ -521,9 +524,12 @@ window._resetModelDownloads = _resetModelDownloads;
 // upload onchange, now an addEventListener inside sounds.js itself.
 window.SoundFx = SoundFx;
 window.commitSoundSettings = commitSoundSettings;
-// hotwords.js - ensureHotwordsCache is invoked directly by
-// tests/ui/test_ui_hotwords.py via page.evaluate (boot.js's own read already
-// imports it directly). hasEnabledSemanticHotwords and confirmScanHotwordsForVideo
+// hotwords.js - no window shim left. ensureHotwordsCache dropped 2026-07-23:
+// test_ui_hotwords.py's two pokes were unnecessary - boot.js's own
+// unconditional ensureHotwordsCache() call on every real page load already
+// fetches fresh (the hot-word was created via the API before that navigation),
+// so the tests just wait on the real boot-time fetch instead of forcing a
+// second one. hasEnabledSemanticHotwords and confirmScanHotwordsForVideo
 // dropped: their only reader (videos.js) now imports both directly (the
 // window-cycle-avoidance conversion). initHotwordSettings dropped earlier:
 // settings.js (settings/ bucket conversion) now imports it directly, and no
@@ -532,7 +538,6 @@ window.commitSoundSettings = commitSoundSettings;
 // addEventListener inside hotwords.js itself) and scanHotwordsForVideo is only
 // called by this module's own confirmScanHotwordsForVideo, so nothing outside
 // the module reads either.
-window.ensureHotwordsCache = ensureHotwordsCache;
 
 // sensitive.js - no window shim left. initSensitiveTermSettings was only read
 // as window.* by settings.js, which now imports it directly (settings/ bucket

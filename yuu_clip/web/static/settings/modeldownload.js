@@ -272,16 +272,3 @@ export function getWhisperDownloadPct() {
   const state = _streams.whisper;
   return state && typeof state.lastPct === 'number' ? state.lastPct : null;
 }
-
-// Test support: close any in-flight streams and clear the banner so a test can
-// drive the boot flow deterministically against stubbed routes, independent of
-// what the real boot (against the live dev server) already started.
-export function _resetModelDownloads() {
-  for (const kind of Object.keys(_streams)) {
-    const state = _streams[kind];
-    if (state && state.es) state.es.close();
-    _streams[kind] = undefined;
-  }
-  const container = _container();
-  if (container) { container.innerHTML = ''; container.style.display = 'none'; }
-}

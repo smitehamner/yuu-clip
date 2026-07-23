@@ -259,7 +259,7 @@ class TestScanActionGating:
 
     def _open_video_actions(self, page: Page) -> None:
         select_video_with_clips(page)
-        page.evaluate("() => openVideoActionsModal(AppState.activeVideoId)")
+        page.click(".vid-actions button:has-text('Additional Actions')")
         page.wait_for_selector("#actions-modal.visible", timeout=2000)
 
     def test_scan_action_hidden_with_no_semantic_hotwords(self, page: Page):
@@ -270,9 +270,12 @@ class TestScanActionGating:
     def test_scan_action_visible_with_enabled_semantic_hotword(self, page: Page):
         hw = _create_hotword(page, "uitest_scan_gate", match_mode="semantic")
         try:
+            # boot.js calls ensureHotwordsCache() unconditionally on every real
+            # page load - since the hot-word was created via the API before this
+            # navigation, the real boot flow already fetches it fresh; just wait
+            # for that real fetch to settle rather than forcing a second one.
             page.goto(LIVE_URL)
             page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
-            page.evaluate("() => ensureHotwordsCache(true)")
             page.wait_for_function("() => AppState._hotWordsLoaded === true", timeout=3000)
             self._open_video_actions(page)
             expect(page.locator("#actions-modal-body .action-row:has-text('Scan for Hot-words')")).to_be_visible()
@@ -285,7 +288,6 @@ class TestScanActionGating:
         try:
             page.goto(LIVE_URL)
             page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
-            page.evaluate("() => ensureHotwordsCache(true)")
             page.wait_for_function("() => AppState._hotWordsLoaded === true", timeout=3000)
             self._open_video_actions(page)
             expect(page.locator("#actions-modal-body .action-row:has-text('Scan for Hot-words')")).to_have_count(0)

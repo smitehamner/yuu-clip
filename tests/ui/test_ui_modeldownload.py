@@ -11,15 +11,20 @@ closes the banner and the app stays usable.
 
 Every fetch the asserted render awaits is stubbed (hermetic-stubbing rule): the
 status/capabilities reads, the SSE download endpoint, the clear endpoint, and the
-capability-tiers refresh. The boot flow is driven by calling initModelDownload()
-after the routes are in place - the fixture's own initial boot ran against the
-real (empty) dev config, so it never renders a banner. Read-only against the live fixture server yuu-dev test-ui spawns. See tests/conftest.py.
+capability-tiers refresh. The boot flow is driven by re-navigating once every
+route is in place, so boot.js's own real initModelDownload() call runs fresh
+against the stubs - the same pattern test_ui_whisper_prefetch.py's
+_reboot_against_stubs uses (and for the same reason: the fixture's own initial
+boot already ran once against the real, empty dev config before the test body's
+routes existed, so re-invoking the function in-place on the old page would
+still be racing that first call's tail). Read-only against the live fixture
+server yuu-dev test-ui spawns. See tests/conftest.py.
 """
 from __future__ import annotations
 
 import json
 
-from conftest import skip_no_server
+from conftest import LIVE_URL, skip_no_server
 from playwright.sync_api import Page
 
 _CAPS_TEXT_FALSE = (
@@ -47,10 +52,10 @@ def _route_status(page: Page, *, pending: str) -> None:
 
 
 def _isolate_prefetch(page: Page) -> None:
-    """Make an LLM-banner test hermetic against the Stage 6 boot prefetch: clear any
-    row the fixture's own boot started, and disable model prefetch so a late
-    initModelPrefetch bails before touching the banner container."""
-    page.evaluate("() => _resetModelDownloads()")
+    """Make an LLM-banner test hermetic against the Stage 6 boot prefetch: disable
+    model prefetch so a late initModelPrefetch bails before touching the banner
+    container. (Any row the fixture's own first boot started is discarded by the
+    real re-navigation _reboot() does, not reset in-place.)"""
     page.route(
         "**/api/config",
         lambda route: route.fulfill(
@@ -58,6 +63,12 @@ def _isolate_prefetch(page: Page) -> None:
             body=json.dumps({"model_prefetch_disabled": True, "whisper_model": "base"}),
         ),
     )
+
+
+def _reboot(page: Page) -> None:
+    """Re-navigate so boot.js runs its one real initModelDownload() pass against
+    the routes registered just above - see the module docstring."""
+    page.goto(LIVE_URL, wait_until="domcontentloaded")
 
 
 def _route_caps_text_false(page: Page) -> None:
@@ -86,7 +97,7 @@ class TestModelDownloadBanner:
         held: dict = {}
         page.route("**/api/llm/download-status/clear", lambda route: held.setdefault("route", route))
 
-        page.evaluate("() => initModelDownload()")
+        _reboot(page)
         page.wait_for_selector("#model-download-banner .mdl-pct", timeout=4000)
         assert page.locator(".mdl-pct").inner_text() == "44%"
         assert page.evaluate("() => document.querySelector('.mdl-bar-fill').style.width") == "44%"
@@ -115,7 +126,7 @@ class TestModelDownloadBanner:
         page.route("**/api/llm/gguf/download*", lambda r: _fulfill_sse(r, _PROGRESS_44 + _DONE))
         page.route("**/api/llm/download-status/clear", _clear)
 
-        page.evaluate("() => initModelDownload()")
+        _reboot(page)
         page.wait_for_selector("#model-download-banner", state="hidden", timeout=4000)
         assert calls["clear"] == 1
         # The gate fetch plus the post-success refresh -> capabilities read again.
@@ -142,7 +153,7 @@ class TestModelDownloadBanner:
 
         page.route("**/api/llm/download-status/clear", _clear)
 
-        page.evaluate("() => initModelDownload()")
+        _reboot(page)
         page.wait_for_function(
             "() => { const el = document.getElementById('model-download-banner');"
             " return el && el.style.display !== 'none'"
@@ -167,7 +178,7 @@ class TestModelDownloadBanner:
 
         page.route("**/api/llm/download-status/clear", _clear)
 
-        page.evaluate("() => initModelDownload()")
+        _reboot(page)
         page.wait_for_selector("#model-download-banner .mdl-cancel", timeout=4000)
         page.click(".mdl-cancel")
         page.wait_for_selector("#model-download-banner", state="hidden", timeout=4000)
@@ -179,7 +190,7 @@ class TestModelDownloadBanner:
         _isolate_prefetch(page)
         _route_status(page, pending="")
         _route_caps_text_false(page)
-        page.evaluate("() => initModelDownload()")
+        _reboot(page)
         assert page.locator("#model-download-banner").is_hidden()
 
 
@@ -211,4 +222,4 @@ class TestPrereqRefreshAfterServerChange:
             body='{"ffmpeg_ok":true,"llm_ok":true,"llm_reason":""}'))
 
         with page.expect_request("**/api/prereqs", timeout=5000):
-            page.evaluate("() => initModelDownload()")
+            _reboot(page)

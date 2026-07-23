@@ -142,7 +142,12 @@ class TestGroupingMode:
         expect(page.locator("#session-grouping-bar")).to_be_visible()
         assert page.locator("#video-list .session-select-box").count() >= 1
         # Selecting the lone ungrouped recording is not enough (needs 2+) - the
-        # confirm button stays disabled at one selection.
+        # confirm button stays disabled at one selection. NOT a real click: the
+        # list fully re-renders after each selection, and Playwright's
+        # actionability-retry races that layout shift and intermittently clicks
+        # the wrong element (the resize handle or the grouping bar) - already
+        # tried and reverted in a prior session (see main.esm.js's
+        # toggleGroupSelect comment), so page.evaluate stays deliberate here.
         page.evaluate("toggleGroupSelect(9003)")
         expect(page.locator("#btn-confirm-group")).to_be_disabled()
         page.evaluate("toggleGroupSelect(9001)")
@@ -226,7 +231,9 @@ class TestReelSessionScope:
         ]
         _boot_with_sessions(page, videos=videos,
                             extra_routes=[("**/api/demo/approved-clips*", [])])
-        page.evaluate("openHighlightReelsModal('build')")
+        # Real click: #btn-highlight-reels's own handler calls
+        # openHighlightReelsModal('build') for real.
+        page.click("#btn-highlight-reels")
         expect(page.locator("#highlight-reels-modal")).to_be_visible()
         option = page.locator("#demo-video-id option[value='session:7001']")
         expect(option).to_have_count(1)

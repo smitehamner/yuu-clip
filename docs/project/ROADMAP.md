@@ -299,6 +299,58 @@ except the two items below).
     `test_ui_sessions.py`/`test_ui_video.py` (4 each) and `test_ui_modeldownload.py` (4) are the
     next uninspected/partially-inspected targets.
 
+  **2026-07-23 Phase 2 continuation session (test_ui_sessions.py + test_ui_hotwords.py +
+  test_ui_modeldownload.py buckets), 74 -> 69, 1 gated commit:** re-ran the inventory fresh
+  first (confirmed 74). `test_ui_sessions.py`'s 4 holders: `AppState`/`_renderVideoList` stay
+  LEAVE IT - the file's core `_boot_with_sessions` helper deliberately injects a hand-built
+  session/member graph (grouped recordings, a shared `session_id`) no real analyze run
+  combination could reproduce fast/deterministically, already documented inline as the chosen
+  alternative to a flaky second page load. `openHighlightReelsModal('build')` real-swapped to a
+  click on `#btn-highlight-reels` (its handler calls the identical function+argument) - this
+  session is the one the prior reel.py pass explicitly deferred it to, but it still can't drop
+  the shim line since `test_ui_reel.py` pokes the same name with a `'view'` argument the real
+  button can't reach. **`toggleGroupSelect` was swapped to a real click on the video-list item
+  and then REVERTED before committing**: `main.esm.js` already carried a comment from an earlier
+  session documenting that exact swap was tried and failed (the list re-renders between the two
+  selections, and Playwright's actionability-retry races the layout shift onto the resize handle
+  or grouping bar) - a concrete instance of the standing rule to check a name's existing
+  in-code comment/history before attempting a swap that "looks like" a established pattern,
+  not just its current poke status. `test_ui_hotwords.py`'s 4 holders (excluding the flagged
+  `renderDetail`, left untouched per the standing flag): `openVideoActionsModal` real-swapped to
+  a click on `.vid-actions button:has-text('Additional Actions')` (the same real path
+  `open_split_editor` already uses in conftest.py). `ensureHotwordsCache(true)` pokes were simply
+  unnecessary and dropped outright (not swapped to a different trigger): `boot.js` calls
+  `ensureHotwordsCache()` unconditionally on every real page load, and since the hot-word was
+  already created via a direct API call before the test's `page.goto`, that real boot-time fetch
+  already populates the exact same state - the tests now just wait on the real fetch
+  (`wait_for_function` on `AppState._hotWordsLoaded`) instead of forcing a second one.
+  `test_ui_modeldownload.py`'s 3 holders: `_applyPrereqWarnings`'s only "reader" was a prose
+  comment about a test already moved to `tests/js/core/ui.test.js` in an earlier session -
+  dropped (same false-positive class flagged repeatedly). `initModelDownload`/
+  `_resetModelDownloads` used a "reset the banner state, then re-invoke the init function
+  in-place" pattern - the same shape `test_ui_whisper_prefetch.py` moved away from earlier
+  (FLAKE-2) in favor of a real re-navigation so `boot.js`'s own call runs fresh against
+  pre-registered route stubs. Applied the identical `_reboot_against_stubs`-style fix here
+  (verified with 3 separate real runs, sequential and parallel, before trusting it): all 6
+  `page.evaluate("() => initModelDownload()")` calls became a real `page.goto(LIVE_URL,
+  wait_until="domcontentloaded")`, and `_resetModelDownloads()` - explicitly labeled "Test
+  support" in its own code comment, with zero production callers - became fully unreachable, so
+  the function itself was deleted from `modeldownload.js`, not just unshimmed.
+  - Gate: bundle, test-js 359 (unchanged), test-unit 1069, test-api 2992, targeted
+    `test_ui_sessions.py` + `test_ui_hotwords.py` + `test_ui_modeldownload.py` +
+    `test_ui_reel.py` + `test_ui_whisper_prefetch.py` + `test_ui_model_catalog.py` (80 passed,
+    the latter three checked since they share `openHighlightReelsModal`/`startAnalyze`/
+    `initModelDownload`+`initModelPrefetch` mentions), full test-ui 641 (unchanged count -
+    trigger mechanisms swapped, no tests added/removed), lint clean, typecheck 0 new errors.
+  - Shim: 74 -> 69 (69 confirmed by regenerating the inventory fresh; `toggleGroupSelect`
+    correctly still shows as a PHASE2_TARGET hit - a false positive from the reverted swap's
+    leftover explanatory comment in the test file, not a real poke).
+  - **Next buckets by holder count** (regenerate before trusting): `test_ui_clips.py`/
+    `test_ui_clips2.py` still flagged, do not start without asking. `test_ui_video.py`'s
+    remaining `renderVideoDetail` and `test_ui_transcript.py` (shares `renderDetail`, also
+    flagged) are the next candidates but both route through the flagged cross-file cluster -
+    consider whether to fold them into that conversation rather than a normal bucket pass.
+
 - [ ] **In-process LLM/scoring jobs lack progress + a Cancel** - found in the v0.1.27
   manual checks: "Generate timeline" and "Suggest names" show no progress and offer no way
   to cancel, and a sweep found this is one class, not two bugs. Every *subprocess* job
