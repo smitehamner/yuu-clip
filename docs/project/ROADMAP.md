@@ -351,6 +351,66 @@ except the two items below).
     flagged) are the next candidates but both route through the flagged cross-file cluster -
     consider whether to fold them into that conversation rather than a normal bucket pass.
 
+  **2026-07-23 - the flagged `renderDetail` cross-file cluster, owner-approved: 69 -> 58,
+  4 gated commits.** The owner said go ahead on the cluster this plan had been flagging
+  since the `test_ui_hotwords.py` session - `renderDetail` (clips.js) reused identically via
+  synthetic `AppState.clips`/`activeClipData` + `renderDetail(...)` across 6 files, plus
+  `test_ui_clips.py`/`test_ui_clips2.py` (the two biggest remaining buckets, 10 and 8 holders,
+  dominated by this same pattern alongside several other names never inspected).
+  - **`test_ui_clips.py` (10 -> 3 holders, 69 -> 62):** `setStatus` was dead (comment-only,
+    `shortcuts.js` already imports it directly). `openScoreOverride` real-swapped onto the
+    detail view's own "Override Score" button (`[data-act='open-score-override']`).
+    `_onExportPresetChange`/`_updateExportTightCapWarning` real-swapped onto selecting
+    `#export-preset` (whose own `change` listener calls the former, which itself calls the
+    latter) - kept the unavoidable synthetic `AppState.activeClipData` (the fixture project
+    has no real long scene to trigger the tight-cap warning) but made the *trigger* real.
+    `_setExportFraming` real-swapped onto the framing "Center" button
+    (`data-frame-pos="0.5"`, an exact real-value match). `openBatchExportModal`/
+    `closeBatchExportModal` real-swapped onto the recording detail's "Export Approved"
+    button and `#batch-cancel-btn` - and caught a stale comment claiming `videos.js` read
+    the former off `window.*` (it already imports it directly). `renderDetail`/`AppState`
+    stay, part of the flagged cluster.
+  - **`test_ui_clips2.py` (8 -> 5 holders, 62 -> 59):** `selectClip`'s one poke was redundant
+    with the real click `select_first_video_and_clip` already made - swapped to re-clicking
+    the same row. `openRetranscribeModal`/`startRetranscribe` real-swapped onto the clip's
+    Additional Actions "Retranscribe" row and `#retranscribe-start-btn`. `openClipActionsModal`
+    partially swapped (2 of 3 sites, via the real Additional Actions button) - the merge-test
+    pair stays synthetic (a fabricated clip pair with ids `9001`/`9002` never actually
+    selected in the real DOM). `toggleClipFilter`/`_applyFilters`/`renderDetail`/`AppState`
+    stay: one activates a filter hidden inside a collapsed expander (unclickable while
+    hidden - there's no real "arrive with it already active" trigger), one computes an
+    expected value for comparison, the rest are the flagged cluster.
+  - **`test_ui_sensitive.py`/`test_ui_transcript.py`/`test_ui_vision.py` (59 -> 58, all-genuine
+    triage plus one dead line):** all three files' `renderDetail`/`renderVideoDetail` pokes
+    build fabricated states unreachable without a real scan, a real vision-LLM call, or a
+    real background re-render (sensitive-term matches, vision summaries, in-flight-job
+    simulation, stale-SRT-sidecar flags) - confirmed genuine LEAVE IT across the board, no
+    test file changes. `analyzeFrames` was dead: `clips.js` already calls it internally via
+    data-act delegation, and its only "reader" in `test_ui_vision.py` was a prose comment
+    about a *prior* migration (`tests/js/clips/vision.test.js` already imports it directly),
+    not a real poke. Also caught that `test_ui_transcript.py`'s own `renderDetail` inventory
+    hit was itself a stale prose comment - it only ever calls the unrelated
+    `renderVideoDetail` (videos.js), never the clips.js function the cluster is about.
+  - **`test_ui_video.py`'s remaining `renderVideoDetail` (58 -> 58, docs only):** its "reader"
+    was a prose comment about tests already moved to
+    `tests/js/videos/videodetail.test.js` in an earlier session, not a real poke - the shim
+    line stays regardless (genuine pokes remain in `test_ui_transcript.py`), but this closes
+    out the last file in the flagged cluster.
+  - Gate per commit: bundle, test-js 359 (unchanged throughout), test-unit 1069, test-api
+    2992, targeted files for each bucket (79/65/34 passed respectively, re-run twice for the
+    two biggest buckets to check for flakiness given the swap volume) plus sibling files
+    sharing names, full test-ui 641 (unchanged count throughout - only trigger mechanisms
+    swapped, no tests added/removed), lint clean, typecheck 0 new errors each time.
+  - Shim: 69 -> 58 (58 confirmed by regenerating the inventory fresh after the final
+    docs-only commit). The `renderDetail`/`AppState` flagged cluster is now FULLY TRIAGED -
+    every one of its 6 (plus `test_ui_video.py`) files read in full and confirmed genuine
+    rather than assumed from the flag alone. Only `test_ui_clips.py`/`test_ui_clips2.py`
+    remain as large-holder-count files, and both are now down to small, fully-documented
+    remainders (3 and 5 holders) - no more big untriaged buckets left. Next: regenerate and
+    re-survey what's left; likely candidates are the smaller 2-holder-and-under files not yet
+    individually inspected, or proposing the Phase 3 structural consolidation per the plan's
+    stop-gate guidance.
+
 - [ ] **In-process LLM/scoring jobs lack progress + a Cancel** - found in the v0.1.27
   manual checks: "Generate timeline" and "Suggest names" show no progress and offer no way
   to cancel, and a sweep found this is one class, not two bugs. Every *subprocess* job
