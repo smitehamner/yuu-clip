@@ -83,26 +83,25 @@ except the two items below).
 
 - [ ] **Drain the last of the `window.X = X` shim (page.evaluate follow-on)** - the module
   testability refactor (2026-07-21) converted 68 cross-module `window.foo` reads to real
-  `import`s and took `static/main.esm.js`'s shim from 194 to 155 lines. A follow-on pass
-  (2026-07-21, later same day) found the 155-line breakdown quoted in the original plan text
-  was itself wrong (it only grepped for the literal string `window.X`, missing bare-identifier
-  reads and the `tests/js` tier) and, after a corrected inventory, dropped **37 lines with
-  zero surviving consumer** - shim now **118 lines**. What is left is mostly *not* module
-  reads any more: **100 entries** are held only by a Playwright `page.evaluate` poke in
-  `tests/ui/` or a `tests/js/*.test.js` poke, so the remaining work is rewriting those as
-  `tests/js/` vitest tests (as was already done for the vision cancel-wiring) and then
-  deleting the freed shim lines, plus the live get/set accessor bridge in `analyze/split.js`
-  (last - only `test_ui_keyboard.py` pokes it). Each entry's per-section comment names its
-  exact surviving reader. **18 entries are genuine and must stay**: `core/jobs.js`'s 9
-  `window.*` reads (a direct import adds a jobs.js <-> videos/clips edge that breaks
-  vitest's `vi.mock`/`importActual` resolution - the real `streamSSE` runs instead of the
-  mock), `_clipsSortParam` (format.js reads it off `window` by design), `openSettings` /
-  `closeRetranscribeModal` / `closeNewRecordingPanel` / `closeExportModal` (referenced by
-  name inside a dynamically-built onclick HTML string via `_diarizationNoteHtml`, evaluated
-  in global scope when clicked - not caught by grepping for `window.` or a normal call site),
-  5 `sidebar.html` inline onclick/onchange handlers, and `showConfirm`/`closeHamburger`/
-  `PanelNav`. Regenerate the inventory with a script that resolves each name's real
-  import graph before resuming - don't reuse the original 54/92/9 counts, they were wrong.
+  `import`s and took `static/main.esm.js`'s shim from 194 to 155 lines, then a same-day
+  follow-on corrected the inventory and dropped 37 more dead lines (118 left). A
+  2026-07-22 session corrected the inventory AGAIN (the 118/100/18 split was still off in
+  both directions - see the "Phase 2 session" note in the private plan doc for the exact
+  false-positive/false-negative bugs and how they were fixed) and landed 3 gated commits:
+  8 more dead lines dropped (comment-only or already-fully-migrated survivors), one full
+  Playwright-to-vitest port (`openNameCorrections` -> `tests/js/people/namecorrections.test.js`,
+  the template for any pure-DOM-render panel), and one poke-to-real-click swap
+  (`closeOpenProjectModal` -> a click on the modal's own Cancel button). Shim now **109
+  lines** (was 118). Key finding for whoever resumes: a large fraction of the remaining
+  ~90 names are NOT good vitest candidates - several files sampled this session
+  (`test_ui_exporteditor.py`, `test_ui_hotwords.py`, `test_ui_sensitive.py`,
+  `test_ui_help.py`) are genuinely Playwright-appropriate throughout (real server/DB CRUD,
+  mouse-drag + geometry, external-request blocking, focus/keyboard/escape), so budget this
+  as "triage each name, port the pure-DOM ones, click-swap the modal-close ones, leave the
+  rest documented as genuine" rather than "convert 90 names to vitest tests" - expect
+  well under half to actually be portable. **Regenerate the inventory with the
+  corrected 2026-07-22 script before resuming - don't reuse any prior N/dead/genuine
+  counts, all of them were wrong at least once.**
 
 - [ ] **In-process LLM/scoring jobs lack progress + a Cancel** - found in the v0.1.27
   manual checks: "Generate timeline" and "Suggest names" show no progress and offer no way
