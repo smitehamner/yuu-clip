@@ -76,20 +76,11 @@ function _doRegenSummaryAuto(id, btn) {
   startJobUI(SUMMARY_JOB_STEPS, 'Regenerating summary');
   const resetBtn = () => { if (actionBtn) { actionBtn.disabled = false; actionBtn.textContent = 'Regenerate (auto-save)'; } };
   const teardown = () => { resetBtn(); endJobUI(); };
-  let hadError = false;
   let needsModel = false;
   const handle = _openSSE(
     `/api/videos/${id}/regenerate-summary`,
     data => {
-      if (data && data.needs_model) {
-        needsModel = true;
-        const body = document.getElementById('summary-body');
-        if (body) body.innerHTML = _needsModelCtaHTML(data);
-        appendLog(data.detail);
-        return;
-      }
       updateJobUI(typeof data === 'string' ? data : JSON.stringify(data));
-      if (typeof data === 'string' && data.startsWith('[Error')) hadError = true;
       appendLog(String(data));
     },
     () => {
@@ -97,10 +88,6 @@ function _doRegenSummaryAuto(id, btn) {
       teardown();
       if (needsModel) {
         showToast('Install a local model to generate summaries', 'warning');
-        return;
-      }
-      if (hadError) {
-        showToast('Summary generation failed - check log for details', 'error');
         return;
       }
       loadVideos().then(() => {
@@ -113,6 +100,17 @@ function _doRegenSummaryAuto(id, btn) {
       _clearActiveStream(handle);
       teardown();
       showToast(`Summary generation failed - ${errMsg}`, 'error');
+    },
+    {},
+    null,
+    data => {
+      // The only typed `result` this route emits is the needs-model payload.
+      if (data && data.needs_model) {
+        needsModel = true;
+        const body = document.getElementById('summary-body');
+        if (body) body.innerHTML = _needsModelCtaHTML(data);
+        appendLog(data.detail);
+      }
     },
   );
   _setActiveStream(handle, teardown);

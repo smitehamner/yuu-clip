@@ -86,7 +86,7 @@ class TestRescoreRouteByKind:
 
         r = client.get(f"/api/clips/{scene_id}/rescore")
         assert r.status_code == 200
-        assert "__DONE__" in r.text
+        assert '"type": "done"' in r.text
 
         assert any(_SCENE_MARKER in s for s in sink)
         assert all(_CLIP_MARKER not in s for s in sink)
@@ -103,7 +103,7 @@ class TestRescoreRouteByKind:
 
         r = client.get(f"/api/clips/{clip_id}/rescore")
         assert r.status_code == 200
-        assert "__DONE__" in r.text
+        assert '"type": "done"' in r.text
 
         assert any(_CLIP_MARKER in s for s in sink)
         assert all(_SCENE_MARKER not in s for s in sink)

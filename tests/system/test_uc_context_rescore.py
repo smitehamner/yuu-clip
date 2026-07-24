@@ -3,6 +3,7 @@ re-scoring injects the context into the LLM prompt (the stub echoes it back).
 """
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from tests.system._stubs import CONTEXT_MARKER
@@ -36,7 +37,7 @@ def test_assign_context_then_rescore_injects_context(analyzed_project: Path, cli
     assert resp.status_code == 200
 
     events = _drain_sse(client, f"/api/videos/{video_id}/rescore-clips")
-    assert events and events[-1].strip('"') == "__DONE__"
+    assert events and json.loads(events[-1]) == {"v": 1, "type": "done", "outcome": "ok"}
 
     # The re-score injected the context into the prompt; the stub echoed the marker
     # into the description, proving the assigned context reached the LLM.

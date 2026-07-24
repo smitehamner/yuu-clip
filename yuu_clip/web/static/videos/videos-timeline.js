@@ -150,30 +150,13 @@ function _startGenerateTimeline(id, intervalS) {
   let firstEntry = true;
   let needsModel = false;
 
+  // Timeline streams typed `result` events (a needs-model payload, then one per
+  // entry), so the payloads arrive on onResult, not onLine. The per-entry done/total
+  // still ride inside result.data (the timeline stage id is not registered until the
+  // PROGRESS-CANCEL-GAP plan), so the pill reads them off the data as before.
   const handle = _openSSE(
     `/api/videos/${id}/timeline?interval_s=${intervalS}`,
-    data => {
-      if (data && data.needs_model) {
-        needsModel = true;
-        section.innerHTML = _needsModelCtaHTML(data);
-        return;
-      }
-      if (firstEntry) {
-        section.innerHTML = `<div class="timeline" id="timeline-list"></div>`;
-        firstEntry = false;
-      }
-      // Payloads are entry objects (not prose lines), so drive the pill from the
-      // server-supplied done/total rather than updateJobUI.
-      if (typeof data.done === 'number' && typeof data.total === 'number') {
-        setJobProgress(data.done, data.total);
-      }
-      const row = document.createElement('div');
-      row.className = 'timeline-entry';
-      row.innerHTML = `
-        <div class="timeline-stamp">${escHtml(data.start_hms)}</div>
-        <div class="timeline-text">${escHtml(data.text)}</div>`;
-      document.getElementById('timeline-list').appendChild(row);
-    },
+    () => {},
     () => {
       _clearActiveStream(handle);
       teardown();
@@ -192,6 +175,28 @@ function _startGenerateTimeline(id, intervalS) {
         section.innerHTML = video?.has_timeline ? '' : _timelineEmptyNoteHTML();
       }
       showToast(`Timeline generation failed - ${errMsg}`, 'error');
+    },
+    {},
+    null,
+    data => {
+      if (data && data.needs_model) {
+        needsModel = true;
+        section.innerHTML = _needsModelCtaHTML(data);
+        return;
+      }
+      if (firstEntry) {
+        section.innerHTML = `<div class="timeline" id="timeline-list"></div>`;
+        firstEntry = false;
+      }
+      if (typeof data.done === 'number' && typeof data.total === 'number') {
+        setJobProgress(data.done, data.total);
+      }
+      const row = document.createElement('div');
+      row.className = 'timeline-entry';
+      row.innerHTML = `
+        <div class="timeline-stamp">${escHtml(data.start_hms)}</div>
+        <div class="timeline-text">${escHtml(data.text)}</div>`;
+      document.getElementById('timeline-list').appendChild(row);
     },
   );
   _setActiveStream(handle, teardown);

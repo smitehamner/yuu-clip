@@ -1683,7 +1683,8 @@ class TestRescoreFailedSelection:
         body = client.get(f"/api/videos/{video_id}/rescore-failed-clips").text
         assert "Starting LLM scoring for 1 clip" in body
         assert "Scored 1/1 clips" in body
-        assert "__DONE__" in body
+        assert '"type": "done"' in body
+        assert '"outcome": "ok"' in body
 
 
 # ---------------------------------------------------------------------------

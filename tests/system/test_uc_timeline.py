@@ -3,6 +3,7 @@ persists time-ordered entries mapped to the transcript windows.
 """
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 
@@ -20,7 +21,7 @@ def test_timeline_generates_and_persists_entries(analyzed_project: Path, client)
     video_id = client.get("/api/videos").json()[0]["id"]
 
     events = _drain_sse(client, f"/api/videos/{video_id}/timeline?interval_s=15")
-    assert events and events[-1].strip('"') == "__DONE__"
+    assert events and json.loads(events[-1]) == {"v": 1, "type": "done", "outcome": "ok"}
 
     video = client.get(f"/api/videos/{video_id}").json()
     timeline = video["timeline"]

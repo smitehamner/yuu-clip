@@ -894,26 +894,19 @@ export function rescoreClip(clipId, full = false) {
   openLog();
   startJobUI(SCORE_STEPS, 'Re-scoring clip');
   const teardown = () => endJobUI();
-  let hadError = false;
+  let rescoreResult = null;
   const handle = _openSSE(
     `/api/clips/${clipId}/rescore${full ? '?full=1' : ''}`,
     msg => {
       updateJobUI(typeof msg === 'string' ? msg : JSON.stringify(msg));
-      if (typeof msg === 'string' && msg.startsWith('[Error')) hadError = true;
       appendLog(String(msg));
     },
-    async msg => {
+    async () => {
       _clearActiveStream(handle);
       teardown();
-      if (hadError) {
-        showToast('Re-score failed - check log for details', 'error');
-        SoundFx.play('error');
-        selectClip(clipId);
-        return;
-      }
       const clip = await fetch(`/api/clips/${clipId}`).then(r => r.json()).catch(() => null);
-      const descNew     = msg.description_new;
-      const descLongNew = msg.description_long_new;
+      const descNew     = rescoreResult?.description_new;
+      const descLongNew = rescoreResult?.description_long_new;
       if (descNew || descLongNew) {
         openDiffModal('Review Re-scored Descriptions', [
           {label: 'Description',       current: clip?.description_original      || clip?.description      || '', proposed: descNew     || ''},
@@ -936,7 +929,11 @@ export function rescoreClip(clipId, full = false) {
       teardown();
       showToast(`Re-score failed - ${errMsg}`, 'error');
       SoundFx.play('error');
+      selectClip(clipId);
     },
+    {},
+    null,
+    data => { rescoreResult = data; },
   );
   _setActiveStream(handle, teardown);
 }

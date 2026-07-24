@@ -19,6 +19,13 @@ from yuu_clip.contexts import extract_context_weights, format_context_block, loa
 from yuu_clip.db.models import AudioTrack, ClipCandidate, HotWord, SensitiveTerm, Video
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
+from yuu_clip.web.jobevents import (
+    OUTCOME_ERROR,
+    OUTCOME_OK,
+    done_event,
+    log_event,
+    result_event,
+)
 from yuu_clip.web.routes.common import (
     active_job,
     json_list,
@@ -27,7 +34,6 @@ from yuu_clip.web.routes.common import (
     require_clip,
     sse_response,
 )
-from yuu_clip.web.sse import sse_event
 
 _log = get_logger(__name__)
 
@@ -253,7 +259,7 @@ def _register_hotword_scan_route(router: APIRouter, ctx: ProjectContext) -> None
             async with active_job(ctx):
                 total = len(clip_ids)
                 plural = "s" if total != 1 else ""
-                yield sse_event(f'[Scanning {total} clip{plural} for hot-word meaning…]')
+                yield log_event(f'[Scanning {total} clip{plural} for hot-word meaning…]')
 
                 for i, clip_id in enumerate(clip_ids, 1):
                     scan_db = ctx.get_db()
@@ -282,11 +288,11 @@ def _register_hotword_scan_route(router: APIRouter, ctx: ProjectContext) -> None
                     finally:
                         scan_db.close()
                     if error:
-                        yield sse_event(f'[Error scanning clip {clip_id}: {error}]')
+                        yield log_event(f'[Error scanning clip {clip_id}: {error}]', level="error")
                     else:
-                        yield sse_event(f'Scanned {i}/{total} clips')
+                        yield log_event(f'Scanned {i}/{total} clips')
 
-                yield sse_event('__DONE__')
+                yield done_event(OUTCOME_OK)
 
         return sse_response(event_stream())
 
@@ -402,7 +408,7 @@ def _rescore_video_clips(
         async with active_job(ctx):
             total = len(clip_ids)
             plural = "s" if total != 1 else ""
-            yield sse_event(f'[Starting LLM scoring for {total} clip{plural}…]')
+            yield log_event(f'[Starting LLM scoring for {total} clip{plural}…]')
             scorers, preserve = build_rescore_scorers(config, context_text=context_text, full=full)
             scorer = next(s for s in scorers if s.name == "llm")
             engine = ScoringEngine(
@@ -420,9 +426,9 @@ def _rescore_video_clips(
                     config=config, context_text=context_text, include_frames=include_frames,
                 )
                 if outcome.error:
-                    yield sse_event(f'[Error scoring clip {clip_id}: {outcome.error}]')
+                    yield log_event(f'[Error scoring clip {clip_id}: {outcome.error}]', level="error")
                 else:
-                    yield sse_event(f'Scored {i}/{total} clips')
+                    yield log_event(f'Scored {i}/{total} clips')
 
             prov_db = ctx.get_db()
             try:
@@ -434,7 +440,7 @@ def _rescore_video_clips(
             finally:
                 prov_db.close()
 
-            yield sse_event('__DONE__')
+            yield done_event(OUTCOME_OK)
 
     return sse_response(event_stream())
 
@@ -494,8 +500,8 @@ def _register_rescore_routes(router: APIRouter, ctx: ProjectContext) -> None:
             payload = _needs_model_payload("timeline", llm_reason, config)
 
             async def needs_model_stream():
-                yield sse_event(payload)
-                yield sse_event('__DONE__')
+                yield result_event(payload)
+                yield done_event(OUTCOME_OK)
 
             return sse_response(needs_model_stream())
 
@@ -540,9 +546,12 @@ def _register_rescore_routes(router: APIRouter, ctx: ProjectContext) -> None:
 
                     entry = {"start_hms": start_hms, "end_hms": end_hms, "text": entry_text}
                     entries.append(entry)
-                    # Stream a progress-augmented copy; the stored `entries` (-> timeline_json)
-                    # stay clean of the transient done/total.
-                    yield sse_event({**entry, 'done': len(entries), 'total': total_entries})
+                    # Stream a progress-augmented copy as the result payload; the stored
+                    # `entries` (-> timeline_json) stay clean of the transient done/total.
+                    # (done/total ride in result.data here rather than a typed progress
+                    # event - the timeline stage id is not registered until the
+                    # PROGRESS-CANCEL-GAP plan; the client pill reads them off the data.)
+                    yield result_event({**entry, 'done': len(entries), 'total': total_entries})
 
                 save_db = ctx.get_db()
                 try:
@@ -555,7 +564,7 @@ def _register_rescore_routes(router: APIRouter, ctx: ProjectContext) -> None:
                 finally:
                     save_db.close()
 
-                yield sse_event('__DONE__')
+                yield done_event(OUTCOME_OK)
 
         return sse_response(event_stream())
 
@@ -636,8 +645,8 @@ def _register_summary_routes(router: APIRouter, ctx: ProjectContext) -> None:
             payload = _needs_model_payload("summary", llm_reason, ctx.config)
 
             async def needs_model_stream():
-                yield sse_event(payload)
-                yield sse_event('__DONE__')
+                yield result_event(payload)
+                yield done_event(OUTCOME_OK)
 
             return sse_response(needs_model_stream())
 
@@ -645,15 +654,15 @@ def _register_summary_routes(router: APIRouter, ctx: ProjectContext) -> None:
 
         async def event_stream():
             async with active_job(ctx):
-                yield sse_event('[Generating summary…]')
+                yield log_event('[Generating summary…]')
                 try:
                     title_new, summary_new = await asyncio.to_thread(
                         summarize_transcript, full_text, ctx.config, context_text=context_text
                     )
                 except Exception as exc:
                     _log.warning("regenerate_summary failed for video %d: %s", video_id, exc, exc_info=True)
-                    yield sse_event(f'[Error: {exc}]')
-                    yield sse_event('__DONE__')
+                    yield log_event(f'[Error: {exc}]', level="error")
+                    yield done_event(OUTCOME_ERROR, error=f"Summary generation failed: {exc}")
                     return
 
                 save_db = ctx.get_db()
@@ -670,8 +679,8 @@ def _register_summary_routes(router: APIRouter, ctx: ProjectContext) -> None:
                 finally:
                     save_db.close()
 
-                yield sse_event('[Summary regenerated]')
-                yield sse_event('__DONE__')
+                yield log_event('[Summary regenerated]')
+                yield done_event(OUTCOME_OK)
 
         return sse_response(event_stream())
 
@@ -699,7 +708,7 @@ def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> Non
             from yuu_clip.scoring.scorer_set import build_rescore_scorers, build_scene_scorers
 
             async with active_job(ctx):
-                yield sse_event('[Starting LLM scoring for 1 clip…]')
+                yield log_event('[Starting LLM scoring for 1 clip…]')
                 scorers, preserve = build_rescore_scorers(config, context_text=context_text, full=full)
                 scorer = next(s for s in scorers if s.name == "llm")
                 # A scene (kind='scene') routes to the scene rubric; the engine picks
@@ -719,15 +728,15 @@ def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> Non
                     snapshot_descriptions=True,
                 )
                 if outcome.error:
-                    yield sse_event(f'[Error: {outcome.error}]')
-                else:
-                    yield sse_event('Scored 1/1 clips')
-                done_payload = {
-                    "type": "__DONE__",
+                    yield log_event(f'[Error: {outcome.error}]', level="error")
+                    yield done_event(OUTCOME_ERROR, error=outcome.error)
+                    return
+                yield log_event('Scored 1/1 clips')
+                yield result_event({
                     "description_new": outcome.description_new,
                     "description_long_new": outcome.description_long_new,
-                }
-                yield sse_event(done_payload)
+                })
+                yield done_event(OUTCOME_OK)
 
         return sse_response(event_stream())
 
@@ -758,7 +767,7 @@ def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> Non
             async with active_job(ctx):
                 total = len(clip_ids)
                 plural = "s" if total != 1 else ""
-                yield sse_event(f'[Re-generating descriptions for {total} clip{plural}…]')
+                yield log_event(f'[Re-generating descriptions for {total} clip{plural}…]')
 
                 for i, clip_id in enumerate(clip_ids, 1):
                     desc_db = ctx.get_db()
@@ -784,11 +793,11 @@ def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> Non
                     finally:
                         desc_db.close()
                     if error:
-                        yield sse_event(f'[Error describing clip {clip_id}: {error}]')
+                        yield log_event(f'[Error describing clip {clip_id}: {error}]', level="error")
                     else:
-                        yield sse_event(f'Described {i}/{total} clips')
+                        yield log_event(f'Described {i}/{total} clips')
 
-                yield sse_event('__DONE__')
+                yield done_event(OUTCOME_OK)
 
         return sse_response(event_stream())
 
@@ -830,7 +839,7 @@ def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> Non
         async def event_stream():
             async with active_job(ctx):
                 total = len(candidates)
-                yield sse_event(f'[Searching {total} clips for similar moments…]')
+                yield log_event(f'[Searching {total} clips for similar moments…]')
 
                 results = None
                 error = None
@@ -842,8 +851,8 @@ def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> Non
                     _log.error("find_related_clips: clip %d failed: %s", clip_id, exc, exc_info=True)
 
                 if error:
-                    yield sse_event(f'[Error: {error}]')
-                    yield sse_event('__DONE__')
+                    yield log_event(f'[Error: {error}]', level="error")
+                    yield done_event(OUTCOME_ERROR, error=f"Find similar failed: {error}")
                     return
 
                 save_db = ctx.get_db()
@@ -856,6 +865,7 @@ def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> Non
                 finally:
                     save_db.close()
 
-                yield sse_event({'type': '__DONE__', 'results': results})
+                yield result_event({'results': results})
+                yield done_event(OUTCOME_OK)
 
         return sse_response(event_stream())

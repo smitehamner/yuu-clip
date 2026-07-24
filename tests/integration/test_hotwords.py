@@ -331,7 +331,7 @@ class TestHotwordScanRoute:
 
         status, messages = self._drain(client, vid_id)
         assert status == 200
-        assert messages[-1] == "__DONE__"
+        assert messages[-1] == {"v": 1, "type": "done", "outcome": "ok"}
 
         from yuu_clip.db.models import ClipCandidate, make_session
         db = make_session(client.app.state.ctx.db_path)

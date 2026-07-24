@@ -144,7 +144,8 @@ class TestRescoreAfterManualCreate:
 
         body = client.get(f"/api/clips/{created['id']}/rescore").text
         assert "Scored 1/1 clips" in body
-        assert "__DONE__" in body
+        assert '"type": "done"' in body
+        assert '"outcome": "ok"' in body
 
         rescored = client.get(f"/api/clips/{created['id']}").json()
         assert rescored["scored_at"] is not None

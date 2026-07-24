@@ -1569,10 +1569,11 @@ function startFindSimilar() {
 
   const teardown = () => { _findingSimilarClipId = null; endJobUI(); };
   const qs = videoIds ? `?video_ids=${encodeURIComponent(videoIds)}` : '';
+  let similarResult = null;
   const handle = _openSSE(
     `/api/clips/${clipId}/related-clips${qs}`,
     msg => { updateJobUI(typeof msg === 'string' ? msg : JSON.stringify(msg)); appendLog(String(msg)); },
-    async msg => {
+    async () => {
       _clearActiveStream(handle);
       teardown();
       const clip = await fetch(`/api/clips/${clipId}`).then(r => r.json()).catch(() => null);
@@ -1580,7 +1581,7 @@ function startFindSimilar() {
         AppState.activeClipData = clip;
         if (!PanelNav.isOpen()) renderDetail(clip);
       }
-      const count = msg.results?.length ?? 0;
+      const count = similarResult?.results?.length ?? 0;
       showToast(count ? `Found ${plural(count, 'similar clip')}` : 'No similar clips found');
     },
     errMsg => {
@@ -1592,6 +1593,9 @@ function startFindSimilar() {
       }
       showToast(`Find Similar failed - ${errMsg}`, 'error');
     },
+    {},
+    null,
+    data => { similarResult = data; },
   );
   _setActiveStream(handle, teardown);
 }

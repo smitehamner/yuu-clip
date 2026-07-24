@@ -167,7 +167,8 @@ class TestNeedsModelEmptyState:
         r = client.get(f"/api/videos/{vid_id}/timeline")
         assert r.status_code == 200
         assert '"needs_model": true' in r.text
-        assert "__DONE__" in r.text
+        assert '"type": "done"' in r.text
+        assert '"outcome": "ok"' in r.text
 
     def test_regenerate_summary_streams_needs_model_when_llm_unavailable(self, project_dir, client):
         _seed_transcript(project_dir)
