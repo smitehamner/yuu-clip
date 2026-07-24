@@ -336,22 +336,56 @@ def _merged_context_names(members: list[Video]) -> list[str]:
     return seen
 
 
-def _session_detail_dict(db, session: RecordingSession, members: list[Video]) -> dict:
-    """Full session payload: rollup fields + members with unified-timeline offsets."""
-    member_dicts = []
+def _member_offsets(members: list[tuple[datetime, int]]) -> list[tuple[int, int]]:
+    """Cumulative axis offset and inter-recording gap per session member.
+
+    *members* is (real-world start time, duration_ms) in timeline order. Returns
+    (offset_ms, gap_before_ms) per member: offset_ms is the running sum of prior
+    durations; gap_before_ms is the real-time silence between the previous
+    recording's end and this one's start, clamped at 0 (overlaps read as no gap).
+    """
+    result: list[tuple[int, int]] = []
     offset_ms = 0
-    prev_start = None
+    prev_start: Optional[datetime] = None
     prev_duration_ms = 0
-    for video in members:
-        start_time = _member_start_time(video)
+    for start_time, duration_ms in members:
         gap_before_ms = 0
         if prev_start is not None:
             gap_s = (start_time - prev_start).total_seconds() - prev_duration_ms / 1000.0
             gap_before_ms = max(0, int(gap_s * 1000))
-        member_dicts.append(_member_timeline_dict(db, video, offset_ms, gap_before_ms))
-        offset_ms += video.duration_ms or 0
+        result.append((offset_ms, gap_before_ms))
+        offset_ms += duration_ms
         prev_start = start_time
-        prev_duration_ms = video.duration_ms or 0
+        prev_duration_ms = duration_ms
+    return result
+
+
+def _retime_timeline_entries(timeline: list[dict], offset_ms: int) -> list[dict]:
+    """Re-offset raw {start_hms, end_hms, text} timeline entries onto the unified
+    session axis: each gains local_ms (parsed from its start stamp) and abs_ms
+    (local_ms shifted by the member's cumulative offset)."""
+    entries = []
+    for entry in timeline:
+        local_ms = _hms_to_ms(entry.get("start_hms", ""))
+        entries.append({
+            "start_hms": entry.get("start_hms", ""),
+            "end_hms": entry.get("end_hms", ""),
+            "text": entry.get("text", ""),
+            "local_ms": local_ms,
+            "abs_ms": offset_ms + local_ms,
+        })
+    return entries
+
+
+def _session_detail_dict(db, session: RecordingSession, members: list[Video]) -> dict:
+    """Full session payload: rollup fields + members with unified-timeline offsets."""
+    member_specs = [(_member_start_time(v), v.duration_ms or 0) for v in members]
+    offsets = _member_offsets(member_specs)
+    member_dicts = [
+        _member_timeline_dict(db, video, offset_ms, gap_before_ms)
+        for video, (offset_ms, gap_before_ms) in zip(members, offsets)
+    ]
+    total_ms = sum(duration_ms for _, duration_ms in member_specs)
 
     return {
         "id": session.id,
@@ -364,7 +398,7 @@ def _session_detail_dict(db, session: RecordingSession, members: list[Video]) ->
         "summary_is_edited": session.summary_user is not None,
         "summarized_at": session.summarized_at.isoformat() if session.summarized_at else None,
         "summary_context": json_list(session.summary_context_json),
-        "total_ms": offset_ms,
+        "total_ms": total_ms,
         "members": member_dicts,
     }
 
@@ -373,16 +407,7 @@ def _member_timeline_dict(db, video: Video, offset_ms: int, gap_before_ms: int) 
     """One member's contribution to the unified timeline: its re-offset timeline
     entries and clip markers, plus its cumulative axis offset."""
     timeline = json_lib.loads(video.timeline_json) if video.timeline_json else []
-    entries = [
-        {
-            "start_hms": entry.get("start_hms", ""),
-            "end_hms": entry.get("end_hms", ""),
-            "text": entry.get("text", ""),
-            "local_ms": _hms_to_ms(entry.get("start_hms", "")),
-            "abs_ms": offset_ms + _hms_to_ms(entry.get("start_hms", "")),
-        }
-        for entry in timeline
-    ]
+    entries = _retime_timeline_entries(timeline, offset_ms)
     clips = (
         db.query(ClipCandidate)
         .filter_by(video_id=video.id)
