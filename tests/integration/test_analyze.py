@@ -1809,24 +1809,29 @@ class TestSseCommandCleared:
             assert ctx.analyze_cmd is sentinel_cmd, "score run must not clear analyze_cmd"
 
     def test_score_after_a_cancel_does_not_report_itself_as_cancelled(self, project_dir):
-        """A prior cancel must not leak a cancel message into an unrelated job (Bug 1).
+        """A prior cancel must not leak a cancel outcome into an unrelated job (Bug 1).
 
-        Jobs with no cancel button (score, export, retranscribe) pass no
-        cancel_flag_attr to subprocess_sse precisely so this can't happen. Asserts the
-        behaviour rather than the mechanism, so it keeps its meaning if the plumbing
-        changes again.
+        Cancellation is now keyed to the process instance (ctx.cancelled_procs), not a
+        server-scoped boolean flag: a proc left in the set by an earlier cancelled job
+        can never mark a later, different proc as cancelled. Seed a stale proc identity
+        and assert the fresh score stream still ends non-cancelled. Asserts the outcome,
+        so it keeps its meaning if the plumbing changes again.
         """
+        import json as _json
+
         from fastapi.testclient import TestClient
 
         from yuu_clip.web.app import create_app
 
         app = create_app(project_dir)
         with TestClient(app) as tc:
-            tc.post("/api/analyze/cancel")  # a real prior cancel
-            with tc.stream("GET", "/api/score") as resp:
+            app.state.ctx.cancelled_procs.add(object())  # a stale proc from a prior cancel
+            with tc.stream("POST", "/api/score") as resp:  # /api/score is POST, not GET
                 lines = list(resp.iter_lines())
-            assert "[Analysis cancelled]" not in " ".join(lines)
-            assert "cancelled" not in " ".join(lines).lower()
+        data = [_json.loads(ln.removeprefix("data: ")) for ln in lines if ln.startswith("data: ")]
+        done = [d for d in data if isinstance(d, dict) and d.get("type") == "done"]
+        assert done, "score stream must end with a typed done event"
+        assert all(d.get("outcome") != "cancelled" for d in done)
 
 
 # ---------------------------------------------------------------------------

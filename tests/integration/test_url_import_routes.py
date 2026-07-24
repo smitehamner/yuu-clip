@@ -149,7 +149,7 @@ class TestImportUrlRoutes:
         with patch.object(sse.sys, "platform", "win32"), patch.object(sse.subprocess, "run") as run:
             r = client.post("/api/import-url/cancel")
         assert r.status_code == 200
-        assert ctx.import_cancelled is True
+        assert mock_proc in ctx.cancelled_procs
         assert ctx.import_cmd is None
         assert any(c.args[0][0] == "taskkill" for c in run.call_args_list)
 
@@ -171,7 +171,7 @@ class TestImportUrlRoutes:
             r = client.post("/api/import-url/cancel")
 
         assert r.status_code == 200
-        assert ctx.import_cancelled is False
+        assert mock_proc not in ctx.cancelled_procs
         assert run.call_count == 0
         assert ctx.analyze_proc is mock_proc  # the other job's proc survives
 
@@ -182,4 +182,4 @@ class TestImportUrlRoutes:
         assert r.status_code == 200
         assert r.json()["status"] == "cancelled"
         assert ctx.import_cmd is None
-        assert ctx.import_cancelled is False
+        assert ctx.cancelled_procs == set()

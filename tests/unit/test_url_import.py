@@ -373,7 +373,7 @@ class TestSubprocessSseTracksActiveJob:
 
         ctx = SimpleNamespace(
             analyze_proc=None, active_jobs=0, import_cmd="queued",
-            subprocess_procs=set(), counted_procs=set(),
+            subprocess_procs=set(), counted_procs=set(), cancelled_procs=set(),
         )
         observed = []
 
@@ -394,7 +394,7 @@ class TestSubprocessSseTracksActiveJob:
     def test_active_jobs_untouched_when_not_tracked(self, tmp_path: Path):
         from yuu_clip.web.sse import subprocess_sse
 
-        ctx = SimpleNamespace(analyze_proc=None, active_jobs=0, subprocess_procs=set())
+        ctx = SimpleNamespace(analyze_proc=None, active_jobs=0, subprocess_procs=set(), cancelled_procs=set())
 
         async def drive():
             response = await subprocess_sse([sys.executable, "-c", "print('hi')"], tmp_path, ctx)
@@ -410,38 +410,58 @@ class TestSubprocessSseTracksActiveJob:
 # ---------------------------------------------------------------------------
 
 class TestSubprocessSseCancel:
-    def test_cancel_flag_emits_message_and_clears(self, tmp_path: Path):
+    def _payloads(self, chunks: list[str]) -> list:
+        import json
+        out = []
+        for chunk in chunks:
+            for line in chunk.splitlines():
+                if line.startswith("data: "):
+                    out.append(json.loads(line.removeprefix("data: ")))
+        return out
+
+    def test_cancelled_proc_yields_done_cancelled(self, tmp_path: Path):
+        # The import cancel endpoint adds the running proc to ctx.cancelled_procs;
+        # subprocess_sse's tail reads that (keyed by proc identity) and ends with a
+        # typed done{cancelled}, then discards the entry.
         from yuu_clip.web.sse import subprocess_sse
 
-        ctx = SimpleNamespace(analyze_proc=None, import_cancelled=True, active_jobs=0, subprocess_procs=set())
+        ctx = SimpleNamespace(
+            analyze_proc=None, analyze_proc_kind=None, active_jobs=0,
+            subprocess_procs=set(), counted_procs=set(), cancelled_procs=set(),
+        )
         chunks: list[str] = []
 
         async def drive():
-            response = await subprocess_sse(
-                [sys.executable, "-c", "print('done')"], tmp_path, ctx,
-                cancel_flag_attr="import_cancelled", cancel_message="[Import cancelled]",
-            )
+            response = await subprocess_sse([sys.executable, "-c", "print('working')"], tmp_path, ctx)
+            async for chunk in response.body_iterator:
+                chunks.append(chunk)
+                if ctx.analyze_proc is not None:
+                    ctx.cancelled_procs.add(ctx.analyze_proc)
+
+        asyncio.run(drive())
+        payloads = self._payloads(chunks)
+        assert payloads[-1] == {"v": 1, "type": "done", "outcome": "cancelled"}
+        assert ctx.cancelled_procs == set()
+
+    def test_stale_proc_identity_not_leaked(self, tmp_path: Path):
+        # A proc left in the set by a prior job must not mark this different proc
+        # cancelled - the identity keying is what makes stale state structurally safe.
+        from yuu_clip.web.sse import subprocess_sse
+
+        ctx = SimpleNamespace(
+            analyze_proc=None, analyze_proc_kind=None, active_jobs=0,
+            subprocess_procs=set(), counted_procs=set(), cancelled_procs={object()},
+        )
+        chunks: list[str] = []
+
+        async def drive():
+            response = await subprocess_sse([sys.executable, "-c", "print('working')"], tmp_path, ctx)
             async for chunk in response.body_iterator:
                 chunks.append(chunk)
 
         asyncio.run(drive())
-        assert any("[Import cancelled]" in c for c in chunks)
-        assert ctx.import_cancelled is False
-
-    def test_stale_flag_not_leaked_without_cancel_attr(self, tmp_path: Path):
-        from yuu_clip.web.sse import subprocess_sse
-
-        ctx = SimpleNamespace(analyze_proc=None, import_cancelled=True, active_jobs=0, subprocess_procs=set())
-        chunks: list[str] = []
-
-        async def drive():
-            response = await subprocess_sse([sys.executable, "-c", "print('done')"], tmp_path, ctx)
-            async for chunk in response.body_iterator:
-                chunks.append(chunk)
-
-        asyncio.run(drive())
-        assert not any("cancelled" in c.lower() for c in chunks)
-        assert ctx.import_cancelled is True
+        payloads = self._payloads(chunks)
+        assert payloads[-1] == {"v": 1, "type": "done", "outcome": "ok"}
 
 
 

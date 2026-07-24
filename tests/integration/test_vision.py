@@ -342,8 +342,8 @@ class TestAnalyzeFramesRoute:
         assert "yuu_clip.pipeline.frame_analysis" in cmd
         assert cmd[cmd.index("--clip-id") + 1] == "1"
         assert cmd[cmd.index("--base-url") + 1] == "http://127.0.0.1:9931"
-        assert captured["kwargs"]["cancel_flag_attr"] == "frames_cancelled"
         assert captured["kwargs"]["track_active_job"] is True
+        assert captured["kwargs"]["job_kind"] == "frames"
 
 
 class TestRunFrameAnalysis:
@@ -428,7 +428,7 @@ class TestRunFrameAnalysis:
 
 class TestCancelAnalyzeFrames:
     def test_cancel_sets_flag_and_terminates_the_proc(self, client: TestClient, monkeypatch):
-        from types import SimpleNamespace
+        from unittest.mock import MagicMock
 
         from yuu_clip.web.routes.clips import edit as edit_mod
         terminated: list = []
@@ -438,22 +438,29 @@ class TestCancelAnalyzeFrames:
 
         monkeypatch.setattr(edit_mod, "terminate_process_tree_async", fake_terminate)
         ctx = client.app.state.ctx
-        ctx.frames_cancelled = False
-        ctx.analyze_proc = SimpleNamespace(returncode=None, pid=4242)
+        ctx.cancelled_procs.clear()
+        # A real proc is hashable (goes into cancelled_procs); MagicMock matches that,
+        # where SimpleNamespace defines __eq__ and is therefore unhashable.
+        proc = MagicMock()
+        proc.returncode = None
+        proc.pid = 4242
+        ctx.analyze_proc = proc
         ctx.analyze_proc_kind = "frames"
 
         resp = client.post("/api/clips/1/analyze-frames/cancel")
         assert resp.status_code == 200
         assert resp.json() == {"status": "cancelled"}
-        assert ctx.frames_cancelled is True
+        assert ctx.analyze_proc in ctx.cancelled_procs
         assert terminated == [ctx.analyze_proc]
 
     def test_cancel_is_a_noop_when_nothing_is_running(self, client: TestClient):
-        client.app.state.ctx.analyze_proc = None
+        ctx = client.app.state.ctx
+        ctx.cancelled_procs.clear()
+        ctx.analyze_proc = None
         resp = client.post("/api/clips/1/analyze-frames/cancel")
         assert resp.status_code == 200
         assert resp.json() == {"status": "cancelled"}
-        assert client.app.state.ctx.frames_cancelled is False
+        assert ctx.cancelled_procs == set()
 
     def test_cancel_does_not_kill_a_different_jobs_proc(self, client: TestClient, monkeypatch):
         """A stale/cross-tab cancel click must not kill an unrelated running job just
@@ -468,14 +475,14 @@ class TestCancelAnalyzeFrames:
 
         monkeypatch.setattr(edit_mod, "terminate_process_tree_async", fake_terminate)
         ctx = client.app.state.ctx
-        ctx.frames_cancelled = False
+        ctx.cancelled_procs.clear()
         ctx.analyze_proc = SimpleNamespace(returncode=None, pid=9999)
         ctx.analyze_proc_kind = "export"  # some other job owns the slot
 
         resp = client.post("/api/clips/1/analyze-frames/cancel")
         assert resp.status_code == 200
         assert terminated == []
-        assert ctx.frames_cancelled is False
+        assert ctx.cancelled_procs == set()
         assert ctx.analyze_proc is not None  # the other job's proc survives
 
 

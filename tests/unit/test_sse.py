@@ -153,24 +153,58 @@ class TestSubprocessSseTypedWire:
         )
         assert payloads[-1]["type"] == "done" and payloads[-1]["outcome"] == "error"
 
-    def test_cancel_flag_yields_done_cancelled(self, tmp_path: Path):
+    def test_cancelled_proc_yields_done_cancelled(self, tmp_path: Path):
+        # A cancel endpoint adds THIS run's proc to ctx.cancelled_procs; the tail
+        # reads that membership (keyed by proc identity, not a shared flag) and ends
+        # with a typed done{cancelled}, then discards the entry so it can't leak.
         import sys
         from types import SimpleNamespace
 
         from yuu_clip.web import sse
 
         ctx = SimpleNamespace(
-            analyze_proc=None, analyze_proc_kind=None, import_cancelled=True,
+            analyze_proc=None, analyze_proc_kind=None,
             active_jobs=0, subprocess_procs=set(), counted_procs=set(),
+            cancelled_procs=set(),
         )
 
         async def run():
             resp = await sse.subprocess_sse(
-                [sys.executable, "-c", "print('done')"], tmp_path, ctx,
-                cancel_flag_attr="import_cancelled", cancel_message="[Import cancelled]",
+                [sys.executable, "-c", "print('working')"], tmp_path, ctx,
+            )
+            chunks = []
+            async for chunk in resp.body_iterator:
+                chunks.append(chunk)
+                # Simulate the cancel endpoint firing mid-stream: once the proc is
+                # registered, add it to the set before the tail's membership check.
+                if ctx.analyze_proc is not None:
+                    ctx.cancelled_procs.add(ctx.analyze_proc)
+            return chunks
+
+        payloads = _payloads(asyncio.run(run()))
+        assert payloads[-1] == {"v": 1, "type": "done", "outcome": "cancelled"}
+        assert ctx.cancelled_procs == set()  # discarded on read + in finally, no leak
+
+    def test_stale_cancelled_proc_does_not_leak_into_a_new_job(self, tmp_path: Path):
+        # A proc identity left in the set by an earlier, unrelated job must never mark
+        # a later, different proc as cancelled - the structural fix for the old
+        # ctx-scoped-boolean leak (test_score_after_a_cancel_...).
+        import sys
+        from types import SimpleNamespace
+
+        from yuu_clip.web import sse
+
+        ctx = SimpleNamespace(
+            analyze_proc=None, analyze_proc_kind=None,
+            active_jobs=0, subprocess_procs=set(), counted_procs=set(),
+            cancelled_procs={object()},  # a stale proc from a prior cancelled job
+        )
+
+        async def run():
+            resp = await sse.subprocess_sse(
+                [sys.executable, "-c", "print('working')"], tmp_path, ctx,
             )
             return [chunk async for chunk in resp.body_iterator]
 
         payloads = _payloads(asyncio.run(run()))
-        assert payloads[-1] == {"v": 1, "type": "done", "outcome": "cancelled"}
-        assert ctx.import_cancelled is False
+        assert payloads[-1] == {"v": 1, "type": "done", "outcome": "ok"}

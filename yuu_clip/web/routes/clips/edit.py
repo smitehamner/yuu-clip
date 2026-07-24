@@ -308,8 +308,6 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
         ]
         return await subprocess_sse(
             cmd, ctx.project_dir, ctx,
-            cancel_flag_attr="frames_cancelled",
-            cancel_message="[Image analysis cancelled]",
             track_active_job=True, job_kind="frames",
         )
 
@@ -320,7 +318,7 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
         clean per-clip URL - one frame job runs at a time (reject_if_busy)."""
         proc = ctx.analyze_proc
         if proc is not None and proc.returncode is None and ctx.analyze_proc_kind == "frames":
-            ctx.frames_cancelled = True
+            ctx.cancelled_procs.add(proc)
             _log.info("Image analysis cancelled by user (clip %d)", clip_id)
             await terminate_process_tree_async(proc)
         return {"status": "cancelled"}

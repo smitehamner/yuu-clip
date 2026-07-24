@@ -528,6 +528,11 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         # re-runs) and any queued-but-unlaunched command.
         proc = ctx.analyze_proc
         if proc is not None and proc.returncode is None:
+            # Mark this exact proc cancelled so a surviving stream's tail reports a
+            # typed done{cancelled} (dropped on the floor for the score/export/reel
+            # jobs whose stream the frontend closes on cancel). Keyed by identity, so
+            # it can never leak into the next job. Discarded by subprocess_sse.
+            ctx.cancelled_procs.add(proc)
             await terminate_process_tree_async(proc)
         if proc is not None:
             # Release the killed subprocess's job accounting NOW. Its SSE generator's

@@ -93,10 +93,6 @@ class ProjectContext:
         # (cancel_import, cancel_analyze_frames) confirm it's killing its own job
         # rather than whatever unrelated job happens to hold the shared slot.
         self.analyze_proc_kind: str | None = None
-        self.import_cancelled:  bool             = False
-        # Set by the frame-analysis cancel endpoint so subprocess_sse emits the
-        # cancel message (not a generic error) when the killed subprocess exits.
-        self.frames_cancelled:  bool             = False
 
         # Every in-flight subprocess_sse process (export, retranscribe, stage
         # re-runs, reel demo, URL import). analyze_proc is a single "most-recent,
@@ -128,6 +124,15 @@ class ProjectContext:
         # generator's own later cleanup can both fire without the counter latching
         # high or going negative.
         self.counted_procs:    set              = set()
+
+        # Procs a cancel endpoint has killed by user request, keyed by the process
+        # instance. subprocess_sse's tail checks membership (then discards) to pick
+        # outcome="cancelled" over the generic error line. Because it is keyed to the
+        # proc identity - not a server-scoped boolean flag - a stale entry from an
+        # earlier job can never mark a later, different proc as cancelled, so every
+        # subprocess job can now report a typed cancel without leaking into the next.
+        # Discarded on read and in the stream's finally, so it never grows unbounded.
+        self.cancelled_procs:  set              = set()
 
         # LRU cache of on-disk clip preview files keyed by clip_id. Scoped to this
         # context so concurrent create_app() instances (e.g. in tests) never share state.

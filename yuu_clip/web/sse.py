@@ -178,8 +178,6 @@ async def subprocess_sse(
     cwd: Path,
     ctx=None,
     *,
-    cancel_flag_attr: str | None = None,
-    cancel_message: str = "",
     clear_cmd_attr: str | None = None,
     track_active_job: bool = False,
     job_kind: str | None = None,
@@ -196,12 +194,11 @@ async def subprocess_sse(
     retranscribe, demo - all reachable only via the generic /api/analyze/cancel)
     can omit it.
 
-    *cancel_flag_attr* names a boolean ``ctx`` attribute a cancel endpoint sets
-    to signal a user-initiated cancel (e.g. ``'import_cancelled'``). When it is
-    truthy on exit, the stream emits *cancel_message* instead of the generic
-    error line and clears the flag. Jobs with no cancel button (score, export,
-    retranscribe, demo) omit it, so a stale flag never leaks a cancel message
-    into an unrelated job.
+    A user-initiated cancel is signalled by a cancel endpoint adding this run's
+    proc to ``ctx.cancelled_procs``; on exit the tail below reports
+    ``outcome="cancelled"`` instead of the generic error. Membership is keyed to
+    the proc instance, so a stale entry from an earlier job can never leak a
+    cancel into an unrelated one - every subprocess job can carry a typed cancel.
 
     *clear_cmd_attr* names the ``ctx`` attribute to set to ``None`` when the
     stream finishes (e.g. ``'analyze_cmd'`` or ``'demo_cmd'``). Callers that
@@ -258,11 +255,9 @@ async def subprocess_sse(
                 await proc.wait()
                 outcome = OUTCOME_OK
                 error = ""
-                if cancel_flag_attr and ctx is not None and getattr(ctx, cancel_flag_attr, False):
-                    setattr(ctx, cancel_flag_attr, False)
+                if ctx is not None and proc in ctx.cancelled_procs:
+                    ctx.cancelled_procs.discard(proc)
                     _log.info("Subprocess (pid %s) cancelled by user", proc.pid)
-                    if cancel_message:
-                        yield log_event(cancel_message)
                     outcome = OUTCOME_CANCELLED
                 elif proc.returncode != 0:
                     _log.error(
@@ -282,6 +277,11 @@ async def subprocess_sse(
                     await proc.wait()
                 if ctx is not None:
                     ctx.subprocess_procs.discard(proc)
+                    # Drop any cancel marker for this proc even when the tail's
+                    # on-read discard did not run - an abandoned stream (client
+                    # closed on cancel) is finalized here on GC, so this is what
+                    # keeps cancelled_procs from growing unbounded.
+                    ctx.cancelled_procs.discard(proc)
                     # Only clear the shared slot if it still points at *this* proc;
                     # an overlapping job may have already claimed it (see deps.py).
                     if ctx.analyze_proc is proc:

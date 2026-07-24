@@ -83,7 +83,6 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         reject_if_busy(ctx, "Importing from a URL")
         return await subprocess_sse(
             ctx.import_cmd, ctx.project_dir, ctx,
-            cancel_flag_attr="import_cancelled", cancel_message="[Import cancelled]",
             clear_cmd_attr="import_cmd", track_active_job=True, job_kind="import",
         )
 
@@ -92,7 +91,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         """Terminate the running URL-import download subprocess, if any."""
         proc = ctx.analyze_proc
         if proc is not None and getattr(proc, "returncode", None) is None and ctx.analyze_proc_kind == "import":
-            ctx.import_cancelled = True
+            ctx.cancelled_procs.add(proc)
             _log.warning("URL import cancelled by user")
             await terminate_process_tree_async(proc)
         ctx.import_cmd = None
