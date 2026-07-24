@@ -12,8 +12,8 @@ Three backends, chosen by config.similarity_backend:
   "llm"        - wraps scoring/llm.py's find_related_clips / scan_hotwords_semantic
                  so a user with a language model keeps the LLM path.
 
-Every backend exposes availability() -> (bool, reason) (mirroring
-LaughScorer.availability) and the two operations the routes need:
+Every backend exposes available() -> (bool, reason) (mirroring
+LaughScorer.available) and the two operations the routes need:
   rank_similar(query, candidates, top_k)   -> [{"id", "score", "reason"}]
   match_concepts(text, phrases, threshold) -> [phrases]
 
@@ -93,7 +93,7 @@ class TfidfBackend:
     def __init__(self, config: "Config" | None = None) -> None:
         self._config = config
 
-    def availability(self) -> tuple[bool, str]:
+    def available(self) -> tuple[bool, str]:
         return True, ""
 
     def rank_similar(self, query: str, candidates: list[dict], top_k: int = 5) -> list[dict]:
@@ -232,7 +232,7 @@ class EmbeddingsBackend:
     def __init__(self, config: "Config" | None = None) -> None:
         self._config = config
 
-    def availability(self) -> tuple[bool, str]:
+    def available(self) -> tuple[bool, str]:
         # Cheap, side-effect-free: only checks that fastembed (Tier A, bundled) is
         # importable. It must NOT load or download the bge-small model - the
         # Settings status UI calls this on every render, and probing the model here
@@ -312,7 +312,7 @@ class LlmBackend:
         self._config = config
         self._context_text = context_text
 
-    def availability(self) -> tuple[bool, str]:
+    def available(self) -> tuple[bool, str]:
         from yuu_clip.scoring.llm import check_llm_available
         return check_llm_available(self._config)
 
@@ -347,11 +347,11 @@ def make_backend(config: "Config", context_text: str = ""):
     """
     requested = (getattr(config, "similarity_backend", "tfidf") or "tfidf").strip()
     backend = _construct(requested, config, context_text)
-    available, reason = backend.availability()
+    available, reason = backend.available()
     if available and isinstance(backend, EmbeddingsBackend):
         # bge-small is a Tier-B model fetched on first use. Verify it actually
         # loads now so an offline/uncached machine falls back to keyword matching
-        # here, rather than throwing per-clip during scoring. (availability() stays
+        # here, rather than throwing per-clip during scoring. (available() stays
         # cheap so the Settings status UI never triggers this fetch.)
         try:
             _get_embed_model()

@@ -195,7 +195,7 @@ class TestDownloadStatusWhisper:
         import yuu_clip.scoring.audio_event as audio_event_mod
 
         _force_not_cached(monkeypatch)
-        monkeypatch.setattr(audio_event_mod.AudioEventScorer, "availability", lambda self: (True, ""))
+        monkeypatch.setattr(audio_event_mod.AudioEventScorer, "available", lambda self: (True, ""))
         monkeypatch.setattr(audio_event_mod, "audio_event_model_cached", lambda model_id: False)
         ctx = client.app.state.ctx
         ctx.model_downloads[_AUDIO_EVENT_KEY] = "audio_event"
@@ -210,7 +210,7 @@ class TestDownloadStatusWhisper:
     def test_reports_audio_event_unavailable_when_deps_missing(self, client: TestClient, monkeypatch):
         import yuu_clip.scoring.audio_event as audio_event_mod
 
-        monkeypatch.setattr(audio_event_mod.AudioEventScorer, "availability", lambda self: (False, "no deps"))
+        monkeypatch.setattr(audio_event_mod.AudioEventScorer, "available", lambda self: (False, "no deps"))
         data = client.get("/api/llm/download-status").json()
         assert data["audio_event_available"] is False
 

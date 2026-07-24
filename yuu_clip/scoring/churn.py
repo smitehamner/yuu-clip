@@ -79,9 +79,9 @@ class SpeakerChurnScorer:
         self.weight = config.scorer_churn_weight
 
     def is_available(self) -> bool:
-        return self.availability()[0]
+        return self.available()[0]
 
-    def availability(self) -> tuple[bool, str]:
+    def available(self) -> tuple[bool, str]:
         """(available, reason) - reason is a user-facing explanation when unavailable."""
         if not self._config.scorer_churn_enabled:
             return False, "speaker-overlap scoring is turned off in Settings"

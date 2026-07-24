@@ -61,7 +61,7 @@ class TestAvailability:
         assert _make_scorer(enabled=False).is_available() is False
 
     def test_disabled_reason_is_user_facing(self):
-        available, reason = _make_scorer(enabled=False).availability()
+        available, reason = _make_scorer(enabled=False).available()
         assert available is False
         assert "turned off" in reason
 

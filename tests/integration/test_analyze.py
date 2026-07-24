@@ -681,7 +681,7 @@ class TestRunScoringModelDownloadNotice:
         from yuu_clip.pipeline.ingest import _run_scoring
         from yuu_clip.scoring.audio_event import AudioEventScorer
 
-        monkeypatch.setattr(AudioEventScorer, "availability", lambda self: (True, ""))
+        monkeypatch.setattr(AudioEventScorer, "available", lambda self: (True, ""))
         monkeypatch.setattr("yuu_clip.scoring.audio_event.audio_event_model_cached", lambda model_id: False)
 
         session, video = self._video(tmp_path)
@@ -695,7 +695,7 @@ class TestRunScoringModelDownloadNotice:
         from yuu_clip.pipeline.ingest import _run_scoring
         from yuu_clip.scoring.audio_event import AudioEventScorer
 
-        monkeypatch.setattr(AudioEventScorer, "availability", lambda self: (True, ""))
+        monkeypatch.setattr(AudioEventScorer, "available", lambda self: (True, ""))
         monkeypatch.setattr("yuu_clip.scoring.audio_event.audio_event_model_cached", lambda model_id: True)
 
         session, video = self._video(tmp_path)
@@ -710,7 +710,7 @@ class TestRunScoringModelDownloadNotice:
         from yuu_clip.pipeline.ingest import _run_scoring
         from yuu_clip.scoring.audio_event import AudioEventScorer
 
-        monkeypatch.setattr(AudioEventScorer, "availability", lambda self: (True, ""))
+        monkeypatch.setattr(AudioEventScorer, "available", lambda self: (True, ""))
         monkeypatch.setattr("yuu_clip.scoring.audio_event.audio_event_model_cached", lambda model_id: False)
 
         session, video = self._video(tmp_path)
@@ -730,7 +730,7 @@ class TestRunScoringModelDownloadNotice:
         from yuu_clip.pipeline.ingest import _run_scoring
         from yuu_clip.scoring.audio_event import AudioEventScorer
 
-        monkeypatch.setattr(AudioEventScorer, "availability", lambda self: (True, ""))
+        monkeypatch.setattr(AudioEventScorer, "available", lambda self: (True, ""))
         monkeypatch.setattr("yuu_clip.scoring.audio_event.audio_event_model_cached", lambda model_id: True)
         monkeypatch.setattr(AudioEventScorer, "load_failed", property(lambda self: True))
 

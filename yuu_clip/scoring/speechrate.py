@@ -64,9 +64,9 @@ class SpeechRateScorer:
         self.weight = config.scorer_speech_rate_weight
 
     def is_available(self) -> bool:
-        return self.availability()[0]
+        return self.available()[0]
 
-    def availability(self) -> tuple[bool, str]:
+    def available(self) -> tuple[bool, str]:
         """(available, reason) - reason is a user-facing explanation when unavailable."""
         if not self._config.scorer_speech_rate_enabled:
             return False, "speech-rate scoring is turned off in Settings"

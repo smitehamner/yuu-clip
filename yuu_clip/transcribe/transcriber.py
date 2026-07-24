@@ -307,5 +307,12 @@ _BACKEND_TRANSCRIBERS: dict[str, type[Transcriber]] = {
 def make_transcriber(config: Config) -> Transcriber:
     """The single point where a Transcriber is constructed, keyed on
     config.transcription_backend (default/fallback: faster_whisper)."""
-    transcriber_class = _BACKEND_TRANSCRIBERS.get(config.transcription_backend, FasterWhisperTranscriber)
+    transcriber_class = _BACKEND_TRANSCRIBERS.get(config.transcription_backend)
+    if transcriber_class is None:
+        _log.warning(
+            "Unknown transcription_backend %r - falling back to faster-whisper "
+            "(valid: %s).",
+            config.transcription_backend, ", ".join(sorted(_BACKEND_TRANSCRIBERS)),
+        )
+        transcriber_class = FasterWhisperTranscriber
     return transcriber_class(config)

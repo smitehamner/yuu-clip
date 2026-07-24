@@ -1095,7 +1095,7 @@ def _run_scoring(
     laugh_scorer = LaughScorer(config)
     laugh_ok = True
     if config.scorer_laugh_mode in ("audio", "model"):
-        laugh_ok, laugh_reason = laugh_scorer.availability()
+        laugh_ok, laugh_reason = laugh_scorer.available()
         if not laugh_ok:
             console.print(
                 f"  [yellow]Laughter detection unavailable - {laugh_reason}. "
@@ -1105,7 +1105,7 @@ def _run_scoring(
     audio_event_scorer = AudioEventScorer(config)
     audio_ok = True
     if config.scorer_audio_event_enabled:
-        audio_ok, audio_reason = audio_event_scorer.availability()
+        audio_ok, audio_reason = audio_event_scorer.available()
         if not audio_ok:
             console.print(
                 f"  [yellow]Audio-event detection unavailable - {audio_reason}. "

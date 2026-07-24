@@ -6,12 +6,15 @@ service. Use make_client(config) to get the right implementation for the current
 """
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from yuu_clip.config import Config
+
+log = logging.getLogger(__name__)
 
 # Default completion cap. Callers that emit longer JSON (scene-boundary lists) pass a
 # larger value; see scoring/llm._SCENE_BOUNDARY_MAX_TOKENS.
@@ -161,7 +164,15 @@ _BACKEND_CLIENTS: dict[str, type[LLMClient]] = {
 
 
 def _client_class_for(config: Config) -> type[LLMClient]:
-    return _BACKEND_CLIENTS.get(config.llm_backend, LlamaCppServerClient)
+    client_class = _BACKEND_CLIENTS.get(config.llm_backend)
+    if client_class is None:
+        log.warning(
+            "Unknown llm_backend %r - falling back to the local llama.cpp server "
+            "(valid: %s).",
+            config.llm_backend, ", ".join(sorted(_BACKEND_CLIENTS)),
+        )
+        return LlamaCppServerClient
+    return client_class
 
 
 def make_client(config: Config) -> LLMClient:
