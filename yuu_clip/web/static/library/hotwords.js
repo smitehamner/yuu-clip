@@ -10,7 +10,10 @@ import { AppState } from '../core/state.js';
 import { plural, escHtml, formatApiError } from '../core/format.js';
 import { showToast, openLog, appendLog } from '../core/utils.js';
 import { showConfirm } from '../core/ui.js';
-import { _openSSE, _setActiveStream, _clearActiveStream, _supersedeActiveStream } from '../core/jobs.js';
+import {
+  _openSSE, _setActiveStream, _clearActiveStream, _supersedeActiveStream,
+  startJobUI, updateJobUI, endJobUI, setJobCancel, HOTWORD_SCAN_STEPS,
+} from '../core/jobs.js';
 import { ensureContexts, _termContextOptions, _renderTermGroups } from './contexts.js';
 import { fetchClipsList } from '../videos/videos.js';
 import { _renderClips, selectClip } from '../clips/clips.js';
@@ -134,17 +137,28 @@ function scanHotwordsForVideo(videoId, btn) {
   if (btn) { btn.disabled = true; btn.textContent = 'Scanning…'; }
   openLog();
   _supersedeActiveStream();
+  startJobUI(HOTWORD_SCAN_STEPS, 'Scanning hot-words', true);
   const resetBtn = () => { if (btn) { btn.disabled = false; btn.textContent = orig; } };
+  const teardown = () => { resetBtn(); endJobUI(); };
+  setJobCancel({
+    title:      'Stop hot-word scan?',
+    body:       'Clips already scanned keep their updated matches; the rest are unchanged.',
+    confirm:    'Stop',
+    logMsg:     '[Hot-word scan cancelled]',
+    clientOnly: true,
+    onCancel:   () => _refreshActiveVideoClips(videoId),
+  });
   let errorCount = 0;
   const handle = _openSSE(
     `/api/videos/${videoId}/hotword-scan`,
     data => {
+      updateJobUI(typeof data === 'string' ? data : JSON.stringify(data));
       if (typeof data === 'string' && data.startsWith('[Error')) errorCount++;
       appendLog(String(data));
     },
     async () => {
       _clearActiveStream(handle);
-      resetBtn();
+      teardown();
       if (errorCount > 0) {
         showToast(`Scan finished - ${plural(errorCount, 'clip')} failed (check log)`, 'error');
       } else {
@@ -154,11 +168,11 @@ function scanHotwordsForVideo(videoId, btn) {
     },
     errMsg => {
       _clearActiveStream(handle);
-      resetBtn();
+      teardown();
       showToast(`Scan failed - ${errMsg}`, 'error');
     },
   );
-  _setActiveStream(handle, resetBtn);
+  _setActiveStream(handle, teardown);
 }
 
 function confirmScanHotwordsForVideo(videoId, btn) {

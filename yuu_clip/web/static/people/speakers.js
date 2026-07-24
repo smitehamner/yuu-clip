@@ -10,6 +10,7 @@ import { openLog, appendLog, showToast, collapsibleCard } from '../core/utils.js
 import { showConfirm } from '../core/ui.js';
 import {
   _blockedByAnalyze, _openSSE, _supersedeActiveStream, _clearActiveStream, _setActiveStream,
+  startJobUI, updateJobUI, endJobUI, SPEAKER_NAMES_STEPS,
 } from '../core/jobs.js';
 import { selectClip } from '../clips/clips.js';
 import { updateSpeakerLabelsInTranscript, reloadVideoTranscriptIfOpen } from '../analyze/transcript.js';
@@ -158,19 +159,22 @@ function _suggestSpeakerNames() {
   if (btn) { btn.disabled = true; btn.textContent = 'Suggesting…'; }
   openLog();
   _supersedeActiveStream();
+  startJobUI(SPEAKER_NAMES_STEPS, 'Suggesting speaker names');
   const resetBtn = () => {
     if (btn && document.body.contains(btn)) { btn.disabled = false; btn.textContent = 'Suggest names'; }
   };
+  const teardown = () => { resetBtn(); endJobUI(); };
   let hadError = false;
   const handle = _openSSE(
     `/api/videos/${videoId}/infer-speaker-names`,
     data => {
+      updateJobUI(typeof data === 'string' ? data : JSON.stringify(data));
       if (typeof data === 'string' && data.startsWith('[Error')) hadError = true;
       appendLog(String(data));
     },
     async msg => {
       _clearActiveStream(handle);
-      resetBtn();
+      teardown();
       if (hadError) { showToast('Name suggestion failed - check log for details', 'error'); return; }
       const n = (msg && typeof msg === 'object' && msg.suggested) || 0;
       showToast(n > 0
@@ -180,11 +184,11 @@ function _suggestSpeakerNames() {
     },
     errMsg => {
       _clearActiveStream(handle);
-      resetBtn();
+      teardown();
       showToast(`Name suggestion failed - ${errMsg}`, 'error');
     },
   );
-  _setActiveStream(handle, resetBtn);
+  _setActiveStream(handle, teardown);
 }
 
 // Play a short sample of a speaker's voice by seeking the recording's own video

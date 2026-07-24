@@ -6,14 +6,22 @@ import { AppState } from '../core/state.js';
 import { formatApiError } from '../core/format.js';
 import { openDiffModal, showConfirm } from '../core/ui.js';
 import { showToast, openLog, appendLog } from '../core/utils.js';
-import { _openSSE, _setActiveStream, _clearActiveStream, _supersedeActiveStream, _blockedByAnalyze } from '../core/jobs.js';
+import {
+  _openSSE, _setActiveStream, _clearActiveStream, _supersedeActiveStream, _blockedByAnalyze,
+  startJobUI, updateJobUI, endJobUI, setJobProgress, SUMMARY_JOB_STEPS,
+} from '../core/jobs.js';
 import { loadVideos, renderVideoDetail, _needsModelCtaHTML } from './videos.js';
 // ── video summary ─────────────────────────────────────────────────────────────
 async function summarizeVideo(id, btn) {
+  if (_blockedByAnalyze('generate the summary')) return;
   const actionBtn = document.getElementById('btn-summarize-video') || btn;
   if (actionBtn && actionBtn.disabled) return;
   const orig = actionBtn ? actionBtn.textContent : '';
   if (actionBtn) { actionBtn.disabled = true; actionBtn.textContent = 'Generating Summary…'; }
+  // Plain POST (not SSE), so drive the job pill directly: activate an elapsed-only
+  // "Summarizing" pill for the duration of the blocking request.
+  startJobUI(SUMMARY_JOB_STEPS, 'Generating summary');
+  setJobProgress();
   try {
     const res = await fetch(`/api/videos/${id}/summarize`, {method: 'POST'});
     if (!res.ok) {
@@ -44,6 +52,7 @@ async function summarizeVideo(id, btn) {
     showToast(`Summary failed: ${err.message}`, 'error');
   } finally {
     if (actionBtn) { actionBtn.disabled = false; actionBtn.textContent = orig; }
+    endJobUI();
   }
 }
 
@@ -64,7 +73,9 @@ function _doRegenSummaryAuto(id, btn) {
   if (actionBtn) { actionBtn.disabled = true; actionBtn.textContent = 'Regenerating…'; }
   openLog();
   _supersedeActiveStream();
+  startJobUI(SUMMARY_JOB_STEPS, 'Regenerating summary');
   const resetBtn = () => { if (actionBtn) { actionBtn.disabled = false; actionBtn.textContent = 'Regenerate (auto-save)'; } };
+  const teardown = () => { resetBtn(); endJobUI(); };
   let hadError = false;
   let needsModel = false;
   const handle = _openSSE(
@@ -77,12 +88,13 @@ function _doRegenSummaryAuto(id, btn) {
         appendLog(data.detail);
         return;
       }
+      updateJobUI(typeof data === 'string' ? data : JSON.stringify(data));
       if (typeof data === 'string' && data.startsWith('[Error')) hadError = true;
       appendLog(String(data));
     },
     () => {
       _clearActiveStream(handle);
-      resetBtn();
+      teardown();
       if (needsModel) {
         showToast('Install a local model to generate summaries', 'warning');
         return;
@@ -99,11 +111,11 @@ function _doRegenSummaryAuto(id, btn) {
     },
     errMsg => {
       _clearActiveStream(handle);
-      resetBtn();
+      teardown();
       showToast(`Summary generation failed - ${errMsg}`, 'error');
     },
   );
-  _setActiveStream(handle, resetBtn);
+  _setActiveStream(handle, teardown);
 }
 
 export { summarizeVideo, regenSummaryAuto };

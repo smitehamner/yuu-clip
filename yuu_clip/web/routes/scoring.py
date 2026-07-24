@@ -473,6 +473,15 @@ def _register_rescore_routes(router: APIRouter, ctx: ProjectContext) -> None:
             async with active_job(ctx):
                 chunk_ms = effective_interval_s * 1000
                 entries = []
+                # Non-empty windows only: the loop skips windows with no transcript, so
+                # counting raw chunks would overstate the total the client pill divides
+                # by. Cheap (no LLM) - just the same membership test the loop applies.
+                total_entries = sum(
+                    1
+                    for chunk_start in range(0, total_ms + 1, chunk_ms)
+                    if any(chunk_start <= ms < min(chunk_start + chunk_ms, total_ms + 1)
+                           for ms, _end, _t in seg_data)
+                )
 
                 for chunk_start in range(0, total_ms + 1, chunk_ms):
                     chunk_end = min(chunk_start + chunk_ms, total_ms + 1)
@@ -495,7 +504,9 @@ def _register_rescore_routes(router: APIRouter, ctx: ProjectContext) -> None:
 
                     entry = {"start_hms": start_hms, "end_hms": end_hms, "text": entry_text}
                     entries.append(entry)
-                    yield f"data: {json_lib.dumps(entry)}\n\n"
+                    # Stream a progress-augmented copy; the stored `entries` (-> timeline_json)
+                    # stay clean of the transient done/total.
+                    yield f"data: {json_lib.dumps({**entry, 'done': len(entries), 'total': total_entries})}\n\n"
 
                 save_db = ctx.get_db()
                 try:

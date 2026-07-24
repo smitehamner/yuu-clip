@@ -12,12 +12,21 @@ vi.mock('../../../yuu_clip/web/static/core/utils.js', async (importActual) => {
   const actual = await importActual();
   return { ...actual, showToast: vi.fn() };
 });
+// cancelJob shows a confirm via ui.js - auto-accept it so _doCancelJob runs.
+vi.mock('../../../yuu_clip/web/static/core/ui.js', async (importActual) => {
+  const actual = await importActual();
+  return { ...actual, showConfirm: vi.fn() };
+});
 
 import { showToast } from '../../../yuu_clip/web/static/core/utils.js';
+import { showConfirm } from '../../../yuu_clip/web/static/core/ui.js';
 import {
   SCORE_STEPS, INGEST_STEPS, startJobUI, updateJobUI, endJobUI,
   parseProgress, _driveStepFromMarker, isDoneSentinel, doneError,
   _setActiveStream, _clearActiveStream, _supersedeActiveStream, _blockedByAnalyze,
+  RESCORE_JOB_STEPS, REDESCRIBE_JOB_STEPS, HOTWORD_SCAN_STEPS, SUMMARY_JOB_STEPS,
+  SPEAKER_NAMES_STEPS, FIND_SIMILAR_STEPS, TIMELINE_JOB_STEPS, setJobProgress,
+  setJobCancel, cancelJob,
 } from '../../../yuu_clip/web/static/core/jobs.js';
 
 const stepClass = (i) => document.getElementById(`step-${i}`).className;
@@ -197,6 +206,62 @@ describe('step-pill progress + ETA', () => {
 // Regression: when a second long-running job supersedes a first mid-stream, the
 // first stream is aborted - but abort suppresses its onDone/onError, so its UI
 // teardown must be run by the superseding job via the registered cleanup.
+// The in-process (event-loop) LLM/scoring jobs run through the same pill machinery
+// via single-pill step defs (PROGRESS-CANCEL-GAP Part A): they activate on the
+// server's bracketed intro line and, where the server counts, parse "i/total" into
+// the determinate fill. Timeline and the summarize POST have no prose lines, so they
+// drive the pill via setJobProgress instead.
+describe('in-process job step defs', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => { endJobUI(); vi.useRealTimers(); });
+
+  it('RESCORE_JOB_STEPS activates on the intro line and parses "Scored i/total clips"', () => {
+    startJobUI(RESCORE_JOB_STEPS, 'Re-scoring clips');
+    updateJobUI('[Starting LLM scoring for 10 clips…]');
+    expect(stepClass(0)).toContain('active');
+    updateJobUI('Scored 3/10 clips');
+    expect(document.getElementById('step-0').textContent).toContain('3/10 (30%)');
+  });
+
+  it('REDESCRIBE_JOB_STEPS parses "Described i/total clips"', () => {
+    startJobUI(REDESCRIBE_JOB_STEPS, 'Re-describing clips');
+    updateJobUI('[Re-generating descriptions for 4 clips…]');
+    updateJobUI('Described 1/4 clips');
+    expect(document.getElementById('step-0').textContent).toContain('1/4 (25%)');
+  });
+
+  it('HOTWORD_SCAN_STEPS parses "Scanned i/total clips"', () => {
+    startJobUI(HOTWORD_SCAN_STEPS, 'Scanning hot-words');
+    updateJobUI('[Scanning 8 clips for hot-word meaning…]');
+    updateJobUI('Scanned 2/8 clips');
+    expect(document.getElementById('step-0').textContent).toContain('2/8 (25%)');
+  });
+
+  it('SPEAKER_NAMES_STEPS and FIND_SIMILAR_STEPS activate on their intro lines (elapsed-only)', () => {
+    startJobUI(SPEAKER_NAMES_STEPS, 'Suggesting speaker names');
+    updateJobUI('[Suggesting speaker names…]');
+    expect(stepClass(0)).toContain('active');
+    endJobUI();
+    startJobUI(FIND_SIMILAR_STEPS, 'Finding similar clips');
+    updateJobUI('[Searching 12 clips for similar moments…]');
+    expect(stepClass(0)).toContain('active');
+  });
+
+  it('setJobProgress drives the timeline pill from a client-computed count', () => {
+    startJobUI(TIMELINE_JOB_STEPS, 'Generating timeline');
+    setJobProgress(1, 4);
+    expect(stepClass(0)).toContain('active');
+    expect(document.getElementById('step-0').textContent).toContain('1/4 (25%)');
+  });
+
+  it('setJobProgress with no total activates an elapsed-only pill (the summarize POST)', () => {
+    startJobUI(SUMMARY_JOB_STEPS, 'Generating summary');
+    setJobProgress();
+    expect(stepClass(0)).toContain('active');
+    expect(document.getElementById('step-0').textContent).not.toContain('/');
+  });
+});
+
 describe('active-stream supersede contract', () => {
   it('supersede aborts the handle and runs the cleanup', () => {
     const btn = document.createElement('button');
@@ -223,6 +288,58 @@ describe('active-stream supersede contract', () => {
     _supersedeActiveStream();
     _supersedeActiveStream();
     expect(runs).toBe(1);
+  });
+});
+
+// The in-process (event-loop) batch jobs cancel via a client-only variant: no server
+// POST, just abort the fetch (uvicorn then unwinds active_job). _doCancelJob must skip
+// the fetch entirely when cancel.clientOnly is set, supersede the stream, and run the
+// job's onCancel refresh. See PROGRESS-CANCEL-GAP Part B option 1.
+describe('client-only job cancel', () => {
+  let origFetch;
+  beforeEach(() => {
+    vi.useFakeTimers();
+    origFetch = global.fetch;
+    global.fetch = vi.fn(() => Promise.resolve({ ok: true }));
+    window.loadVideos = vi.fn();
+    window._updateDemoButton = vi.fn();
+    showConfirm.mockImplementation((title, body, confirmLabel, onConfirm) => onConfirm());
+  });
+  afterEach(() => {
+    vi.runOnlyPendingTimers();
+    global.fetch = origFetch;
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('skips the server POST, aborts the stream, and runs onCancel', () => {
+    startJobUI(RESCORE_JOB_STEPS, 'Re-scoring clips', true);
+    let aborted = false;
+    let cleaned = false;
+    let cancelled = false;
+    _setActiveStream({ close: () => { aborted = true; } }, () => { cleaned = true; });
+    setJobCancel({
+      title: 'Stop re-scoring?', body: 'x', confirm: 'Stop',
+      logMsg: '[Re-scoring cancelled]', clientOnly: true,
+      onCancel: () => { cancelled = true; },
+    });
+    cancelJob();
+    expect(global.fetch).not.toHaveBeenCalled();  // no server cancel endpoint
+    expect(aborted).toBe(true);                   // fetch aborted client-side
+    expect(cleaned).toBe(true);                   // registered teardown ran
+    expect(cancelled).toBe(true);                 // onCancel refresh ran
+  });
+
+  it('a non-clientOnly cancel still POSTs its server url', () => {
+    startJobUI(SCORE_STEPS, 'Scoring', true);
+    _setActiveStream({ close: () => {} }, null);
+    setJobCancel({
+      url: '/api/analyze/cancel', title: 'Cancel?', body: 'x', confirm: 'Cancel',
+      logMsg: '[Cancelled]',
+    });
+    cancelJob();
+    // fetch() is invoked synchronously at the top of _doCancelJob's try block.
+    expect(global.fetch).toHaveBeenCalledWith('/api/analyze/cancel', { method: 'POST' });
   });
 });
 

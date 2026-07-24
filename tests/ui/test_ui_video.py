@@ -7,7 +7,14 @@ helpers.
 """
 from __future__ import annotations
 
-from conftest import LIVE_URL, select_video_with_clips, skip_no_server
+import re
+
+from conftest import (
+    LIVE_URL,
+    select_first_video_and_clip,
+    select_video_with_clips,
+    skip_no_server,
+)
 from playwright.sync_api import Page, expect
 
 # TestRunTimingProvenanceLine (the 'Last run: ...' timing line) and
@@ -307,3 +314,103 @@ class TestRecordingMoreFilters:
         assert page.evaluate(
             "() => document.getElementById('video-more-filters').open"
         ) is False
+
+
+@skip_no_server
+class TestInProcessJobHeader:
+    """PROGRESS-CANCEL-GAP-2026-07-20 Part A: the in-process (event-loop) LLM jobs -
+    here the regenerate-summary flow - now surface the shared job-header pill row
+    while they run (previously log-only), so a long job is no longer silent. The SSE
+    endpoint is mocked so the test is deterministic; the pill-label/progress parsing
+    itself is unit-tested in tests/js/core/jobs.test.js. Part A adds progress only -
+    there is no Cancel button yet (server-side cancel is Part B)."""
+
+    def test_regenerate_summary_shows_the_job_header_without_a_cancel_button(self, page: Page):
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li", timeout=5000)
+        video_id = page.evaluate("() => AppState.videos?.[0]?.id ?? 1")
+        body = (
+            'data: "[Generating summary…]"\n\n'
+            'data: "[Summary regenerated]"\n\n'
+            'data: "__DONE__"\n\n'
+        )
+        page.route(
+            f"**/api/videos/{video_id}/regenerate-summary",
+            lambda route: route.fulfill(
+                status=200, content_type="text/event-stream", body=body
+            ),
+        )
+        # Pass a detached button so _doRegenSummaryAuto has a non-null actionBtn.
+        page.evaluate(f"() => regenSummaryAuto({video_id}, document.createElement('button'))")
+        page.wait_for_selector("#confirm-modal.visible", timeout=2000)
+        page.click("#confirm-modal button:has-text('Regenerate')")
+        # The shared job header appears (job label span persists for the whole
+        # visible window, unlike the pill text which collapses to a check on done).
+        expect(page.locator("#job-status")).to_have_class(
+            re.compile(r"\bvisible\b"), timeout=2000
+        )
+        expect(page.locator("#job-steps")).to_contain_text("Regenerating summary")
+        # Part A is progress-only: no Cancel affordance on these in-process jobs.
+        expect(page.locator("#btn-cancel-job")).to_be_hidden()
+
+
+@skip_no_server
+class TestInProcessBatchJobCancel:
+    """PROGRESS-CANCEL-GAP Part B: the looped in-process jobs (here Re-score All
+    Clips) now show a Cancel button, and cancelling is a client-only soft stop -
+    no server cancel endpoint, just aborting the fetch. The SSE request is left
+    hanging (never resolved) so the job stays active while we assert the header +
+    Cancel, then verify Cancel confirms and tears the job UI down."""
+
+    def test_rescore_all_shows_cancel_and_client_cancel_stops_it(self, page: Page):
+        select_video_with_clips(page)
+        # Hang the rescore SSE so the job stays live (route registered but never
+        # fulfilled/continued); the client aborts it on Cancel.
+        page.route("**/api/videos/*/rescore-clips*", lambda route: None)
+        page.click(".vid-actions button:has-text('Additional Actions')")
+        page.wait_for_selector("#actions-modal.visible", timeout=2000)
+        page.click("#actions-modal .action-row:has-text('Re-score All Clips')")
+        page.wait_for_selector("#confirm-modal.visible", timeout=2000)
+        page.click("#confirm-ok-btn")  # "Re-score All"
+        # The job header appears with a Cancel button (this is a cancellable batch job).
+        expect(page.locator("#job-status")).to_have_class(
+            re.compile(r"\bvisible\b"), timeout=2000
+        )
+        expect(page.locator("#btn-cancel-job")).to_be_visible()
+        # Cancel -> soft-stop confirm -> the job UI tears down.
+        page.click("#btn-cancel-job")
+        page.wait_for_selector("#confirm-modal.visible", timeout=2000)
+        expect(page.locator("#confirm-title")).to_contain_text("Stop re-scoring?")
+        page.click("#confirm-ok-btn")  # "Stop"
+        expect(page.locator("#job-status")).not_to_have_class(
+            re.compile(r"\bvisible\b"), timeout=4000
+        )
+        expect(page.locator("#btn-cancel-job")).to_be_hidden()
+
+
+@skip_no_server
+class TestFindSimilarFeedback:
+    """PROGRESS-CANCEL-GAP Part B / bug 3.3: Find Similar (a single-shot ranking
+    call) is progress-only - the Related Clips card shows an inline spinner while
+    it runs and there is no Cancel button (nothing to interrupt). The related-clips
+    SSE is left hanging so the searching state persists for the assertions."""
+
+    def _start_find_similar(self, page: Page) -> None:
+        select_first_video_and_clip(page)
+        page.route("**/api/clips/*/related-clips*", lambda route: None)  # hang
+        page.click("#detail button[data-act='open-clip-actions-modal']")
+        page.wait_for_selector("#actions-modal.visible", timeout=2000)
+        page.click("#actions-modal .action-row:has-text('Find Similar')")
+        page.wait_for_selector("#similar-clips-modal.visible", timeout=2000)
+        page.click("#btn-find-similar-go")
+
+    def test_related_card_shows_a_searching_spinner_and_no_cancel(self, page: Page):
+        self._start_find_similar(page)
+        # Inline feedback co-located with where results land (visibility-agnostic:
+        # the card may be collapsed, so assert on text content).
+        expect(page.locator("#related-clips-section")).to_contain_text(
+            "Searching for similar clips"
+        )
+        expect(page.locator("#related-clips-section .spinner")).to_have_count(1)
+        # Single-shot job: progress only, no Cancel affordance.
+        expect(page.locator("#btn-cancel-job")).to_be_hidden()

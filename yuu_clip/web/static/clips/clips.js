@@ -13,6 +13,7 @@ import { PanelNav } from '../core/panelnav.js';
 import {
   streamSSE, setJobCancel, _blockedByAnalyze, _openSSE, _setActiveStream, _clearActiveStream,
   _supersedeActiveStream, FRAMES_STEPS, SCORE_STEPS, applyJobBlockedState,
+  startJobUI, updateJobUI, endJobUI, FIND_SIMILAR_STEPS,
 } from '../core/jobs.js';
 import { gateOnCapability } from '../settings/modelcatalog.js';
 import { loadVideos, fetchClipsList } from '../videos/videos.js';
@@ -674,13 +675,15 @@ function renderDetail(clip) {
       ${trimExportHtml}
     </div>
 
-    ${clip.related_clips ? collapsibleCard('clip-related',
+    ${(clip.related_clips || _findingSimilarClipId === clip.id) ? collapsibleCard('clip-related',
           `<span class="detail-card-title">Related Clips</span>`, `
-        ${clip.related_clips.length ? clip.related_clips.map(r => `
+        ${_findingSimilarClipId === clip.id
+          ? `<div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)"><span class="spinner" aria-hidden="true"></span> Searching for similar clips…</div>`
+          : ((clip.related_clips && clip.related_clips.length) ? clip.related_clips.map(r => `
           <div style="display:flex;gap:8px;align-items:baseline;padding:4px 0;border-bottom:1px solid var(--border)">
             <a href="#" style="color:var(--accent);text-decoration:none;font-size:13px;white-space:nowrap" data-act="select-related-clip" data-clip-id="${r.id}">#${r.id}</a>
             <span style="font-size:12px;color:var(--muted)">${escHtml(r.reason)}</span>
-          </div>`).join('') : `<div style="font-size:12px;color:var(--muted)">No similar clips found</div>`}`,
+          </div>`).join('') : `<div style="font-size:12px;color:var(--muted)">No similar clips found</div>`)}`,
       { attrs: 'id="related-clips-section"', headerStyle: 'justify-content:flex-start;gap:8px',
         actions: `${clip.related_clips_stale ? `<span style="font-size:11px;color:var(--warning);font-style:italic">stale - re-score updated</span>` : ''}
           <span style="font-size:11px;color:var(--muted);margin-left:auto">${clip.related_clips_at ? _fmtAgo(clip.related_clips_at) : ''}</span>` }) : ''}
@@ -1448,6 +1451,19 @@ async function _doDeleteClip(id) {
 // ── find similar ──────────────────────────────────────────────────────────────
 let _similarClipsClipId = null;
 let _similarClipsOpener = null;
+// The clip id whose Find Similar search is in flight, so the Related Clips card can
+// show an inline "Searching…" spinner co-located with where the results land (the
+// global job-header pill also shows progress). Cleared on done/error.
+let _findingSimilarClipId = null;
+
+// Re-render the open clip detail so its Related Clips card reflects the current
+// _findingSimilarClipId (spinner) state. No-op when the panel is taken over or a
+// different clip is showing.
+function _renderSimilarSearchState() {
+  if (PanelNav.isOpen()) return;
+  if (AppState.activeClipId !== _findingSimilarClipId) return;
+  if (AppState.activeClipData) renderDetail(AppState.activeClipData);
+}
 
 function openSimilarClipsModal(clipId) {
   _similarClipsOpener = document.activeElement;
@@ -1496,19 +1512,23 @@ function startFindSimilar() {
 
   closeSimilarClipsModal();
 
-  const btn = document.getElementById('btn-find-similar');
-  if (btn) { btn.disabled = true; btn.textContent = 'Searching…'; }
+  // A single similarity ranking call (no per-item loop to interrupt), so it is
+  // progress-only: no Cancel button. Feedback is the global job-header pill plus an
+  // inline spinner on the Related Clips card (PROGRESS-CANCEL-GAP Part B / bug 3.3).
   _supersedeActiveStream();
+  startJobUI(FIND_SIMILAR_STEPS, 'Finding similar clips');
   openLog();
+  _findingSimilarClipId = clipId;
+  _renderSimilarSearchState();
 
-  const resetBtn = () => { if (btn) { btn.disabled = false; btn.textContent = 'Find Similar'; } };
+  const teardown = () => { _findingSimilarClipId = null; endJobUI(); };
   const qs = videoIds ? `?video_ids=${encodeURIComponent(videoIds)}` : '';
   const handle = _openSSE(
     `/api/clips/${clipId}/related-clips${qs}`,
-    msg => { appendLog(String(msg)); },
+    msg => { updateJobUI(typeof msg === 'string' ? msg : JSON.stringify(msg)); appendLog(String(msg)); },
     async msg => {
       _clearActiveStream(handle);
-      resetBtn();
+      teardown();
       const clip = await fetch(`/api/clips/${clipId}`).then(r => r.json()).catch(() => null);
       if (clip) {
         AppState.activeClipData = clip;
@@ -1519,11 +1539,15 @@ function startFindSimilar() {
     },
     errMsg => {
       _clearActiveStream(handle);
-      resetBtn();
+      teardown();
+      // Clear the in-card spinner by re-rendering the displayed clip from cache.
+      if (AppState.activeClipId === clipId && !PanelNav.isOpen() && AppState.activeClipData) {
+        renderDetail(AppState.activeClipData);
+      }
       showToast(`Find Similar failed - ${errMsg}`, 'error');
     },
   );
-  _setActiveStream(handle, resetBtn);
+  _setActiveStream(handle, teardown);
 }
 
 // ── scoring ───────────────────────────────────────────────────────────────────

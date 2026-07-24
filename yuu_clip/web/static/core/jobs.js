@@ -55,6 +55,21 @@ const FRAMES_STEPS = [
   {label: 'Describe', stage: 'frames_describe', patterns: []},
 ];
 
+// Progress-only step defs for the in-process (event-loop) LLM/scoring jobs. Unlike
+// the analyze subprocess, these run inside the FastAPI loop, have no server-side
+// cancel, and stream a single logical stage - so each is a one-pill def that
+// activates on the server's bracketed intro line. The counted jobs also carry a
+// progressPattern for a live "i/total" fill; the rest show label + elapsed. See
+// PROGRESS-CANCEL-GAP-2026-07-20 Part A. No `stage` field: these never ride the
+// @@PROGRESS marker path (JOB_STAGES is analyze-only, coupling-guarded).
+const RESCORE_JOB_STEPS    = [{label: 'Scoring',        patterns: ['Starting LLM scoring'],       progressPattern: /Scored (\d+)\/(\d+)/}];
+const REDESCRIBE_JOB_STEPS = [{label: 'Describing',     patterns: ['Re-generating descriptions'], progressPattern: /Described (\d+)\/(\d+)/}];
+const HOTWORD_SCAN_STEPS   = [{label: 'Scanning',       patterns: ['Scanning'],                   progressPattern: /Scanned (\d+)\/(\d+)/}];
+const SUMMARY_JOB_STEPS    = [{label: 'Summarizing',    patterns: ['Generating summary', 'Generating session summary']}];
+const SPEAKER_NAMES_STEPS  = [{label: 'Suggesting names', patterns: ['Suggesting speaker names']}];
+const FIND_SIMILAR_STEPS   = [{label: 'Searching',      patterns: ['Searching']}];
+const TIMELINE_JOB_STEPS   = [{label: 'Timeline',       patterns: []}];  // driven client-side via setJobProgress
+
 // The full set of known @@PROGRESS stage ids - the JS mirror of progress.py's
 // Stage enum. frames_sample/frames_describe drive the analyze-frames job. Kept
 // as its own set (not derived from the step defs) so it stays the coupling
@@ -266,6 +281,16 @@ function _setStepProgress(idx, current, total) {
   if (!_stepRateAnchor[idx]) _stepRateAnchor[idx] = {t: Date.now(), current};
   _renderStepPill(idx);
   _debouncedClipListRefresh();
+}
+
+// Drive the single in-process job pill from a client-computed count, for jobs whose
+// SSE payloads are objects rather than the prose lines updateJobUI parses (timeline),
+// or that have no stream at all (the summarize POST). Activates the sole pill; with a
+// positive total it shows the determinate "i/total" fill, otherwise just label+elapsed.
+function setJobProgress(current = null, total = null) {
+  _activateStep(0);
+  if (current != null && total != null && total > 0) _setStepProgress(0, current, total);
+  else _renderStepPill(0);
 }
 
 function updateJobUI(line) {
@@ -615,24 +640,35 @@ function cancelJob() {
 
 async function _doCancelJob() {
   const cancel = _activeCancel;
-  // Cancel on the server FIRST - if it fails, the job is still running, so
-  // keep the stream attached and the job UI up instead of pretending it stopped.
-  try {
-    const res = await fetch(cancel.url, {method: 'POST'});
-    if (!res.ok) throw new Error(`Server error ${res.status}`);
-  } catch (err) {
-    showToast(`Could not cancel - ${err.message}`, 'error');
-    return;
+  // In-process (event-loop) jobs have no server cancel endpoint (cancel.clientOnly):
+  // aborting the fetch makes uvicorn cancel the response task, which unwinds
+  // `active_job` and stops the loop at the next item boundary. So a client-only
+  // cancel skips the POST and just supersedes the stream. The AbortError is
+  // swallowed inside _openSSE (its handlers bail on ctrl.signal.aborted), so
+  // errorreporter.js never surfaces it as a scary toast. See PROGRESS-CANCEL-GAP
+  // Part B option 1 (and the disconnect-releases-the-counter integration test).
+  if (!cancel.clientOnly) {
+    // Cancel on the server FIRST - if it fails, the job is still running, so
+    // keep the stream attached and the job UI up instead of pretending it stopped.
+    try {
+      const res = await fetch(cancel.url, {method: 'POST'});
+      if (!res.ok) throw new Error(`Server error ${res.status}`);
+    } catch (err) {
+      showToast(`Could not cancel - ${err.message}`, 'error');
+      return;
+    }
   }
   _supersedeActiveStream();
   appendLog(cancel.logMsg);
   endJobUI();
-  // A job-specific terminal cleanup (e.g. clearing a per-clip in-flight flag so
-  // its button leaves the spinner) - the generic analyze cancel sets none.
+  // A job-specific terminal cleanup (e.g. refreshing the clip list to reflect the
+  // partial batch that already committed) - the generic analyze cancel sets none.
   if (cancel.onCancel) cancel.onCancel();
+  if (cancel.clientOnly) return;
   // Clear the analyzing marker so loadVideos() drops the sidebar placeholder /
   // spinner. Left set, a cancelled run whose DB row never materialised would
   // keep an unclickable "Analyzing…" placeholder until a manual page refresh.
+  // (Analyze-only; the in-process jobs never set analyzeFilename.)
   AppState.analyzeFilename = null;
   // window.* read: a direct import here adds a jobs.js <-> videos/clips edge that
   // esbuild bundles fine, but it breaks vitest's vi.mock/importActual resolution -
@@ -655,6 +691,8 @@ function initJobsListeners() {
 export {
   initJobsListeners,
   INGEST_STEPS, SCORE_STEPS, FRAMES_STEPS, JOB_STAGES, parseProgress, _driveStepFromMarker,
+  RESCORE_JOB_STEPS, REDESCRIBE_JOB_STEPS, HOTWORD_SCAN_STEPS, SUMMARY_JOB_STEPS,
+  SPEAKER_NAMES_STEPS, FIND_SIMILAR_STEPS, TIMELINE_JOB_STEPS, setJobProgress,
   startJobUI, updateJobUI, endJobUI, applyJobBlockedState, _stepPillLabel, _renderStepPill, _tickJobTimer,
   _setPausedUIFromStatus, togglePauseJob, _pollThermalStatus,
   isDoneSentinel, doneError,

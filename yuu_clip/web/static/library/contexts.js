@@ -7,6 +7,7 @@ import { showToast, openLog, appendLog, _diarizationReadiness, _diarizationNoteH
 import {
   _blockedByAnalyze, _openSSE, streamSSE, setJobCancel, _setActiveStream, _clearActiveStream,
   _supersedeActiveStream, startJobUI, updateJobUI, endJobUI, SCORE_STEPS,
+  RESCORE_JOB_STEPS, REDESCRIBE_JOB_STEPS,
 } from '../core/jobs.js';
 import { loadVideos, renderVideoDetail, fetchClipsList } from '../videos/videos.js';
 import { selectClip, _renderClips } from '../clips/clips.js';
@@ -503,7 +504,33 @@ function _doRescoreClips(videoId, btn, endpoint = 'rescore-clips', includeFrames
   if (btn) { btn.disabled = true; btn.textContent = 'Re-scoring…'; }
   openLog();
   _supersedeActiveStream();
+  startJobUI(RESCORE_JOB_STEPS, 'Re-scoring clips', true);
   const resetBtn = () => { if (btn) { btn.disabled = false; btn.textContent = orig; } };
+  const teardown = () => { resetBtn(); endJobUI(); };
+  // Refresh the sidebar/detail/clip list to reflect committed scores - shared by the
+  // done handler and the cancel handler (the batch commits per clip, so a cancelled
+  // run leaves the already-scored clips updated).
+  const reload = () => {
+    loadVideos().then(() => {
+      if (AppState.activeVideoId === videoId) {
+        const v = AppState.videos.find(v => v.id === videoId);
+        if (v) renderVideoDetail(v, null);
+        fetchClipsList(videoId).then(clips => {
+          if (clips) { AppState.clips = clips; _renderClips(); }
+        });
+      }
+    });
+  };
+  // Soft cancel: aborts the stream client-side; the server stops after the current
+  // clip and keeps everything scored so far (see PROGRESS-CANCEL-GAP Part B).
+  setJobCancel({
+    title:      'Stop re-scoring?',
+    body:       'Clips already re-scored keep their new scores; the rest keep their previous scores.',
+    confirm:    'Stop',
+    logMsg:     '[Re-scoring cancelled]',
+    clientOnly: true,
+    onCancel:   reload,
+  });
   let errorCount = 0;
   const params = new URLSearchParams();
   if (includeFrames) params.set('include_frames', '1');
@@ -512,12 +539,13 @@ function _doRescoreClips(videoId, btn, endpoint = 'rescore-clips', includeFrames
   const handle = _openSSE(
     `/api/videos/${videoId}/${endpoint}${qs ? '?' + qs : ''}`,
     data => {
+      updateJobUI(typeof data === 'string' ? data : JSON.stringify(data));
       if (typeof data === 'string' && data.startsWith('[Error')) errorCount++;
       appendLog(String(data));
     },
     () => {
       _clearActiveStream(handle);
-      resetBtn();
+      teardown();
       if (errorCount > 0) {
         showToast(`Re-scoring finished - ${plural(errorCount, 'clip')} failed (check log)`, 'error');
         SoundFx.play('error');
@@ -525,24 +553,16 @@ function _doRescoreClips(videoId, btn, endpoint = 'rescore-clips', includeFrames
         showToast('Re-scoring complete');
         SoundFx.play('rescore');
       }
-      loadVideos().then(() => {
-        if (AppState.activeVideoId === videoId) {
-          const v = AppState.videos.find(v => v.id === videoId);
-          if (v) renderVideoDetail(v, null);
-          fetchClipsList(videoId).then(clips => {
-            if (clips) { AppState.clips = clips; _renderClips(); }
-          });
-        }
-      });
+      reload();
     },
     errMsg => {
       _clearActiveStream(handle);
-      resetBtn();
+      teardown();
       showToast(`Re-scoring failed - ${errMsg}`, 'error');
       SoundFx.play('error');
     },
   );
-  _setActiveStream(handle, resetBtn);
+  _setActiveStream(handle, teardown);
 }
 
 export function rescoreAllClips(videoId, btn) {
@@ -590,39 +610,55 @@ function _doRedescribeClips(videoId, btn) {
   if (btn) { btn.disabled = true; btn.textContent = 'Re-describing…'; }
   openLog();
   _supersedeActiveStream();
+  startJobUI(REDESCRIBE_JOB_STEPS, 'Re-describing clips', true);
   const resetBtn = () => { if (btn) { btn.disabled = false; btn.textContent = orig; } };
+  const teardown = () => { resetBtn(); endJobUI(); };
+  // Refresh the clip list to reflect committed descriptions - shared by done + cancel
+  // (the batch commits per clip, so a cancelled run keeps the already-regenerated ones).
+  const reload = () => {
+    if (AppState.activeVideoId === videoId) {
+      fetchClipsList(videoId).then(clips => {
+        if (clips) {
+          AppState.clips = clips;
+          _renderClips();
+          if (AppState.activeClipId) selectClip(AppState.activeClipId);
+        }
+      });
+    }
+  };
+  setJobCancel({
+    title:      'Stop re-describing?',
+    body:       'Descriptions already regenerated are kept; the rest keep their previous descriptions.',
+    confirm:    'Stop',
+    logMsg:     '[Re-describe cancelled]',
+    clientOnly: true,
+    onCancel:   reload,
+  });
   let errorCount = 0;
   const handle = _openSSE(
     `/api/videos/${videoId}/redescribe-clips`,
     data => {
+      updateJobUI(typeof data === 'string' ? data : JSON.stringify(data));
       if (typeof data === 'string' && data.startsWith('[Error')) errorCount++;
       appendLog(String(data));
     },
     () => {
       _clearActiveStream(handle);
-      resetBtn();
+      teardown();
       if (errorCount > 0) {
         showToast(`Re-describe finished - ${plural(errorCount, 'clip')} failed (check log)`, 'error');
       } else {
         showToast('Descriptions regenerated');
       }
-      if (AppState.activeVideoId === videoId) {
-        fetchClipsList(videoId).then(clips => {
-          if (clips) {
-            AppState.clips = clips;
-            _renderClips();
-            if (AppState.activeClipId) selectClip(AppState.activeClipId);
-          }
-        });
-      }
+      reload();
     },
     errMsg => {
       _clearActiveStream(handle);
-      resetBtn();
+      teardown();
       showToast(`Re-describe failed - ${errMsg}`, 'error');
     },
   );
-  _setActiveStream(handle, resetBtn);
+  _setActiveStream(handle, teardown);
 }
 
 // ── reset approvals ───────────────────────────────────────────────────────────

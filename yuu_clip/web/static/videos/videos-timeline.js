@@ -9,6 +9,7 @@ import { escHtml, plural, _parseIntervalS } from '../core/format.js';
 import { showToast } from '../core/utils.js';
 import {
   _openSSE, _setActiveStream, _clearActiveStream, _supersedeActiveStream, _blockedByAnalyze,
+  startJobUI, endJobUI, setJobProgress, setJobCancel, TIMELINE_JOB_STEPS,
 } from '../core/jobs.js';
 import { _needsModelCtaHTML } from './videos.js';
 
@@ -124,11 +125,28 @@ function _startGenerateTimeline(id, intervalS) {
   btn.textContent = 'Generating Timeline…';
 
   _supersedeActiveStream();
+  startJobUI(TIMELINE_JOB_STEPS, 'Generating timeline', true);
+  setJobProgress();
   const resetBtn = () => {
     const video = AppState.videos.find(v => v.id === id);
     btn.disabled = false;
     btn.textContent = video?.has_timeline ? 'Regenerate Timeline' : 'Generate Timeline';
   };
+  const teardown = () => { resetBtn(); endJobUI(); };
+  // Timeline persists its entries only after the whole loop finishes, so a cancel
+  // discards the partial outline - drop the streamed rows and restore the stored
+  // (or empty) state. See PROGRESS-CANCEL-GAP Part B.
+  setJobCancel({
+    title:      'Stop generating timeline?',
+    body:       'The partial outline is discarded - the previous timeline (if any) is kept.',
+    confirm:    'Stop',
+    logMsg:     '[Timeline generation cancelled]',
+    clientOnly: true,
+    onCancel:   () => {
+      const video = AppState.videos.find(v => v.id === id);
+      section.innerHTML = video?.has_timeline ? '' : _timelineEmptyNoteHTML();
+    },
+  });
   let firstEntry = true;
   let needsModel = false;
 
@@ -144,6 +162,11 @@ function _startGenerateTimeline(id, intervalS) {
         section.innerHTML = `<div class="timeline" id="timeline-list"></div>`;
         firstEntry = false;
       }
+      // Payloads are entry objects (not prose lines), so drive the pill from the
+      // server-supplied done/total rather than updateJobUI.
+      if (typeof data.done === 'number' && typeof data.total === 'number') {
+        setJobProgress(data.done, data.total);
+      }
       const row = document.createElement('div');
       row.className = 'timeline-entry';
       row.innerHTML = `
@@ -153,7 +176,7 @@ function _startGenerateTimeline(id, intervalS) {
     },
     () => {
       _clearActiveStream(handle);
-      resetBtn();
+      teardown();
       if (needsModel) return;
       const video = AppState.videos.find(v => v.id === id);
       if (video) video.has_timeline = true;
@@ -161,7 +184,7 @@ function _startGenerateTimeline(id, intervalS) {
     },
     errMsg => {
       _clearActiveStream(handle);
-      resetBtn();
+      teardown();
       // A failed regenerate leaves the stored timeline intact server-side, so
       // don't claim "No timeline yet" - leave the section blank instead.
       if (firstEntry) {
@@ -171,7 +194,7 @@ function _startGenerateTimeline(id, intervalS) {
       showToast(`Timeline generation failed - ${errMsg}`, 'error');
     },
   );
-  _setActiveStream(handle, resetBtn);
+  _setActiveStream(handle, teardown);
 }
 
 // ── static modal wiring (replaces the inline onclick=/oninput=/onchange= this
