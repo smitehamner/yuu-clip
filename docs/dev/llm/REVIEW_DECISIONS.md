@@ -11,6 +11,51 @@ same thing without the context. Most recent first.
 
 ---
 
+## Refactor-for-quality WS-A+B - test-tier rebalance close-out (2026-07-23)
+
+WS-A (10 test-file splits moving pure-by-dependency tests from `tests/integration`
+to `tests/unit`) and WS-B (new unit tests on already-pure, previously-untested
+logic) both shipped - see
+`d:\1\Hamner\Code\000_project_planning\finalized_plans\yuu-clip_plans\plans\REFACTOR-FOR-QUALITY-PLAN-2026-07-23.md`
+for the full per-item ledger. Recorded here per the close-out convention:
+
+### 4 of WS-B's 8 items were SKIPPED - already covered, not written
+Decision: do not write near-duplicate tests for B1, B2, B4, B6.
+Rationale: each item's target function turned out to already have thorough
+direct unit coverage by the time WS-B started - either freshly relocated by a
+WS-A move in the same session (B1's `_apply_name_suggestions`/
+`_voiceprint_name_suggestions` and B2's `_build_clip_cmd`/`_preset_video_filter`
+moved in A4/A3; B4's `_build_xfade_cmd`/`_segment_start_times` moved in A3+A9),
+or pre-existing and simply not surveyed (B6's `_cosine_similarity`/
+`serialize_voiceprint`/`deserialize_voiceprint`/`best_voice_match` already had
+a dedicated `tests/unit/test_project_voice.py`, whose own module docstring
+names it). Each SKIP is recorded inline in the plan file with the specific
+test classes/counts that already satisfy it. **Do not re-flag these as
+untested** - re-verify against the current test files before assuming a gap.
+
+### A structural pytest fix was required mid-move, not anticipated by the plan
+Decision: add empty `tests/unit/__init__.py` + `tests/integration/__init__.py`.
+Rationale: pytest's default prepend import mode raises "import file mismatch"
+when a same-basename test file exists in both `tests/unit` and
+`tests/integration` and both tiers collect in one session (`yuu-dev test-api`)
+- which every WS-A move does by construction (same filename, new directory).
+Discovered on the very first move (A10) and fixed once for the whole
+workstream. `tests/ui` deliberately kept `__init__.py`-free since 36 files rely
+on bare `from conftest import ...`, which needs the file's own directory on
+`sys.path` (package-qualifying it would break that).
+
+### Two pre-existing cross-file `TestSafeFilename` duplicates surfaced, not fixed
+Decision: leave both in place; this was a move-only workstream.
+Rationale: `tests/unit/test_export.py::TestSafeFilename` (from A3) and
+`tests/unit/test_reel.py::TestSafeFilename` (from A9) both test the same
+`web/routes/reel.py::_safe_filename` with different test names/cases - a
+pre-existing duplication in the integration tier that predates this refactor,
+now just relocated verbatim rather than merged (WS-A's rule: import-path
+fixes only, no behavior or dedup changes). Flagged for a future WS-C/dedup
+pass, not touched here.
+
+---
+
 ## Phase 6 docs and comments - window.X shim-drain slice (2026-07-23)
 
 Docs-and-comments phase over the shim-drain arc (`25e44dc^..HEAD`, HEAD `9d21aac`).
