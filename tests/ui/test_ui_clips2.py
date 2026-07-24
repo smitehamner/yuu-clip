@@ -403,10 +403,10 @@ class TestGlobalKeyboardGuard:
                 && AppState.activeClipId === AppState.clips[1].id;
         }""", timeout=2000)
 
-    def test_escape_in_text_field_does_not_close_modal(self, page: Page):
-        # The field-edit modal focuses its textarea on open; Escape there must be
-        # left to the field (and the modal's own dirty-check), not the global
-        # close cascade.
+    def test_escape_closes_clean_field_edit_modal(self, page: Page):
+        # UX-REVIEW H5: the field-edit modal previously swallowed Escape entirely
+        # (while Controls promises "Esc closes the topmost window"). Escape now runs
+        # its dirty-guarded closer; an unchanged field closes immediately.
         select_first_video_and_clip(page)
         page.wait_for_selector(".detail-card .kebab-btn", timeout=3000)
         page.click(".detail-card .kebab-btn")
@@ -417,9 +417,21 @@ class TestGlobalKeyboardGuard:
             timeout=2000,
         )
         page.keyboard.press("Escape")
-        expect(page.locator("#field-edit-modal")).to_be_visible()
-        page.click("#field-edit-modal button:has-text('Cancel')")
         page.wait_for_selector("#field-edit-modal.visible", state="hidden", timeout=2000)
+
+    def test_escape_in_dirty_field_edit_prompts_discard(self, page: Page):
+        # A changed field must not be lost silently: Escape routes through the
+        # dirty-guard, which shows the "Discard edit?" confirm and keeps the editor
+        # open behind it.
+        select_first_video_and_clip(page)
+        page.wait_for_selector(".detail-card .kebab-btn", timeout=3000)
+        page.click(".detail-card .kebab-btn")
+        page.click(".hamburger-menu.open button:has-text('Edit')")
+        page.wait_for_selector("#field-edit-modal.visible", timeout=2000)
+        page.fill("#field-edit-text", "a changed value the user does not want lost")
+        page.keyboard.press("Escape")
+        page.wait_for_selector("#confirm-modal.visible", timeout=2000)
+        expect(page.locator("#field-edit-modal")).to_be_visible()
 
 
 @skip_no_server

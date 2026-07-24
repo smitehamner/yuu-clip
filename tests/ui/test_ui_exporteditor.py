@@ -141,12 +141,16 @@ class TestExportEditorCaptionOverlay:
 
     def test_overlay_shows_active_line(self, page: Page):
         _open_editor(page)
-        self._seek_and_tick(page, 6.5)  # inside the 6_000–8_000ms in_clip line
+        # The overlay is a burn-in preview; the default caption mode is now soft
+        # (embed), so select burn first (UX-REVIEW M21).
+        page.select_option("#ed-captions", "burn")
+        self._seek_and_tick(page, 6.5)  # inside the 6_000-8_000ms in_clip line
         expect(page.locator("#ed-caption-overlay")).to_be_visible()
         expect(page.locator("#ed-caption-overlay")).to_contain_text("the funny bit")
 
     def test_overlay_hidden_outside_any_line(self, page: Page):
         _open_editor(page)
+        page.select_option("#ed-captions", "burn")
         self._seek_and_tick(page, 5.0)  # between context lines, no active caption
         expect(page.locator("#ed-caption-overlay")).to_be_hidden()
 

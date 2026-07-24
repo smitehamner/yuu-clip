@@ -124,10 +124,14 @@ class TestSplitMarkers:
 @skip_no_server
 class TestSplitActions:
     def test_radio_group_has_accessible_name(self, split_editor: Page):
-        # L6-4
+        # L6-4; UX-REVIEW M10 gave the group a visible "After splitting:" label and
+        # points aria-labelledby at it (was a bare aria-label).
         options = split_editor.locator("#split-action-options")
         expect(options).to_have_attribute("role", "radiogroup")
-        assert options.get_attribute("aria-label")
+        labelledby = options.get_attribute("aria-labelledby")
+        assert labelledby
+        label = split_editor.locator(f"#{labelledby}")
+        expect(label).to_have_text("After splitting:")
 
     def test_reanalyze_selection_styles_confirm_as_danger(self, split_editor: Page):
         # M6-2 - destructive choice gets destructive treatment.

@@ -11,6 +11,54 @@ same thing without the context. Most recent first.
 
 ---
 
+## Phase 7 UX/UI - full-surface review (2026-07-23, shipped 2026-07-24)
+
+The `UX-REVIEW-2026-07-23.md` fix plan shipped across six stages (commit range
+`d5a3618..HEAD`): all 11 HIGH, ~24 MEDIUM, and ~29 LOW findings from a full
+shqr-ux-ui-review surface walk were fixed or deliberately skipped. Owner decisions:
+H9 kept the wizard Launch block and added a Cancel to the CUDA install; M21 unified
+both export surfaces on soft (embedded) captions as the default; M22 uses undo-toasts
+for library row deletes; M10 renamed the split confirm to "Split recording" with
+danger styling; Low 13 removed the bottom Close from About/Controls/Getting Started so
+all five info-modals close via the top-right X (Controls gained a top X to match).
+
+**Did not reproduce (skipped, not fixed):** M16 (setup.html inline hex literals) -
+the wizard token re-skin had already removed them. Low 16 same. Everything else in
+the plan reproduced and was fixed.
+
+**Confirmed-intentional - do NOT re-flag** (verified good during the walk):
+- Empty-state onboarding (`videos.js`): mascot + one gold CTA + analyzing-swap state.
+- `install-error.js` failure-class mapping (network/disk/antivirus/no-wheel/CUDA) -
+  exemplary plain-English error design (the one gap, M17's fallback sentence, is fixed).
+- Boot-time modal a11y stamping (`boot.js`) + single document-level focus trap
+  (`ui.js`) + showConfirm defaulting focus to Cancel.
+- Dirty-state guards funnelling through one "Discard changes?" confirm + beforeunload.
+- Undo toast with a visible shrinking countdown bar (`ui.js`).
+- Cancel-left / verb-specific-primary-right button order across action modals; gold
+  `highlight` reserved for the two Export confirms.
+- Toasts mirrored into `#sr-live-polite`/`#sr-live-assertive` (`utils.js`).
+- Universal `:focus-visible` ring + `prefers-reduced-motion` block (`app.css`).
+- `--visual` sharing `--action`'s hue (bars always labelled).
+- Kind-filter chip tooltips teaching clip-vs-scene at point of use.
+- Calm "setup state, not failure" no-model copy (`videos.js`, `clips.js`) - the
+  reference pattern for capability-missing states.
+- Wizard: status-slot re-render never wipes typed values; restore-only-in-initial-mode;
+  optional CUDA section hidden when empty on non-NVIDIA; FFmpeg failure row's model
+  recovery path.
+- Glossary-term compliance clean across the five region partials.
+- modelcatalog reconnect-poll behaviours (can't cancel another window's download;
+  verifies the file landed before declaring success).
+- Per-video computed "Retranscribe before export" default with safe fallback.
+
+### Low 29 - pointer-only resize handles + split-timeline markers (accepted)
+Decision: the sidebar/player resize handles and the split-editor timeline markers stay
+**pointer-only** - no keyboard path for placing a split marker or dragging a resize
+handle. Accepted for a mouse-first desktop tool (single Windows user). The trigger to
+revisit: a keyboard-only or AT user actually needs to split a recording or resize a
+pane. Do not re-flag as a keyboard-accessibility gap.
+
+---
+
 ## Fable-review WS-5 - backend seam hygiene (2026-07-24)
 
 Three deliberate keep/exception calls made while shipping WS-5 (ARCH-1..4 +

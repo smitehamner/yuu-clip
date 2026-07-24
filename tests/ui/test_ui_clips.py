@@ -534,13 +534,17 @@ class TestAutoFrameButton:
         assert page.eval_on_selector("#export-framing-slider", "el => el.value") == "0.5"
         page.evaluate("closeExportModal()")
 
-    def test_503_links_to_settings_install(self, page: Page):
+    def test_503_shows_reinstall_message(self, page: Page):
+        # UX-REVIEW H7: the face detector ships with the app and auto-downloads, so a
+        # 503 is a broken-install case. The note points at reinstalling / setting the
+        # crop by hand - NOT a Settings install control that no longer exists.
         self._open_vertical(page)
         self._mock_suggest(page, 503, {"detail": "Auto-framing needs the MediaPipe package"})
         page.click("#export-autoframe-btn")
         note = page.locator("#export-autoframe-note")
-        expect(note).to_contain_text("MediaPipe")
-        expect(note.locator("a")).to_have_count(1)
+        expect(note).to_contain_text("isn't available")
+        expect(note).to_contain_text("reinstalling YuuClip")
+        expect(note.locator("a")).to_have_count(0)
         page.evaluate("closeExportModal()")
 
 
