@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, Menu, MenuItem, clipboard, dialog, ipcMain, protocol, shell } = require('electron');
+const { app, BrowserWindow, Menu, MenuItem, clipboard, dialog, ipcMain, nativeTheme, protocol, shell } = require('electron');
 const { execFileSync, spawn } = require('child_process');
 const fs     = require('fs');
 const http   = require('http');
@@ -336,6 +336,12 @@ function registerWizardIPC(wizardWin) {
         ffmpegBundled: app.isPackaged,
         gpu, cuda,
         cudaLibsInstalled,
+        // The wizard has no server-side theme setting of its own to read (the in-app
+        // Dark/Light/High contrast picker lives in browser localStorage, a different
+        // origin the wizard's file:// window can't reach) - honor the OS-level
+        // light/dark + high-contrast preference instead of always defaulting to dark.
+        osThemeIsLight: !nativeTheme.shouldUseDarkColors,
+        osThemeIsHighContrast: nativeTheme.shouldUseHighContrastColors,
         recommendedWhisper: recommendWhisperModel(gpu.vramMB),
         localModelRecommendation: recommendLocalModel({ vramMB: gpu.vramMB, freeDiskGB, gpuVendor: gpu.vendor }),
         whisperModel:  projCfg.whisper_model || '',

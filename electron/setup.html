@@ -4,8 +4,10 @@
 <meta charset="utf-8">
 <title>YuuClip Setup</title>
 <!-- Shared theme tokens (mirror of the web app's static/shared/tokens.css, kept in sync
-     by `yuu-dev shared-data`) so the wizard renders in the app's real palette. The wizard
-     is single-theme: it uses the :root (dark) token set, never sets data-theme. -->
+     by `yuu-dev shared-data`) so the wizard renders in the app's real palette. Defaults to
+     the :root (dark) token set; setup-renderer.js sets data-theme="light"/"high-contrast"
+     from the OS preference (setup:get-status's osThemeIsLight/osThemeIsHighContrast) once
+     the status check resolves, so a re-run honors it instead of always forcing dark. -->
 <link rel="stylesheet" href="shared/tokens.css">
 <style>
 /* Oxanium (OFL 1.1) for the wizard header, mirrored into electron/shared by
@@ -149,6 +151,13 @@ button.sm:disabled { opacity: 0.4; cursor: not-allowed; }
 .chk-row { display: flex; align-items: flex-start; gap: 8px; padding: 6px 0 2px; }
 .chk-row input[type=checkbox] { margin-top: 2px; accent-color: var(--accent); }
 .chk-row .chk-title { font-weight: 500; color: var(--text); cursor: pointer; }
+.chk-row.recommended {
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  padding: 8px 10px;
+  margin: 2px 0;
+}
 
 /* ── re-check bar ── */
 #recheck-bar {
@@ -275,9 +284,9 @@ footer {
         that runs in the background. Even before it finishes, clips are still found and
         scored from laughter, excitement, keywords, and scene / on-screen action.
       </div>
-      <div class="sec-note" id="llm-rec-headline" style="color:#b8b8d0;font-weight:600"></div>
+      <div class="sec-note" id="llm-rec-headline" style="color:var(--text-secondary);font-weight:600"></div>
 
-      <div class="chk-row">
+      <div class="chk-row recommended">
         <input type="radio" name="local-ai-choice" id="local-ai-yes" value="local">
         <div class="body">
           <label class="chk-title" for="local-ai-yes">Set up local AI (Recommended)</label>
@@ -304,7 +313,7 @@ footer {
 
       <details id="advanced-ai">
         <summary>Advanced AI options</summary>
-      <div class="sec-note" style="color:#d4902a">
+      <div class="sec-note" style="color:var(--warning)">
         <strong>Heads-up on download size:</strong> running a model on your own machine is a
         one-time download of roughly <strong>4-9 GB</strong> (the recommended model is
         ~<span id="rec-model-size-adv">4.7 GB</span>).
@@ -317,7 +326,7 @@ footer {
       <div class="desc" id="ai-privacy-note" style="margin:-2px 0 6px"></div>
       <div id="llm-generative-block">
       <div id="llm-llamacpp-fields">
-        <div class="desc" style="margin:4px 0 2px"><strong style="color:#8888aa">Get a model file (.gguf)</strong></div>
+        <div class="desc" style="margin:4px 0 2px"><strong style="color:var(--muted)">Get a model file (.gguf)</strong></div>
         <div class="desc">
           A <code>.gguf</code> file is the AI model itself.
         </div>
@@ -372,11 +381,11 @@ footer {
   <button class="sm" id="restart-btn" title="Restarts YuuClip - needed for driver or service installs (e.g. CUDA)">Restart app</button>
 </div>
 
-<div id="rerun-note" style="display:none;font-size:11px;color:#87879f;padding:6px 20px 0">
+<div id="rerun-note" style="display:none;font-size:11px;color:var(--muted);padding:6px 20px 0">
   Changes take effect on next restart.
 </div>
 
-<div id="lightweight-note" style="display:none;font-size:11px;color:#87879f;padding:6px 20px 0">
+<div id="lightweight-note" style="display:none;font-size:11px;color:var(--muted);padding:6px 20px 0">
   Launching in lightweight mode - you can set up local AI anytime in Settings.
 </div>
 

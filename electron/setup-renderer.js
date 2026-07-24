@@ -497,9 +497,18 @@ document.getElementById('launch-btn').addEventListener('click', () => {
 api.onInstallProgress(onInstallProgress);
 api.onGgufDownloadProgress(onGgufDownloadProgress);
 
+function applyOsTheme(s) {
+  // Mirrors the shared tokens.css data-theme contract (see index.html's inline
+  // pre-paint script) so the wizard follows the same OS preference the packaged
+  // app's window chrome does, instead of always rendering the dark palette.
+  if (s.osThemeIsHighContrast) document.documentElement.dataset.theme = 'high-contrast';
+  else if (s.osThemeIsLight) document.documentElement.dataset.theme = 'light';
+}
+
 (async () => {
   try {
     const s = await api.getStatus();
+    applyOsTheme(s);
     applyDefaults(s);
     renderSlots(s);
   } catch (e) {

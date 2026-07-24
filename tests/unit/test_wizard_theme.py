@@ -75,6 +75,14 @@ def test_setup_html_style_has_no_raw_color_literals():
     assert offenders == [], f"raw colour literals in wizard <style> (use a theme token): {offenders}"
 
 
+def test_setup_html_has_no_raw_color_literals_anywhere():
+    # The <style>-only check above missed inline `style="color:#..."` attributes in the
+    # body markup (four shipped that way - Fable-review WS-1 UX-M8) - scan the whole file
+    # so a body literal can't slip past the guard again.
+    offenders = _ANY_HEX_RE.findall(_SETUP_HTML.read_text(encoding="utf-8"))
+    assert offenders == [], f"raw colour literals anywhere in setup.html (use a theme token): {offenders}"
+
+
 def test_wizard_token_pairings_meet_aa():
     tokens = _dark_tokens()
     # (text token, background token) pairs the wizard actually renders. Resolved against

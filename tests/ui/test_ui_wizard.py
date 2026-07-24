@@ -127,6 +127,32 @@ class TestWizardLayout:
         # AMD has no CUDA path, so the CUDA install row must not appear.
         expect(page.locator("#item-cuda")).to_have_count(0)
 
+    def test_recommended_local_ai_row_is_visually_accented(self, page: Page):
+        # UX-M8: the recommended card needs a visible accent, not just an "(Recommended)"
+        # text suffix - the .recommended class carries the accent border/tint.
+        _open_wizard(page)
+        expect(page.locator("#local-ai-yes").locator("xpath=..")).to_have_class("chk-row recommended")
+
+
+@skip_no_server
+class TestWizardOsTheme:
+    # UX-M8: the wizard has no server-side theme setting of its own (Dark/Light/High
+    # contrast lives in the web app's browser localStorage, a different origin the
+    # wizard's file:// window can't read) - so a re-run instead honors the OS-level
+    # preference via setup:get-status's osThemeIsLight/osThemeIsHighContrast, rather than
+    # always forcing the dark palette.
+    def test_defaults_to_dark_when_status_omits_os_theme(self, page: Page):
+        _open_wizard(page)
+        assert page.locator("html").get_attribute("data-theme") is None
+
+    def test_os_light_preference_sets_light_theme(self, page: Page):
+        _open_wizard(page, "{ osThemeIsLight: true }")
+        expect(page.locator("html")).to_have_attribute("data-theme", "light")
+
+    def test_os_high_contrast_preference_wins_over_light(self, page: Page):
+        _open_wizard(page, "{ osThemeIsLight: true, osThemeIsHighContrast: true }")
+        expect(page.locator("html")).to_have_attribute("data-theme", "high-contrast")
+
 
 @skip_no_server
 class TestWizardLocalModelChoice:
