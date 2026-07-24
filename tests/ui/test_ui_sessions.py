@@ -209,6 +209,67 @@ class TestSuggestPrompt:
 
 
 @skip_no_server
+class TestSuggestPromptAccept:
+    def test_accept_suggestion_groups_via_ui(self, page: Page):
+        posted = {}
+
+        def _handle_sessions(route):
+            if route.request.method == "POST":
+                posted["body"] = route.request.post_data_json
+                route.fulfill(content_type="application/json", body=json.dumps({
+                    "id": 7002, "name": None, "title": "",
+                    "member_ids": posted["body"]["video_ids"], "member_count": 2,
+                    "created_at": "2026-07-23T00:00:00+00:00",
+                }))
+            else:
+                route.fulfill(content_type="application/json", body=json.dumps(_SESSIONS))
+
+        _boot_with_sessions(page, extra_routes=[
+            ("**/api/sessions/suggestions",
+             [{"video_ids": [9003, 9004], "titles": ["Loner", "Other"]}]),
+        ])
+        page.route("**/api/sessions", _handle_sessions)
+        _open_recordings_menu_action(page, "Suggest sessions")
+        expect(page.locator(".session-suggestion")).to_be_visible()
+        page.click(".session-suggestion button:has-text('Group')")
+        expect(page.locator(".toast")).to_contain_text("Grouped 2 recordings into a session")
+        assert posted["body"]["video_ids"] == [9003, 9004]
+        # The accepted suggestion row is removed; it was the only one, so the
+        # suggestion modal closes itself.
+        expect(page.locator(".session-suggestion")).to_have_count(0)
+
+
+@skip_no_server
+class TestSessionKebabMenu:
+    def test_ungroup_dissolves_session_via_ui(self, page: Page):
+        state = {"sessions": list(_SESSIONS), "deleted": False}
+
+        def _sessions_list_route(route):
+            route.fulfill(content_type="application/json", body=json.dumps(state["sessions"]))
+
+        def _dissolve_route(route):
+            assert route.request.method == "DELETE"
+            state["deleted"] = True
+            state["sessions"] = []
+            route.fulfill(content_type="application/json", body=json.dumps({"detached": 2}))
+
+        _boot_with_sessions(page)
+        page.route("**/api/sessions", _sessions_list_route)
+        page.route("**/api/sessions/7001", _dissolve_route)
+
+        page.click("#video-list li.session-header .session-kebab")
+        page.click(".hamburger-menu.open .hamburger-item:has-text('Ungroup (dissolve)')")
+        page.locator("#confirm-ok-btn").wait_for(state="visible", timeout=2000)
+        page.click("#confirm-ok-btn")
+
+        expect(page.locator(".toast")).to_contain_text("Session ungrouped")
+        assert state["deleted"]
+        # loadSessions() re-fetched the (now-empty) session list and re-rendered
+        # the sidebar without the dissolved group's header.
+        expect(page.locator("#video-list li.session-header")).to_have_count(0)
+
+
+@skip_no_server
 class TestSessionDetailView:
     def test_detail_renders_unified_timeline(self, page: Page):
         _boot_with_sessions(page, extra_routes=[("**/api/sessions/7001", _SESSION_DETAIL)])

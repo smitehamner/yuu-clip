@@ -51,6 +51,70 @@ class TestProfiles:
         assert r.status_code == 400
 
 
+class TestProfileMutationDoesNotAffectAnalyzedRecording:
+    """A track layout is pure JSON config (config.py's profiles.json) with no DB
+    link to a Video/AudioTrack - it is only applied once, at analyze time, by
+    analyze/labeler.py::_apply_profile. Editing or deleting a layout after an
+    analyzed recording used it must leave that recording's DB rows untouched;
+    the routes never look a video up by profile name."""
+
+    def _track_snapshot(self, project_dir, video_id):
+        from yuu_clip.db.models import AudioTrack, Video, make_session
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            track = db.query(AudioTrack).filter_by(video_id=video_id).one()
+            video = db.query(Video).filter_by(id=video_id).one()
+            return {
+                "label": track.label,
+                "do_transcribe": track.do_transcribe,
+                "do_score": track.do_score,
+                "relevance_weight": track.relevance_weight,
+                "video_status": video.status,
+                "analyze_run_json": video.analyze_run_json,
+            }
+        finally:
+            db.close()
+
+    def test_edit_and_delete_profile_after_use_leaves_analyzed_video_untouched(self, client, project_dir):
+        from yuu_clip.db.models import Video, make_session
+
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        video_id = db.query(Video).first().id
+        db.query(Video).filter_by(id=video_id).update(
+            {"analyze_run_json": '{"track_layout": "stream_layout"}'}
+        )
+        db.commit()
+        db.close()
+
+        before = self._track_snapshot(project_dir, video_id)
+
+        body = {
+            "name": "stream_layout",
+            "assignments": [
+                {"stream_position": 0, "label": "combined", "do_transcribe": True, "do_score": True},
+            ],
+        }
+        assert client.post("/api/profiles", json=body).status_code == 200
+        assert self._track_snapshot(project_dir, video_id) == before
+
+        # Edit (overwrite-on-save) the in-use layout - the analyzed recording's
+        # own track rows must not be re-labeled or re-flagged retroactively.
+        edited = dict(body, assignments=[
+            {"stream_position": 0, "label": "renamed_label", "do_transcribe": False, "do_score": False},
+        ])
+        assert client.post("/api/profiles", json=edited).status_code == 200
+        assert self._track_snapshot(project_dir, video_id) == before
+
+        # Delete the in-use layout entirely - same guarantee, and the video's
+        # clips route must keep serving normally (no dangling-reference error).
+        assert client.delete("/api/profiles/stream_layout").status_code == 200
+        assert self._track_snapshot(project_dir, video_id) == before
+
+        r = client.get(f"/api/videos/{video_id}/clips")
+        assert r.status_code == 200
+        assert len(r.json()) == 3
+
+
 # ---------------------------------------------------------------------------
 # Contexts
 # ---------------------------------------------------------------------------

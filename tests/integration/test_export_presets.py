@@ -300,6 +300,45 @@ class TestExportPresetRoutes:
     def test_delete_unknown_custom_404s(self, client):
         assert client.delete("/api/export-presets/does-not-exist").status_code == 404
 
+    def test_delete_a_preset_a_prior_export_used_degrades_gracefully(self, client, project_dir):
+        """A clip's clip_exports row records the preset name it was exported with
+        (export/render.py::_record_clip_export) with no FK back to the preset - so
+        deleting the preset afterward must not corrupt or hide that clip's export
+        history, and a NEW export attempt referencing the now-gone preset must fail
+        with a clear 400, not a crash."""
+        from yuu_clip.db.models import ClipCandidate, ClipExport, make_session
+
+        created = client.post(
+            "/api/export-presets", json={"label": "Delete Me", "container": "mp4", "crf": 20},
+        ).json()
+        preset_name = created["name"]
+
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        clip_id = db.query(ClipCandidate).first().id
+        db.add(ClipExport(
+            clip_id=clip_id, preset_name=preset_name,
+            path=str(project_dir / ".yuu-clip" / "exports" / "clip.mp4"),
+            container="mp4",
+        ))
+        db.commit()
+        db.close()
+
+        assert client.delete(f"/api/export-presets/{preset_name}").status_code == 200
+        assert preset_name not in {p["name"] for p in client.get("/api/export-presets").json()["custom"]}
+
+        # The clip's export history still reflects the (now-dangling) preset name
+        # instead of erroring or silently dropping the row.
+        detail = client.get(f"/api/clips/{clip_id}")
+        assert detail.status_code == 200
+        export_rows = detail.json()["exports"]
+        assert any(row["preset_name"] == preset_name for row in export_rows)
+
+        # A fresh export attempt against the deleted preset degrades to a plain
+        # 400, not a 500 or a silent fallback to some other preset.
+        res = client.get(f"/api/clips/{clip_id}/export?preset={preset_name}")
+        assert res.status_code == 400
+        assert preset_name in res.json()["detail"]
+
 
 # ---------------------------------------------------------------------------
 # Real ffmpeg encode integration - skipped if ffmpeg isn't on PATH. Slow: each
