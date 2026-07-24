@@ -464,11 +464,14 @@ async function _gotoRecordingTime(videoId, localMs) {
 
 function _summarizeSession(sessionId) {
   const btn = document.getElementById('session-summarize-btn');
+  const originalLabel = btn ? btn.textContent : '';
   if (btn) { btn.disabled = true; btn.textContent = 'Summarizing…'; }
+  const resetBtn = () => { if (btn) { btn.disabled = false; btn.textContent = originalLabel; } };
   openLog();
   streamSSE(
     `/api/sessions/${sessionId}/summarize`,
     () => {
+      resetBtn();
       showToast('Session summary generated');
       if (AppState.activeSessionId === sessionId) selectSession(sessionId);
       loadSessions();
@@ -476,6 +479,10 @@ function _summarizeSession(sessionId) {
     [{label: 'Summarize', patterns: ['Generating']}],
     'Session summary',
     false,
+    null,
+    false,
+    {},
+    resetBtn,
   );
 }
 

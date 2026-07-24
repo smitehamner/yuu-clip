@@ -637,6 +637,14 @@ function _streamAnalyzeEvents(filename) {
     true,
     null,
     true,
+    {},
+    async () => {
+      // A failed/aborted analysis must release the "analyzing" lock, otherwise the
+      // sidebar spinner and the _blockedByAnalyze gate stay stuck until a page reload.
+      AppState.analyzeFilename = null;
+      await loadVideos();
+      _rerenderActiveVideoDetail();
+    },
   );
 }
 
@@ -704,11 +712,29 @@ async function _analyzeSegmentsSequentially(
       ),
       INGEST_STEPS,
       `Segment ${index + 1}/${segments.length}`,
-      false,
+      true,
       null,
       true,
+      {},
+      () => _abortSegmentChain(segments, index),
     );
   }).catch(err => showToast(netErrMsg(err), 'error'));
+}
+
+// A segment in a sequential analyze/re-analyze chain failed to stream: clear the
+// analyzing lock, refresh the UI, and tell the user which segments never ran so
+// they can re-analyze just those from each segment's Additional Actions.
+function _abortSegmentChain(segments, failedIndex) {
+  AppState.analyzeFilename = null;
+  loadVideos().then(() => _rerenderActiveVideoDetail());
+  const from = failedIndex + 1;
+  const to = segments.length;
+  const which = from === to ? `segment ${from}` : `segments ${from}-${to}`;
+  showToast(
+    `Analysis stopped - ${which} of ${segments.length} were not analyzed. `
+    + `Re-analyze them from each segment's Additional Actions.`,
+    'warning',
+  );
 }
 
 function _showAnalysisToast(video) {

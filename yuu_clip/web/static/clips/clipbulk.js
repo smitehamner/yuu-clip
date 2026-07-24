@@ -51,14 +51,26 @@ export function _updateBulkToolbar() {
   document.getElementById('clip-bulk-count').textContent = `${count} selected`;
 }
 
+// Disable/enable the bulk toolbar buttons while a bulk action is in flight, so a
+// slow DB-lock retry window reads as "working" rather than "nothing happened".
+function _setBulkActionsBusy(busy) {
+  document.querySelectorAll('.clip-bulk-actions button').forEach(b => { b.disabled = busy; });
+}
+
 // ── bulk clip actions ────────────────────────────────────────────────────────
 export async function bulkSetClipStatus(status) {
   const ids = _visibleSelectedClips().map(c => c.id);
   if (!ids.length) return;
-  const res = await fetch('/api/clips/bulk-status', {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({clip_ids: ids, status}),
-  });
+  _setBulkActionsBusy(true);
+  let res;
+  try {
+    res = await fetch('/api/clips/bulk-status', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({clip_ids: ids, status}),
+    });
+  } finally {
+    _setBulkActionsBusy(false);
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     showToast(`Bulk update failed: ${formatApiError(err)}`, 'error');
@@ -174,16 +186,28 @@ function _doBulkExportClips(ids) {
   const qs = new URLSearchParams({clip_ids: ids.join(',')});
   AppState.selectedClipIds.clear();
   openLog();
+  // The server may skip already-exported clips, so report the actual exported
+  // count from its completion line rather than the requested selection size.
+  let exportedCount = null;
+  let skippedCount = 0;
   streamSSE(
     `/api/clips/bulk-export?${qs}`,
     async () => {
       await _reloadClipList(AppState.activeVideoId);
       loadVideos();
-      showToast(`Exported ${plural(ids.length, 'clip')}`);
+      const base = exportedCount != null
+        ? `Exported ${plural(exportedCount, 'clip')}`
+        : 'Export finished';
+      showToast(skippedCount ? `${base} (${skippedCount} already exported)` : base);
       SoundFx.play('export');
     },
     [{label: 'Export', patterns: ['Exporting', 'OK', 'Skipping']}],
     'Bulk Exporting',
+    false,
+    line => {
+      const m = /Export complete: (\d+) exported, (\d+) skipped/.exec(line);
+      if (m) { exportedCount = Number(m[1]); skippedCount = Number(m[2]); }
+    },
   );
 }
 

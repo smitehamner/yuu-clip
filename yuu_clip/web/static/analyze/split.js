@@ -7,7 +7,7 @@ import { setupRecordingPreview, releaseVideoRespectingPip } from '../core/previe
 import { showToast, netErrMsg, openLog, appendLog } from '../core/utils.js';
 import { showConfirm } from '../core/ui.js';
 import { streamSSE, _openSSE, INGEST_STEPS, _waitWhileAnalyzePaused } from '../core/jobs.js';
-import { loadVideos, _reanalyzeParams } from '../videos/videos.js';
+import { loadVideos, renderVideoDetail, _reanalyzeParams } from '../videos/videos.js';
 
 // ── shared live split-editor state ────────────────────────────────────────────
 // Read cross-module via ESM `import`: videos.js reads _splitPoints for the "has
@@ -821,11 +821,33 @@ export async function _reanalyzeSegmentsSequentially(segmentIds, index, params) 
       () => { loadVideos(); _reanalyzeSegmentsSequentially(segmentIds, index + 1, params); },
       INGEST_STEPS,
       `Segment ${index + 1}/${segmentIds.length}`,
-      false,
+      true,
       null,
       true,
+      {},
+      () => _abortReanalyzeChain(segmentIds, index),
     );
   }).catch(err => showToast(netErrMsg(err), 'error'));
+}
+
+// A segment in the split re-analyze chain failed to stream: release the analyzing
+// lock, refresh the sidebar + parent detail, and tell the user which segments were
+// left unanalyzed so they can re-run just those.
+function _abortReanalyzeChain(segmentIds, failedIndex) {
+  AppState.analyzeFilename = null;
+  loadVideos().then(() => {
+    if (AppState.activeVideoId == null) return;
+    const active = AppState.videos.find(x => x.id === AppState.activeVideoId);
+    if (active) renderVideoDetail(active, null);
+  });
+  const from = failedIndex + 1;
+  const to = segmentIds.length;
+  const which = from === to ? `segment ${from}` : `segments ${from}-${to}`;
+  showToast(
+    `Analysis stopped - ${which} of ${segmentIds.length} were not analyzed. `
+    + `Re-analyze them from each segment's Additional Actions.`,
+    'warning',
+  );
 }
 
 // ── pre-analysis split editor (inline in New Recording panel) ─────────────────

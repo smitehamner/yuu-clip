@@ -383,7 +383,11 @@ async function selectClip(id) {
       fetch(`/api/clips/${id}`),
       fetch(`/api/clips/${id}/media_url`),
     ]);
-    if (!clipRes.ok || !mediaRes.ok) throw new Error('Failed to load clip');
+    if (!clipRes.ok || !mediaRes.ok) {
+      const failed = !clipRes.ok ? clipRes : mediaRes;
+      const body = await failed.json().catch(() => ({}));
+      throw new Error(formatApiError(body) || `Server error ${failed.status}`);
+    }
     const clip  = await clipRes.json();
     const media = await mediaRes.json();
     const captionsUrl = media.has_captions ? `/api/clips/${id}/captions.vtt` : null;
@@ -392,8 +396,22 @@ async function selectClip(id) {
     renderPlayer(media.url, captionsUrl, id);
     renderDetail(clip);
   } catch (err) {
-    showToast(`Could not load clip: ${err.message}`, 'error');
+    _renderClipLoadError(id, err.message);
   }
+}
+
+// Persistent error state for a failed clip load: replaces the "Loading..."
+// placeholder (which would otherwise linger forever) with the server's reason and
+// a delegated Try-again control that re-runs selectClip for the same clip.
+function _renderClipLoadError(id, message) {
+  const detail = document.getElementById('detail');
+  detail.innerHTML = `
+    <div class="detail-empty" style="color:var(--muted)">
+      <p>Couldn't load this clip: ${escHtml(message || 'unknown error')}</p>
+      <button type="button" class="btn" id="clip-load-retry">Try again</button>
+    </div>`;
+  const retry = document.getElementById('clip-load-retry');
+  if (retry) retry.onclick = () => selectClip(id);
 }
 
 // Re-render the open clip's detail pane (excerpt, stale notice) without touching
@@ -433,8 +451,9 @@ function renderPlayer(url, captionsUrl, clipId) {
     vid.style.cssText = 'display:block;width:100%;max-height:var(--player-max-height, 42vh);object-fit:contain;background:#000';
     vid.onerror = async () => {
       const detail = await fetch(`/api/clips/${clipId}/preview`)
-        .then(r => r.json()).then(j => j.detail || 'unavailable').catch(() => 'unavailable');
-      wrap.innerHTML = `<div style="padding:24px;color:var(--muted);font-size:13px">Source video unavailable: ${escHtml(detail)}</div>`;
+        .then(r => r.json()).then(j => j.detail || '').catch(() => '');
+      const reason = detail ? `: ${escHtml(detail)}` : '.';
+      wrap.innerHTML = `<div style="padding:24px;color:var(--muted);font-size:13px">Source video unavailable${reason}</div>`;
     };
     const badge = document.createElement('span');
     badge.style.cssText = 'position:absolute;top:8px;left:8px;background:rgba(0,0,0,.65);color:var(--muted);font-size:11px;padding:3px 8px;border-radius:4px;pointer-events:none';
@@ -1308,14 +1327,16 @@ function _openClipDescKebab(clipId, btn, field) {
   const isEdited = isLong ? clip?.description_long_is_edited : clip?.description_is_edited;
   const original = isLong ? clip?.description_long_original  : clip?.description_original;
 
+  const saveField = async v => {
+    const ok = await _patchClipField(clipId, 'accept_edit', field,
+      isLong ? null : v, isLong ? v : null);
+    // On failure, reopen the editor with the typed text instead of repainting
+    // the old value via selectClip - the user's edit survives.
+    if (ok) selectClip(clipId);
+    else openFieldEditModal(editTitle, v, saveField);
+  };
   const items = [
-    { label: 'Edit', action: () =>
-      openFieldEditModal(editTitle, current || '', async v => {
-        await _patchClipField(clipId, 'accept_edit', field,
-          isLong ? null : v, isLong ? v : null);
-        selectClip(clipId);
-      })
-    },
+    { label: 'Edit', action: () => openFieldEditModal(editTitle, current || '', saveField) },
   ];
   if (isEdited) {
     items.push({ label: 'Revert to Original', action: () =>
@@ -1340,6 +1361,7 @@ async function _patchClipField(clipId, action, field, newDesc, newDescLong) {
     body: JSON.stringify({action, field, new_description: newDesc, new_description_long: newDescLong}),
   });
   if (!res.ok) showToast('Save failed', 'error');
+  return res.ok;
 }
 
 function clearDetail() {

@@ -47,9 +47,11 @@ async function loadVideos() {
     if (!videosRes.ok) throw new Error(`Server error ${videosRes.status}`);
     videos = await videosRes.json();
     AppState.sessions = sessions;
-  } catch (err) {
+  } catch (_) {
     document.getElementById('video-list').innerHTML =
-      `<li style="padding:10px 14px;color:var(--red)">Failed to load recordings: ${escHtml(String(err.message || err))}</li>`;
+      '<li style="padding:10px 14px;color:var(--red)">Couldn\'t load your recordings. '
+      + '<button type="button" class="btn ghost" id="videos-retry">Try again</button></li>';
+    document.getElementById('videos-retry')?.addEventListener('click', () => loadVideos());
     return;
   }
   AppState.videos = videos;
@@ -1085,14 +1087,16 @@ function _openVideoFieldKebab(videoId, btn, field) {
   const isEdited   = isTitle ? video?.title_is_edited   : video?.summary_is_edited;
   const original   = isTitle ? video?.title_original    : video?.summary_original;
 
+  const saveField = async v => {
+    const ok = await _patchVideoField(videoId, 'accept_edit', field,
+      isTitle ? v : null, isTitle ? null : v);
+    // On failure, reopen the editor with the text the user typed rather than
+    // refreshing it back to the old value - their edit isn't lost.
+    if (ok) await _refreshVideoDetail(videoId);
+    else openFieldEditModal(editTitle, v, saveField);
+  };
   const items = [
-    { label: 'Edit', action: () =>
-      openFieldEditModal(editTitle, current || '', async v => {
-        await _patchVideoField(videoId, 'accept_edit', field,
-          isTitle ? v : null, isTitle ? null : v);
-        await _refreshVideoDetail(videoId);
-      })
-    },
+    { label: 'Edit', action: () => openFieldEditModal(editTitle, current || '', saveField) },
   ];
   if (isEdited) {
     items.push({ label: 'Revert to Original', action: () =>
@@ -1118,6 +1122,7 @@ async function _patchVideoField(videoId, action, field, newTitle, newSummary) {
     body: JSON.stringify({action, field, new_title: newTitle, new_summary: newSummary}),
   });
   if (!res.ok) showToast('Save failed', 'error');
+  return res.ok;
 }
 
 async function onClipsSortChange() {

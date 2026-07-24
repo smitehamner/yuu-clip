@@ -123,7 +123,18 @@ export async function switchReelTab(tab) {
   } else {
     const layout = document.getElementById('reels-layout');
     layout.innerHTML = '<div class="reels-empty">Loading&#x2026;</div>';
-    const reels = await fetch('/api/demo/list').then(r => r.json()).catch(() => []);
+    let reels;
+    try {
+      const res = await fetch('/api/demo/list');
+      if (!res.ok) throw new Error(`Server error ${res.status}`);
+      reels = await res.json();
+    } catch (_) {
+      layout.innerHTML =
+        '<div class="reels-empty">Couldn\'t load your highlight reels. '
+        + '<button type="button" class="btn ghost" id="reels-retry">Try again</button></div>';
+      document.getElementById('reels-retry')?.addEventListener('click', () => switchReelTab('view'));
+      return;
+    }
     if (!reels.length) {
       layout.innerHTML = '<div class="reels-empty">No highlight reels yet - build one first.</div>';
       return;
@@ -249,15 +260,18 @@ async function _refetchReelPool() {
   }
   let fresh;
   try {
-    fresh = await fetch(`/api/demo/approved-clips${_reelPoolQs()}`).then(r => r.json());
+    const res = await fetch(`/api/demo/approved-clips${_reelPoolQs()}`);
+    if (!res.ok) throw new Error(`Server error ${res.status}`);
+    fresh = await res.json();
     _reelBuildLoaded = true;
   } catch {
-    fresh = null;
-  }
-  if (!fresh) {
     _reelClips = [];
     _reelBuildLoaded = false;
-    renderReelClipList();
+    listEl.innerHTML =
+      '<div style="padding:16px;text-align:center;color:var(--muted);font-size:12px">'
+      + 'Couldn\'t load approved clips. '
+      + '<button type="button" class="btn ghost" id="reel-pool-retry">Try again</button></div>';
+    document.getElementById('reel-pool-retry')?.addEventListener('click', () => _refetchReelPool());
     updateReelEstimate();
     return;
   }

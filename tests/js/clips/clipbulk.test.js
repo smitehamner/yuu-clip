@@ -108,6 +108,29 @@ describe('bulkSetClipStatus', () => {
     await bulkSetClipStatus('approved');
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  // M5: bulk approve/reject gave no in-flight feedback. The toolbar buttons must
+  // be disabled while the (possibly slow, DB-lock-retrying) request is in flight
+  // and re-enabled when it resolves.
+  it('disables the bulk toolbar buttons while the request is in flight', async () => {
+    document.body.innerHTML =
+      '<div class="clip-bulk-actions"><button data-act="bulk-approve">Approve</button>'
+      + '<button data-act="bulk-reject">Reject</button></div>';
+    AppState.selectedClipIds = new Set([1, 2]);
+
+    let resolveFetch;
+    const fetchMock = vi.fn(() => new Promise(r => { resolveFetch = r; }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const promise = bulkSetClipStatus('approved');
+    await Promise.resolve();
+    const buttons = [...document.querySelectorAll('.clip-bulk-actions button')];
+    expect(buttons.every(b => b.disabled)).toBe(true);
+
+    resolveFetch(okJson({ previous: { 1: 'pending', 2: 'pending' } }));
+    await promise;
+    expect(buttons.every(b => b.disabled)).toBe(false);
+  });
 });
 
 describe('bulkDeleteClips', () => {
