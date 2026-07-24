@@ -312,39 +312,44 @@ function registerWizardIPC(wizardWin) {
   ipcMain.removeAllListeners('setup:restart-app');
 
   ipcMain.handle('setup:get-status', async () => {
-    refreshPathFromRegistry();
-    const eCfg = loadElectronConfig();
-    const pDir = eCfg.projectDir || DEFAULT_PROJECT_DIR;
+    try {
+      refreshPathFromRegistry();
+      const eCfg = loadElectronConfig();
+      const pDir = eCfg.projectDir || DEFAULT_PROJECT_DIR;
 
-    let projCfg = {};
-    try { projCfg = JSON.parse(fs.readFileSync(path.join(pDir, '.yuu-clip', 'config.json'), 'utf8')); } catch (_) {}
+      let projCfg = {};
+      try { projCfg = JSON.parse(fs.readFileSync(path.join(pDir, '.yuu-clip', 'config.json'), 'utf8')); } catch (_) {}
 
-    const ffmpegOk      = checkFFmpeg();
-    const gpu           = detectGPU();
-    const cuda          = detectCUDA();
-    const cudaLibsInstalled = await checkVenvModule(WIZARD_INSTALLABLE['cuda-libs'].importName);
+      const ffmpegOk      = checkFFmpeg();
+      const gpu           = detectGPU();
+      const cuda          = detectCUDA();
+      const cudaLibsInstalled = await checkVenvModule(WIZARD_INSTALLABLE['cuda-libs'].importName);
 
-    const existingModelPath = projCfg.llm_model_path || '';
+      const existingModelPath = projCfg.llm_model_path || '';
 
-    let freeDiskGB;
-    try { freeDiskGB = diskSpace.freeBytesAt(pDir) / 1e9; } catch (_) { freeDiskGB = undefined; }
+      let freeDiskGB;
+      try { freeDiskGB = diskSpace.freeBytesAt(pDir) / 1e9; } catch (_) { freeDiskGB = undefined; }
 
-    logSetup(`Status check - FFmpeg:${ffmpegOk} GPU:${gpu.name} CUDA:${cuda.available} cudaLibs:${cudaLibsInstalled}`);
-    return {
-      ffmpegOk,
-      ffmpegBundled: app.isPackaged,
-      gpu, cuda,
-      cudaLibsInstalled,
-      recommendedWhisper: recommendWhisperModel(gpu.vramMB),
-      localModelRecommendation: recommendLocalModel({ vramMB: gpu.vramMB, freeDiskGB, gpuVendor: gpu.vendor }),
-      whisperModel:  projCfg.whisper_model || '',
-      projectDir: pDir,
-      aiPrivacyMode: projCfg.ai_privacy_mode || 'local_only',
-      llmBackend:    'llamacpp',
-      llmModelPath:  existingModelPath,
-      whisperLanguage:    projCfg.whisper_language || '',
-      contentPreset:      projCfg.content_preset || 'generic',
-    };
+      logSetup(`Status check - FFmpeg:${ffmpegOk} GPU:${gpu.name} CUDA:${cuda.available} cudaLibs:${cudaLibsInstalled}`);
+      return {
+        ffmpegOk,
+        ffmpegBundled: app.isPackaged,
+        gpu, cuda,
+        cudaLibsInstalled,
+        recommendedWhisper: recommendWhisperModel(gpu.vramMB),
+        localModelRecommendation: recommendLocalModel({ vramMB: gpu.vramMB, freeDiskGB, gpuVendor: gpu.vendor }),
+        whisperModel:  projCfg.whisper_model || '',
+        projectDir: pDir,
+        aiPrivacyMode: projCfg.ai_privacy_mode || 'local_only',
+        llmBackend:    'llamacpp',
+        llmModelPath:  existingModelPath,
+        whisperLanguage:    projCfg.whisper_language || '',
+        contentPreset:      projCfg.content_preset || 'generic',
+      };
+    } catch (err) {
+      logSetup(`Status check failed: ${err.message}`);
+      throw err;
+    }
   });
 
   // Install an optional pip package into the venv, streaming condensed pip

@@ -448,14 +448,13 @@ Chromium DOM text rendered as UTF-8 - the anchored 2026-07-09 browser-DOM ellips
 decision applies, not the cp1252 console rule. `recommend-model.js` / `whisper-select.js`
 are pure data transforms with no error paths. No gap.
 
-### DEFERRED (out of scope - `main.js` not in this review's file scope)
-`main.js` `setup:get-status` logs a status line via `logSetup` only on the success path
-(line 298); if it throws before that (e.g. `detectGPU` raising), the renderer catches and
-shows "Setup check failed" with the error text, but nothing is written to the app log. A
-one-line `try/catch + logSetup` around the handler body would make that transient failure
-diagnosable after the wizard window closes. Minor; `main.js` is outside the Python +
-wizard-JS scope handed to this pass, and the error is at least shown to the user. Flagged
-for the wizard owner.
+### RESOLVED 2026-07-24 - `main.js` `setup:get-status` now logs its failure path too
+This entry originally flagged that `setup:get-status` logged a status line via `logSetup`
+only on its success path (was line 298, now 332); if it threw before that (e.g. `detectGPU`
+raising), the renderer showed "Setup check failed" but nothing was written to the app log.
+Fixed by wrapping the handler body in `try/catch` with a `logSetup('Status check failed: ...')`
+call on the failure path, matching the sibling `setup:*` handlers in the same file. No longer
+open; do not re-flag.
 
 ---
 
@@ -556,15 +555,15 @@ ownerless aging TODO. All earn their place.
 
 ### `llm_client.available()` / `_llamacpp_capabilities` genericized their missing-file strings - path deliberately NOT re-added to the file log
 Decision: Keep the missing-model strings path-free, in the returned reason **and** in the
-log line that carries it (`scoring/llm.py:693` `log.warning("LLM scoring disabled: %s",
+log line that carries it (`scoring/llm.py:743` `log.warning("LLM scoring disabled: %s",
 reason)`).
 Rationale: The reason string renders in the UI (clip descriptions, analyze warnings, and
 any screenshot), so it was deliberately changed to say "The set-up local model file is
 missing - re-download it under Settings -> LLM scoring." instead of leaking the absolute
 `llm_model_path` (the user's home dir). That same string is what the file logger records,
 so the log no longer names the path. This is NOT a diagnosability gap and must not be
-"fixed" by re-adding the path to the log: the condition itself is logged clearly (LLM
-scoring disabled + the missing-file reason), the exact path lives in `config.json`
+"fixed" by re-adding the path to the log: the condition itself is logged clearly (LLM scoring
+disabled + the missing-file reason), the exact path lives in `config.json`
 (`llm_model_path`) one file away on the single-user machine, and re-adding an absolute
 home-dir path to `.yuu-clip/yuu-clip.log` would contradict the no-sensitive-paths-in-logs
 rule. Verified no other site in `yuu_clip/` logs the model path. Covered by
@@ -583,16 +582,11 @@ console strings are cp1252-safe (no em-dash/emoji/box-drawing). Application-styl
 (`logging`/`_log`) would be the wrong tool for one-shot dev ergonomics.
 
 ### `main.esm.js` residual `window.X = X` shim - kept in full
-Decision: Keep every current shim entry; do not drain.
-Rationale: The residual shim (and split.js's live get/set accessor bridge) is the
-DELIBERATELY DEFERRED "vitest + happy-dom follow-on" workstream - converting remaining
-`window.foo` read sites to imports and deleting the `page.evaluate` internal pokes. Each
-entry's per-section comment already documents its exact surviving reader (a still-`window.*`
-cross-module read or a named `tests/ui/*.py` `page.evaluate`). Draining it wholesale is a
-large behavior-adjacent change out of this phase's scope; removing an individual entry is
-only safe with an exhaustive whole-`static/` + test grep proving no reader, which is the
-same sweep the deferred workstream owns. No entry was found provably dead beyond those the
-comments already record as dropped. Revisit as that workstream, not piecemeal here.
+**Superseded by the "Phase 4 refactor - window.X shim-drain slice (2026-07-23)" entry
+above** ("GROUP 1 shim lines all verified alive; GROUP 2 kept whole - not drained"), which
+re-verifies this same keep-as-is call against the current GROUP 1/GROUP 2 structure - the
+per-section comment structure this entry originally described no longer exists. See that
+entry for the current rationale.
 
 ### `bundle.py` uses `subprocess.run` while `testjs.py` uses `_base.run_and_tee`
 Decision: Keep the two invocation styles.
@@ -643,13 +637,15 @@ drops a real license file** (worse than a cosmetic over-match), and no genuine
 license text ever carries those extensions, so a suffix blocklist is the
 lower-risk guard. Covered by `TestIsLicenseFile`.
 
-### `app.css` `--on-warning` token - kept despite losing its last consumer
+### `shared/tokens.css` `--on-warning` token - kept despite losing its last consumer
 
 The Remote LLM badge that used `--on-warning` was deleted with the Claude
 backend. The token is now unconsumed, but every theme block must define the full
 token set (the theme-invariant test asserts this), so removing it from one block
 would require removing it from all and could reopen a contrast pairing later.
-**Kept; only its stale "Remote LLM badge" comment was removed.**
+**Kept; only its stale "Remote LLM badge" comment was removed.** (The token later moved
+from `app.css` into the shared `shared/tokens.css` file - `:root`/dark/light lines
+34/90/124 - when the theme tokens were centralized; still zero consumers.)
 
 ### analyze-frames job made non-cancellable (SUPERSEDED same day)
 
@@ -703,9 +699,11 @@ not a bug fix.
   drawtext (the recorded Phase 6 keep).
 
 Not swept this session (out of the P2 scope handed to this pass, deferred not declined):
-`dev/procs.py` `parse_cim_json` silent `[]` on bad JSON, the Stage 3 `_window_rms_db`
-vectorization (perf), and Theme F config-JSON tolerance (`_sanitize_title_card_fields`
-type-tolerance, `contexts.py` accessor guards).
+the Stage 3 `_window_rms_db` vectorization (perf), and Theme F config-JSON tolerance
+(`_sanitize_title_card_fields` type-tolerance, `contexts.py` accessor guards). (`dev/procs.py`
+`parse_cim_json`'s silent `[]` on bad JSON, also originally on this list, has since been
+fixed - it now catches `JSONDecodeError` and logs a warning instead of swallowing silently;
+pruned here, do not re-flag.)
 
 ---
 
@@ -849,18 +847,8 @@ font) is satisfied by that co-location - the license file beside the font is the
 satisfaction, so no header comment or NOTICE indirection is warranted. The app.css
 `@font-face` comment already records the OFL provenance and swap procedure. OBLIGATION to
 carry forward: any distribution that ships the woff2 MUST ship `OFL.txt` alongside it -
-see the deferred packaging finding below, which currently breaks this.
-
-### DEFERRED (not a docs fix - flagged for the build owner)
-`pyproject.toml` `[tool.setuptools.package-data]` uses `yuu_clip = ["web/static/*"]`, a
-single-level glob that does NOT recurse into `web/static/fonts/`. Confirmed empty in both
-`build/lib/.../web/static/fonts/` and the prebuilt-env site-packages. Consequences: in any
-packaged/installed build (not dev, which serves from source) `/static/fonts/oxanium.woff2`
-404s and `--font-display` silently falls back to `system-ui`, so the retheme's display
-face is missing; and `OFL.txt` does not travel with the font, leaving OFL condition 2
-unmet in the shipped artifact. Fix is a one-line packaging change (e.g. `web/static/**/*`
-or add `web/static/fonts/*`), but it is a build change needing a rebuild + package test,
-outside this docs phase's scope. Needs a human/build-owner decision.
+`pyproject.toml`'s `[tool.setuptools.package-data]` now globs `web/static/fonts/*`
+explicitly (fixed 2026-07-13, same window), so this is satisfied in packaged builds too.
 
 ---
 
@@ -963,7 +951,7 @@ logs the detail), so no cp1252 risk. Out of this window's changed-behavior scope
 
 ### `reel.py` title-card text (`… ` truncation marker, `·` separator) and `contexts.py` "Pokemon"
 Decision: Keep as-is.
-Rationale: The `reel.py:77` ellipsis and `reel.py:123` middle-dot are *rendered into the video
+Rationale: The `reel.py:78` ellipsis and `reel.py:124` middle-dot are *rendered into the video
 title card* (ffmpeg drawtext data), not console output - changing them changes on-screen output,
 not a comment. `contexts.py`'s "Pokemon" (with the accented e) is proper-noun content inside an
 LLM prompt string, correct as spelled; it is data, not a comment.
@@ -974,14 +962,6 @@ Rationale: These are rendered-as-UTF-8 docs, not console output; they use `→`,
 consistently throughout. New copy added this window (the Word highlight bullet) matches the
 file's existing arrow style rather than fighting it. The cp1252 rule targets console/log
 strings, not rendered markup.
-
-### FLAGGED (follow-up, not fixed here)
-The Feature-map header comments in the **other 16 route files** (`analyze`, `backup`,
-`content_presets`, `contexts`, `export_presets`, `imports`, `name_corrections`, `profiles`,
-`projects`, `reel`, `reveal`, `scoring`, `sessions`, `sounds`, `speakers`, `videos`) still cite
-the old flat `tests/test_*.py` paths after this window's `tests/{unit,integration,ui}/` split.
-Same mechanical fix as the five corrected here, but beyond this phase's changed-source scope -
-best done as one sweep with each file's two test paths resolved to its tier.
 
 ---
 
@@ -1086,27 +1066,6 @@ still must be ASCII.
 
 ---
 
-## Docs review after Ollama removal - archive Ollama mentions kept (2026-07-09)
-
-Phase 6 (docs and comments) of the code-quality review over the bundled-Vulkan
-llama.cpp migration, which removed the Ollama backend entirely. `docs/project/
-COMPLETED.md` and `docs/project/COMPLETED-archive.md` still mention Ollama in many
-places. These are **kept as-is**: they are dated ship-record entries describing work
-as it shipped at the time (e.g. the old `ollama_model` / `ollama_vision_model` split,
-the disk-precheck for `ollama pull`). A ship log is history - rewriting it to hide a
-backend that used to exist would falsify the record. The authoritative
-roadmap/COMPLETED/FEATURES reconciliation is a separate later phase. Live docs
-(CLAUDE.md, GLOSSARY.md, README.md) were confirmed Ollama-free (the one stale
-licensing example, "Ollama tags", was removed from CLAUDE.md). Not re-flag material.
-
-The new-module WHY comments (gpu-layers auto-fit OOM note in `scoring/
-llamacpp_server.py`, the Windows orphan-reaping backstop, the "old in-process wheel
-was CPU-only" migration-rationale comments in `config.py` / scoring) were reviewed and
-kept - they explain non-obvious invariants and the reason today's code differs from
-the removed wheel, exactly what a comment is for.
-
----
-
 ## Logging review of the llama-server pool - deliberate silences (2026-07-09)
 
 Phase 5 (logging coverage) of the code-quality review over the bundled-Vulkan
@@ -1161,15 +1120,16 @@ packaging-strategy-overhaul changes (`docs/project/COMPLETED.md` section
 ### `routes/llm.py` capability-tier builder functions
 
 Five small functions build the tier objects returned by
-`/api/capabilities/tiers` (one per capability: speaker labels, laugh/audio-event,
-similarity, vertical framing, vision). They have the same shape - check
+`/api/capabilities/tiers` (one per capability: `_similarity_tier`,
+`_descriptions_tier`, `_speaker_labels_tier`, `_audio_events_tier`,
+`_vertical_framing_tier`; `llm.py:192-305`). They have the same shape - check
 availability, report installed/missing, pick a status string - which looks like
 a candidate for one generic `_build_tier(...)` helper.
 
 **Kept separate.** The shared shape is coincidental, not shared knowledge: each
 tier's availability check is a different backend call, the status strings and
 "what this unlocks" copy are capability-specific, and the two are added to
-independently (a change to how vision reports readiness has no reason to touch
+independently (a change to how descriptions reports readiness has no reason to touch
 how speaker labels does). Collapsing them into one parameterized helper would
 trade five short, readable functions for one longer function with a branch per
 capability - worse for a newcomer trying to find "how does the audio-event tier
@@ -1196,20 +1156,9 @@ Revisit if a third scorer needs the same pattern.
 
 ## SPA decomposition Stage 05 - `index.html` to server-side partials: NO-GO (2026-07-05)
 
-The `spa-decomposition` plan's stage 05 was written as an explicit go/no-go
-gate: after stages 01-04 pulled `settings.js` and `videos.js` into cohesive
-modules, would splitting the still-large `index.html` into server-side-included
-partials be worth it too? Landed as `9d2ebdc` - **declined**.
-
-The boundaries do split cleanly (the file is already banded into clearly
-commented sections mirroring the JS modules). But a bespoke include layer earns
-its keep by solving a real problem - reuse across pages, or a file too large to
-navigate - and neither applies here: this is deliberately a **no-build** SPA
-with a single served page, the sections don't repeat anywhere else, and the
-existing section-divider comments already give a newcomer the same "where am I"
-orientation a partial-file boundary would. Introducing include semantics (a
-templating step, or a means of splicing partials at request time) adds a layer
-of indirection - "which partial renders this element" - for markup that is
-already easy to jump around with a plain text search. Revisit only if
-`index.html` grows enough that browsing it becomes the bottleneck, not just its
-line count.
+**SUPERSEDED 2026-07-17.** The stage-05 no-go call was reversed: `index.html` is now the
+htmlstitch build from `index.src.html` + partials (`yuu_clip/dev/htmlstitch.py`,
+`tests/unit/test_index_html_drift.py`), so the "no-build SPA" rationale this entry
+recorded no longer holds on any point. Kept only as a pointer so a future review does not
+mistake the htmlstitch partials build for reintroducing something already rejected - it
+isn't; the rejection was reversed by design.

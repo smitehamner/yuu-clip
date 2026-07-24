@@ -88,8 +88,8 @@ directly on any OS:
 | `yuu-dev test-api` | Unit + integration together; no live server needed | Before submitting any backend change |
 | `yuu-dev test-all` | Every server-free tier in one go: js + unit + integration (not ui) | A broad pre-PR sweep |
 | `yuu-dev test-ui` | Playwright UI suite; stands up its own disposable fixture server (nothing else needs to be running) | Before submitting a frontend change |
-| `yuu-dev bundle` | Rebuild the committed frontend artifacts: `bundle.esm.js`, the wizard's `setup.bundle.js`, and the stitched `index.html` | After editing any `static/*.js`, a partial under `static/partials/`, or `index.src.html` |
-| `yuu-dev shared-data` | Regenerate the `catalog-data.json` that both the web Settings and the setup wizard read (two committed copies) | After editing `model_catalog.py`, `config.py`, `content_presets.py`, or `whisper_catalog.py` |
+| `yuu-dev bundle` | Rebuild the committed frontend artifacts: `bundle.esm.js`, the wizard's `setup.bundle.js`, and the stitched `index.html`; also regenerates `shared-data` first | After editing any `static/*.js`, a partial under `static/partials/`, `index.src.html`, or one of the shared-data source modules below |
+| `yuu-dev shared-data` | Regenerate the `catalog-data.json` that both the web Settings and the setup wizard read (two committed copies) | Rarely needed directly - `yuu-dev bundle` already runs it; use this only for a data-only edit to `model_catalog.py` / `config.py` / `content_presets.py` / `whisper_catalog.py` where nothing else needs rebundling |
 | `yuu-dev fixture-project` | Build a seeded throwaway project under `build/fixture-project` | To browse a seeded project interactively: `yuu-dev serve --project build/fixture-project` |
 | `yuu-dev logs --follow` | Tail the server log | Debugging a running server |
 
