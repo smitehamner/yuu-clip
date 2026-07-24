@@ -11,6 +11,46 @@ same thing without the context. Most recent first.
 
 ---
 
+## Refactor-for-quality WS-C - Python behavior-preserving extractions close-out (2026-07-23)
+
+WS-C (7 behavior-preserving Python extractions, C1-C7) shipped one item at a time with a
+full `yuu-dev test-api` gate between each (all green: 3120 -> 3161 passed) plus a final
+`yuu-dev test-system` real-pipeline pass. See
+`d:\1\Hamner\Code\000_project_planning\finalized_plans\yuu-clip_plans\plans\REFACTOR-FOR-QUALITY-PLAN-2026-07-23.md`
+for the per-item ledger and commit SHAs. No plan item was dropped or improvised. Recorded
+here per the close-out convention:
+
+### `web/analyze_job.py`'s 2 SSE frames were deliberately NOT converted to `sse_event` (C4)
+Decision: Leave `analyze_job.py:189,198` as raw `f"data: {json.dumps(...)}\n\n"`.
+Rationale: C4's stated scope is exactly the 5 route files
+`routes/{videos,scoring,sessions,speakers,clips/export}.py` and its 66-frame count matched
+those files exactly. `web/analyze_job.py` (the AnalyzeJob replay buffer) is a separate
+module outside that enumerated scope; converting it would be scope creep beyond the plan
+item. The new `web/sse.py::sse_event` helper is the single definition of the frame contract
+and `analyze_job.py` could adopt it in a future pass - it is not an inconsistency to
+re-flag as a bug, just an unconverted call site left by an intentionally-scoped mechanical
+substitution. (No circular-import blocker was found; this is a scope decision, not a
+technical one.)
+
+### C5's per-caller `error_log_prefix` string is a deliberate tradeoff, not naming drift
+Decision: `_score_one_clip` takes a preformatted `error_log_prefix` string from each caller
+rather than a structured `(clip_id, video_id)` pair.
+Rationale: the two rescore routes logged different formats on failure - the batch route
+`"rescore_clips: clip N failed for video M: <exc>"` (with the video id) and the single-clip
+route `"rescore_clip: clip N failed: <exc>"` (without). Passing each caller's fully-formatted
+prefix keeps both log lines byte-identical to the pre-refactor output; a structured param
+would have forced one unified format and silently changed one of the two log lines. The
+extraction was behavior-preserving including diagnostic log text, so the string param is the
+faithful choice.
+
+### The URLSearchParams builders (reel.js/clipexport.js/exporteditor.js) are NOT part of WS-C
+Deferred to the WS-D (frontend) session's close-out, since they are JS modules WS-C never
+touched. Recorded here only so the pointer is not lost: the plan's "Deliberately out of
+scope" list keeps them separate (different callers, different fields), same basis as the
+anchored `routes/llm.py` capability-tier keep.
+
+---
+
 ## Refactor-for-quality WS-A+B - test-tier rebalance close-out (2026-07-23)
 
 WS-A (10 test-file splits moving pure-by-dependency tests from `tests/integration`
