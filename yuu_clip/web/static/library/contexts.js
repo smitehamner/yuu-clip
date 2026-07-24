@@ -3,7 +3,7 @@
 import { AppState } from '../core/state.js';
 import { escHtml, formatApiError, plural } from '../core/format.js';
 import { showConfirm, openDiffModal } from '../core/ui.js';
-import { showToast, openLog, appendLog, _diarizationReadiness, _diarizationNoteHtml } from '../core/utils.js';
+import { showToast, openLog, appendLog, _diarizationReadiness, _diarizationNoteHtml, _exportRetranscribeDefault } from '../core/utils.js';
 import {
   _blockedByAnalyze, _openSSE, streamSSE, setJobCancel, _setActiveStream, _clearActiveStream,
   _supersedeActiveStream, startJobUI, updateJobUI, endJobUI, SCORE_STEPS,
@@ -803,8 +803,19 @@ export function openRetranscribeModal(clipId) {
   _retranscribeOpener = document.activeElement;
   _retranscribeClipId = clipId;
   _loadRetranscribeSpeakerDefault();
+  _seedRetranscribeModel();
   document.getElementById('retranscribe-modal').classList.add('visible');
   setTimeout(() => document.getElementById('retranscribe-model')?.focus(), 50);
+}
+
+// Default the model dropdown to the configured export_retranscribe_model (like the
+// two export flows) instead of the hardcoded large-v3, so a user who set a lighter
+// default isn't silently pushed onto the heaviest model here.
+async function _seedRetranscribeModel() {
+  const select = document.getElementById('retranscribe-model');
+  if (!select) return;
+  const { model } = await _exportRetranscribeDefault(AppState.activeClipData?.video_id);
+  if (model && [...select.options].some(o => o.value === model)) select.value = model;
 }
 
 export function closeRetranscribeModal() {

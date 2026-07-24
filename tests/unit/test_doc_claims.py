@@ -26,7 +26,12 @@ AXES = ("Funny", "Dramatic", "Action", "Visual")
 
 def _getting_started_modal(html: str) -> str:
     start = html.index('id="getting-started-modal"')
-    end = html.index("getting-started-close-btn", start)
+    # Bound by the start of the next modal (the getting-started modal no longer has
+    # a unique bottom-close id to slice on); fall back to end-of-doc if it is last.
+    try:
+        end = html.index('class="modal-bg"', start + 1)
+    except ValueError:
+        end = len(html)
     return html[start:end]
 
 

@@ -63,7 +63,7 @@ class TestPageLoad:
         page.click("#hamburger-item-about")
         page.wait_for_selector("#about-modal.visible")
         expect(page.locator("#about-version")).to_have_text(re.compile(r"^Version v\d"))
-        page.click("#about-modal-close-btn")
+        page.click("#about-modal-x-btn")
 
 
 @skip_no_server

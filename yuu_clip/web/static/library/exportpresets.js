@@ -10,6 +10,7 @@
 import { AppState } from '../core/state.js';
 import { escHtml, formatApiError } from '../core/format.js';
 import { showToast } from '../core/utils.js';
+import { showUndoToast } from '../core/ui.js';
 
 let _draftSeq = 0;
 
@@ -187,6 +188,7 @@ async function _deleteExportPresetRow(rowEl) {
     _renderExportPresetRows();
     return;
   }
+  const removed = AppState.exportPresets.custom.find(p => p.name === key);
   const res = await fetch(`/api/export-presets/${encodeURIComponent(key)}`, {method: 'DELETE'});
   if (!res.ok) {
     const e = await res.json().catch(() => ({}));
@@ -195,7 +197,24 @@ async function _deleteExportPresetRow(rowEl) {
   }
   AppState.exportPresets.custom = AppState.exportPresets.custom.filter(p => p.name !== key);
   _renderExportPresetRows();
-  showToast('Export preset deleted');
+  if (removed) {
+    showUndoToast(`Deleted export preset "${removed.label || removed.name}"`, () => _restoreExportPreset(removed));
+  }
+}
+
+// Re-create a just-deleted custom export preset from its captured fields.
+async function _restoreExportPreset(preset) {
+  const body = {
+    label: preset.label, container: preset.container, height: preset.height ?? null,
+    crf: preset.crf ?? null, target_size_mb: preset.target_size_mb ?? null,
+    audio_kbps: preset.audio_kbps ?? 128, vertical: !!preset.vertical,
+  };
+  const res = await fetch('/api/export-presets', {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body),
+  });
+  if (!res.ok) { showToast('Could not restore export preset', 'error'); return; }
+  AppState.exportPresets.custom.push(await res.json());
+  _renderExportPresetRows();
 }
 
 function addExportPresetRow() {

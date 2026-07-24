@@ -1083,7 +1083,7 @@
   <div class="sidebar">
     <div class="sidebar-group videos-group">
       <div class="clips-section-header">
-        <div class="section-toggle"><span class="section-toggle-btn active">Recordings</span></div>
+        <span>Recordings</span>
         <div style="display:flex;align-items:center;gap:4px">
           <select id="videos-sort" class="clips-sort-select" aria-label="Sort recordings by" onchange="setVideoSort(this.value)">
             <option value="recent">&#128338; Recent</option>
@@ -1389,7 +1389,8 @@
   </div>
 
   <div style="display:flex;flex-direction:column;gap:10px;padding-top:4px">
-    <div id="split-action-options" role="radiogroup" aria-label="What to do after splitting"
+    <div id="split-action-label" style="font-weight:600;font-size:12px;color:var(--text)">After splitting:</div>
+    <div id="split-action-options" role="radiogroup" aria-labelledby="split-action-label"
          style="display:flex;flex-direction:column;gap:6px;font-size:13px">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
         <input type="radio" name="split-action" value="partition" checked>
@@ -1405,7 +1406,7 @@
       </label>
     </div>
     <div style="display:flex;gap:10px">
-      <button class="btn primary" id="btn-split-confirm">Confirm</button>
+      <button class="btn primary" id="btn-split-confirm">Split recording</button>
       <button class="btn" onclick="PanelNav.close()">Cancel</button>
     </div>
   </div>
@@ -1476,9 +1477,6 @@
       <li>Click <em>World Contexts</em> in the top bar to add people and setting info before scoring</li>
     </ul>
 
-    <div class="modal-actions">
-      <button class="btn" id="getting-started-close-btn">Close</button>
-    </div>
   </div>
 </div>
 
@@ -1545,9 +1543,6 @@
         <tr><td>nvidia-cublas-cu12 / nvidia-cudnn-cu12</td><td>GPU acceleration for transcription (NVIDIA)</td><td>NVIDIA proprietary (redistributable)</td></tr>
       </tbody>
     </table>
-    <div class="modal-actions" style="margin-top:16px">
-      <button class="btn" id="about-modal-close-btn">Close</button>
-    </div>
   </div>
 </div>
 
@@ -2084,6 +2079,7 @@
           <input class="timing-input" id="export-trim-end" value="+0.0" placeholder="+0.0" title="End offset: ±seconds from clip boundary, or absolute M:SS">
         </div>
         <div style="font-size:11px;color:var(--muted);margin-top:4px">e.g. <code>-2.0</code> starts 2 s earlier · <code>1:30</code> sets absolute time. Want to trim visually with the transcript, frame a vertical crop, or preview captions first? Close this and use <strong>Edit &amp; export</strong> instead.</div>
+        <div id="export-trim-error" role="alert" style="display:none;font-size:11px;color:var(--red);margin-top:4px"></div>
       </div>
       <div id="export-mode-summary" style="font-size:12px;border-top:1px solid var(--border);padding-top:10px"></div>
     </div>
@@ -2167,7 +2163,10 @@
 <!-- Controls Modal -->
 <div class="modal-bg" id="controls-modal">
   <div class="modal" style="max-width:400px">
-    <h3>Keyboard Controls</h3>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <h3 style="margin:0">Keyboard Controls</h3>
+      <button class="btn ghost" style="padding:4px 8px" id="controls-modal-close-btn" aria-label="Close">&#x2715;</button>
+    </div>
     <table style="width:100%;font-size:12px;border-collapse:collapse;color:var(--muted)">
       <tbody>
         <tr><td style="padding:4px 0"><kbd>A</kbd></td><td>Approve selected clip</td></tr>
@@ -2182,9 +2181,6 @@
         <tr><td><kbd>Esc</kbd></td><td>Close the topmost window</td></tr>
       </tbody>
     </table>
-    <div class="modal-actions" style="margin-top:16px">
-      <button class="btn" id="controls-modal-close-btn">Close</button>
-    </div>
   </div>
 </div>
 

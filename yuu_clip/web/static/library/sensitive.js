@@ -10,6 +10,7 @@
 import { AppState } from '../core/state.js';
 import { plural, escHtml, formatApiError } from '../core/format.js';
 import { showToast } from '../core/utils.js';
+import { showUndoToast } from '../core/ui.js';
 import { ensureContexts, _termContextOptions, _renderTermGroups } from './contexts.js';
 import { fetchClipsList } from '../videos/videos.js';
 import { _renderClips, selectClip } from '../clips/clips.js';
@@ -85,16 +86,34 @@ async function _deleteSensitiveTermRow(rowEl) {
     _renderSensitiveTermRows();
     return;
   }
+  const removed = AppState.sensitiveTerms.find(t => String(t.id) === key);
   const res = await fetch(`/api/sensitive-terms/${key}`, {method: 'DELETE'});
   if (!res.ok) {
     const e = await res.json().catch(() => ({}));
     showToast(formatApiError(e) || 'Could not delete sensitive term', 'error');
     return;
   }
-  const {clips_flagged} = await res.json();
+  await res.json();
   AppState.sensitiveTerms = AppState.sensitiveTerms.filter(t => String(t.id) !== key);
   _renderSensitiveTermRows();
-  showToast(`Sensitive term deleted - ${plural(clips_flagged, 'clip')} flagged`);
+  _refreshActiveVideoClipsForSensitive();
+  if (removed) {
+    showUndoToast(`Deleted sensitive term "${removed.term}"`, () => _restoreSensitiveTerm(removed));
+  }
+}
+
+// Re-create a just-deleted sensitive term from its captured fields.
+async function _restoreSensitiveTerm(term) {
+  const body = {
+    term: term.term, category: term.category, match_mode: term.match_mode,
+    enabled: term.enabled, context_slug: term.context_slug ?? null,
+  };
+  const res = await fetch('/api/sensitive-terms', {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body),
+  });
+  if (!res.ok) { showToast('Could not restore sensitive term', 'error'); return; }
+  AppState.sensitiveTerms.push(await res.json());
+  _renderSensitiveTermRows();
   _refreshActiveVideoClipsForSensitive();
 }
 

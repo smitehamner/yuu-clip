@@ -51,7 +51,8 @@
   </div>
 
   <div style="display:flex;flex-direction:column;gap:10px;padding-top:4px">
-    <div id="split-action-options" role="radiogroup" aria-label="What to do after splitting"
+    <div id="split-action-label" style="font-weight:600;font-size:12px;color:var(--text)">After splitting:</div>
+    <div id="split-action-options" role="radiogroup" aria-labelledby="split-action-label"
          style="display:flex;flex-direction:column;gap:6px;font-size:13px">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
         <input type="radio" name="split-action" value="partition" checked>
@@ -67,7 +68,7 @@
       </label>
     </div>
     <div style="display:flex;gap:10px">
-      <button class="btn primary" id="btn-split-confirm">Confirm</button>
+      <button class="btn primary" id="btn-split-confirm">Split recording</button>
       <button class="btn" onclick="PanelNav.close()">Cancel</button>
     </div>
   </div>

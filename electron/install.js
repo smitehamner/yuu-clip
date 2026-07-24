@@ -13,9 +13,10 @@ const path      = require('path');
 const { VENV_PYTHON } = require('./constants');
 
 // Async command runner - keeps the event loop free during long pip installs.
-function runCmd(cmd, args, onLine = null) {
+function runCmd(cmd, args, onLine = null, onSpawn = null) {
   return new Promise((resolve, reject) => {
     const proc = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+    if (onSpawn) onSpawn(proc);
     let stdout = '', stderr = '';
     const feed = (text, isErr) => {
       if (isErr) stderr += text; else stdout += text;

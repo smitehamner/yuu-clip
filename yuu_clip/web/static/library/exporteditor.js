@@ -34,7 +34,7 @@ let _edStartOffset  = 0;
 let _edEndOffset    = 0;
 let _edCropX        = 0.5;
 let _edPreset       = '';
-let _edCaptionMode  = 'burn'; // none | embed | burn
+let _edCaptionMode  = 'embed'; // none | embed | burn
 let _edTitleCard    = false;
 let _edMetaSeeked   = false;
 
@@ -64,7 +64,7 @@ export async function openExportEditor(clipId) {
   _edEndOffset   = clip.end_offset || 0;
   _edCropX       = clip.crop_x == null ? 0.5 : clip.crop_x;
   _edPreset      = '';
-  _edCaptionMode = 'burn';
+  _edCaptionMode = 'embed';
   _edTitleCard   = false;
   _edMetaSeeked  = false;
 
@@ -127,8 +127,8 @@ function _edMount(container) {
       <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)">Captions
         <select id="ed-captions" aria-label="Captions" style="padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px">
           <option value="none">None</option>
-          <option value="embed">Embed track</option>
-          <option value="burn" selected>Burn in</option>
+          <option value="embed" selected>Embed captions track (fast, no re-encode)</option>
+          <option value="burn">Burn in captions - can't turn off later (slower, re-encodes)</option>
         </select>
       </label>
       <span id="ed-caption-approx" style="font-size:11px;color:var(--muted)">Caption overlay is a preview approximation.</span>

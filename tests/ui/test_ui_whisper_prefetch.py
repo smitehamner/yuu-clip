@@ -221,7 +221,7 @@ class TestGettingStartedModal:
             fresh_page.set_default_timeout(10_000)
             fresh_page.goto(LIVE_URL, wait_until="domcontentloaded")
             fresh_page.wait_for_selector("#getting-started-modal.visible", timeout=8000)
-            fresh_page.click("#getting-started-close-btn")
+            fresh_page.click("#getting-started-x-btn")
             fresh_page.wait_for_selector("#getting-started-modal.visible", state="hidden", timeout=8000)
             assert fresh_page.evaluate("() => localStorage.getItem('yuu-getting-started-seen')") == "1"
         finally:

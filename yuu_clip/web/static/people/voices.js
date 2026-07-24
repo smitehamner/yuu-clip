@@ -185,7 +185,14 @@ function _onPeopleClick(e) {
   }
   const detach = e.target.closest('.voice-detach-btn');
   if (detach) {
-    _splitPerson(parseInt(detach.dataset.voiceId, 10), parseInt(detach.dataset.speakerId, 10));
+    const voiceId = parseInt(detach.dataset.voiceId, 10);
+    const speakerId = parseInt(detach.dataset.speakerId, 10);
+    showConfirm(
+      'Remove this recording from this person?',
+      "This recording's voice becomes unlinked - you can link it again later from the voice match suggestions.",
+      'Remove',
+      () => _splitPerson(voiceId, speakerId),
+    );
     return;
   }
   const confirmBtn = e.target.closest('.voice-confirm-btn');

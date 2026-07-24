@@ -731,7 +731,7 @@ async function _doSplitPartitionOnly() {
     showToast(`Split failed: ${err.message}`, 'error');
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Confirm';
+    btn.textContent = 'Split recording';
   }
 }
 
@@ -760,7 +760,7 @@ async function _doSplitAndReanalyze(keepExported) {
   } catch (err) {
     showToast(`Split failed: ${err.message}`, 'error');
     btn.disabled = false;
-    btn.textContent = 'Confirm';
+    btn.textContent = 'Split recording';
     return;
   }
 
@@ -777,7 +777,7 @@ async function _doSplitAndReanalyze(keepExported) {
     if (!clearRes.ok) {
       showToast(`Failed to clear clips on segment ${segId}`, 'error');
       btn.disabled = false;
-      btn.textContent = 'Confirm';
+      btn.textContent = 'Split recording';
       return;
     }
   }

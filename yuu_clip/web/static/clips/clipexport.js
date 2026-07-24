@@ -416,12 +416,18 @@ export async function confirmExport() {
   const speakerLabels = document.getElementById('export-speaker-labels').checked;
   const titleCard = document.getElementById('export-title-card').checked;
 
-  // Checked before the modal closes so the offending field is still on screen.
+  // Checked before the modal closes so the offending field is still on screen -
+  // shown inline by the trim fields (role="alert") rather than as a corner toast.
+  const trimErrorEl = document.getElementById('export-trim-error');
   const trimError = trimInputError(trimStartRaw, trimEndRaw);
   if (trimError) {
-    showToast(trimError, 'error');
+    if (trimErrorEl) { trimErrorEl.textContent = trimError; trimErrorEl.style.display = ''; }
+    (trimStartRaw && trimInputError(trimStartRaw, '+0')
+      ? document.getElementById('export-trim-start')
+      : document.getElementById('export-trim-end'))?.focus();
     return;
   }
+  if (trimErrorEl) { trimErrorEl.textContent = ''; trimErrorEl.style.display = 'none'; }
   closeExportModal();
 
   const timingRes = await fetch(`/api/clips/${id}/timing`, {

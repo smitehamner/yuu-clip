@@ -9,7 +9,7 @@
 import { AppState } from '../core/state.js';
 import { plural, escHtml, formatApiError } from '../core/format.js';
 import { showToast, openLog, appendLog } from '../core/utils.js';
-import { showConfirm } from '../core/ui.js';
+import { showConfirm, showUndoToast } from '../core/ui.js';
 import {
   _openSSE, _setActiveStream, _clearActiveStream, _supersedeActiveStream,
   startJobUI, updateJobUI, endJobUI, setJobCancel, HOTWORD_SCAN_STEPS,
@@ -83,6 +83,7 @@ async function _deleteHotwordRow(rowEl) {
     _renderHotwordRows();
     return;
   }
+  const removed = AppState.hotWords.find(hw => String(hw.id) === key);
   const res = await fetch(`/api/hotwords/${key}`, {method: 'DELETE'});
   if (!res.ok) {
     const e = await res.json().catch(() => ({}));
@@ -90,6 +91,24 @@ async function _deleteHotwordRow(rowEl) {
     return;
   }
   AppState.hotWords = AppState.hotWords.filter(hw => String(hw.id) !== key);
+  _renderHotwordRows();
+  _notifyHotwordSaved();
+  if (removed) {
+    showUndoToast(`Deleted hot-word "${removed.phrase}"`, () => _restoreHotword(removed));
+  }
+}
+
+// Re-create a just-deleted hot-word from its captured fields (a new id is issued).
+async function _restoreHotword(hw) {
+  const body = {
+    phrase: hw.phrase, match_mode: hw.match_mode, boost: hw.boost,
+    target: hw.target, enabled: hw.enabled, context_slug: hw.context_slug ?? null,
+  };
+  const res = await fetch('/api/hotwords', {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body),
+  });
+  if (!res.ok) { showToast('Could not restore hot-word', 'error'); return; }
+  AppState.hotWords.push(await res.json());
   _renderHotwordRows();
   _notifyHotwordSaved();
 }

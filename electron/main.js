@@ -56,6 +56,8 @@ let isQuitting      = false;
 
 // In-flight model-download state, for the wizard's Cancel buttons.
 let activeGgufController = null;  // AbortController for the .gguf download
+let activeInstallProc = null;     // child process for the optional pip install (cancellable)
+let installCancelRequested = false;
 
 // ---------------------------------------------------------------------------
 // Python discovery
@@ -309,6 +311,7 @@ function registerWizardIPC(wizardWin) {
   ipcMain.removeAllListeners('setup:open-url');
   ipcMain.removeAllListeners('setup:copy-text');
   ipcMain.removeAllListeners('setup:install-package');
+  ipcMain.removeAllListeners('setup:cancel-install');
   ipcMain.removeAllListeners('setup:restart-app');
 
   ipcMain.handle('setup:get-status', async () => {
@@ -369,17 +372,34 @@ function registerWizardIPC(wizardWin) {
 
     const installArgs = ['install', '--progress-bar', 'raw', ...spec.packages];
     logSetup(`Wizard install starting: ${installArgs.join(' ')}`);
+    installCancelRequested = false;
     try {
       await runCmd(VENV_PIP, installArgs,
-        pipStatusReporter(statusText => send({ status: statusText })));
+        pipStatusReporter(statusText => send({ status: statusText })),
+        (proc) => { activeInstallProc = proc; });
       logSetup(`Wizard install complete: ${slug}`);
       send({ done: true });
     } catch (err) {
-      const stderr = (err.stderr || '').trim();
-      const tail   = stderr.split(/\r?\n/).filter(Boolean).slice(-3).join('\n');
-      logSetup(`Wizard install failed: ${slug} - ${err.message}${tail ? '\n' + tail : ''}`);
-      send({ error: describeInstallFailure(stderr) });
+      // Killing the pip child (cancel) makes runCmd reject; report that as a cancel.
+      if (installCancelRequested) {
+        logSetup(`Wizard install cancelled: ${slug}`);
+        send({ cancelled: true });
+      } else {
+        const stderr = (err.stderr || '').trim();
+        const tail   = stderr.split(/\r?\n/).filter(Boolean).slice(-3).join('\n');
+        logSetup(`Wizard install failed: ${slug} - ${err.message}${tail ? '\n' + tail : ''}`);
+        send({ error: describeInstallFailure(stderr) });
+      }
+    } finally {
+      activeInstallProc = null;
+      installCancelRequested = false;
     }
+  });
+
+  ipcMain.on('setup:cancel-install', () => {
+    if (!activeInstallProc) return;
+    installCancelRequested = true;
+    try { activeInstallProc.kill(); } catch (_) {}
   });
 
   // Stream a one-click .gguf model download for the llama.cpp backend.
@@ -582,6 +602,29 @@ function showSetupWizard({ rerun = false, updated = false } = {}) {
     });
 
     setupWizardWin = win;
+
+    // Gate closing the wizard window (the OS X) while the multi-GB model download
+    // is in flight - otherwise its progress is silently lost (.part swept next
+    // start). A programmatic close (setup complete / quit) sets allowWizardClose.
+    let allowWizardClose = false;
+    win.on('close', (e) => {
+      if (allowWizardClose || !activeGgufController) return;
+      e.preventDefault();
+      const { response } = dialog.showMessageBoxSync(win, {
+        type: 'warning',
+        buttons: ['Keep downloading', 'Quit anyway'],
+        defaultId: 0,
+        cancelId: 0,
+        message: 'A model download is still running.',
+        detail: "Quit anyway? You'll lose its progress.",
+      });
+      if (response === 1) {
+        activeGgufController.abort();
+        activeGgufController = null;
+        allowWizardClose = true;
+        win.close();
+      }
+    });
 
     const mode = rerun ? 'rerun' : updated ? 'update' : 'initial';
     win.loadFile(path.join(__dirname, 'setup.html'),

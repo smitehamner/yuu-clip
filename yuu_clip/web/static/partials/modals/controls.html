@@ -1,6 +1,9 @@
 <div class="modal-bg" id="controls-modal">
   <div class="modal" style="max-width:400px">
-    <h3>Keyboard Controls</h3>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <h3 style="margin:0">Keyboard Controls</h3>
+      <button class="btn ghost" style="padding:4px 8px" id="controls-modal-close-btn" aria-label="Close">&#x2715;</button>
+    </div>
     <table style="width:100%;font-size:12px;border-collapse:collapse;color:var(--muted)">
       <tbody>
         <tr><td style="padding:4px 0"><kbd>A</kbd></td><td>Approve selected clip</td></tr>
@@ -15,8 +18,5 @@
         <tr><td><kbd>Esc</kbd></td><td>Close the topmost window</td></tr>
       </tbody>
     </table>
-    <div class="modal-actions" style="margin-top:16px">
-      <button class="btn" id="controls-modal-close-btn">Close</button>
-    </div>
   </div>
 </div>

@@ -174,19 +174,20 @@ describe('confirmExport with an unparseable trim', () => {
       <select id="export-retranscribe-model"><option value="large-v3" selected>large-v3</option></select>
       <input type="checkbox" id="export-speaker-labels" checked>
       <input type="checkbox" id="export-title-card">
+      <div id="export-trim-error" role="alert" style="display:none"></div>
       <div id="export-settings-modal" class="visible"></div>`;
   }
 
-  it('tells the user instead of silently exporting the saved trim', async () => {
+  it('tells the user inline instead of silently exporting the saved trim', async () => {
     seedExportModal('abc', '+0.0');
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
 
     await confirmExport();
 
-    expect(showToast).toHaveBeenCalledWith(
-      'Start trim "abc" isn\'t a time - use +2.5, -1, or 1:23.', 'error',
-    );
+    const err = document.getElementById('export-trim-error');
+    expect(err.textContent).toBe('Start trim "abc" isn\'t a time - use +2.5, -1, or 1:23.');
+    expect(err.style.display).not.toBe('none');
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

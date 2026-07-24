@@ -71,7 +71,9 @@ function describeInstallFailure(stderr) {
     return 'GPU acceleration couldn’t load - your graphics driver may be older than the CUDA build. ' +
            'YuuClip will keep working on the CPU.';
   }
-  return 'the install didn’t finish. You can try again, or open the setup log and send it to us.';
+  return 'the install didn’t finish. You can try again. If it keeps failing, the setup log ' +
+         '(yuu-clip_install.log in your YuuClip app-data folder) has the details to attach to a ' +
+         'report at github.com/smitehamner/yuu-clip/issues.';
 }
 
 // The model download runs through Node's https/fs (not pip), so its failures

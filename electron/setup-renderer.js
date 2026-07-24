@@ -42,7 +42,8 @@ function updateLaunchBtn() {
   btn.disabled = blockedByFfmpeg || blockedByWork || blockedByNoDir;
   btn.textContent = rerunMode ? 'Apply & Close' : 'Launch';
   hint.textContent = blockedByFfmpeg && status ? 'FFmpeg is required before you can launch'
-    : blockedByWork ? 'Waiting for the download to finish…'
+    : anyInstalling() ? 'You can keep adjusting settings while it installs - Launch unlocks when it finishes'
+    : downloadingGguf ? 'You can keep adjusting settings while it downloads - Launch unlocks when it finishes'
     : blockedByNoDir ? 'Choose a project folder before you can launch'
     : '';
   const recheck = document.getElementById('recheck-btn');
@@ -140,9 +141,11 @@ function renderCudaSlot(s) {
   }
   setSlot(row('cuda', 'warn', '○', 'Faster transcription (optional)',
     `Your NVIDIA GPU can transcribe much faster than the CPU. This one-time install ` +
-    `adds the CUDA support libraries (cuBLAS + cuDNN, ~1 GB). You can keep using this ` +
-    `window while it runs. (LLM scoring already uses your GPU - this only speeds up transcription.)`,
+    `adds the CUDA support libraries (cuBLAS + cuDNN, ~1 GB). You can keep adjusting ` +
+    `settings while it installs - Launch unlocks when it finishes. (LLM scoring already ` +
+    `uses your GPU - this only speeds up transcription.)`,
     `<button class="sm" id="install-btn-cuda-libs" data-install="cuda-libs">Speed up transcription (~1 GB)</button>
+     <button class="sm" id="install-cancel-cuda-libs" data-action="install-cancel" style="display:none">Cancel</button>
      <div class="pull-msg" id="install-msg-cuda-libs"></div>`));
 }
 
@@ -315,11 +318,15 @@ function onGgufDownloadProgress(data) {
     done();
   } else if (data.error) {
     if (msg) msg.textContent = `Download failed: ${data.error}`;
+    if (fill) fill.style.width = '0%';  // don't leave a half-full bar on a failure
     if (btn) btn.disabled = false;
     done();
   } else if (typeof data.progress === 'number') {
     if (fill) fill.style.width = data.progress + '%';
-    if (msg)  msg.textContent  = `Downloading… ${data.progress}%`;
+    // Show absolute GB alongside the percent when we know the model size.
+    const sizeGb = (CATALOG.recommended_model || {}).size_gb;
+    const doneGb = sizeGb != null ? ` (${(data.progress / 100 * sizeGb).toFixed(1)} of ${sizeGb} GB)` : '';
+    if (msg)  msg.textContent  = `Downloading… ${data.progress}%${doneGb}`;
   }
 }
 
@@ -327,20 +334,35 @@ function onGgufDownloadProgress(data) {
 
 function startInstall(slug) {
   const btn = document.getElementById(`install-btn-${slug}`);
+  const cancel = document.getElementById(`install-cancel-${slug}`);
   const msg = document.getElementById(`install-msg-${slug}`);
   if (btn) btn.disabled = true;
+  if (cancel) { cancel.style.display = ''; cancel.disabled = false; }
   if (msg) msg.textContent = 'Starting…';
   installing[slug] = true;
   updateLaunchBtn();
   api.installPackage(slug);
 }
 
+function cancelInstall(slug) {
+  const cancel = document.getElementById(`install-cancel-${slug}`);
+  if (cancel) cancel.disabled = true;
+  api.cancelInstall();
+}
+
 function onInstallProgress(data) {
   const btn = document.getElementById(`install-btn-${data.slug}`);
+  const cancel = document.getElementById(`install-cancel-${data.slug}`);
   const msg = document.getElementById(`install-msg-${data.slug}`);
+  if (cancel && (data.done || data.error || data.cancelled)) cancel.style.display = 'none';
   if (data.done) {
     installing[data.slug] = false;
     if (data.slug === 'cuda-libs') { status.cudaLibsInstalled = true; renderCudaSlot(status); }
+    updateLaunchBtn();
+  } else if (data.cancelled) {
+    installing[data.slug] = false;
+    if (msg) msg.textContent = 'Install cancelled.';
+    if (btn) btn.disabled = false;
     updateLaunchBtn();
   } else if (data.error) {
     installing[data.slug] = false;
@@ -397,6 +419,7 @@ document.addEventListener('click', e => {
   if (actionBtn) {
     if (actionBtn.dataset.action === 'gguf-download') startGgufDownload();
     else if (actionBtn.dataset.action === 'gguf-cancel') cancelGgufDownload();
+    else if (actionBtn.dataset.action === 'install-cancel') cancelInstall('cuda-libs');
   }
 });
 
@@ -480,6 +503,12 @@ function collectConfig() {
 }
 
 document.getElementById('quit-btn').addEventListener('click', () => {
+  // Quitting mid-install/download silently loses its progress (.part swept on the
+  // next start), so confirm first when work is in flight.
+  if ((anyInstalling() || downloadingGguf) &&
+      !window.confirm('A download is still running - quit anyway? You will lose its progress.')) {
+    return;
+  }
   if (rerunMode) api.close();          // discard changes, keep app running
   else if (mode === 'update') api.skip(); // launch with existing config
   else api.quit();
@@ -517,7 +546,8 @@ function applyOsTheme(s) {
          <div class="icon">✗</div>
          <div class="body">
            <div class="title">Setup check failed</div>
-           <div class="desc">${esc(String(e))}<br>Try <em>Restart app</em> below, or quit and relaunch.</div>
+           <div class="desc">Something went wrong while checking your setup. Try <em>Restart app</em> below, or quit and relaunch.
+             <details style="margin-top:6px"><summary style="cursor:pointer">Technical details</summary>${esc(String(e))}</details></div>
          </div>
        </div>`;
     document.getElementById('recheck-bar').style.display = '';
