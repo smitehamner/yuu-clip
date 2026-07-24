@@ -10,10 +10,11 @@ Where this sits in the docs:
 - **[CONTRIBUTING.md](../../CONTRIBUTING.md)** - setup, the `yuu-dev` CLI, and the PR
   process. Start there to get a working checkout.
 - **This file** - the mental model plus the top landmines, in prose you read once.
-- **[CLAUDE.md](../../CLAUDE.md)** - the exhaustive assistant-context file. It carries
-  the full `Project layout` file-by-file map and every convention. When this doc says
-  "see the layout map", it means the `Project layout` section there. Do not expect to
-  read all of it to get oriented - that is what this file is for.
+- **[LAYOUT.md](LAYOUT.md)** - the authoritative file-by-file map. When this doc says
+  "see the layout map", it means that file.
+- **[CLAUDE.md](../../CLAUDE.md)** - the exhaustive assistant-context file, carrying
+  every convention. Do not expect to read all of it to get oriented - that is what
+  this file is for.
 
 ---
 
@@ -66,6 +67,90 @@ Progress from the subprocess reaches the browser over **SSE** (server-sent event
 plumbing is in [web/sse.py](../../yuu_clip/web/sse.py). Long-running jobs on the frontend
 go through the `startJobUI` / `endJobUI` / `streamSSE` helpers, not ad-hoc fetches.
 
+### Data model
+
+The schema has exactly one source of truth:
+[db/models.py](../../yuu_clip/db/models.py). Everything below is derived from it -
+when this section and the code disagree, the code wins. There is no migration
+framework: `create_all()` plus an additive-column list (`_ADDITIVE_COLUMNS` in
+`models.py`) is the whole story, so new columns must be nullable or carry a DEFAULT.
+
+How data flows: each analyze stage writes its tables, and the web server's routes
+read them back for the UI. (Hot-words and Sensitive Terms flow the other way - the
+Settings UI writes them, and the Score stage reads them.)
+
+```mermaid
+flowchart LR
+    subgraph analyze ["Analyze subprocess (pipeline/ingest.py)"]
+        inspect["Inspect + Assign Tracks"]
+        extract["Extract"]
+        transcribe["Transcribe"]
+        speakers["Speakers"]
+        genclips["Generate Clips"]
+        score["Score"]
+    end
+    subgraph db ["SQLite (db/models.py)"]
+        videos[("videos + audio_tracks")]
+        trans[("transcripts + transcript_segments")]
+        spk[("speakers")]
+        clips[("clip_candidates")]
+        signals[("audio_energy, scene_boundaries, visual_activity")]
+        terms[("hot_words, sensitive_terms")]
+        exports[("clip_exports")]
+    end
+    subgraph server ["Web server (web/routes/) -> UI"]
+        recui["routes/videos.py - Recordings sidebar, detail, transcript, Split editor"]
+        spkui["routes/speakers.py + voices.py - Speakers card, People view"]
+        clipui["routes/clips/ - clip list, review, captions"]
+        setui["routes/hotwords.py + sensitive.py - Settings library"]
+        expui["routes/clips/export.py + serialize.py - Export, Formats card"]
+    end
+    inspect --> videos
+    extract --> videos
+    transcribe --> trans
+    speakers --> spk
+    genclips --> clips
+    score --> signals
+    score --> clips
+    terms --> score
+    videos --> recui
+    trans --> recui
+    spk --> spkui
+    clips --> clipui
+    signals --> recui
+    setui --> terms
+    expui --> exports
+    exports --> expui
+    clips --> expui
+```
+
+The core entities, with the user-facing term from
+[docs/dev/llm/GLOSSARY.md](llm/GLOSSARY.md) (say the user-facing term in UI copy,
+the code name in code):
+
+| Table (ORM class) | What it is | User-facing term | Written by | Read by |
+| --- | --- | --- | --- | --- |
+| `videos` (`Video`) | One row per source recording file: path, probe metadata, status, titles/summaries, scoring provenance, split-segment and session links | Recording | Analyze (Inspect/Assign Tracks upsert in `pipeline/ingest.py`); Summarize/Score stamp summary + provenance columns; splits add child rows | `routes/videos.py` -> Recordings sidebar + detail (`videos/videos.js`) |
+| `sessions` (`RecordingSession`) | A group of recordings from one play session, with rollup title/summary | Session | Sessions UI (`routes/sessions.py`; auto-suggest logic in `yuu_clip/sessions.py`) - not the pipeline | `routes/sessions.py` -> session headers + unified timeline (`videos/sessions.js`) |
+| `audio_tracks` (`AudioTrack`) | One audio stream in a recording: role (`label`), transcribe/score flags, extracted WAV path | Track (role: Track role) | Analyze Inspect/Assign Tracks; Extract fills `extracted_path` | Transcribe/Score stages; `routes/videos.py` track cards |
+| `transcripts` (`Transcript`) | One speech-to-text run per eligible track (or per clip retranscription); `completed_at` NULL marks a truncated run | Transcript | Transcribe stage (`transcribe/whisper_runner.transcribe_track`); clip retranscribe (export flow) | Clip generation + scoring; transcript view and captions (`routes/videos.py`, `analyze/transcript.js`) |
+| `transcript_segments` (`TranscriptSegment`) | One timed phrase: text, ms window, speaker attribution, optional per-word timings | Caption segment | Transcribe stage; caption edits + forced alignment (`transcribe/align.py`) rewrite text/words | Transcript view, caption (SRT) generation (`subtitles.py`), clip excerpts |
+| `speakers` (`Speaker`) | Durable per-recording voice identity with name, voiceprint, and suggestion fields | Speaker | Speakers stage (`transcribe/speaker_attach.py`, from diarization clusters) | `routes/speakers.py` -> Speakers card (`people/speakers.js`); captions via `display_name` |
+| `project_voices` (`ProjectVoice`) | Project-wide identity spanning recordings - naming it names every linked Speaker | Person / People | People view (`routes/voices.py`); analyze only ever *suggests* (`Speaker.suggested_voice_id`) | `routes/voices.py` -> People view (`people/voices.js`); `Speaker.display_name` resolution |
+| `voice_exemplars` (`VoiceExemplar`) | One voiceprint contributed to a Person (multi-exemplar matching) | (internal - never named in UI) | Confirming a match in People view; matching core `transcribe/project_voice.py` | Cross-recording matching during analyze and the People backfill |
+| `characters` (`Character`) | Structured lore entity in a world context (name, lore, score boost), linkable to a Person | Character | Context editor (`routes/characters.py`) | LLM scoring prompt (`contexts.format_character_block`); Person picker (`people/voices.js`) |
+| `clip_candidates` (`ClipCandidate`) | A proposed highlight: ms window, `kind` (`clip`/`scene`), four axis scores + laugh, descriptions, status, export/staleness stamps | Clip (kind `scene`: Scene; status `pending`: Unreviewed) | Generate Clips (`segments/windower.py` + `visual_windower.py` + `merge.py`; scenes via `scene_segmenter.py`); manual clips (`routes/clips/crud.py`); Score stage fills scores (`scoring/engine.py`) | `routes/clips/` -> clip list + review UI (`clips/clips.js`); export + reel |
+| `clip_exports` (`ClipExport`) | One exported file per (clip, export preset), with settings + size | Format | Export (`export/render.py::_record_clip_export`) | `routes/clips/serialize.py` -> Formats card (`clips/clipexport.js`) |
+| `audio_energy` (`AudioEnergy`) | Per-second RMS loudness curve per track | (internal - powers Audio energy scoring) | Score stage (`scoring/energy.py::compute_energy`) | `EnergyScorer`; recording detail routes (`routes/videos.py`) |
+| `scene_boundaries` (`SceneBoundary`) | Detected visual scene-cut timecodes per recording (NOT the `kind='scene'` candidate type) | (internal - powers Scene scoring / the Visual axis) | Score stage (`scoring/scenes.py::compute_scenes`) | `SceneCutScorer`; `segments/scene_segmenter.py` + `visual_windower.py`; `routes/videos.py` |
+| `visual_activity` (`VisualActivity`) | Per-sample frame-diff on-screen activity, model-free | (internal - powers the Visual axis) | Score stage (`analyze/motion.py::compute_activity`) | `scoring/visual.py`; `segments/windower.py` + `visual_windower.py`; `routes/videos.py` |
+| `hot_words` (`HotWord`) | Creator phrase that boosts a clip's score when it appears in the transcript; global or context-scoped | Hot-word | Settings UI (`routes/hotwords.py`) | Score stage (`scoring/engine.py::apply_hotword_boosts` via `scoring/textmatch.py` + `term_scope.py`) |
+| `sensitive_terms` (`SensitiveTerm`) | Creator privacy/censor term flagged (never scored) on matching clips; term text is PII - never log it | Sensitive Terms (Privacy Term / Censor Word) | Settings UI (`routes/sensitive.py`) | Score stage (`scoring/engine.py::apply_sensitive_scan`); the Flagged filter |
+
+World contexts are deliberately **not** in this table: they live in `contexts.json`
+(see [contexts.py](../../yuu_clip/contexts.py)), not the DB - which is why
+`context_slug` columns are plain strings, never foreign keys.
+
 ### The swappable-backend seam
 
 Every model-backed capability sits behind the same shape, so a backend can be swapped or
@@ -97,7 +182,8 @@ similarity/embeddings (`make_backend`), and scorers (the `Scorer` `Protocol` in
 [scoring/protocol.py](../../yuu_clip/scoring/protocol.py), assembled by
 [scoring/scorer_set.py](../../yuu_clip/scoring/scorer_set.py)). To add a backend:
 implement the interface, register it in that module's `_BACKEND_*` dict, add the
-`*_backend` value. The full seam list is in CLAUDE.md.
+`*_backend` value. The full seam list is in CLAUDE.md ("AI/model backends must sit
+behind a swappable interface").
 
 ### Test tiers
 
@@ -113,9 +199,13 @@ by what the test needs; the `yuu-dev` command names map straight onto them.
 - **integration** ([tests/integration/](../../tests/integration/)) - route and pipeline
   tests that need the seeded DB and an in-process FastAPI `TestClient` (the `project_dir`
   + `client` fixtures). No browser.
-- **ui** ([tests/ui/](../../tests/ui/)) - Playwright against a **live** server (default
-  `:8080`). Slow and browser-bound. Keep only what genuinely needs a real browser here:
-  navigation, SSE transport, focus traps, live `getComputedStyle` / real geometry.
+- **ui** ([tests/ui/](../../tests/ui/)) - Playwright against a **live** server that
+  `yuu-dev test-ui` stands up itself: a disposable, freshly-seeded fixture project
+  served on a free port with isolated config, torn down after the run
+  ([yuu_clip/dev/uiserver.py](../../yuu_clip/dev/uiserver.py)) - nothing needs to be
+  serving `:8080`. Slow and browser-bound. Keep only what genuinely needs a real
+  browser here: navigation, SSE transport, focus traps, live `getComputedStyle` /
+  real geometry.
 - **js** ([tests/js/](../../tests/js/)) - the web UI's pure module logic under **vitest +
   happy-dom**: import the ESM module directly and assert on its output (formatters,
   filters, parse/score math, the job-pill state machine driven through its public API).
@@ -285,7 +375,7 @@ model above), three rules are non-negotiable:
 | **Add or edit a frontend module** | Edit the source `static/<bucket>/*.js`, `export` its public surface and `import` what it needs, then run `yuu-dev bundle` and `yuu-dev test-js` (landmine #1). Never edit `bundle.esm.js` by hand. |
 | **Edit a modal / page region (markup)** | Edit the partial under `static/partials/` (or `static/index.src.html` for the shell), then run `yuu-dev bundle` to re-stitch `index.html` (landmine #1). Never hand-edit the committed `index.html`. |
 | **Change the analyze pipeline order** | [pipeline/ingest.py](../../yuu_clip/pipeline/ingest.py) - keep the `prewarm_transformers_pipeline()` call ahead of any speechbrain import (landmine #3). |
-| **Find any other file** | The full file-by-file map is the `Project layout` section of [CLAUDE.md](../../CLAUDE.md). |
+| **Find any other file** | The full file-by-file map is [docs/dev/LAYOUT.md](LAYOUT.md). |
 
 ---
 

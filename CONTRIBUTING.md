@@ -76,18 +76,27 @@ path: `yuuclip` (the app) and `yuu-dev` (the developer CLI).
 `yuu-dev` is the canonical, cross-platform entry point for every dev-loop task. Use it
 directly on any OS:
 
-| Command | What it does |
-| --- | --- |
-| `yuu-dev serve` | Start the dev web server (defaults to http://127.0.0.1:8080) |
-| `yuu-dev status` | Report whether a job is processing (query before restarting) |
-| `yuu-dev lint` | Run ruff over `yuu_clip` and `tests` (`--fix` to auto-fix) |
-| `yuu-dev test-js` | JS unit layer (vitest); no browser, ~6s |
-| `yuu-dev test-unit` | Python unit tier only (`tests/unit`); the fast inner loop |
-| `yuu-dev test-integration` | Integration tier only (`tests/integration`, seeded DB) |
-| `yuu-dev test-api` | Unit + integration together (combo of the two above); no live server needed |
-| `yuu-dev test-all` | Every server-free tier in one go: js + unit + integration (not ui) |
-| `yuu-dev test-ui` | Playwright UI suite against a running dev server |
-| `yuu-dev logs --follow` | Tail the server log |
+| Command | What it does | Run when |
+| --- | --- | --- |
+| `yuu-dev serve` | Start the dev web server (defaults to http://127.0.0.1:8080) | Working on the app interactively |
+| `yuu-dev status` | Report whether a job is processing | Before restarting the server |
+| `yuu-dev lint` | Run ruff over `yuu_clip` and `tests` (`--fix` to auto-fix) | After any Python change, even cosmetic |
+| `yuu-dev typecheck` | Mypy gate that fails only on NEW type errors (existing ones are frozen in `mypy-baseline.txt`) | Before submitting any Python change |
+| `yuu-dev test-js` | JS unit layer (vitest); no browser, ~6s | After editing any `static/*.js` |
+| `yuu-dev test-unit` | Python unit tier only (`tests/unit`); the fast inner loop | Frequently while iterating on Python |
+| `yuu-dev test-integration` | Integration tier only (`tests/integration`, seeded DB) | When isolating an integration failure |
+| `yuu-dev test-api` | Unit + integration together; no live server needed | Before submitting any backend change |
+| `yuu-dev test-all` | Every server-free tier in one go: js + unit + integration (not ui) | A broad pre-PR sweep |
+| `yuu-dev test-ui` | Playwright UI suite; stands up its own disposable fixture server (nothing else needs to be running) | Before submitting a frontend change |
+| `yuu-dev bundle` | Rebuild the committed frontend artifacts: `bundle.esm.js`, the wizard's `setup.bundle.js`, and the stitched `index.html` | After editing any `static/*.js`, a partial under `static/partials/`, or `index.src.html` |
+| `yuu-dev shared-data` | Regenerate the `catalog-data.json` that both the web Settings and the setup wizard read (two committed copies) | After editing `model_catalog.py`, `config.py`, `content_presets.py`, or `whisper_catalog.py` |
+| `yuu-dev fixture-project` | Build a seeded throwaway project under `build/fixture-project` | To browse a seeded project interactively: `yuu-dev serve --project build/fixture-project` |
+| `yuu-dev logs --follow` | Tail the server log | Debugging a running server |
+
+On the typecheck gate: annotate as you touch. When your change surfaces a new mypy
+error, fix the code (or add the missing annotation) - do not just re-freeze the
+baseline (`yuu-dev typecheck --sync` is only for genuinely accepted pre-existing gaps,
+and the regenerated `mypy-baseline.txt` is committed).
 
 The `scripts/*.ps1` files are thin **Windows-only aliases** to these commands, kept for
 muscle memory. On macOS/Linux, call `yuu-dev` directly.
@@ -114,20 +123,24 @@ Run these before opening a PR:
 
 Frontend / UI:
 
-- **`yuu-dev test-ui`** runs the Playwright suite against a live server. You do **not**
-  need a personal recording - build a seeded throwaway project and serve that instead:
+- **`yuu-dev test-ui`** is fully self-contained: each run builds a freshly-seeded
+  fixture project, serves it on a free port with an isolated config, points Playwright
+  at it, and tears everything down afterwards. You do **not** need a personal
+  recording, a running dev server, or anything on `:8080`. The only one-time setup is
+  the browser download:
 
   ```bash
   playwright install chromium                 # one-time browser download
-  yuu-dev fixture-project                      # seeds build/fixture-project (clips + scenes)
-  yuu-dev serve --project build/fixture-project
-  yuu-dev test-ui --smoke                       # or --changed / the full suite
+  yuu-dev test-ui --smoke                     # or --changed / the full suite
   ```
 
   The fixture uses an ffmpeg-generated few-second clip (and still seeds a usable DB if
   ffmpeg is absent - the smoke tier passes either way). `--smoke` runs a quick backstop;
-  `--changed` runs the tests around your working-tree diff. If you already have your own
-  analyzed project, plain `yuu-dev serve` (no `--project`) serves that instead.
+  `--changed` runs the tests around your working-tree diff plus the smoke backstop.
+
+  To poke at the same seeded project interactively (not needed for the tests), build
+  one by hand: `yuu-dev fixture-project`, then
+  `yuu-dev serve --project build/fixture-project`.
 
 Desktop wrapper (only when you touch `electron/`):
 
@@ -137,8 +150,25 @@ npm test
 ```
 
 CI runs `lint`, `typecheck`, `test-api`, and `test-js` on every pull request; keep them
-all green. The ui (Playwright) tier is not run in CI - it needs a live server + seeded
-project, so run it locally against a fixture project (above) before a frontend change.
+all green. The ui (Playwright) tier is not run in CI - it drives a real browser against
+a live server, so run it locally (it self-hosts everything, above) before a frontend
+change.
+
+## If your change touches user-visible behavior
+
+Two registries keep the docs and tests honest about what the app does. When your
+change alters user-visible behavior, a default, a recommended model, the scoring
+axes, or a documented number:
+
+- **[docs/dev/llm/DOC-CLAIMS.md](docs/dev/llm/DOC-CLAIMS.md)** - the fact registry.
+  Find the affected fact's row and update the code AND **every surface listed in that
+  row** in the same change (README, user guides, UI copy, wizard, ...). Fact guards in
+  `tests/unit/test_doc_claims.py` fail when a listed surface drifts.
+- **[docs/dev/USE_CASES.md](docs/dev/USE_CASES.md)** - the end-to-end use-case
+  catalog. Adding or materially changing a user-facing flow means adding/updating its
+  `UC-` entry there and its matching row in
+  [docs/dev/testing/installed-app-checklist.md](docs/dev/testing/installed-app-checklist.md)
+  (structure enforced by `tests/unit/test_use_case_catalog.py`).
 
 ## Code standards
 
@@ -182,6 +212,6 @@ the glossary before introducing it.
 3. Fill out the PR template.
 
 New to the codebase? Read [docs/dev/ARCHITECTURE.md](docs/dev/ARCHITECTURE.md) first -
-it is the human on-ramp: the pipeline flow, the two-process model, the swappable-backend
-seam, and the top landmines to avoid. The exhaustive file-by-file map lives under
-"Project layout" in [CLAUDE.md](CLAUDE.md).
+it is the human on-ramp: the pipeline flow, the two-process model, the data model, the
+swappable-backend seam, and the top landmines to avoid. The exhaustive file-by-file map
+is [docs/dev/LAYOUT.md](docs/dev/LAYOUT.md).

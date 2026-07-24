@@ -235,56 +235,20 @@ those alone - the in-code comments explain why.
 
 ## Project layout
 
-```
-yuu_clip/
-  cli/                     # Thin Typer adapters - analyze, export, reel, review, serve (+ _base). Commands parse args and call into pipeline/ and export/.
-  dev/                     # The yuu-dev developer-loop CLI (serve/test-api/test-ui/lint/logs/status/lock-deps/bundle), Typer, cross-platform. _summary.py = pytest-output summary core, procs.py = Windows process reap (no-ops off Windows), deps.py = lock-deps (regenerate requirements.lock), bundle.py = build the committed static/bundle.esm.js (shells out to `node scripts/build-esm.mjs` -> esbuild over the ESM graph rooted at static/main.esm.js).
-  pipeline/                # The analyze engine: ingest (per-video orchestration + stages), run_meta (per-run timing/settings capture), vision_describe (opt-in auto vision-LLM description of top-N textless/visual clips)
-  export/                  # The export feature: render (engine - cut, retranscribe, title card, captions), naming (filename stem), presets (definitions + size-cap math), paths (on-disk export/sidecar path resolution + export-query validation)
-  console.py               # Shared Rich console + BYTES_PER_MB (used by cli/ and the engine; lives outside cli/ so the engine never imports cli)
-  config.py                # Config + profile management
-  db/models.py             # SQLAlchemy ORM (SQLite, NullPool)
-  analyze/                 # probe, labeler, extract, overlap, motion (model-free frame-diff on-screen-activity timeline for the Visual axis)
-  scoring/                 # energy, scenes, llm, llm_client, laugh, engine, visual (on-screen-activity scorer feeding score_visual)
-  segments/                # windower (silence-gap clip generation), visual_windower (silent-but-visual candidate generation), merge (dedup + per-recording cap for visual candidates)
-  transcribe/              # whisper_runner, diarization_client
-  subtitles.py             # caption (SRT) generation
-  contexts.py              # world-context storage + prompt formatting
-  reel.py                  # highlight-reel assembly (select + concatenate top clips into one reel)
-  model_catalog.py         # recommended/allowed model catalog + licence policy (single source of truth; enforced by tests/unit/test_model_catalog.py)
-  web/
-    app.py                 # FastAPI factory + lifespan (graceful shutdown)
-    deps.py                # ProjectContext - shared server state
-    sse.py                 # subprocess → SSE streaming helper
-    analyze_job.py         # in-process analyze job tracking (AnalyzeJob)
-    media.py               # video/media file streaming helpers
-    file_deletion.py       # resilient file deletion + Windows file-lock diagnosis (Restart Manager)
-    routes/                # one module per feature (videos, analyze, scoring, speakers, voices, characters, contexts, reel, profiles, sounds, imports, backup, llm, models, config, logs, ...) + common.py (cross-cutting route helpers). clips/ is a subpackage (crud, edit, approval, bulk, captions, delete, export, serialize, schemas)
-    static/index.html      # COMMITTED BUILD ARTIFACT - stitched from index.src.html + partials/ by `yuu-dev bundle`. Do not hand-edit. Single-page UI shell; loads one <script>: bundle.esm.js
-    static/index.src.html  # Source for index.html: the page shell + <!-- @@include ... --> markers (readable region table-of-contents). Edit this, not index.html.
-    static/partials/       # One HTML file per modal/region (regions/*.html + modals/*.html), stitched into index.html. Edit these, not index.html.
-    static/main.esm.js     # ESM entry point (esbuild). Imports the whole module graph (boot.js last) and holds a shrinking residual window.X = X shim for names still read as window.* by other modules or poked by page.evaluate tests.
-    static/bundle.esm.js   # Committed esbuild artifact: the whole ESM graph from main.esm.js, IIFE + inline sourcemap. Do not hand-edit; edit the source *.js + rebundle.
-    static/<bucket>/*.js   # ~40 real ESM modules (import/export), grouped into feature subdirectories, all reachable from main.esm.js. Buckets: core/ (boot [first-paint, imported last], state [AppState], utils, ui, format, jobs [SSE], panelnav, preview, helpmodals, shortcuts), videos/ (videos + videos-*, sessions), clips/ (clips + clip*), analyze/ (analyze, reel, split, transcript), settings/ (settings + settings-*, projects, model*), people/ (speakers, voices, namecorrections), library/ (contexts, sounds, hotwords, sensitive, exportpresets, exporteditor, colorpicker). Imports are relative, so a module's bucket is part of its path (e.g. import from '../core/utils.js').
-    static/app.css         # Stylesheet (rules only; theme tokens live in static/shared/tokens.css, linked before it)
-    static/shared/         # Cross-runtime shared assets: tokens.css (theme tokens), escapehtml.js + whisperlang.js (ESM, imported by BOTH the web bundle and the wizard bundle), catalog-data.json. Mirrored into electron/shared/ by `yuu-dev shared-data`.
-electron/                  # Desktop wrapper: main.js (window/menu/IPC + server spawn + wizard + lifecycle), constants.js, logging.js, electron-config.js, install.js (runCmd/download/pip helpers), preload.js, setup wizard (setup.html markup + setup-renderer.js -> committed setup.bundle.js + setup-preload.js), shared/catalog-data.json (generated by `yuu-dev shared-data`)
-tests/                     # unit = state-independent, run anywhere; integration = seeded DB; ui = live server
-  conftest.py              # root: only isolate_global_config (autouse, inherited by all tiers)
-  unit/
-    conftest.py            # deliberately empty of DB/server fixtures - the guardrail
-    test_*.py              # pure: no TestClient, no project_dir/client, no live server, no real packages/cache
-    test_no_integration_imports.py  # meta-test: unit tier must not import the web app / TestClient
-  integration/
-    conftest.py            # project_dir + client fixtures (seeded DB, in-process TestClient)
-    test_*.py              # route/pipeline tests that need the seeded DB
-  ui/
-    conftest.py            # Playwright fixtures + select_video_* helpers + teardown watchdogs
-    test_ui_*.py           # Playwright against the isolated fixture server test-ui spawns (YUU_TEST_URL)
-  js/                      # JS unit layer (vitest + happy-dom, no browser/server). Run via `yuu-dev test-js`.
-    setup.js               # seeds index.html's <body> before module imports (load-time getElementById wiring)
-    <bucket>/*.test.js     # pure module logic imported directly (formatters, filters, parse/score helpers, job-pill state)
-```
+The authoritative file-by-file map lives in **`docs/dev/LAYOUT.md`** - read it there
+when you need to locate a module; keep it (not this section) up to date when files
+move. Orientation summary only:
+
+- `yuu_clip/cli/` - thin Typer adapters; `yuu_clip/dev/` - the `yuu-dev` developer CLI
+- `yuu_clip/pipeline/` - the analyze engine (`ingest.py` orchestration, `progress.py`
+  markers, `run_meta.py`, `frame_analysis.py`, `vision_describe.py`)
+- `yuu_clip/analyze/`, `scoring/`, `segments/`, `transcribe/`, `export/` - the stage
+  and feature packages; `db/models.py` - the ORM (the only schema source)
+- `yuu_clip/web/` - FastAPI app, `routes/` (one module per feature), and `static/`
+  (the ESM UI: committed `bundle.esm.js` + stitched `index.html` build artifacts -
+  edit sources, then `yuu-dev bundle`)
+- `electron/` - the desktop wrapper (own Node test suite)
+- `tests/` - unit / integration / system / ui / js tiers, split by directory
 
 ## Running tests
 
