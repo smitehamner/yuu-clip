@@ -9,6 +9,11 @@ only needed to *rebuild* it, never to run the app.
 ``tests/unit/test_bundle_drift.py`` guards that the committed file is current;
 regenerate with ``yuu-dev bundle`` when it drifts.
 
+``bundle`` also runs ``shared-data`` (see ``shareddata.py``) before building the
+wizard bundle, which inlines ``catalog-data.json`` at build time - one command
+regenerates every static/HTML-edit-adjacent artifact instead of a contributor
+having to remember both.
+
 (History: the UI used to also ship a classic ``bundle.js`` concatenated from
 ``bundle.manifest``. Every module has since migrated to ESM, so that second bundle
 and its manifest were retired.)
@@ -21,7 +26,7 @@ from pathlib import Path
 
 import typer
 
-from yuu_clip.dev import htmlstitch
+from yuu_clip.dev import htmlstitch, shareddata
 from yuu_clip.dev._base import REPO_ROOT, app, console, node_available
 
 STATIC_DIR = REPO_ROOT / "yuu_clip" / "web" / "static"
@@ -80,6 +85,10 @@ def _write_index() -> None:
 
 def _write_bundle() -> None:
     _write_index()
+    # shared-data first: the wizard bundle inlines catalog-data.json at build time, so
+    # it must be current before build_esm_bundle() runs.
+    for path in shareddata.write_shared_data():
+        console.print(f"Wrote {path.relative_to(REPO_ROOT)}")
     build_esm_bundle()
     console.print(f"Wrote {ESM_BUNDLE_PATH} (esbuild, ESM graph from {ESM_ENTRY.name})")
     console.print(f"Wrote {WIZARD_BUNDLE_PATH} (esbuild, wizard graph from {WIZARD_ENTRY.name})")
@@ -130,7 +139,9 @@ def bundle(
     ),
 ) -> None:
     """Build the committed web-UI artifacts: stitch index.html from index.src.html +
-    partials/, then build static/bundle.esm.js from the esbuild ESM graph."""
+    partials/, regenerate the shared model/whisper/preset catalog data (shared-data),
+    then build static/bundle.esm.js + electron/setup.bundle.js from the esbuild ESM
+    graphs."""
     if not ESM_ENTRY.exists():
         console.print(f"[red]{ESM_ENTRY} not found.[/red]")
         raise typer.Exit(1)

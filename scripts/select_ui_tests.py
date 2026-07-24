@@ -13,7 +13,10 @@ Mapping is intentionally over-inclusive - a false include just runs a few extra
 fast tests, while a miss is caught by the always-included smoke file. Feature
 test files are matched to source stems by shared prefix token (so ``videos.js``
 -> ``test_ui_video.py``, ``modelcatalog.js`` -> ``test_ui_model_catalog.py``,
-``clips.js`` -> ``test_ui_clips.py`` + ``test_ui_clips2.py``).
+``clips.js`` -> ``test_ui_clips.py`` + ``test_ui_clips2.py``). Content-only edits
+to ``index.src.html``, ``partials/**``, or ``glossary.md`` are routed directly to
+``test_ui_terminology.py`` + ``test_ui_wizard.py`` (see ``TERMINOLOGY_CONTENT_PREFIXES``)
+since their stem carries no feature signal for that matching to key off.
 """
 from __future__ import annotations
 
@@ -30,6 +33,20 @@ SMOKE = "tests/ui/test_ui_smoke.py"
 # the smoke backstop rather than pretend a narrow mapping is enough.
 CROSS_CUTTING = {"boot", "state", "format", "jobs", "ui", "preview",
                  "shortcuts", "helpmodals", "index"}
+
+# Content-only edits: markup fragments (index.src.html, partials/**) and
+# glossary.md carry user-facing copy but either share a stem no test file keys
+# off (partials) or aren't JS/CSS/HTML at all (glossary.md is markdown), so they
+# fall straight through _map_static with no signal. Both terminology.py (the
+# five Whisper option lists must stay identical) and wizard.py pin exactly this
+# copy, so route these edits there directly instead of relying on the smoke
+# backstop to catch a copy drift it was never designed to catch.
+TERMINOLOGY_CONTENT_PREFIXES = (
+    "yuu_clip/web/static/index.src.html",
+    "yuu_clip/web/static/partials/",
+    "yuu_clip/web/static/glossary.md",
+)
+TERMINOLOGY_TESTS = {"tests/ui/test_ui_terminology.py", "tests/ui/test_ui_wizard.py"}
 
 
 def _changed_files() -> list[str]:
@@ -85,6 +102,9 @@ def select(changed: list[str]) -> tuple[list[str], list[str]]:
         if path.startswith("tests/ui/") and name.startswith("test_ui_") and name.endswith(".py"):
             selected.add(path)
             continue
+        terminology_content = path.startswith(TERMINOLOGY_CONTENT_PREFIXES)
+        if terminology_content:
+            selected |= TERMINOLOGY_TESTS
         if path.startswith("yuu_clip/web/static/") and path.rsplit(".", 1)[-1] in {"js", "css", "html"}:
             stem = Path(name).stem
             if stem in CROSS_CUTTING:
@@ -92,7 +112,7 @@ def select(changed: list[str]) -> tuple[list[str], list[str]]:
             hits = _map_static(stem, test_stems)
             if hits:
                 selected |= hits
-            elif stem not in CROSS_CUTTING:
+            elif stem not in CROSS_CUTTING and not terminology_content:
                 notes.append(f"no UI test maps to {name} - relying on smoke backstop")
         elif path.endswith(".py") and path.startswith("yuu_clip/"):
             notes.append(f"backend file changed ({name}) - run yuu-dev test-api; UI impact via smoke only")
