@@ -178,7 +178,7 @@ const _VERT_BOX_TRAVEL_PCT = 100 - _VERT_BOX_W_PCT;
 
 // One always-visible line answering "will this be quick or slow, and why" -
 // the terms match the Getting Started guide and glossary (Quick/Precise export).
-function _exportModeSummary(hardsub, titleCard, retranscribe) {
+export function _exportModeSummary(hardsub, titleCard, retranscribe) {
   const reencodeReasons = [];
   if (hardsub)   reencodeReasons.push('burned-in captions');
   if (titleCard) reencodeReasons.push('the title card');
@@ -236,7 +236,7 @@ export function _onExportPresetChange(presetName) {
 // export/presets.py's size math - the real encode still uses the server formula.
 const _TIGHT_CAP_TOTAL_KBPS = 900;
 
-function _exportTightCapWarning(presetName, clip) {
+export function _exportTightCapWarning(presetName, clip) {
   const capMb = exportPresetTargetSizeMb(presetName);
   if (!capMb || !clip || clip.start_ms == null || clip.end_ms == null) return '';
   const durationS = (clip.end_ms - clip.start_ms) / 1000;
