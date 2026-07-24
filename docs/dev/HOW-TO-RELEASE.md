@@ -125,6 +125,14 @@ yuu-dev lock-deps   # resolves base deps in a clean 3.12 venv, freezes, writes r
 ```
 Then commit the updated `requirements.lock`.
 
+> **Note (DB-migration framework, 2026-07):** `alembic` (and its transitive `Mako`) were
+> added as runtime deps and hand-added to `requirements.lock`. Before the next release
+> build, run `yuu-dev lock-deps` to re-resolve cleanly and rebuild the offline wheelhouse +
+> prebuilt venv so `alembic` actually ships (the app migrates on startup and cannot import
+> a package that is not bundled). Also confirm the Alembic migration scripts under
+> `yuu_clip/db/migrations/` are included in the wheel (they are `package-data`, not a
+> Python package).
+
 Total build time: ~2–5 minutes depending on machine (longer on the first run,
 which downloads the ~45 MB Python runtime archive).
 
@@ -194,6 +202,12 @@ Before sharing, install and smoke-test in a secondary Windows user account or a 
 - [ ] Install the next build over this one - the downloaded `.gguf` under
       `%LOCALAPPDATA%\yuu-clip\models\` and the venv both survive, and LLM scoring still
       works without re-downloading anything
+- [ ] **Schema upgrade path (do this whenever a release changes the DB schema):** open a
+      project created by the PREVIOUS release in this build. The library must open with all
+      data intact, a `project.db.pre-migration-<timestamp>.bak` must appear in the project's
+      `.yuu-clip/` folder, and `yuu-dev migrate-status -p <project>` must report head. This
+      is the durable per-release gate from the DB-migration framework (UC-G05) - a schema
+      change with no working upgrade from the prior release's DB blocks the release.
 - [ ] Uninstall via Add/Remove Programs - app removed, `%LOCALAPPDATA%\yuu-clip\` gone,
       `Videos\yuu-clip\` data survives
 

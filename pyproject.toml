@@ -21,6 +21,12 @@ dependencies = [
     # ORM - SQLite database for clips, transcripts, scores.
     "sqlalchemy>=2.0,<3.0",
 
+    # Schema migrations. A RUNTIME dep (not dev-only): the packaged app migrates a
+    # user's project DB to head on startup - see yuu_clip/db/migrate.py. Alembic and
+    # its transitive Mako are both MIT-licensed. The migration scripts ship as
+    # package-data (see tool.setuptools.package-data below).
+    "alembic>=1.13,<2.0",
+
     # Cross-platform config/data dirs (AppData on Windows, ~/.config on Linux).
     "platformdirs>=4.0,<6.0",
 
@@ -113,7 +119,14 @@ include = ["yuu_clip*"]
 [tool.setuptools.package-data]
 # setuptools globs do NOT recurse, so each static subdirectory must be listed
 # explicitly - `web/static/*` alone misses web/static/help/ and web/static/fonts/.
-yuu_clip = ["web/static/*", "web/static/fonts/*", "web/static/help/*", "web/static/shared/*"]
+# The Alembic migration scripts must ship too (the app migrates on startup); the
+# migrations/ dir is intentionally not a Python package (no __init__), so its files
+# are data - list migrations/ and migrations/versions/ separately for the same
+# non-recursive-glob reason.
+yuu_clip = [
+    "web/static/*", "web/static/fonts/*", "web/static/help/*", "web/static/shared/*",
+    "db/migrations/*", "db/migrations/versions/*",
+]
 
 [tool.mypy]
 # Lenient global baseline - the codebase is largely untyped and we do NOT do a

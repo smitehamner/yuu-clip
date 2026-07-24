@@ -157,6 +157,32 @@ the assistant-context file). The essentials:
 - `.ps1` files that contain any non-ASCII must be saved with a UTF-8 BOM (enforced by
   `tests/unit/test_ps1_bom.py`).
 
+## Changing the database schema
+
+The project DB (`<project>/.yuu-clip/project.db`) is a user's library - it must survive an
+app update that changes the schema, so schema changes go through **Alembic** migrations,
+never a wipe-and-recreate. The app auto-migrates to the latest revision on startup after
+a timestamped backup (`yuu_clip/db/migrate.py`); a user never runs a command. Migrations
+are forward-only - recovery from a bad upgrade is restoring the `.pre-migration-*.bak`
+file, not a downgrade.
+
+The loop when you change `yuu_clip/db/models.py`:
+
+1. Edit the model.
+2. `yuu-dev migrate-new "short description"` - autogenerates a revision under
+   `yuu_clip/db/migrations/versions/` from the models-vs-DB diff.
+3. **Review the generated script.** SQLite cannot `ALTER`/`DROP` a column in place, so
+   anything beyond an add-column must use Alembic batch operations (the env already sets
+   `render_as_batch=True`); autogenerate output is a draft, not gospel.
+4. Commit `models.py` and the new revision **together**.
+5. `yuu-dev test-unit` runs the schema-drift guard (`tests/unit/test_migration_drift.py`),
+   which fails until `alembic upgrade head` and the models agree - so a model change
+   without a migration cannot land.
+
+`yuu-dev migrate-status` shows the current vs latest revision; `yuu-dev migrate` applies
+pending migrations by hand (the same thing the server does on boot). Every release must
+also verify the upgrade path from the previous release's DB (see the release checklist).
+
 ## Terminology
 
 `docs/dev/llm/GLOSSARY.md` is the authoritative term list. User-facing text (UI labels,
