@@ -59,14 +59,28 @@ def _decode_json_list(s) -> list:
     return json.loads(s) if s else []
 
 
+def sqlite_url(db_path: Path) -> str:
+    """SQLite connection URL for *db_path*.
+
+    The single source of truth for the URL format, reused by make_engine and the
+    Alembic env (yuu_clip/db/migrations/env.py) so migrations run against the exact
+    same database file the app opens. Forward slashes are valid in a SQLite URI even
+    on Windows.
+    """
+    return f"sqlite:///{db_path.as_posix()}"
+
+
 def make_engine(db_path: Path):
-    """Create a SQLite engine.  Works identically on Windows and Linux."""
-    # forward slashes are fine in SQLite URIs even on Windows
-    url = f"sqlite:///{db_path.as_posix()}"
-    # NullPool: never keep connections open between requests.  With SQLite's
-    # single-writer model this prevents pooled server connections from blocking
-    # the ingest subprocess when it tries to INSERT.
-    engine = create_engine(url, echo=False, poolclass=NullPool)
+    """Create a SQLite engine.  Works identically on Windows and Linux.
+
+    create_all builds the schema for a brand-new DB; evolving an existing DB across
+    a schema change is Alembic's job now (see yuu_clip/db/migrate.py, run at server
+    startup). The two coexist: a fresh DB is create_all-ed here and then stamped at
+    the current revision, while a pre-existing DB is upgraded by migrations before
+    this ever runs. The schema-drift guard (tests/unit/test_migration_drift.py)
+    enforces that `alembic upgrade head` and create_all produce identical schemas.
+    """
+    engine = create_engine(sqlite_url(db_path), echo=False, poolclass=NullPool)
 
     @event.listens_for(engine, "connect")
     def set_pragmas(dbapi_connection, _):
@@ -77,64 +91,7 @@ def make_engine(db_path: Path):
         dbapi_connection.execute("PRAGMA busy_timeout=30000")
 
     Base.metadata.create_all(engine)
-    _ensure_additive_columns(engine)
     return engine
-
-
-# create_all() creates missing tables but never adds a column to a table that
-# already exists, so a new column on an existing table must be ALTERed in
-# explicitly for pre-existing project DBs. Only additive columns belong here: a
-# nullable column (existing rows become NULL), or a NOT NULL column that carries
-# a DEFAULT so SQLite backfills existing rows (e.g. kind DEFAULT 'clip').
-_ADDITIVE_COLUMNS: tuple[tuple[str, str, str], ...] = (
-    ("hot_words", "context_slug", "VARCHAR"),
-    ("sensitive_terms", "context_slug", "VARCHAR"),
-    ("transcript_segments", "words_json", "TEXT"),
-    # Clips-vs-Scenes: NOT NULL DEFAULT backfills every existing row to 'clip'
-    # (unlike the nullable columns above, this one carries a non-NULL default).
-    ("clip_candidates", "kind", "VARCHAR NOT NULL DEFAULT 'clip'"),
-    # Video-heavy analysis Stage 0: the 4th "Visual" scoring axis. Existing rows
-    # backfill to NULL and read as 0.0 until re-scored (Rescore re-derives it).
-    ("clip_candidates", "score_visual", "FLOAT"),
-    # Project-wide speaker identity: cross-recording Person link + unconfirmed
-    # suggestion. The project_voices / voice_exemplars tables themselves are created
-    # by create_all(); only these columns on the pre-existing speakers table need the
-    # explicit ALTER for DBs created before this feature.
-    ("speakers", "global_voice_id", "INTEGER"),
-    ("speakers", "suggested_voice_id", "INTEGER"),
-    ("speakers", "suggested_voice_score", "FLOAT"),
-    # Character linking: an optional overlay tying a Person to a world-context
-    # Character. The characters table itself is a new table (create_all makes it);
-    # only this pre-existing-table column needs the explicit ALTER. Plain INTEGER,
-    # not a FK, for the same reason as speakers.global_voice_id above.
-    ("project_voices", "character_id", "INTEGER"),
-    # Transcription pause point: marks a transcript whose every segment landed.
-    # Nullable, because "unfinished" is exactly what NULL means here - see the
-    # one-time backfill below for why existing rows must not read as unfinished.
-    ("transcripts", "completed_at", "DATETIME"),
-)
-
-# Run ONCE, immediately after the keyed column is first added, for a column whose
-# correct value for pre-existing rows is not a constant SQLite accepts as an
-# ALTER TABLE ... DEFAULT. Deliberately not re-run on later startups: every row
-# that predates the column was written before the marker existed and is therefore
-# finished, but a NULL written *after* the migration means genuinely unfinished,
-# and re-running would silently mark a truncated transcript complete.
-_ONE_TIME_BACKFILLS: dict[tuple[str, str], str] = {
-    ("transcripts", "completed_at"):
-        "UPDATE transcripts SET completed_at = created_at WHERE completed_at IS NULL",
-}
-
-
-def _ensure_additive_columns(engine) -> None:
-    with engine.begin() as conn:
-        for table, column, coltype in _ADDITIVE_COLUMNS:
-            columns = {row[1] for row in conn.exec_driver_sql(f"PRAGMA table_info({table})")}
-            if column not in columns:
-                conn.exec_driver_sql(f"ALTER TABLE {table} ADD COLUMN {column} {coltype}")
-                backfill = _ONE_TIME_BACKFILLS.get((table, column))
-                if backfill:
-                    conn.exec_driver_sql(backfill)
 
 
 def make_session(db_path: Path) -> Session:

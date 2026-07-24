@@ -57,6 +57,18 @@ class ProjectContext:
 
         self.config = Config.load(project_dir)
 
+        # Bring the DB to the latest schema revision (after a timestamped backup when
+        # a migration is pending) BEFORE make_engine's create_all runs - a future
+        # migration that adds a whole new table must win over create_all, not race it.
+        # This is the single server-side migrate choke point: it covers first boot,
+        # in-place project switch, and restore, since all rebind through here. The
+        # analyze subprocess never constructs a ProjectContext, so it never migrates -
+        # it opens the DB only after the server has already brought it to head. Raises
+        # MigrationError on a failed upgrade so the server refuses to serve on a
+        # half-migrated DB (the backup is preserved).
+        from yuu_clip.db.migrate import run_startup_migrations
+        run_startup_migrations(self.db_path, self.config)
+
         # Cached result of the llama-server Vulkan device probe (see
         # llm_gpu_available below) - None means "not probed yet" or "inconclusive",
         # so it is retried; True/False are cached to avoid re-spawning

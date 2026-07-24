@@ -352,10 +352,10 @@ Because the server and the analyze subprocess share one SQLite file (see the pro
 model above), three rules are non-negotiable:
 
 - **`NullPool` on every engine.** Set in `make_engine`
-  ([db/models.py:69](../../yuu_clip/db/models.py#L69)). Connections close immediately so
+  ([db/models.py:73](../../yuu_clip/db/models.py#L73)). Connections close immediately so
   a pooled server connection cannot hold a lock and block the subprocess's INSERT. Never
   change this to a pooled class. A 30 s `busy_timeout` PRAGMA
-  ([db/models.py:77](../../yuu_clip/db/models.py#L77)) gives a blocked writer time to wait
+  ([db/models.py:91](../../yuu_clip/db/models.py#L91)) gives a blocked writer time to wait
   rather than fail instantly.
 - **Every route handler that opens a session must close it in `try/finally`.** See the
   pattern in [routes/videos.py:82-95](../../yuu_clip/web/routes/videos.py#L82-L95). A
@@ -363,6 +363,29 @@ model above), three rules are non-negotiable:
 - **If you see `OperationalError: database is locked`:** the usual cause is a zombie
   analyze subprocess still holding the file (kill it and restart the server), or a route
   handler leaking a session, or the server not being restarted after a Python change.
+
+### 5. Schema changes go through Alembic (never wipe-and-recreate)
+
+The project DB is a user's library and must survive an app update that changes the
+schema. The schema is versioned by **Alembic** ([yuu_clip/db/migrations/](../../yuu_clip/db/migrations/)):
+
+- **On startup the server auto-migrates to head** after a timestamped backup of the
+  SQLite file, before it serves a request or launches the analyze subprocess
+  ([db/migrate.py](../../yuu_clip/db/migrate.py), called from `ProjectContext`). A user
+  never runs a command; a failed upgrade leaves the backup intact and refuses to serve
+  rather than corrupt data. Only the server migrates - the analyze subprocess opens the
+  DB only after the server has brought it to head.
+- **Forward-only.** There are no down-revisions; recovery from a bad upgrade is restoring
+  the `*.pre-migration-*.bak` file, not `alembic downgrade`.
+- **`make_engine`'s `create_all` still builds a brand-new DB in full**, which is then
+  stamped at the current revision; migrations are what evolve an *existing* DB. The
+  schema-drift guard ([tests/unit/test_migration_drift.py](../../tests/unit/test_migration_drift.py))
+  fails if a model changes without a matching migration - the enforced replacement for
+  the retired hand-maintained additive-column list.
+- **To change the schema:** edit `db/models.py`, run `yuu-dev migrate-new "message"`,
+  **review** the generated script (SQLite needs batch ops for anything but an add-column;
+  autogenerate output is never blindly trusted), and commit the model + revision together.
+  See [CONTRIBUTING.md](../../CONTRIBUTING.md) "Changing the database schema".
 
 ---
 
@@ -377,6 +400,7 @@ model above), three rules are non-negotiable:
 | **Add or edit a frontend module** | Edit the source `static/<bucket>/*.js`, `export` its public surface and `import` what it needs, then run `yuu-dev bundle` and `yuu-dev test-js` (landmine #1). Never edit `bundle.esm.js` by hand. |
 | **Edit a modal / page region (markup)** | Edit the partial under `static/partials/` (or `static/index.src.html` for the shell), then run `yuu-dev bundle` to re-stitch `index.html` (landmine #1). Never hand-edit the committed `index.html`. |
 | **Change the analyze pipeline order** | [pipeline/ingest.py](../../yuu_clip/pipeline/ingest.py) - keep the `prewarm_transformers_pipeline()` call ahead of any speechbrain import (landmine #3). |
+| **Change the DB schema** | Edit [db/models.py](../../yuu_clip/db/models.py), run `yuu-dev migrate-new "message"`, review the generated Alembic revision (batch ops on SQLite), commit both together (landmine #5). |
 | **Find any other file** | The full file-by-file map is [docs/dev/LAYOUT.md](LAYOUT.md). |
 
 ---

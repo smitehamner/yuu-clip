@@ -427,6 +427,27 @@ A one-glance "what to walk before public" list is in the final section.
 - **Coverage:** tests/unit/test_update_check.py, tests/integration/test_updates.py, tests/js/core/updatecheck.test.js. Live-repo verification is a manual HOW-TO-RELEASE.md checklist item post-flip. Automated by tests/integration/test_updates.py::TestUpdatesCheck::test_reports_update_available.
 - **Pre-release priority:** P2 - convenience, not core loop; never blocks or auto-changes anything.
 
+### UC-G05 - Library upgrades cleanly on an app update (schema migration + backup)
+- **Actor goal:** open a project made by an older version after updating, with all data intact.
+- **Preconditions:** a project DB created by a prior release whose schema differs from the new one.
+- **Steps:**
+  1. Update the app to a build whose schema has advanced, then open an existing project.
+  2. Confirm the app opens straight to the library with every recording, clip, and edit present.
+  3. Look in `<project>/.yuu-clip/` for a `project.db.pre-migration-<timestamp>.bak` file.
+  4. (Failure path) simulate a broken upgrade; confirm the app refuses to serve with an
+     actionable message and leaves the backup intact rather than showing a half-migrated library.
+- **Expected:** the DB auto-migrates to the latest schema on startup, after a timestamped
+  backup, with no user action; data is preserved; a failed migration keeps the backup and
+  surfaces a clear "your library could not be upgraded, previous data backed up to ..."
+  message instead of serving corrupt data. Migrations are forward-only (recover by restoring
+  the backup, never a downgrade).
+- **Automation:** automated / manual-only. The migrate + backup + adopt-existing-DB mechanics
+  are automated; the real cross-release upgrade (a genuine prior-release DB -> new build) is a
+  per-release manual gate (create a DB with the previous version, boot the new one, confirm
+  clean upgrade with data intact) because it needs a shipped prior release to exist.
+- **Coverage:** tests/unit/test_migration_drift.py, tests/unit/test_startup_migrate.py, tests/integration/test_migration_startup.py. Automated by tests/unit/test_startup_migrate.py::test_pending_migration_backs_up_then_upgrades and tests/integration/test_migration_startup.py::test_create_app_migrates_seeded_project_to_head. Cross-release upgrade path: HOW-TO-RELEASE.md manual checklist.
+- **Pre-release priority:** P0 - losing or corrupting a user's library across an update is the worst possible failure for a distributed app.
+
 ---
 
 ## What to walk before flipping the repo public

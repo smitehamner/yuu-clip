@@ -12,6 +12,7 @@ from yuu_clip.dev import (  # noqa: E402,F401  (registers commands)
     helpdocs,
     lint,
     logs,
+    migrate,
     notices,
     serve,
     shareddata,

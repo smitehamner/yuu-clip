@@ -913,6 +913,14 @@ class Config:
     thermal_pause_c: int = 90
     thermal_autopause_enabled: bool = True
 
+    # On server startup, bring the project DB up to the latest schema revision (after
+    # a timestamped backup) via Alembic - see yuu_clip/db/migrate.py. True is the
+    # shipped behavior so a packaged app upgrades a user's library across an update
+    # with no manual step. A dev can set this False to skip the migrate on boot and
+    # rely on create_all + `yuu-dev migrate` by hand. Not exposed in Settings (it is a
+    # safety/dev seam, not a user preference).
+    db_migrate_on_startup: bool = True
+
     @classmethod
     def load(cls, project_dir: Path) -> "Config":
         """Load config, merging global defaults with project overrides."""
