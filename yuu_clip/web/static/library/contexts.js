@@ -35,10 +35,6 @@ export async function ensureContexts() {
 // Both Settings lists let an entry be Global or scoped to a world context. These
 // two helpers build the per-row "Applies to" <select> and the grouped rendering,
 // so hotwords.js and sensitive.js stay identical on scoping without duplicating it.
-function _termContextName(slug) {
-  const ctx = (AppState.contexts || []).find(c => c.context_id === slug);
-  return ctx ? (ctx.display_name || ctx.context_id) : null;
-}
 
 // Options: Global first, then every known context by display name. A slug that no
 // longer names a live context (its context was deleted) keeps a "(removed)" option
@@ -58,31 +54,46 @@ export function _termContextOptions(selectedSlug) {
   return html;
 }
 
-// Group terms under a "Global (all recordings)" heading, one heading per context
-// that has entries (in the context list's order), then a "Removed context" group
-// for orphaned entries. rowHtmlFn renders a single term row.
-export function _renderTermGroups(terms, rowHtmlFn) {
+// Bucket terms by their context scope into ordered groups: Global (all recordings)
+// first, one group per context that has entries (in the context list's order), then a
+// "(removed)" group per orphaned slug whose context was deleted. Each group carries its
+// display label and its rows; an empty scope produces no group. Pure - contexts is passed
+// in (both hotwords.js and sensitive.js render through _renderTermGroups over AppState).
+export function groupTermsByContext(terms, contexts) {
   const buckets = new Map();
   for (const term of terms) {
     const key = term.context_slug || '';
     if (!buckets.has(key)) buckets.set(key, []);
     buckets.get(key).push(term);
   }
+  const contextList = contexts || [];
+  const nameOf = slug => {
+    const ctx = contextList.find(c => c.context_id === slug);
+    return ctx ? (ctx.display_name || ctx.context_id) : null;
+  };
   const order = [''];
-  for (const c of (AppState.contexts || [])) if (buckets.has(c.context_id)) order.push(c.context_id);
+  for (const c of contextList) if (buckets.has(c.context_id)) order.push(c.context_id);
   for (const key of buckets.keys()) {
     if (key && !order.includes(key)) order.push(key);
   }
-  let html = '';
+  const groups = [];
   for (const key of order) {
     const rows = buckets.get(key);
     if (!rows) continue;
-    const label = key === '' ? 'Global (all recordings)' : (_termContextName(key) || `${key} (removed)`);
-    html += `<div style="font-size:11px;font-weight:600;color:var(--muted);margin:10px 0 2px;`
-          + `text-transform:uppercase;letter-spacing:.04em">${escHtml(label)}</div>`;
-    html += rows.map(rowHtmlFn).join('');
+    const label = key === '' ? 'Global (all recordings)' : (nameOf(key) || `${key} (removed)`);
+    groups.push({ key, label, rows });
   }
-  return html;
+  return groups;
+}
+
+// Thin HTML wrapper over groupTermsByContext: one uppercase heading per group, then
+// its rows via rowHtmlFn. Shared by the hot-words and sensitive-terms lists.
+export function _renderTermGroups(terms, rowHtmlFn) {
+  return groupTermsByContext(terms, AppState.contexts).map(group =>
+    `<div style="font-size:11px;font-weight:600;color:var(--muted);margin:10px 0 2px;`
+    + `text-transform:uppercase;letter-spacing:.04em">${escHtml(group.label)}</div>`
+    + group.rows.map(rowHtmlFn).join(''),
+  ).join('');
 }
 
 let _contextEditorDirty = false;
