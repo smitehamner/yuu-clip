@@ -9,8 +9,8 @@ llama-server aborts generation mid-inference. The web server keeps the model war
 
 Progress is emitted as ``@@PROGRESS`` markers (pipeline/progress.py) plus, on a
 handled failure, a bracketed status line the browser surfaces as a toast. stdout is
-streamed line-by-line to the browser by subprocess_sse, which appends the
-``__DONE__`` sentinel itself.
+streamed line-by-line to the browser by subprocess_sse, which translates each line
+into a typed job event and appends the terminal ``done`` event itself.
 """
 from __future__ import annotations
 

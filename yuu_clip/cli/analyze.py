@@ -159,9 +159,9 @@ def analyze(
         )
 
     # Print a generic completion line unconditionally. The "run yuuclip status" hint
-    # is CLI-only guidance; the web UI drives its own completion (SSE __DONE__ + job
-    # pills), so suppress just that hint on --no-interact runs where it would leak a
-    # stray CLI line into the in-app log.
+    # is CLI-only guidance; the web UI drives its own completion (a typed SSE done
+    # event + job pills), so suppress just that hint on --no-interact runs where it
+    # would leak a stray CLI line into the in-app log.
     console.print("\n[bold green]Done![/bold green]\n")
     if not no_interact:
         console.print("Run [cyan]yuuclip status[/cyan] to review your clips.\n")

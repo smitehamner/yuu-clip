@@ -149,7 +149,7 @@ function _speakerMergeHtml(speaker, speakers) {
 
 // Streams the LLM inference job as SSE (the transcript pass can be slow). Mirrors
 // _doRegenSummaryAuto: log lines while it runs, then reload the card so the fresh
-// suggestions render. The __DONE__ sentinel carries how many were applied.
+// suggestions render. A typed result event carries how many names were applied.
 function _suggestSpeakerNames() {
   if (!_currentVideoId) return;
   if (_blockedByAnalyze('suggest speaker names')) return;
