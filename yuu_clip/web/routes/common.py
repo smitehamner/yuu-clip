@@ -288,6 +288,30 @@ def parse_optional_color(value: Optional[str]) -> Optional[str]:
     return color
 
 
+def parse_int_list(raw: Optional[str], default: Optional[list[int]] = None) -> list[int]:
+    """Parse a comma-separated list of ints, ignoring blank fields.
+
+    Returns *default* (or [] when *default* is None) for a blank/None input OR an
+    input that parses to no ids (e.g. ",,,"). Raises ValueError whose message is
+    the first non-integer field, so a caller can name it; callers wrap that into an
+    HTTPException(400) with their own user-facing message.
+    """
+    fallback = list(default) if default is not None else []
+    text = (raw or "").strip()
+    if not text:
+        return fallback
+    ids: list[int] = []
+    for part in text.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            ids.append(int(part))
+        except ValueError:
+            raise ValueError(part) from None
+    return ids or fallback
+
+
 def normalize_context_slug(raw: Optional[str]) -> Optional[str]:
     """A blank / whitespace-only context_slug means "global" (None); else trimmed.
 

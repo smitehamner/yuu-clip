@@ -24,7 +24,7 @@ from yuu_clip.export.paths import export_paths
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.file_deletion import delete_files, locked_files_error
-from yuu_clip.web.routes.common import reject_if_busy, srt_to_vtt
+from yuu_clip.web.routes.common import parse_int_list, reject_if_busy, srt_to_vtt
 from yuu_clip.web.sse import subprocess_sse
 
 _log = get_logger(__name__)
@@ -48,18 +48,10 @@ _REEL_POOL_STATUSES = {"approved", "pending", "rejected"}
 
 def _parse_video_ids(raw: Optional[str]) -> list[int]:
     """Parse a comma-separated video_ids query param, ignoring blanks and non-ints."""
-    if not raw:
-        return []
-    ids: list[int] = []
-    for part in raw.split(","):
-        part = part.strip()
-        if not part:
-            continue
-        try:
-            ids.append(int(part))
-        except ValueError:
-            raise HTTPException(400, f"video_ids must be integers: got '{part}'")
-    return ids
+    try:
+        return parse_int_list(raw)
+    except ValueError as exc:
+        raise HTTPException(400, f"video_ids must be integers: got '{exc}'") from None
 
 
 def _safe_filename(name: str, default: str = "highlights.mkv") -> str:

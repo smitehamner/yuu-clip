@@ -21,6 +21,7 @@ from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.routes.common import (
     active_job,
     json_list,
+    parse_int_list,
     reject_if_busy,
     require_clip,
     sse_response,
@@ -146,13 +147,10 @@ def _load_sensitive_terms(db) -> list:
 
 def _parse_scope_ids(video_ids: str, default_video_id: int) -> list[int]:
     """Parse the comma-separated video_ids query param, defaulting to the clip's own video."""
-    if not video_ids.strip():
-        return [default_video_id]
     try:
-        scope_ids = [int(x) for x in video_ids.split(",") if x.strip()]
+        return parse_int_list(video_ids, default=[default_video_id])
     except ValueError:
-        raise HTTPException(400, "video_ids must be comma-separated integers")
-    return scope_ids or [default_video_id]
+        raise HTTPException(400, "video_ids must be comma-separated integers") from None
 
 
 def _load_related_candidates(db, scope_ids: list[int], exclude_clip_id: int) -> list[dict]:

@@ -1,7 +1,7 @@
 """Unit tests for pure helpers in web/routes/common.py (no DB, no TestClient)."""
 import pytest
 
-from yuu_clip.web.routes.common import parse_optional_color
+from yuu_clip.web.routes.common import parse_int_list, parse_optional_color
 
 
 class TestParseOptionalColor:
@@ -42,3 +42,47 @@ class TestParseOptionalColor:
     def test_non_hex_digits_rejected(self):
         with pytest.raises(ValueError):
             parse_optional_color("#gggggg")
+
+
+class TestParseIntList:
+    def test_single_int(self):
+        assert parse_int_list("5") == [5]
+
+    def test_comma_separated_ints(self):
+        assert parse_int_list("1,2,3") == [1, 2, 3]
+
+    def test_surrounding_and_inner_whitespace_ignored(self):
+        assert parse_int_list(" 1 , 2 ,3 ") == [1, 2, 3]
+
+    def test_blank_fields_skipped(self):
+        assert parse_int_list("1,,2,") == [1, 2]
+
+    def test_none_returns_empty_by_default(self):
+        assert parse_int_list(None) == []
+
+    def test_empty_string_returns_empty_by_default(self):
+        assert parse_int_list("") == []
+
+    def test_whitespace_only_returns_empty_by_default(self):
+        assert parse_int_list("   ") == []
+
+    def test_blank_input_returns_provided_default(self):
+        assert parse_int_list("", default=[7]) == [7]
+
+    def test_all_blank_fields_return_provided_default(self):
+        # ",,," parses to no ids, so the default fallback applies too.
+        assert parse_int_list(",,,", default=[7]) == [7]
+
+    def test_default_not_applied_when_ids_present(self):
+        assert parse_int_list("1,2", default=[7]) == [1, 2]
+
+    def test_non_integer_raises_value_error_naming_the_field(self):
+        with pytest.raises(ValueError) as exc:
+            parse_int_list("1,x,3")
+        assert str(exc.value) == "x"
+
+    def test_default_is_copied_not_aliased(self):
+        default = [7]
+        result = parse_int_list(None, default=default)
+        result.append(9)
+        assert default == [7]
