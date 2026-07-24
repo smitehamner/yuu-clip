@@ -901,6 +901,21 @@ def _create_segments(db, video: Video, boundaries: list[float], segment_names: l
     return segment_ids
 
 
+def segment_index_for(time_s: float, boundaries: list[float]) -> int:
+    """Index of the segment whose half-open [boundaries[i], boundaries[i+1]) range
+    contains *time_s*, clamped to the last segment for a time at or past the final
+    boundary. *boundaries* carries one more entry than there are segments (the
+    leading 0.0 and the trailing duration), so the segment count is
+    ``len(boundaries) - 1``. This is the shared start-time ownership rule both the
+    clip and transcript migration use to decide which segment a time falls in.
+    """
+    segment_count = len(boundaries) - 1
+    return next(
+        (i for i in range(segment_count) if boundaries[i] <= time_s < boundaries[i + 1]),
+        segment_count - 1,
+    )
+
+
 def _migrate_clips_to_segments(
     db, parent: Video, boundaries: list[float], segment_ids: list[int], export_dir: Path,
     name_template: str = DEFAULT_EXPORT_NAME_TEMPLATE,
@@ -913,11 +928,7 @@ def _migrate_clips_to_segments(
     """
     clips = db.query(ClipCandidate).filter_by(video_id=parent.id).all()
     for clip in clips:
-        start_s = clip.start_ms / 1000.0
-        seg_idx = next(
-            (i for i in range(len(segment_ids)) if boundaries[i] <= start_s < boundaries[i + 1]),
-            len(segment_ids) - 1,
-        )
+        seg_idx = segment_index_for(clip.start_ms / 1000.0, boundaries)
         clip.video_id = segment_ids[seg_idx]
         _shift_clip_times(clip, parent, -int(boundaries[seg_idx] * 1000), export_dir, name_template)
     db.flush()
@@ -943,10 +954,7 @@ def _migrate_transcript_to_segments(
 
         by_segment: dict[int, list] = {}
         for seg in transcript.segments:
-            seg_idx = next(
-                (i for i in range(len(segment_ids)) if boundaries[i] <= seg.start_ms / 1000.0 < boundaries[i + 1]),
-                len(segment_ids) - 1,
-            )
+            seg_idx = segment_index_for(seg.start_ms / 1000.0, boundaries)
             by_segment.setdefault(seg_idx, []).append(seg)
 
         for seg_idx, segs in by_segment.items():
