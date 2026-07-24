@@ -6,7 +6,7 @@
 //   API: routes/llm.py, routes/config.py (capabilities/tiers) · Tests: tests/ui/test_ui_model_catalog.py, tests/ui/test_ui_settings.py
 import { escHtml } from '../core/format.js';
 import { showToast } from '../core/utils.js';
-import { isDoneSentinel, doneError } from '../core/jobs.js';
+import { decodeEvent } from '../core/jobevents.js';
 import { _checkSettingsDirty, markModelPathsApplied, _scrollToSettingsSection } from './settings.js';
 
 // ── model catalog (recommended text + vision models) ────────────────────────
@@ -351,20 +351,21 @@ async function downloadGgufModel(modelId) {
       buf = lines.pop();
       for (const line of lines) {
         if (!line.startsWith('data: ')) continue;
-        const msg = JSON.parse(line.slice(6));
-        // The subprocess exiting non-zero (a failed download) arrives as the
-        // object form of the done sentinel; the bare string is success only.
-        if (isDoneSentinel(msg)) {
-          if (doneError(msg)) _failGgufDownload(modelId, 'Download failed - check your connection and try again.');
+        const evt = decodeEvent(JSON.parse(line.slice(6)));
+        // The subprocess exiting non-zero (a failed download) arrives as a
+        // typed done{outcome:error}; ok/cancelled both mean "stopped, not failed".
+        if (evt.kind === 'done') {
+          if (evt.outcome === 'error') _failGgufDownload(modelId, 'Download failed - check your connection and try again.');
           else await _finishGgufDownload(modelId);
           return;
         }
-        const pct = _parseGgufPct(msg);
+        if (evt.kind !== 'log') continue;
+        const pct = _parseGgufPct(evt.text);
         if (pct != null && _ggufDownload && _ggufDownload.modelId === modelId) {
           _ggufDownload.pct = pct;
           _renderGgufProgress();
         }
-        _appendGgufLog(msg);
+        _appendGgufLog(evt.text);
       }
     }
   } catch (err) {
@@ -613,14 +614,18 @@ async function prefetchModel(slug, tierId) {
       buf = lines.pop();
       for (const line of lines) {
         if (!line.startsWith('data: ')) continue;
-        const msg = JSON.parse(line.slice(6));
-        if (isDoneSentinel(msg)) {
-          const failure = doneError(msg);
-          log.textContent += failure ? `✗ ${failure}\n` : '✓ Ready.\n';
-          if (!failure) _renderCapabilityTiers();
+        const evt = decodeEvent(JSON.parse(line.slice(6)));
+        if (evt.kind === 'done') {
+          if (evt.outcome === 'error') {
+            log.textContent += `✗ ${evt.error || 'Download failed - check your connection and try again.'}\n`;
+          } else {
+            log.textContent += '✓ Ready.\n';
+            _renderCapabilityTiers();
+          }
           return;
         }
-        log.textContent += msg + '\n';
+        if (evt.kind !== 'log') continue;
+        log.textContent += evt.text + '\n';
         log.scrollTop = log.scrollHeight;
       }
     }

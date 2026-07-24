@@ -147,8 +147,9 @@ class TestClipCreateConfirm:
             body=json.dumps({"url": None, "filename": None, "has_captions": False})))
         page.route(f"**/api/clips/{_FAKE_CLIP_ID}/rescore", lambda route: route.fulfill(
             status=200, content_type="text/event-stream",
-            body='data: "Scored 1/1 clips"\n\n'
-                 'data: {"type": "__DONE__", "description_new": null, "description_long_new": null}\n\n'))
+            body='data: {"v": 1, "type": "log", "text": "Scored 1/1 clips", "level": "info"}\n\n'
+                 'data: {"v": 1, "type": "result", "data": {"description_new": null, "description_long_new": null}}\n\n'
+                 'data: {"v": 1, "type": "done", "outcome": "ok"}\n\n'))
 
         lines = page.locator("#clipcreate-transcript-view .tline")
         lines.nth(1).click()
@@ -190,7 +191,8 @@ class TestClipCreateConfirm:
             body=json.dumps({"url": None, "filename": None, "has_captions": False})))
         page.route(f"**/api/clips/{_FAKE_CLIP_ID}/rescore", lambda route: route.fulfill(
             status=200, content_type="text/event-stream",
-            body='data: {"type": "__DONE__", "description_new": null, "description_long_new": null}\n\n'))
+            body='data: {"v": 1, "type": "result", "data": {"description_new": null, "description_long_new": null}}\n\n'
+                 'data: {"v": 1, "type": "done", "outcome": "ok"}\n\n'))
 
         lines = page.locator("#clipcreate-transcript-view .tline")
         lines.nth(1).click()

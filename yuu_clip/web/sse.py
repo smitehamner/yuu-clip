@@ -9,15 +9,13 @@ so the browser can display live progress without polling.
 line into a typed job event (an ``@@PROGRESS`` marker into a ``progress`` event,
 every other line into a ``log`` event) and ends with exactly one ``done`` event
 carrying the outcome (``ok`` / ``error`` / ``cancelled``). See
-``yuu_clip/web/jobevents.py`` for the wire vocabulary. The legacy ``__DONE__``
-sentinel helper below is retained only for the hand-rolled route generators not
-yet converted (migration stage 2). Lines are also forwarded to the application
-log so they appear in the exported debug log.
+``yuu_clip/web/jobevents.py`` for the wire vocabulary. Every emitter now speaks the
+typed protocol - the legacy string/sentinel helpers were retired in migration stage 4.
+Lines are also forwarded to the application log so they appear in the exported debug log.
 """
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 import signal
 import subprocess
@@ -39,29 +37,6 @@ from yuu_clip.web.jobevents import (
 )
 
 _log = get_logger(__name__)
-_SSE_DONE_SENTINEL = "__DONE__"
-
-
-def sse_event(payload) -> str:
-    """One SSE ``data:`` frame: JSON-encode *payload* and wrap it in the
-    ``data: <json>\\n\\n`` envelope. The single definition of the SSE line
-    contract shared by the hand-rolled route generators still on the legacy
-    wire (converted route by route in migration stage 2)."""
-    return f"data: {json.dumps(payload)}\n\n"
-
-
-def _done_event(*, ok: bool = True, error: str = "") -> str:
-    """The legacy terminal SSE completion payload (two-form ``__DONE__`` sentinel).
-
-    Retained only for the hand-rolled route generators not yet converted to the
-    typed protocol (``routes/videos.py`` waveform/preview). The two central
-    emitters - ``subprocess_sse`` and ``AnalyzeJob`` - now end with a typed
-    ``done_event(outcome)`` instead. Removed in migration stage 4 once every
-    hand-rolled route speaks the typed wire.
-    """
-    if ok:
-        return sse_event(_SSE_DONE_SENTINEL)
-    return sse_event({"type": _SSE_DONE_SENTINEL, "ok": False, "error": error})
 
 
 def new_session_kwargs() -> dict:
@@ -293,8 +268,8 @@ async def subprocess_sse(
             # A failed launch (bad executable / ENOENT on sys.executable / OS limit)
             # or a mid-stream error would otherwise abort the async generator with no
             # payload: the browser's reader sees the stream die with no error line and
-            # no __DONE__, so endJobUI never runs and the job pill sticks. Mirror
-            # AnalyzeJob._pump - log it and emit an error line + the done sentinel.
+            # no terminal done event, so endJobUI never runs and the job pill sticks.
+            # Mirror AnalyzeJob._pump - log it and emit an error log + a done{error}.
             _log.exception("Subprocess stream failed: %s", " ".join(str(c) for c in cmd))
             yield log_event("[Error: could not start subprocess]", level="error")
             yield done_event(OUTCOME_ERROR, error="This job could not start - check the log for details.")

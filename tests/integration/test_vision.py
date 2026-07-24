@@ -330,7 +330,7 @@ class TestAnalyzeFramesRoute:
             captured["kwargs"] = kwargs
 
             async def _gen():
-                yield 'data: "__DONE__"\n\n'
+                yield 'data: {"v": 1, "type": "done", "outcome": "ok"}\n\n'
 
             return StreamingResponse(_gen(), media_type="text/event-stream")
 

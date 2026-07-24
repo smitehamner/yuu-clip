@@ -231,7 +231,9 @@ def _mock_export_endpoints(page: Page, video_id: int) -> None:
         body=json.dumps({"start_offset": 0.0, "end_offset": 0.0})))
     page.route(f"**/api/clips/{_FAKE_CLIP_ID}/export*", lambda route: route.fulfill(
         status=200, content_type="text/event-stream",
-        body='data: "Exporting clip"\n\ndata: "OK Saved"\n\ndata: "__DONE__"\n\n'))
+        body='data: {"v": 1, "type": "log", "text": "Exporting clip", "level": "info"}\n\n'
+             'data: {"v": 1, "type": "log", "text": "OK Saved", "level": "info"}\n\n'
+             'data: {"v": 1, "type": "done", "outcome": "ok"}\n\n'))
     page.route(f"**/api/clips/{_FAKE_CLIP_ID}/media_url", lambda route: route.fulfill(
         status=200, content_type="application/json",
         body=json.dumps({"url": None, "filename": None, "has_captions": False})))

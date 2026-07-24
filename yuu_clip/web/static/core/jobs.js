@@ -7,7 +7,7 @@ import { escHtml, formatApiError, _fmtElapsed } from './format.js';
 import { showToast, appendLog, netErrMsg } from './utils.js';
 import { showConfirm } from './ui.js';
 import { SoundFx } from '../library/sounds.js';
-import { decodeEvent, isDoneSentinel, doneError } from './jobevents.js';
+import { decodeEvent } from './jobevents.js';
 
 // ── shared live job-render state ──────────────────────────────────────────────
 // _jobStepDefs / _activeStepIdx / _jobStartTime are read cross-module by videos.js's
@@ -449,22 +449,16 @@ function endJobUI() {
   }, 2000);
 }
 
-// The done-sentinel helpers (isDoneSentinel/doneError) and the typed-event decoder
-// (decodeEvent) now live in core/jobevents.js - imported above and re-exported below.
+// The typed-event decoder (decodeEvent) lives in core/jobevents.js - imported above.
 
-// Route one decoded SSE event to the raw-stream callbacks. Legacy frames reproduce
-// the pre-protocol behavior byte-for-byte (a prose line -> onLine(payload); a legacy
-// __DONE__ sentinel -> onError/onDone via the same doneError check), so routes not yet
-// converted keep working. The typed kinds are live from migration stage 1: a `progress`
-// event -> onProgress(evt), a `result` event -> onResult(evt.data), a typed `done` ->
-// onError/onDone by outcome. An unknown v1 type is ignored; a newer-protocol frame asks
-// the user to refresh. Returns true when the event is terminal (done / fatal) so the
-// reader stops exactly where the old code returned.
+// Route one decoded SSE event to the raw-stream callbacks. Every emitter now speaks the
+// typed wire (the legacy prose-string / done-sentinel decode paths were retired in
+// migration stage 4): a `log` event -> onLine(evt.text), a `progress` event -> onProgress(evt), a
+// `result` event -> onResult(evt.data), a `done` -> onError/onDone by outcome. An unknown
+// v1 type is ignored; a newer-protocol frame asks the user to refresh. Returns true when
+// the event is terminal (done / fatal) so the reader stops.
 function _routeSSEEvent(evt, onLine, onDone, onError, onProgress, onResult) {
   switch (evt.kind) {
-    case 'legacy-line':
-      onLine(evt.payload);
-      return false;
     case 'log':
       onLine(evt.text);
       return false;
@@ -474,11 +468,6 @@ function _routeSSEEvent(evt, onLine, onDone, onError, onProgress, onResult) {
     case 'result':
       if (onResult) onResult(evt.data);
       return false;
-    case 'legacy-done': {
-      const failure = doneError(evt.payload);
-      if (failure) onError(failure); else onDone(evt.payload);
-      return true;
-    }
     case 'done':
       if (evt.outcome === 'error') onError(evt.error || 'The job did not finish - check the log for details.');
       else onDone(evt.outcome);
@@ -498,9 +487,8 @@ function _routeSSEEvent(evt, onLine, onDone, onError, onProgress, onResult) {
 // Low-level SSE reader using fetch + ReadableStream so non-200 HTTP responses
 // can be read for their error detail (EventSource.onerror cannot do this).
 //
-// onLine(msg)  - called for each log / legacy prose payload before the terminal event
-// onDone(msg)  - called on success: a typed outcome string ('ok'|'cancelled'), or the
-//                full legacy __DONE__ payload (string or object) for unconverted routes
+// onLine(text) - called with each `log` event's text before the terminal event
+// onDone(outcome) - called on success with the typed outcome string ('ok'|'cancelled')
 // onError(str) - called with a plain-language message on failure / HTTP error / net loss
 //
 // opts (optional): extra fetch init, e.g. {method: 'POST'} for the model-download
@@ -581,8 +569,8 @@ function _blockedByAnalyze(actionLabel) {
   return true;
 }
 
-// onLine (optional): called with each raw SSE payload line before __DONE__, for
-// callers that need live progress text (e.g. the proxy-build percentage).
+// onLine (optional): called with each `log` event's text before the terminal done
+// event, for callers that need live progress text (e.g. the proxy-build percentage).
 // opts (optional): fetch init passed through to _openSSE, e.g. {method: 'POST'}
 // for a POST-only SSE endpoint (analyze-frames).
 // onError (optional): called after the built-in error handling (toast + endJobUI)
@@ -724,7 +712,6 @@ export {
   SPEAKER_NAMES_STEPS, FIND_SIMILAR_STEPS, TIMELINE_JOB_STEPS, setJobProgress,
   startJobUI, updateJobUI, endJobUI, applyJobBlockedState, _stepPillLabel, _renderStepPill, _tickJobTimer,
   _setPausedUIFromStatus, togglePauseJob, _pollThermalStatus,
-  isDoneSentinel, doneError,
   _openSSE, streamSSE, _setActiveStream, _clearActiveStream, _supersedeActiveStream, _abortActiveStream,
   _blockedByAnalyze, _waitWhileAnalyzePaused,
   setJobCancel, cancelJob,

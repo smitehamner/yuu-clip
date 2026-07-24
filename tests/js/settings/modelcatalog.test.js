@@ -1,10 +1,10 @@
 // Failure reporting for the two model-download flows in static/settings/modelcatalog.js.
 //
-// Both used to treat only the bare "__DONE__" string as terminal, so a subprocess that
-// exited non-zero (the {type:'__DONE__', ok:false} form) fell through to the log as a
-// literal "[object Object]" and the flow reported no error at all. And the reconnect
-// poller treated "the server stopped saying downloading" as success, even though the
-// server clears that registry key on failure and disconnect too.
+// Both now decode the typed job-event wire: a subprocess exiting non-zero arrives as a
+// done{outcome:error} and must be reported as a failure (not fall through to the log as
+// a literal "[object Object]"). And the reconnect poller must not treat "the server
+// stopped saying downloading" as success, since the server clears that registry key on
+// failure and disconnect too.
 //
 // Mocks only the toast seam; the real render + stream-reading logic is what's under test.
 vi.mock('../../../yuu_clip/web/static/core/utils.js', async (importActual) => {
@@ -35,7 +35,9 @@ function sseResponse(payloads) {
   };
 }
 
-const FAILURE_DONE = { type: '__DONE__', ok: false, error: 'the subprocess exited with code 1' };
+const SUCCESS_DONE = { v: 1, type: 'done', outcome: 'ok' };
+const FAILURE_DONE = { v: 1, type: 'done', outcome: 'error', error: 'the subprocess exited with code 1' };
+const logEvt = (text) => ({ v: 1, type: 'log', text });
 
 const catalogEntry = (over = {}) => ({
   id: 'qwen', display_name: 'Qwen', backends: ['llamacpp'], kinds: ['text'],
@@ -85,7 +87,7 @@ describe('Tier-B prefetch ("Download now")', () => {
   }
 
   it('reports a failed prefetch as a failure, not silently', async () => {
-    const { log, rerendered } = await renderTierAndClick(sseResponse(['fetching...', FAILURE_DONE]));
+    const { log, rerendered } = await renderTierAndClick(sseResponse([logEvt('fetching...'), FAILURE_DONE]));
     expect(log).toContain('✗');
     expect(log).toContain('the subprocess exited with code 1');
     expect(log).not.toContain('[object Object]');
@@ -94,7 +96,7 @@ describe('Tier-B prefetch ("Download now")', () => {
 
   it('still reports a successful prefetch as ready', async () => {
     const { logAtRerender, rerendered } = await renderTierAndClick(
-      sseResponse(['fetching...', '__DONE__']));
+      sseResponse([logEvt('fetching...'), SUCCESS_DONE]));
     expect(rerendered).toBe(true);
     expect(logAtRerender).toContain('✓ Ready.');
     expect(logAtRerender).not.toContain('✗');

@@ -170,65 +170,20 @@
       }
     },
     {
-      "name": "legacy bare string prose line",
-      "payload": "Extracting audio track 1",
-      "expected": {
-        "kind": "legacy-line",
-        "payload": "Extracting audio track 1"
-      }
-    },
-    {
-      "name": "legacy done bare string",
-      "payload": "__DONE__",
-      "expected": {
-        "kind": "legacy-done",
-        "payload": "__DONE__",
-        "error": null
-      }
-    },
-    {
-      "name": "legacy done failure object",
-      "payload": {
-        "type": "__DONE__",
-        "ok": false,
-        "error": "This job did not finish - check the log for details."
-      },
-      "expected": {
-        "kind": "legacy-done",
-        "payload": {
-          "type": "__DONE__",
-          "ok": false,
-          "error": "This job did not finish - check the log for details."
-        },
-        "error": "This job did not finish - check the log for details."
-      }
-    },
-    {
-      "name": "legacy done success object carrying result data",
-      "payload": {
-        "type": "__DONE__",
-        "results": [
-          1,
-          2
-        ]
-      },
-      "expected": {
-        "kind": "legacy-done",
-        "payload": {
-          "type": "__DONE__",
-          "results": [
-            1,
-            2
-          ]
-        },
-        "error": null
-      }
-    },
-    {
       "name": "v1 unknown type is ignored",
       "payload": {
         "v": 1,
         "type": "heartbeat"
+      },
+      "expected": {
+        "kind": "unknown"
+      }
+    },
+    {
+      "name": "a dict with no v1 envelope is unknown",
+      "payload": {
+        "type": "progress",
+        "stage": "score"
       },
       "expected": {
         "kind": "unknown"

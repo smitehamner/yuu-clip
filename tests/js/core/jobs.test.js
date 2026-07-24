@@ -22,7 +22,7 @@ import { showToast } from '../../../yuu_clip/web/static/core/utils.js';
 import { showConfirm } from '../../../yuu_clip/web/static/core/ui.js';
 import {
   SCORE_STEPS, INGEST_STEPS, startJobUI, updateJobUI, endJobUI,
-  parseProgress, _driveStepFromMarker, isDoneSentinel, doneError,
+  parseProgress, _driveStepFromMarker,
   _setActiveStream, _clearActiveStream, _supersedeActiveStream, _blockedByAnalyze,
   RESCORE_JOB_STEPS, REDESCRIBE_JOB_STEPS, HOTWORD_SCAN_STEPS, SUMMARY_JOB_STEPS,
   SPEAKER_NAMES_STEPS, FIND_SIMILAR_STEPS, TIMELINE_JOB_STEPS, setJobProgress,
@@ -53,32 +53,6 @@ describe('parseProgress', () => {
   it('a non-object payload (bare number / array) is rejected', () => {
     expect(parseProgress('@@PROGRESS 5')).toBe(null);
     expect(parseProgress('@@PROGRESS [1,2]')).toBe(null);
-  });
-});
-
-// The terminal SSE payload has two forms (web/sse.py::_done_event). Every reader
-// must understand both: a reader that only tests the bare string reports a FAILED
-// job as a completed one and logs the object form as "[object Object]". These
-// helpers are the single place that knows the shape.
-describe('done sentinel decoding', () => {
-  it('recognises both the success string and the failure object', () => {
-    expect(isDoneSentinel('__DONE__')).toBe(true);
-    expect(isDoneSentinel({ type: '__DONE__', ok: false, error: 'boom' })).toBe(true);
-  });
-  it('an ordinary log line is not a done sentinel', () => {
-    expect(isDoneSentinel('Scoring clips')).toBe(false);
-    expect(isDoneSentinel('')).toBe(false);
-    expect(isDoneSentinel(null)).toBe(false);
-    expect(isDoneSentinel({ type: 'progress' })).toBe(false);
-  });
-  it('reports the failure message only for the ok:false form', () => {
-    expect(doneError({ type: '__DONE__', ok: false, error: 'boom' })).toBe('boom');
-    expect(doneError('__DONE__')).toBe(null);
-    expect(doneError({ type: '__DONE__' })).toBe(null);
-  });
-  it('falls back to a plain-language message when the failure carries no error text', () => {
-    expect(doneError({ type: '__DONE__', ok: false }))
-      .toBe('The job did not finish - check the log for details.');
   });
 });
 

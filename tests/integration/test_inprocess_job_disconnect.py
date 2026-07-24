@@ -29,7 +29,7 @@ async def test_client_disconnect_midstream_releases_active_job_counter():
             # Never completes on its own: only a client disconnect (cancelling this
             # task) ends the stream, exactly like a long LLM job the user aborts.
             await asyncio.Event().wait()
-            yield 'data: "__DONE__"\n\n'  # unreachable
+            yield 'data: {"v": 1, "type": "done", "outcome": "ok"}\n\n'  # unreachable
 
     response = sse_response(gen())
     first_chunk_sent = asyncio.Event()
@@ -54,7 +54,7 @@ async def test_client_disconnect_midstream_releases_active_job_counter():
 
 
 async def test_full_drain_releases_active_job_counter():
-    """Baseline: a stream that reaches __DONE__ on its own also returns the counter to 0."""
+    """Baseline: a stream that reaches its terminal done event also returns the counter to 0."""
     ctx = SimpleNamespace(active_jobs=0)
     peak = 0
 
@@ -63,7 +63,7 @@ async def test_full_drain_releases_active_job_counter():
         async with active_job(ctx):
             peak = ctx.active_jobs
             yield 'data: "hi"\n\n'
-            yield 'data: "__DONE__"\n\n'
+            yield 'data: {"v": 1, "type": "done", "outcome": "ok"}\n\n'
 
     response = sse_response(gen())
 

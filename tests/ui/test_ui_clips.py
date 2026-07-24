@@ -342,8 +342,9 @@ class TestRescoreClipProgressPill:
             lambda route: route.fulfill(
                 status=200,
                 content_type="text/event-stream",
-                body='data: "Scored clip"\n\n'
-                'data: {"type": "__DONE__", "description_new": null, "description_long_new": null}\n\n',
+                body='data: {"v": 1, "type": "log", "text": "Scored clip", "level": "info"}\n\n'
+                'data: {"v": 1, "type": "result", "data": {"description_new": null, "description_long_new": null}}\n\n'
+                'data: {"v": 1, "type": "done", "outcome": "ok"}\n\n',
             ),
         )
         page.wait_for_selector("#detail button:has-text('Additional Actions')", timeout=3000)

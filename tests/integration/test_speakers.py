@@ -503,7 +503,7 @@ class TestInferNamesRoute:
         self._patch_llm(monkeypatch, {"1": "Yuu"})
         messages = self._drain(client, video_id)
         # The applied count now rides a typed result event, followed by a terminal
-        # done; the stream no longer smuggles it through the __DONE__ sentinel.
+        # done; the stream no longer smuggles it through a done sentinel.
         assert messages[-1] == {"v": 1, "type": "done", "outcome": "ok"}
         assert messages[-2] == {"v": 1, "type": "result", "data": {"suggested": 1}}
 

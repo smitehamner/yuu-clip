@@ -1835,7 +1835,7 @@ class TestSseCommandCleared:
 
 
 # ---------------------------------------------------------------------------
-# SSE output paths - error exit, cancellation message, __DONE__ sentinel
+# SSE output paths - error exit, cancellation, terminal done event
 # ---------------------------------------------------------------------------
 
 class TestSseOutputPaths:

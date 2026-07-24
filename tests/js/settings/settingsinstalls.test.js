@@ -26,7 +26,8 @@ function sseResponse(payloads) {
   };
 }
 
-const FAILURE_DONE = { type: '__DONE__', ok: false, error: 'pip exited with code 1' };
+const SUCCESS_DONE = { v: 1, type: 'done', outcome: 'ok' };
+const FAILURE_DONE = { v: 1, type: 'done', outcome: 'error', error: 'pip exited with code 1' };
 
 function elements() {
   return {
@@ -41,7 +42,7 @@ afterEach(() => { vi.restoreAllMocks(); });
 
 describe('installPackage', () => {
   it('on success: shows Installed, flips the label to Reinstall, and reveals Remove', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(sseResponse(['__DONE__']));
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(sseResponse([SUCCESS_DONE]));
 
     await installPackage('cuda-libs');
 
@@ -68,7 +69,7 @@ describe('uninstallPackage', () => {
   it('on success: shows Removed, flips the install label back to Install, and hides Remove', async () => {
     const { uninstallBtn } = elements();
     uninstallBtn.style.display = '';
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(sseResponse(['__DONE__']));
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(sseResponse([SUCCESS_DONE]));
 
     await uninstallPackage('cuda-libs');
 

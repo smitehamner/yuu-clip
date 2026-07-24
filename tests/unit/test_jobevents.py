@@ -20,6 +20,8 @@ from yuu_clip.web.jobevents import (
     PROTOCOL_VERSION,
     STAGE_IDS,
     done_event,
+    done_payload,
+    frame,
     log_event,
     parse_event,
     progress_event,
@@ -125,10 +127,27 @@ def test_builders_round_trip_through_parse_event():
 
 def test_fixture_table_covers_every_decode_kind():
     kinds = {fixture["expected"]["kind"] for fixture in DECODE_FIXTURES}
-    assert kinds == {
-        "log", "progress", "result", "done",
-        "legacy-line", "legacy-done", "unknown", "newer-protocol",
-    }
+    assert kinds == {"log", "progress", "result", "done", "unknown", "newer-protocol"}
+
+
+def test_parse_event_treats_retired_legacy_forms_as_unknown():
+    # The pre-protocol prose string and both __DONE__ sentinel forms are no longer
+    # special-cased (migration stage 4) - they decode as ignorable unknowns.
+    assert parse_event("Extracting audio track 1") == {"kind": "unknown"}
+    assert parse_event("__DONE__") == {"kind": "unknown"}
+    assert parse_event({"type": "__DONE__", "ok": False, "error": "boom"}) == {"kind": "unknown"}
+
+
+def test_frame_accepts_a_jobevents_built_payload():
+    assert frame(done_payload("ok")) == 'data: {"v": 1, "type": "done", "outcome": "ok"}\n\n'
+
+
+def test_frame_rejects_non_jobevents_payloads():
+    # The single framing entry point must reject a stray prose string or ad-hoc dict so
+    # nothing but a typed event can reach the wire.
+    for bad in ["hello", 42, {"type": "__DONE__"}, {"v": 1, "type": "heartbeat"}, {"type": "done"}]:
+        with pytest.raises(ValueError):
+            frame(bad)
 
 
 def test_build_job_events_data_matches_constants():

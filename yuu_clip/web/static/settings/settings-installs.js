@@ -1,6 +1,6 @@
 // Feature-map - Settings optional-package install controls.
 //   API: routes/analyze.py (install status/POST/uninstall) · Tests: tests/ui/test_ui_settings.py
-import { isDoneSentinel, doneError } from '../core/jobs.js';
+import { decodeEvent } from '../core/jobevents.js';
 
 // ── optional-package installs ────────────────────────────────────────────────
 // Only one install action remains (packaging-strategy overhaul, Wave 3): the CUDA
@@ -66,11 +66,13 @@ async function _streamPackageOp(slug, op, { installBtn, status, log }) {
     buf = lines.pop();
     for (const line of lines) {
       if (!line.startsWith('data: ')) continue;
-      const msg = JSON.parse(line.slice(6));
-      if (isDoneSentinel(msg)) {
-        // A failed pip op exits non-zero: fall through to the caller's failure
-        // status rather than reporting success.
-        if (doneError(msg)) throw new Error(doneError(msg));
+      const evt = decodeEvent(JSON.parse(line.slice(6)));
+      if (evt.kind === 'done') {
+        // A failed pip op exits non-zero (done{outcome:error}): surface the
+        // failure rather than reporting success.
+        if (evt.outcome === 'error') {
+          throw new Error(evt.error || 'The operation did not finish - check the log above.');
+        }
         status.textContent = cfg.doneStatus;
         status.style.color = cfg.doneColor;
         installBtn.textContent = cfg.doneLabel;
@@ -80,8 +82,10 @@ async function _streamPackageOp(slug, op, { installBtn, status, log }) {
         if (window.refreshServerState) window.refreshServerState();
         return;
       }
-      log.textContent += msg + '\n';
-      log.scrollTop = log.scrollHeight;
+      if (evt.kind === 'log') {
+        log.textContent += evt.text + '\n';
+        log.scrollTop = log.scrollHeight;
+      }
     }
   }
 }

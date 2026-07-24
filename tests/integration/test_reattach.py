@@ -194,7 +194,7 @@ class TestAnalyzeJobBroadcast:
 
     def test_subscriber_attaching_after_done_is_never_registered(self, tmp_path):
         # The already_done fast path: a client attaching after the job finished gets
-        # the buffer + __DONE__ and must NOT be added to subscribers (the pump has
+        # the buffer + terminal done event and must NOT be added to subscribers (the pump has
         # already fanned out _QUEUE_DONE, so it would never be signalled and would
         # leak).
         from yuu_clip.web.jobevents import log_payload

@@ -578,7 +578,9 @@ def _fulfill_json(body: dict, status: int = 200):
 
 
 def _sse_body(lines: list[str]) -> str:
-    return "".join(f"data: {json.dumps(line)}\n\n" for line in [*lines, "__DONE__"])
+    frames = [{"v": 1, "type": "log", "text": line, "level": "info"} for line in lines]
+    frames.append({"v": 1, "type": "done", "outcome": "ok"})
+    return "".join(f"data: {json.dumps(frame)}\n\n" for frame in frames)
 
 
 @skip_no_server

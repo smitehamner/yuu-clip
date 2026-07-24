@@ -135,14 +135,17 @@ class TestModelPrefetchUI:
 
     def test_successful_prefetch_flips_tier_to_ready(self, page: Page):
         self._open_with_prefetchable_tier(page)
-        sse_body = 'data: "Downloading the speaker model (~80 MB)..."\n\ndata: "__DONE__"\n\n'
+        sse_body = (
+            'data: {"v": 1, "type": "log", "text": "Downloading the speaker model (~80 MB)...", "level": "info"}\n\n'
+            'data: {"v": 1, "type": "done", "outcome": "ok"}\n\n'
+        )
         page.route(
             "**/api/models/prefetch*",
             lambda route: route.fulfill(status=200, content_type="text/event-stream", body=sse_body),
         )
         page.click('[data-prefetch="speaker"]')
-        # The tiers list re-fetches and re-renders on __DONE__ - wait for the
-        # button to disappear (tier is now reported ready) rather than racing
+        # The tiers list re-fetches and re-renders on the terminal done event - wait for
+        # the button to disappear (tier is now reported ready) rather than racing
         # the transient "Ready." log line the re-render immediately replaces.
         page.wait_for_function('document.querySelector(\'[data-prefetch="speaker"]\') === null', timeout=3000)
         assert page.locator(".capability-mark.ready").count() == 1
@@ -182,7 +185,9 @@ class TestModelPrefetchUI:
         page.route("**/api/models/prefetch*", lambda route: pending.setdefault("route", route))
         page.click('[data-prefetch="speaker"]')
         page.wait_for_selector("#cap-prefetch-cancel-speaker_labels", state="visible", timeout=2000)
-        pending["route"].fulfill(status=200, content_type="text/event-stream", body='data: "__DONE__"\n\n')
+        pending["route"].fulfill(
+            status=200, content_type="text/event-stream",
+            body='data: {"v": 1, "type": "done", "outcome": "ok"}\n\n')
 
 
 # ── Stage 7: Settings model management (grouping, active state, browse, vision) ──
@@ -344,7 +349,10 @@ class TestGgufDownloadUI:
                           body='{"pending_model_id":"","downloading":false}'),
         )[-1])
         _open_settings(page)
-        sse_body = 'data: "Downloading A Model - a.gguf: 50% (2.3/4.7 GB)"\n\ndata: "__DONE__"\n\n'
+        sse_body = (
+            'data: {"v": 1, "type": "log", "text": "Downloading A Model - a.gguf: 50% (2.3/4.7 GB)", "level": "info"}\n\n'
+            'data: {"v": 1, "type": "done", "outcome": "ok"}\n\n'
+        )
         page.route("**/api/llm/gguf/download*", lambda route: route.fulfill(
             status=200, content_type="text/event-stream", body=sse_body))
         page.click("#s-llamacpp-recommended [data-act='download-gguf']")
@@ -374,7 +382,9 @@ class TestGgufDownloadUI:
         page.evaluate("window.refreshModelCatalog()")
         page.wait_for_selector("#s-llamacpp-recommended [data-gguf-cancel]", state="visible", timeout=3000)
         assert page.locator("#s-llamacpp-recommended [data-act='download-gguf']").is_disabled()
-        pending["route"].fulfill(status=200, content_type="text/event-stream", body='data: "__DONE__"\n\n')
+        pending["route"].fulfill(
+            status=200, content_type="text/event-stream",
+            body='data: {"v": 1, "type": "done", "outcome": "ok"}\n\n')
 
     def test_text_download_and_whisper_banner_show_together(self, page: Page):
         # Goal: a text (.gguf card) download and a voice/whisper (banner) download

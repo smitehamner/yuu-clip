@@ -255,7 +255,9 @@ class TestRetranscribeRefresh:
             f"**/api/clips/{clip_id}/retranscribe**",
             lambda route: route.fulfill(
                 status=200, content_type="text/event-stream",
-                body='data: "Retranscribing"\n\ndata: "OK"\n\ndata: "__DONE__"\n\n',
+                body='data: {"v": 1, "type": "log", "text": "Retranscribing", "level": "info"}\n\n'
+                     'data: {"v": 1, "type": "log", "text": "OK", "level": "info"}\n\n'
+                     'data: {"v": 1, "type": "done", "outcome": "ok"}\n\n',
             ),
         )
         page.route(

@@ -330,9 +330,9 @@ class TestInProcessJobHeader:
         page.wait_for_selector("#video-list li", timeout=5000)
         video_id = page.evaluate("() => AppState.videos?.[0]?.id ?? 1")
         body = (
-            'data: "[Generating summary…]"\n\n'
-            'data: "[Summary regenerated]"\n\n'
-            'data: "__DONE__"\n\n'
+            'data: {"v": 1, "type": "log", "text": "[Generating summary…]", "level": "info"}\n\n'
+            'data: {"v": 1, "type": "log", "text": "[Summary regenerated]", "level": "info"}\n\n'
+            'data: {"v": 1, "type": "done", "outcome": "ok"}\n\n'
         )
         page.route(
             f"**/api/videos/{video_id}/regenerate-summary",

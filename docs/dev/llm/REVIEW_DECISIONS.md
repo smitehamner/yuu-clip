@@ -174,6 +174,11 @@ for the per-item ledger and commit SHAs. No plan item was dropped or improvised.
 here per the close-out convention:
 
 ### `web/analyze_job.py`'s 2 SSE frames were deliberately NOT converted to `sse_event` (C4)
+SUPERSEDED by the SSE typed-event migration (stage 4, 2026-07-24): `sse_event` /
+`_done_event` were retired entirely, and `analyze_job.py` now frames its buffered events
+through the single `jobevents.frame` entry point. The scope decision below is kept for the
+historical record only.
+
 Decision: Leave `analyze_job.py:189,198` as raw `f"data: {json.dumps(...)}\n\n"`.
 Rationale: C4's stated scope is exactly the 5 route files
 `routes/{videos,scoring,sessions,speakers,clips/export}.py` and its 66-frame count matched
@@ -302,9 +307,10 @@ no swallowed error. Confirmed and deliberately left as-is:
 (reads the error body), a stream that ends without a completion signal, a mid-stream
 connection loss, and the outer fetch rejection - each routed to `onError`; `streamSSE`'s
 `onError` appends the bracketed line to the log, toasts it, plays the error sound, tears the
-job UI down, and calls the caller's `onError`. Both done-sentinel forms (`"__DONE__"` and
-`{type:'__DONE__', ok:false, error}`) route a failure to `onError` via `isDoneSentinel`/
-`doneError`, so no reader reports a failed job as done. `analyze.js`, `videos.js`,
+job UI down, and calls the caller's `onError`. A typed `done{outcome:error}` event (since
+the SSE typed-event migration; the old `__DONE__` sentinel forms and `isDoneSentinel`/
+`doneError` helpers were retired in stage 4) routes a failure to `onError` via the shared
+`decodeEvent`, so no reader reports a failed job as done. `analyze.js`, `videos.js`,
 `clips.js`, `settings/projects.js`, `core/utils.js` all surface fetch `!ok`/catch via
 `showToast` or an inline error region. Nothing to add.
 

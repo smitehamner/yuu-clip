@@ -18,8 +18,8 @@ import { _updateLlmCapabilities, _renderCapabilityTiers } from './modelcatalog.j
 // A connection/offline failure reads differently to the user than a mid-download
 // error, so the banner shows a "will retry when back online" state for the former.
 const _CONNECTION_ERROR_RE = /could not connect|connection lost|server disconnected|failed to fetch/i;
-// The download subprocess prints these before __DONE__ on failure; __DONE__ only
-// means "the subprocess exited", never "succeeded" (see routes/llm.py + sse.py).
+// The download subprocess prints these before the terminal done event on failure;
+// a done{outcome:ok} only means "the subprocess exited 0" (see routes/llm.py + sse.py).
 const _DOWNLOAD_ERROR_RE = /download failed|\[error:/i;
 
 // Per-kind copy + endpoints + completion hooks. Keeps the transport generic so

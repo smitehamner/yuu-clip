@@ -8,10 +8,11 @@ mirrored on the browser side by ``static/core/jobevents.js``. Both decoders are
 verified against the ONE ``DECODE_FIXTURES`` table below, so they cannot silently
 diverge.
 
-Framing note: the raw ``data: <json>\\n\\n`` SSE frame is built here (``_frame``)
-rather than reusing a shared ``sse_event`` helper, because no such helper exists in
-``web/sse.py`` today (the emitters inline the framing). The typed protocol keeps its
-own framing so this module has no import dependency on the FastAPI emitter layer.
+Framing note: the raw ``data: <json>\\n\\n`` SSE frame is built here (``frame``) and
+this is now the ONLY framing entry point on the wire - the legacy ``sse_event`` /
+``_done_event`` helpers in ``web/sse.py`` were retired in migration stage 4. ``frame``
+accepts only a jobevents-built payload, so the typed protocol owns its own framing with
+no import dependency on the FastAPI emitter layer.
 """
 from __future__ import annotations
 
@@ -40,16 +41,29 @@ LOG_LEVELS = ("info", "warn", "error")
 # Stage enum for now (the design's "just wrap that enum for now").
 STAGE_IDS = tuple(stage.value for stage in Stage)
 
-_DONE_SENTINEL = "__DONE__"
-
 
 def frame(payload: Any) -> str:
-    """Wrap one already-built event payload in the ``data: <json>\\n\\n`` SSE envelope.
+    """Wrap one jobevents-built event payload in the ``data: <json>\\n\\n`` SSE envelope.
+
+    This is the single framing entry point for the whole server->browser wire (the
+    legacy ``sse_event`` / ``_done_event`` helpers were retired in migration stage 4).
+    It accepts ONLY a payload built by the ``*_payload`` builders below - a ``v1`` dict
+    with a known event type - so a stray prose string or ad-hoc dict can never reach
+    the wire again.
 
     Public because ``AnalyzeJob`` buffers raw event dicts (built by the ``*_payload``
     functions) and frames them only at stream time - live and on reconnect replay.
     Emitters that yield a frame immediately use the ``*_event`` convenience builders.
     """
+    if not (
+        isinstance(payload, dict)
+        and payload.get("v") == PROTOCOL_VERSION
+        and payload.get("type") in EVENT_TYPES
+    ):
+        raise ValueError(
+            f"frame() accepts only jobevents-built payloads (v{PROTOCOL_VERSION} dicts "
+            f"with a known type), got {payload!r}"
+        )
     return f"data: {json.dumps(payload)}\n\n"
 
 
@@ -113,12 +127,6 @@ def done_event(outcome: str, error: str = "") -> str:
     return frame(done_payload(outcome, error))
 
 
-def _decode_string(payload: str) -> dict:
-    if payload == _DONE_SENTINEL:
-        return {"kind": "legacy-done", "payload": payload, "error": None}
-    return {"kind": "legacy-line", "payload": payload}
-
-
 def _decode_typed(payload: dict) -> dict:
     event_type = payload.get("type")
     if event_type == EVENT_LOG:
@@ -139,30 +147,27 @@ def _decode_typed(payload: dict) -> dict:
 
 
 def _decode_object(payload: dict) -> dict:
-    if payload.get("type") == _DONE_SENTINEL:
-        error = payload.get("error") if payload.get("ok") is False else None
-        return {"kind": "legacy-done", "payload": payload, "error": error}
     version = payload.get("v")
     if version == PROTOCOL_VERSION:
         return _decode_typed(payload)
     if isinstance(version, (int, float)) and not isinstance(version, bool) and version > PROTOCOL_VERSION:
         return {"kind": "newer-protocol"}
-    return {"kind": "legacy-line", "payload": payload}
+    return {"kind": "unknown"}
 
 
 def parse_event(payload: Any) -> dict:
     """Decode one already-JSON-parsed SSE payload into a discriminated result.
 
     Mirrors ``decodeEvent`` in ``static/core/jobevents.js`` exactly (verified against
-    ``DECODE_FIXTURES``). Implements the section-2 consumer rules: legacy prose string,
-    legacy ``__DONE__`` sentinel (both forms), typed v1 events, unknown v1 type
-    (ignored), and a newer protocol version.
+    ``DECODE_FIXTURES``). Implements the section-2 consumer rules: a typed v1 event
+    (log / progress / result / done), an unknown v1 type (ignored), a newer protocol
+    version, and anything else (a non-dict, or a dict with no v1 envelope) as
+    ``unknown`` - the legacy prose-string / ``__DONE__`` decode paths were retired in
+    migration stage 4 now that every emitter speaks the typed wire.
     """
-    if isinstance(payload, str):
-        return _decode_string(payload)
     if isinstance(payload, dict):
         return _decode_object(payload)
-    return {"kind": "legacy-line", "payload": payload}
+    return {"kind": "unknown"}
 
 
 # The single cross-runtime decode fixture table: (payload, expected-decode) pairs
@@ -216,36 +221,13 @@ DECODE_FIXTURES = [
         "expected": {"kind": "done", "outcome": "cancelled", "error": ""},
     },
     {
-        "name": "legacy bare string prose line",
-        "payload": "Extracting audio track 1",
-        "expected": {"kind": "legacy-line", "payload": "Extracting audio track 1"},
-    },
-    {
-        "name": "legacy done bare string",
-        "payload": "__DONE__",
-        "expected": {"kind": "legacy-done", "payload": "__DONE__", "error": None},
-    },
-    {
-        "name": "legacy done failure object",
-        "payload": {"type": "__DONE__", "ok": False, "error": "This job did not finish - check the log for details."},
-        "expected": {
-            "kind": "legacy-done",
-            "payload": {"type": "__DONE__", "ok": False, "error": "This job did not finish - check the log for details."},
-            "error": "This job did not finish - check the log for details.",
-        },
-    },
-    {
-        "name": "legacy done success object carrying result data",
-        "payload": {"type": "__DONE__", "results": [1, 2]},
-        "expected": {
-            "kind": "legacy-done",
-            "payload": {"type": "__DONE__", "results": [1, 2]},
-            "error": None,
-        },
-    },
-    {
         "name": "v1 unknown type is ignored",
         "payload": {"v": 1, "type": "heartbeat"},
+        "expected": {"kind": "unknown"},
+    },
+    {
+        "name": "a dict with no v1 envelope is unknown",
+        "payload": {"type": "progress", "stage": "score"},
         "expected": {"kind": "unknown"},
     },
     {

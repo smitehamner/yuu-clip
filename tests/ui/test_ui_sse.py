@@ -7,11 +7,10 @@ disabled after a job finished) slipped through both test suites.
 
 The SSE endpoint is mocked via route interception so the test is deterministic
 and needs no real video/ffmpeg, but it drives the *real* streamSSE → startJobUI
-→ endJobUI lifecycle and asserts the UI returns to idle after __DONE__.
+→ endJobUI lifecycle and asserts the UI returns to idle after the terminal done event.
 """
 from __future__ import annotations
 
-import json
 import re
 
 from conftest import LIVE_URL, skip_no_server
@@ -19,12 +18,12 @@ from playwright.sync_api import Page, expect
 
 _SSE_URL = "/api/__test_sse__"
 
-# Two payload lines then the completion sentinel, in the SSE wire format
-# (each line JSON-encoded, terminated by a blank line).
+# Two typed log events then the terminal done event, in the SSE wire format
+# (each event JSON-encoded, terminated by a blank line).
 _SSE_BODY = (
-    'data: "Extracting audio"\n\n'
-    'data: "Scoring clips"\n\n'
-    'data: "__DONE__"\n\n'
+    'data: {"v": 1, "type": "log", "text": "Extracting audio", "level": "info"}\n\n'
+    'data: {"v": 1, "type": "log", "text": "Scoring clips", "level": "info"}\n\n'
+    'data: {"v": 1, "type": "done", "outcome": "ok"}\n\n'
 )
 
 # Step labels whose patterns match the two payload lines above.
@@ -84,20 +83,19 @@ class TestSSEJobHappyPath:
 
 @skip_no_server
 class TestProgressMarker:
-    """The @@PROGRESS marker drives the pill deterministically and is never shown
+    """A typed `progress` event drives the pill deterministically and is never shown
     as a log line (that is the whole point of the structured channel).
 
     The pure parse + step-drive behavior (parseProgress / _driveStepFromMarker) is
     unit-tested in tests/js/core/jobs.test.js; only the case below genuinely needs the
     live SSE fetch/stream transport, so it stays here."""
 
-    def test_marker_line_is_not_logged(self, page: Page):
+    def test_progress_event_is_not_logged(self, page: Page):
         page.goto(LIVE_URL)
-        marker = "@@PROGRESS " + json.dumps({"stage": "score", "done": 1, "total": 2})
         body = (
-            f'data: {json.dumps(marker)}\n\n'
-            f'data: {json.dumps("a normal log line")}\n\n'
-            f'data: {json.dumps("__DONE__")}\n\n'
+            'data: {"v": 1, "type": "progress", "stage": "score", "done": 1, "total": 2}\n\n'
+            'data: {"v": 1, "type": "log", "text": "a normal log line", "level": "info"}\n\n'
+            'data: {"v": 1, "type": "done", "outcome": "ok"}\n\n'
         )
         page.route(
             f"**{_SSE_URL}",
@@ -115,3 +113,4 @@ class TestProgressMarker:
         log_text = page.locator("#log-lines").inner_text()
         assert "a normal log line" in log_text
         assert "@@PROGRESS" not in log_text
+        assert '"stage"' not in log_text  # the progress event itself never reaches the log

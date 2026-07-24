@@ -30,8 +30,11 @@ from playwright.sync_api import Page
 _CAPS_TEXT_FALSE = (
     '{"backend":"llamacpp","model":null,"text":false,"vision":false,"detail":""}'
 )
-_DONE = 'data: "__DONE__"\n\n'
-_PROGRESS_44 = 'data: "Downloading Qwen2.5 7B Instruct: 44% (2.1/4.7 GB)"\n\n'
+_DONE = 'data: {"v": 1, "type": "done", "outcome": "ok"}\n\n'
+_PROGRESS_44 = (
+    'data: {"v": 1, "type": "log", '
+    '"text": "Downloading Qwen2.5 7B Instruct: 44% (2.1/4.7 GB)", "level": "info"}\n\n'
+)
 _MODEL_ID = "qwen2.5-7b-instruct"
 
 
@@ -144,7 +147,11 @@ class TestModelDownloadBanner:
         _route_caps_text_false(page)
         page.route(
             "**/api/llm/gguf/download*",
-            lambda r: _fulfill_sse(r, 'data: "Download failed: HTTP 404 fetching model"\n\n' + _DONE),
+            lambda r: _fulfill_sse(
+                r,
+                'data: {"v": 1, "type": "log", "text": "Download failed: HTTP 404 fetching model", "level": "info"}\n\n'
+                + _DONE,
+            ),
         )
 
         def _clear(route):
