@@ -346,12 +346,22 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             raise HTTPException(400, "thermal_warn_c must be less than thermal_pause_c")
         for field_name, value in transformed.items():
             setattr(cfg, field_name, value)
-        cfg.save_project(ctx.project_dir)
+        cfg.save_project(ctx.project_dir, keys=list(transformed.keys()))
         _REDACT = {"huggingface_token"}
         _log.info("Config updated: %s", {
             k: ("***" if k in _REDACT else v)
             for k, v in body.model_dump().items() if v is not None
         })
+        return get_config()
+
+    @router.post("/api/config/reload")
+    def reload_config():
+        # The rerun setup wizard (Electron) writes config.json directly while the
+        # server is live; without this the changes wouldn't apply until a restart.
+        # main.js POSTs here after writing, so the wizard's values take effect on
+        # close. Re-reads all on-disk layers into ctx.config.
+        ctx.reload_config()
+        _log.info("Config reloaded from disk on request")
         return get_config()
 
     return router

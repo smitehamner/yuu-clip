@@ -534,11 +534,13 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
     @router.post("/api/llm/download-status/clear")
     def clear_download_status():
-        # Reload first so a just-finished download's llm_model_path (written to
-        # config.json by the subprocess) survives, then drop the pending flag.
+        # Reload for in-memory freshness so the running server reflects the
+        # subprocess's on-disk llm_model_path write, then drop the pending flag.
+        # (The keys-explicit overlay preserves that on-disk path regardless, so the
+        # reload is no longer needed for DATA safety - only in-memory currency.)
         ctx.reload_config()
         ctx.config.pending_local_model = ""
-        ctx.config.save_project(ctx.project_dir)
+        ctx.config.save_project(ctx.project_dir, keys=["pending_local_model"])
         return {
             "pending_model_id": "",
             "downloading": _LLM_DOWNLOAD_KEY in ctx.model_downloads,

@@ -140,8 +140,157 @@ class TestConfigLoad:
         project_dir.mkdir()
         dataclasses.replace(
             Config.load(project_dir), pending_local_model="qwen2.5-7b-instruct"
-        ).save_project(project_dir)
+        ).save_project(project_dir, keys=["pending_local_model"])
         assert Config.load(project_dir).pending_local_model == "qwen2.5-7b-instruct"
+
+
+# ---------------------------------------------------------------------------
+# Keys-explicit save overlay (CONFIG-SAVE-KEYS-REDESIGN 2026-07-23)
+# ---------------------------------------------------------------------------
+
+_CUSTOM_PRESET = {
+    "name": "my-preset", "label": "My Preset", "container": "mp4",
+    "height": 1080, "crf": 20, "target_size_mb": None,
+    "audio_kbps": 128, "vertical": False,
+}
+
+
+def _seed_global(global_dir, values: dict) -> None:
+    import json
+    global_dir.mkdir(parents=True, exist_ok=True)
+    (global_dir / "config.json").write_text(json.dumps(values), encoding="utf-8")
+
+
+def _read_project_layer(project_dir) -> dict:
+    import json
+    return json.loads(
+        (project_dir / ".yuu-clip" / "config.json").read_text(encoding="utf-8")
+    )
+
+
+class TestSaveOverlay:
+    def test_project_save_does_not_freeze_global_keys(self, tmp_path, monkeypatch):
+        """The headline vanishing-export-preset write-path regression: a project
+        save of an unrelated key must not bake the global export_presets into the
+        project layer, so a later global preset is not masked on load."""
+        import yuu_clip.config as cfg_mod
+        from yuu_clip.config import Config
+        global_dir = tmp_path / "global_cfg"
+        monkeypatch.setattr(cfg_mod, "_global_config_dir", lambda: global_dir)
+        project_dir = tmp_path / "proj"
+        project_dir.mkdir()
+        _seed_global(global_dir, {"export_presets": []})
+
+        cfg = Config.load(project_dir)
+        cfg.analyze_warn_hours = 5.0
+        cfg.save_project(project_dir, keys=["analyze_warn_hours"])
+
+        on_disk = _read_project_layer(project_dir)
+        assert "export_presets" not in on_disk
+        assert on_disk["analyze_warn_hours"] == 5.0
+
+        # A custom preset is now stored globally by design.
+        Config(export_presets=[_CUSTOM_PRESET]).save_global(keys=["export_presets"])
+
+        assert Config.load(project_dir).export_presets == [_CUSTOM_PRESET]
+
+    def test_first_project_save_writes_only_given_keys(self, tmp_path, monkeypatch):
+        """A first save with no existing file overlays onto {} and creates the dir."""
+        import yuu_clip.config as cfg_mod
+        from yuu_clip.config import Config
+        monkeypatch.setattr(cfg_mod, "_global_config_dir", lambda: tmp_path / "global_cfg")
+        project_dir = tmp_path / "proj"
+        project_dir.mkdir()
+
+        Config(analyze_warn_hours=7.0).save_project(project_dir, keys=["analyze_warn_hours"])
+
+        on_disk = _read_project_layer(project_dir)
+        assert on_disk == {"analyze_warn_hours": 7.0}
+
+    def test_corrupt_project_layer_is_backed_up_then_overlaid(self, tmp_path, monkeypatch):
+        """A corrupt existing layer is renamed to .corrupt.bak and rewritten with
+        only the given keys (decision 1)."""
+        import yuu_clip.config as cfg_mod
+        from yuu_clip.config import Config
+        monkeypatch.setattr(cfg_mod, "_global_config_dir", lambda: tmp_path / "global_cfg")
+        project_dir = tmp_path / "proj"
+        cfg_dir = project_dir / ".yuu-clip"
+        cfg_dir.mkdir(parents=True)
+        (cfg_dir / "config.json").write_text('{"analyze_warn_hours": 5.0,', encoding="utf-8")
+
+        Config(analyze_warn_hours=9.0).save_project(project_dir, keys=["analyze_warn_hours"])
+
+        backup = cfg_dir / "config.json.corrupt.bak"
+        assert backup.read_text(encoding="utf-8") == '{"analyze_warn_hours": 5.0,'
+        assert _read_project_layer(project_dir) == {"analyze_warn_hours": 9.0}
+
+    def test_global_save_preserves_untouched_on_disk_keys(self, tmp_path, monkeypatch):
+        """save_global overlays only its keys - a hand-set global key survives an
+        export_presets-only save."""
+        import yuu_clip.config as cfg_mod
+        from yuu_clip.config import Config
+        global_dir = tmp_path / "global_cfg"
+        monkeypatch.setattr(cfg_mod, "_global_config_dir", lambda: global_dir)
+        _seed_global(global_dir, {"whisper_model": "small", "export_presets": []})
+
+        Config(export_presets=[_CUSTOM_PRESET]).save_global(keys=["export_presets"])
+
+        import json
+        on_disk = json.loads((global_dir / "config.json").read_text(encoding="utf-8"))
+        assert on_disk["whisper_model"] == "small"
+        assert on_disk["export_presets"] == [_CUSTOM_PRESET]
+
+
+class TestStripGlobalOnlyKeys:
+    def test_strip_global_only_keys_unfreezes_export_presets(self, tmp_path, monkeypatch):
+        """The one-time cleanup drops a frozen export_presets from a project file,
+        keeps genuine project overrides, and unmasks the global preset on load."""
+        import json
+
+        import yuu_clip.config as cfg_mod
+        from yuu_clip.config import Config, strip_global_only_keys_from_project
+        global_dir = tmp_path / "global_cfg"
+        monkeypatch.setattr(cfg_mod, "_global_config_dir", lambda: global_dir)
+        project_dir = tmp_path / "proj"
+        cfg_dir = project_dir / ".yuu-clip"
+        cfg_dir.mkdir(parents=True)
+        (cfg_dir / "config.json").write_text(
+            json.dumps({"export_presets": [], "analyze_warn_hours": 5.0}), encoding="utf-8",
+        )
+        _seed_global(global_dir, {"export_presets": [_CUSTOM_PRESET]})
+
+        assert strip_global_only_keys_from_project(project_dir) is True
+        on_disk = _read_project_layer(project_dir)
+        assert "export_presets" not in on_disk
+        assert on_disk["analyze_warn_hours"] == 5.0
+        assert Config.load(project_dir).export_presets == [_CUSTOM_PRESET]
+
+    def test_strip_is_idempotent(self, tmp_path, monkeypatch):
+        import json
+
+        import yuu_clip.config as cfg_mod
+        from yuu_clip.config import strip_global_only_keys_from_project
+        monkeypatch.setattr(cfg_mod, "_global_config_dir", lambda: tmp_path / "global_cfg")
+        project_dir = tmp_path / "proj"
+        cfg_dir = project_dir / ".yuu-clip"
+        cfg_dir.mkdir(parents=True)
+        (cfg_dir / "config.json").write_text(
+            json.dumps({"export_presets": [], "analyze_warn_hours": 5.0}), encoding="utf-8",
+        )
+        assert strip_global_only_keys_from_project(project_dir) is True
+        assert strip_global_only_keys_from_project(project_dir) is False
+
+    def test_strip_tolerates_missing_and_corrupt_file(self, tmp_path, monkeypatch):
+        import yuu_clip.config as cfg_mod
+        from yuu_clip.config import strip_global_only_keys_from_project
+        monkeypatch.setattr(cfg_mod, "_global_config_dir", lambda: tmp_path / "global_cfg")
+        project_dir = tmp_path / "proj"
+        assert strip_global_only_keys_from_project(project_dir) is False  # missing
+
+        cfg_dir = project_dir / ".yuu-clip"
+        cfg_dir.mkdir(parents=True)
+        (cfg_dir / "config.json").write_text("{not json", encoding="utf-8")
+        assert strip_global_only_keys_from_project(project_dir) is False  # corrupt
 
 
 # ---------------------------------------------------------------------------
@@ -319,6 +468,24 @@ class TestUiConfig:
         r = client.patch("/api/config", json={"export_name_template": "{video}_{bogus}"})
         assert r.status_code == 400
         assert "bogus" in r.json()["detail"]
+
+
+class TestConfigReload:
+    def test_reload_re_reads_disk_into_memory(self, client, project_dir):
+        """POST /api/config/reload picks up an on-disk change (the rerun wizard
+        writing config.json while the server is live) without a restart."""
+        from pathlib import Path
+
+        ctx = client.app.state.ctx
+        assert ctx.config.whisper_model != "small"
+        cfg_path = Path(project_dir) / ".yuu-clip" / "config.json"
+        cfg_path.parent.mkdir(parents=True, exist_ok=True)
+        cfg_path.write_text('{"whisper_model": "small"}', encoding="utf-8")
+
+        r = client.post("/api/config/reload")
+        assert r.status_code == 200
+        assert r.json()["whisper_model"] == "small"
+        assert ctx.config.whisper_model == "small"
 
 
 # ---------------------------------------------------------------------------
@@ -541,7 +708,7 @@ class TestConfigNewLlmFields:
         project_dir = tmp_path / "proj"
         project_dir.mkdir()
         cfg = Config(llm_vision_model_path="/models/moondream.gguf")
-        cfg.save_project(project_dir)
+        cfg.save_project(project_dir, keys=["llm_vision_model_path"])
         loaded = Config.load(project_dir)
         assert loaded.llm_vision_model_path == "/models/moondream.gguf"
 

@@ -201,7 +201,7 @@ class TestDownloadStatus:
         model_file.write_bytes(b"gguf")
         ctx.config.pending_local_model = "qwen2.5-7b-instruct"
         ctx.config.llm_model_path = str(model_file)
-        ctx.config.save_project(project_dir)
+        ctx.config.save_project(project_dir, keys=["pending_local_model", "llm_model_path"])
         # In-memory config is now stale (a restart would be needed without reload).
         ctx.config.llm_model_path = "/stale/in-memory/path"
 

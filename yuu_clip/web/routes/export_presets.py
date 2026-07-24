@@ -67,7 +67,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         except ValueError as e:
             raise HTTPException(400, str(e))
         cfg.export_presets = [*cfg.export_presets, preset.to_dict()]
-        cfg.save_global()
+        cfg.save_global(keys=["export_presets"])
         _log.info("Custom export preset created: %s", preset.name)
         return preset.to_dict()
 
@@ -87,7 +87,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             raise HTTPException(400, str(e))
         customs[idx] = preset.to_dict()
         cfg.export_presets = customs
-        cfg.save_global()
+        cfg.save_global(keys=["export_presets"])
         _log.info("Custom export preset updated: %s", name)
         return preset.to_dict()
 
@@ -100,7 +100,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         cfg.export_presets = [p for p in cfg.export_presets if p["name"] != name]
         if len(cfg.export_presets) == before:
             raise HTTPException(404, "Custom preset not found")
-        cfg.save_global()
+        cfg.save_global(keys=["export_presets"])
         _log.info("Custom export preset deleted: %s", name)
         return {"deleted": name}
 

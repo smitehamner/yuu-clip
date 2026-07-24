@@ -194,7 +194,7 @@ def _set_llm_paths(project_dir: Path, paths: dict[str, Path]) -> None:
     config = Config.load(project_dir)
     for field, value in paths.items():
         setattr(config, field, str(value))
-    config.save_project(project_dir)
+    config.save_project(project_dir, keys=list(paths.keys()))
 
 
 def _set_llm_model_path(project_dir: Path, model_path: Path) -> None:

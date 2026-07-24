@@ -12,7 +12,7 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session, sessionmaker
 
-from yuu_clip.config import Config
+from yuu_clip.config import Config, strip_global_only_keys_from_project
 from yuu_clip.db.models import make_engine
 
 
@@ -47,6 +47,13 @@ class ProjectContext:
         # parent dir is absent - true when switching to a project that has never
         # been opened. On first boot configure_logging already created it.
         self.data_dir.mkdir(parents=True, exist_ok=True)
+
+        # One-time heal for installs written by the old full-dump save, which froze
+        # global-only keys (export_presets) into the project layer and masked later
+        # global changes. Runs once per project open, before the merged load below,
+        # so non-technical users are fixed automatically. Kept out of Config.load
+        # (also used by the download subprocess + tests) to keep that a pure read.
+        strip_global_only_keys_from_project(project_dir)
 
         self.config = Config.load(project_dir)
 

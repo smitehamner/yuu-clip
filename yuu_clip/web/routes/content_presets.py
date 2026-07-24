@@ -69,7 +69,10 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             setattr(cfg, field_name, value)
         cfg.scorer_laugh_weight = preset.laugh_weight
         cfg.content_preset = preset.id
-        cfg.save_project(ctx.project_dir)
+        cfg.save_project(
+            ctx.project_dir,
+            keys=[*preset.dimension_weights.keys(), "scorer_laugh_weight", "content_preset"],
+        )
 
         hotwords_added = 0
         if body.add_hotwords and preset.starter_hotwords:

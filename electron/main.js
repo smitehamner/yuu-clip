@@ -607,6 +607,12 @@ function showSetupWizard({ rerun = false, updated = false } = {}) {
       if (!rerun) {
         showWizardLoadingScreen(win);
       } else {
+        // The backend is already live in rerun mode; ask it to re-read the
+        // config.json we just wrote so the wizard's changes apply without a
+        // restart. Best-effort - a failure just defers them to next launch.
+        httpPost(`http://127.0.0.1:${appPort}/api/config/reload`, 5000)
+          .then(() => logSetup('Rerun wizard: backend config reloaded'))
+          .catch(err => logSetup(`Rerun wizard: backend config reload failed (applies next restart): ${err.message}`));
         if (!win.isDestroyed()) win.close();
       }
       resolve(cfg);

@@ -21,7 +21,7 @@ import sys
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Iterable, Optional
 
 from platformdirs import user_config_dir, user_data_dir
 
@@ -253,6 +253,74 @@ def _read_config_file(path: Path) -> dict:
         _log.warning("config.json at %s is not a JSON object - ignoring it", path)
         return {}
     return data
+
+
+def _read_layer_for_overlay(path: Path) -> dict:
+    """Return the existing on-disk layer dict for an overlay-write.
+
+    Deliberately NOT _read_config_file: that one returns {} on corruption WITHOUT
+    a backup (correct for the read-at-startup path). Here, on the write path, an
+    unreadable/invalid layer is renamed to <name>.corrupt.bak (WARN-logged) before
+    we rewrite, so a hand-broken file's bytes are preserved rather than silently
+    destroyed. If a .corrupt.bak already exists it is overwritten - the older
+    backup was already a dead artifact (single-user tool; keep it simple).
+    """
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            raise ValueError("top-level config is not an object")
+        return data
+    except (ValueError, OSError):
+        backup = path.with_name(path.name + ".corrupt.bak")
+        path.replace(backup)
+        _log.warning(
+            "config.json at %s was unreadable - backed up to %s and rewritten",
+            path, backup,
+        )
+        return {}
+
+
+def _overlay_layer(path: Path, config: "Config", keys: Iterable[str]) -> None:
+    """Merge only *keys* from *config* onto the existing on-disk layer at *path*."""
+    on_disk = _read_layer_for_overlay(path)
+    snapshot = asdict(config)
+    on_disk.update({key: snapshot[key] for key in keys})
+    path.write_text(json.dumps(on_disk, indent=2), encoding="utf-8")
+
+
+# Keys owned solely by the GLOBAL layer. Used only by the one-time cleanup
+# migration below to un-freeze values the old full-dump save baked into project
+# files - NOT a per-save ownership guard (the runtime save path trusts its
+# caller's keys). export_presets is the only key with a save_global call site.
+_GLOBAL_ONLY_KEYS = {"export_presets"}
+
+
+def strip_global_only_keys_from_project(project_dir: Path) -> bool:
+    """Remove global-only keys frozen into a project config.json by the old
+    full-dump save. Idempotent; returns True if it rewrote the file. Tolerates a
+    missing/corrupt file (no-op, returns False)."""
+    cfg_path = project_dir / ".yuu-clip" / "config.json"
+    if not cfg_path.exists():
+        return False
+    try:
+        data = json.loads(cfg_path.read_text(encoding="utf-8"))
+    except (ValueError, OSError):
+        return False
+    if not isinstance(data, dict):
+        return False
+    frozen = _GLOBAL_ONLY_KEYS & set(data)
+    if not frozen:
+        return False
+    for key in frozen:
+        del data[key]
+    cfg_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    _log.warning(
+        "Config: removed global-only key(s) %s frozen into %s by an older save",
+        sorted(frozen), cfg_path,
+    )
+    return True
 
 
 def _in_numeric_range(value, low: float, high: float) -> bool:
@@ -872,17 +940,25 @@ class Config:
             _log.warning("Config: unrecognised keys ignored: %s", sorted(unknown))
         return cls(**{k: v for k, v in merged.items() if k in known})
 
-    def save_project(self, project_dir: Path) -> None:
+    def save_project(self, project_dir: Path, keys: Iterable[str]) -> None:
+        """Overlay only *keys* onto the existing on-disk PROJECT layer.
+
+        Reads the existing project config.json (NOT the merged in-memory Config),
+        overlays ``{k: asdict(self)[k] for k in keys}``, writes the result back.
+        Never writes the full ``asdict(self)``, so global-inherited values never
+        freeze into the project layer (the vanishing-export-preset bug). *keys* is
+        required with no default so a new call site cannot silently regress to a
+        full dump.
+        """
         cfg_path = project_dir / ".yuu-clip" / "config.json"
         cfg_path.parent.mkdir(parents=True, exist_ok=True)
-        cfg_path.write_text(json.dumps(asdict(self), indent=2), encoding="utf-8")
+        _overlay_layer(cfg_path, self, keys)
 
-    def save_global(self) -> None:
+    def save_global(self, keys: Iterable[str]) -> None:
+        """Symmetric to save_project: overlay only *keys* onto the GLOBAL layer."""
         cfg_dir = _global_config_dir()
         cfg_dir.mkdir(parents=True, exist_ok=True)
-        (cfg_dir / "config.json").write_text(
-            json.dumps(asdict(self), indent=2), encoding="utf-8"
-        )
+        _overlay_layer(cfg_dir / "config.json", self, keys)
 
 
 def load_profiles() -> dict:
