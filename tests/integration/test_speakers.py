@@ -502,7 +502,10 @@ class TestInferNamesRoute:
         video_id = self._seed(project_dir)
         self._patch_llm(monkeypatch, {"1": "Yuu"})
         messages = self._drain(client, video_id)
-        assert messages[-1] == {"type": "__DONE__", "suggested": 1}
+        # The applied count now rides a typed result event, followed by a terminal
+        # done; the stream no longer smuggles it through the __DONE__ sentinel.
+        assert messages[-1] == {"v": 1, "type": "done", "outcome": "ok"}
+        assert messages[-2] == {"v": 1, "type": "result", "data": {"suggested": 1}}
 
     def test_applies_suggestion_as_unconfirmed(self, client, project_dir, monkeypatch):
         video_id = self._seed(project_dir)

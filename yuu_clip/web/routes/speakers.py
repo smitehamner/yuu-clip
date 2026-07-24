@@ -30,6 +30,13 @@ from yuu_clip.db.models import (
 from yuu_clip.log import get_logger
 from yuu_clip.segments.windower import rebuild_clip_excerpt
 from yuu_clip.web.deps import ProjectContext
+from yuu_clip.web.jobevents import (
+    OUTCOME_ERROR,
+    OUTCOME_OK,
+    done_event,
+    log_event,
+    result_event,
+)
 from yuu_clip.web.routes.common import (
     active_job,
     json_list,
@@ -40,7 +47,6 @@ from yuu_clip.web.routes.common import (
     touch_video_transcript_edited,
     with_write_retry,
 )
-from yuu_clip.web.sse import sse_event
 
 _log = get_logger(__name__)
 
@@ -109,7 +115,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         Writes each suggestion as an unconfirmed inferred name (source='inferred',
         confirmed=False) so it surfaces in the Speakers card for the user to accept -
         it never silently reaches captions or excerpts (see Speaker.display_name).
-        The done sentinel carries the number of suggestions applied.
+        A typed ``result`` event carries the number of suggestions applied, then
+        the terminal ``done`` event.
         """
         from yuu_clip.scoring.llm import check_llm_available, infer_speaker_names
 
@@ -137,15 +144,15 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
         async def event_stream():
             async with active_job(ctx):
-                yield sse_event('[Suggesting speaker names…]')
+                yield log_event('[Suggesting speaker names…]')
                 try:
                     raw = await asyncio.to_thread(
                         infer_speaker_names, labeled, ctx.config, context_text=context_text
                     )
                 except Exception as exc:
                     _log.warning("Name inference failed for video %d: %s", video_id, exc, exc_info=True)
-                    yield sse_event(f'[Error: {exc}]')
-                    yield sse_event('__DONE__')
+                    yield log_event(f'[Error: {exc}]', level="error")
+                    yield done_event(OUTCOME_ERROR, error=f"Name suggestion failed: {exc}")
                     return
 
                 save_db = ctx.get_db()
@@ -175,8 +182,9 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                     f"[{applied} name suggestion(s) - review and accept]" if applied
                     else "[No names could be inferred from the transcript]"
                 )
-                yield sse_event(summary)
-                yield sse_event({'type': '__DONE__', 'suggested': applied})
+                yield log_event(summary)
+                yield result_event({'suggested': applied})
+                yield done_event(OUTCOME_OK)
 
         return sse_response(event_stream())
 

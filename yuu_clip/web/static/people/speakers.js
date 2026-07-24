@@ -164,19 +164,17 @@ function _suggestSpeakerNames() {
     if (btn && document.body.contains(btn)) { btn.disabled = false; btn.textContent = 'Suggest names'; }
   };
   const teardown = () => { resetBtn(); endJobUI(); };
-  let hadError = false;
+  let suggestResult = null;
   const handle = _openSSE(
     `/api/videos/${videoId}/infer-speaker-names`,
     data => {
       updateJobUI(typeof data === 'string' ? data : JSON.stringify(data));
-      if (typeof data === 'string' && data.startsWith('[Error')) hadError = true;
       appendLog(String(data));
     },
-    async msg => {
+    async () => {
       _clearActiveStream(handle);
       teardown();
-      if (hadError) { showToast('Name suggestion failed - check log for details', 'error'); return; }
-      const n = (msg && typeof msg === 'object' && msg.suggested) || 0;
+      const n = suggestResult?.suggested || 0;
       showToast(n > 0
         ? `${plural(n, 'name suggestion')} - review and accept`
         : 'No names could be inferred from the transcript');
@@ -187,6 +185,9 @@ function _suggestSpeakerNames() {
       teardown();
       showToast(`Name suggestion failed - ${errMsg}`, 'error');
     },
+    {},
+    null,
+    data => { suggestResult = data; },
   );
   _setActiveStream(handle, teardown);
 }

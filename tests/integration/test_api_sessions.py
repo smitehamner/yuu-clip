@@ -177,7 +177,8 @@ class TestSessionRollup:
         )
         r = client.get(f"/api/sessions/{sid}/summarize")
         assert r.status_code == 200
-        assert "__DONE__" in r.text
+        assert '"type": "done"' in r.text
+        assert '"outcome": "ok"' in r.text
 
         detail = client.get(f"/api/sessions/{sid}").json()
         assert detail["title"] == "Epic Session"

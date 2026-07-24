@@ -22,8 +22,13 @@ from yuu_clip.db.models import ClipCandidate, RecordingSession, Video
 from yuu_clip.log import get_logger
 from yuu_clip.sessions import SessionCandidate, recording_start_time, suggest_session_groups
 from yuu_clip.web.deps import ProjectContext
+from yuu_clip.web.jobevents import (
+    OUTCOME_ERROR,
+    OUTCOME_OK,
+    done_event,
+    log_event,
+)
 from yuu_clip.web.routes.common import active_job, json_list, reject_if_busy, sse_response
-from yuu_clip.web.sse import sse_event
 
 _log = get_logger(__name__)
 
@@ -296,15 +301,15 @@ def _register_detail_routes(router: APIRouter, ctx: ProjectContext) -> None:
 
         async def event_stream():
             async with active_job(ctx):
-                yield sse_event('[Generating session summary…]')
+                yield log_event('[Generating session summary…]')
                 try:
                     title_new, summary_new = await asyncio.to_thread(
                         summarize_session, member_pairs, ctx.config, context_text
                     )
                 except Exception as exc:
                     _log.warning("session summarize failed for session %d: %s", session_id, exc, exc_info=True)
-                    yield sse_event(f'[Error: {exc}]')
-                    yield sse_event('__DONE__')
+                    yield log_event(f'[Error: {exc}]', level="error")
+                    yield done_event(OUTCOME_ERROR, error=f"Session summary failed: {exc}")
                     return
 
                 save_db = ctx.get_db()
@@ -321,8 +326,8 @@ def _register_detail_routes(router: APIRouter, ctx: ProjectContext) -> None:
                 finally:
                     save_db.close()
 
-                yield sse_event('[Session summary generated]')
-                yield sse_event('__DONE__')
+                yield log_event('[Session summary generated]')
+                yield done_event(OUTCOME_OK)
 
         return sse_response(event_stream())
 
