@@ -225,11 +225,23 @@ async function loadReelClips() {
   await _refetchReelPool();
 }
 
-// Fetches the current status/video pool and merges it into _reelClips:
-// clips still in the pool keep their order and included/excluded state;
-// clips newly entering the pool are appended, defaulting to excluded unless
-// they're approved - so toggling on Unreviewed/Rejected can't silently stuff
-// clips into the reel. Clips that fell out of the pool are dropped.
+// Merge a freshly-fetched pool into the current curation: clips still in the pool
+// keep their order and included/excluded choice; clips newly entering are appended,
+// defaulting to excluded unless approved - so toggling on Unreviewed/Rejected can't
+// silently stuff clips into the reel. Clips that fell out of the pool are dropped.
+export function mergeReelPool(existingClips, freshClips) {
+  const freshById = new Map(freshClips.map(c => [c.id, c]));
+  const kept = existingClips
+    .filter(c => freshById.has(c.id))
+    .map(c => ({...c, ...freshById.get(c.id), included: c.included}));
+  const keptIds = new Set(kept.map(c => c.id));
+  const added = freshClips
+    .filter(c => !keptIds.has(c.id))
+    .map(c => ({...c, included: c.status === 'approved'}));
+  return [...kept, ...added];
+}
+
+// Fetches the current status/video pool and merges it into _reelClips (see mergeReelPool).
 async function _refetchReelPool() {
   const listEl = document.getElementById('reel-clip-list');
   if (!_reelBuildLoaded) {
@@ -249,11 +261,7 @@ async function _refetchReelPool() {
     updateReelEstimate();
     return;
   }
-  const freshById = new Map(fresh.map(c => [c.id, c]));
-  const kept = _reelClips.filter(c => freshById.has(c.id)).map(c => ({...c, ...freshById.get(c.id), included: c.included}));
-  const keptIds = new Set(kept.map(c => c.id));
-  const added = fresh.filter(c => !keptIds.has(c.id)).map(c => ({...c, included: c.status === 'approved'}));
-  _reelClips = [...kept, ...added];
+  _reelClips = mergeReelPool(_reelClips, fresh);
   renderReelClipList();
   updateReelEstimate();
 }
@@ -345,24 +353,27 @@ export function _reelToggle(i, included) {
   updateReelEstimate();
 }
 
+// Estimate the reel from its included clips: footage seconds, a rough encode ETA
+// (a flat 5s for the no-transition stream-copy path, else footage + title cards
+// over a /3 encode-speed heuristic), and how many included clips are unexported.
+export function computeReelEstimate(includedClips, {titleDur, transition}) {
+  const n = includedClips.length;
+  const totalFootageS = includedClips.reduce((s, c) => s + c.duration_ms, 0) / 1000;
+  const encodeEtaS = transition === 'none' ? 5 : (totalFootageS + n * titleDur) / 3;
+  const unexported = includedClips.filter(c => !c.has_export).length;
+  return {n, totalFootageS, encodeEtaS, unexported};
+}
+
+export function fmtReelDuration(s) {
+  return s < 60 ? `${s.toFixed(0)}s` : `${Math.floor(s/60)}m ${(s%60).toFixed(0)}s`;
+}
+
 function updateReelEstimate() {
   const included = _reelClips.filter(c => c.included);
-  const n = included.length;
-  const totalFootageMs = included.reduce((s, c) => s + c.duration_ms, 0);
   const titleDur = parseFloat(document.getElementById('demo-title-dur')?.value || 3);
-  const transDur = parseFloat(document.getElementById('demo-trans-dur')?.value || 0.5);
   const transition = document.getElementById('demo-transition')?.value || 'fade';
+  const {n, totalFootageS, encodeEtaS, unexported} = computeReelEstimate(included, {titleDur, transition});
 
-  const totalFootageS = totalFootageMs / 1000;
-  let encodeEtaS = 0;
-  if (transition === 'none') {
-    encodeEtaS = 5;
-  } else {
-    const totalEncodeS = totalFootageS + n * titleDur;
-    encodeEtaS = totalEncodeS / 3;
-  }
-
-  const unexported = included.filter(c => !c.has_export).length;
   const exportBtn = document.getElementById('reel-export-btn');
   if (exportBtn) {
     exportBtn.style.display = unexported > 0 ? '' : 'none';
@@ -374,9 +385,8 @@ function updateReelEstimate() {
     el.innerHTML = 'No clips selected';
     return;
   }
-  const fmtS = s => s < 60 ? `${s.toFixed(0)}s` : `${Math.floor(s/60)}m ${(s%60).toFixed(0)}s`;
   el.innerHTML =
-    `${plural(n, 'clip')} · ${fmtS(totalFootageS)} footage · encode ~${fmtS(encodeEtaS)}` +
+    `${plural(n, 'clip')} · ${fmtReelDuration(totalFootageS)} footage · encode ~${fmtReelDuration(encodeEtaS)}` +
     (unexported ? `<div class="reel-no-export-warn">⚠ ${plural(unexported, 'clip')} not yet exported - export them first or they will be skipped</div>` : '');
 }
 
