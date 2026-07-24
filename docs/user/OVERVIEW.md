@@ -28,7 +28,7 @@ On the left you get two panels stacked on top of each other.
 
 The **top panel** is your list of analyzed recordings. Each one shows how long it is, how many clips were found, how many you've approved so far, and a processing status. Click one to load it.
 
-The **bottom panel** shows all the clips from the session you've selected, sorted either by score (best first) or by when they happen in the session (timeline order). Each entry shows the score, how long the clip is, whether you've approved or skipped it, and a short preview of what was said.
+The **bottom panel** shows all the clips from the session you've selected, sorted either by score (best first) or by when they happen in the session (Position order). Each entry shows the score, how long the clip is, whether you've approved or skipped it, and a short preview of what was said.
 
 ### The clip detail view
 
@@ -135,7 +135,7 @@ Once you've approved a set of clips, **Highlight Reels** in the header opens a w
 
 **It doesn't upload anything.** Everything stays on your machine - there is no cloud backend. LLM scoring does need a model set up first - the setup wizard downloads the recommended local model with one click, so it's a one-time setup, but it's a setup.
 
-**The scores are a starting point, not a verdict.** A 0.3-scoring clip might be the funniest moment of the session but happen to be mostly non-verbal. Always sort by score to find the obvious candidates fast, then flip through the lower-scoring ones in timeline order before you close out.
+**The scores are a starting point, not a verdict.** A 0.3-scoring clip might be the funniest moment of the session but happen to be mostly non-verbal. Always sort by score to find the obvious candidates fast, then flip through the lower-scoring ones in Position order before you close out.
 
 ---
 

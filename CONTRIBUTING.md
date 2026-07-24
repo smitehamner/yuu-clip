@@ -107,7 +107,7 @@ muscle memory. On macOS/Linux, call `yuu-dev` directly.
 yuu-dev serve
 ```
 
-Then open http://127.0.0.1:8080 and use **+ Analyze** to add a recording.
+Then open http://127.0.0.1:8080 and use **+ New Recording** to add a recording.
 
 ## Tests and linting
 

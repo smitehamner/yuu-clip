@@ -523,7 +523,7 @@ export function _exportFormatsHtml(clip) {
       ${clip.export_stale ? `<div class="transcript-stale-note" style="margin-top:8px">&#9888; Stale - re-export to update (${escHtml((clip.export_stale_reasons || []).join(', '))})</div>` : ''}`;
   }
   return `
-    <div style="margin-top:8px;margin-bottom:4px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px">Exported formats</div>
+    <div style="margin-top:8px;margin-bottom:4px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px">Exports</div>
     <div style="display:flex;flex-direction:column;gap:8px">
       ${rows.map(row => `
         <div class="export-format-row" data-clip-id="${clip.id}" data-export-id="${row.id}" data-preset-name="${escHtml(row.preset_name)}"
@@ -546,7 +546,7 @@ export function _exportFormatsHtml(clip) {
           </div>
         </div>`).join('')}
     </div>
-    <button class="btn-secondary" style="margin-top:8px" data-act="export-clip" data-clip-id="${clip.id}">+ Export another format</button>`;
+    <button class="btn-secondary" style="margin-top:8px" data-act="export-clip" data-clip-id="${clip.id}">+ Add another export</button>`;
 }
 
 // True when a clip's only one-liner is the transcript-derived template (tagged
@@ -1100,13 +1100,13 @@ function openClipActionsModal(clipId) {
     const multiFormat = (clip.exports || []).filter(e => e.exists).length > 1;
     const fileRows = [];
     if (AppState.activeMediaFilename) {
-      fileRows.push({ label: 'Download Export', description: `Save ${multiFormat ? 'every exported format' : 'the exported file'} (and any caption sidecars) to your downloads.`, action: () => _downloadClipExport(clipId) });
+      fileRows.push({ label: 'Download Export', description: `Save ${multiFormat ? 'every export' : 'the exported file'} (and any caption sidecars) to your downloads.`, action: () => _downloadClipExport(clipId) });
     }
-    fileRows.push({ label: 'Copy File Path(s)', description: `Copy the full path of ${multiFormat ? 'every exported format' : 'the exported file'} (and any caption sidecars) to your clipboard.`, action: () => _copyClipExportPaths(clipId) });
+    fileRows.push({ label: 'Copy File Path(s)', description: `Copy the full path of ${multiFormat ? 'every export' : 'the exported file'} (and any caption sidecars) to your clipboard.`, action: () => _copyClipExportPaths(clipId) });
     if (AppState.canReveal) {
       fileRows.push({ label: 'Show in Folder', description: 'Open the exports folder with this file selected.', action: () => _revealClipExport(clipId) });
     }
-    fileRows.push({ label: 'Delete All Exports', description: `Delete ${multiFormat ? 'every exported format' : 'the exported video file'} but keep the clip record. Use the Export section to delete one format at a time.`, danger: true, action: () => deleteExport(clipId) });
+    fileRows.push({ label: 'Delete All Exports', description: `Delete ${multiFormat ? 'every export' : 'the exported video file'} but keep the clip record. Use the Export section to delete one export at a time.`, danger: true, action: () => deleteExport(clipId) });
     groups.push({ heading: 'Files', rows: fileRows });
   }
 

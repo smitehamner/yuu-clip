@@ -345,14 +345,14 @@ download needed for the default path:
    selected and click **Download recommended model**. This fetches `Qwen2.5-7B-Instruct-Q4_K_M.gguf`
    (~4.7 GB, Apache-2.0 so clips made with it can be monetized - see `yuu_clip/model_catalog.py`)
    and auto-fills the model path.
-2. Run Rescore on any video to confirm it works.
+2. Run Re-score on any video to confirm it works.
 
 **Manual fallback** (if the in-app download fails, or to use a different model):
 
 1. Go to `https://huggingface.co/bartowski/Qwen2.5-7B-Instruct-GGUF`
 2. Download a `Qwen2.5-7B-Instruct-Q4_K_M.gguf` (~4.7 GB)
 3. In yuu-clip Settings → LLM → Model file path: point to the downloaded `.gguf` file
-4. Run Rescore on any video to confirm it works
+4. Run Re-score on any video to confirm it works
 
 ---
 

@@ -70,7 +70,7 @@
     <button class="btn ghost" id="update-banner-dismiss" aria-label="Dismiss update notice" style="font-size:12px;padding:4px 6px">&#x2715;</button>
   </div>
   <button class="gpu-warning-chip" id="gpu-warning-chip" style="display:none" title="" aria-label="Setup warning - click for details">&#9888; Setup warning</button>
-  <button class="btn highlight" id="btn-analyze">+ Analyze</button>
+  <button class="btn highlight" id="btn-analyze">+ New Recording</button>
   <button class="btn ghost" id="btn-settings-header" title="Settings" aria-label="Settings" style="font-size:15px;padding:5px 10px">&#9881;</button>
   <div class="hamburger-wrap" id="hamburger-wrap">
     <button class="btn ghost" id="btn-hamburger" title="More options" aria-label="More options" aria-haspopup="true" aria-expanded="false" style="font-size:17px;padding:5px 11px;line-height:1">&#9776;</button>
@@ -214,7 +214,7 @@
     <div class="settings-section-title has-action"><span>Speech-to-text (Whisper)</span><button type="button" class="btn-secondary settings-reset-btn" data-revert-section="settings-sec-stt">Reset to defaults</button></div>
     <div class="settings-row">
       <div class="settings-col">
-        <label class="settings-label" for="s-whisper-model">Model</label>
+        <label class="settings-label" for="s-whisper-model">Speech-to-text model</label>
         <div class="settings-note">Takes effect on next analysis</div>
       </div>
       <select class="settings-select" id="s-whisper-model">
@@ -694,7 +694,7 @@
     <div class="settings-section-title has-action"><span>Analysis defaults <span style="font-size:11px;font-weight:400;color:var(--muted)">(pre-filled in Analyze modal)</span></span><button type="button" class="btn-secondary settings-reset-btn" data-revert-section="settings-sec-analysis">Reset to defaults</button></div>
     <div class="settings-row">
       <div class="settings-col">
-        <label class="settings-label" for="s-scene-mode">Scene detection mode</label>
+        <label class="settings-label" for="s-scene-mode">Scene cut detection</label>
       </div>
       <select class="settings-select" id="s-scene-mode">
         <option value="transcript">Transcript - silence gaps only (instant)</option>
@@ -704,7 +704,7 @@
     </div>
     <div class="settings-row">
       <div class="settings-col">
-        <label class="settings-label" for="s-visual-mode">Visual clips</label>
+        <label class="settings-label" for="s-visual-mode">No-dialogue clips</label>
         <div class="settings-note">Find silent, action-heavy moments (a clutch play, a crash) that have no dialogue, so they still become clips. "Silent gaps" is a good balance; "Full" finds the most but takes longer and can surface more clips to review.</div>
       </div>
       <select class="settings-select" id="s-visual-mode">
@@ -738,7 +738,7 @@
     <div class="settings-row">
       <div class="settings-col">
         <label class="settings-label" for="s-min-clip-ms">Minimum clip length (ms)</label>
-        <div class="settings-note">Shorter candidates are discarded</div>
+        <div class="settings-note">Shorter clips are discarded</div>
       </div>
       <div style="display:flex;flex-direction:column;gap:2px">
         <input class="settings-input" id="s-min-clip-ms" type="number" min="1000" max="120000" step="1000" style="max-width:120px"
@@ -1139,7 +1139,7 @@
             <option value="visual">&#127916; Visual</option>
             <option value="laugh">&#129315; Laughs</option>
             <option value="length">&#8986; Length</option>
-            <option value="timeline">&#128336; Timeline</option>
+            <option value="timeline">&#128336; Position</option>
           </select>
           <button id="clips-sort-dir" class="sort-dir-btn">&#8595;</button>
           <button class="kebab-btn section-actions-btn" id="btn-clips-actions" aria-label="More actions" title="More actions" aria-haspopup="true" aria-expanded="false">&#8942;</button>
@@ -1249,7 +1249,7 @@
         <details class="advanced">
           <summary>Advanced options</summary>
           <div class="field">
-            <label for="analyze-model">Whisper model</label>
+            <label for="analyze-model">Speech-to-text model</label>
             <select id="analyze-model">
               <option value="tiny">tiny - fastest, lowest quality (~75 MB download)</option>
               <option value="base" selected>base - fast, lower quality (~140 MB download)</option>
@@ -1267,7 +1267,7 @@
             <div id="analyze-diarize-note" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
           </div>
           <div class="field">
-            <label for="analyze-scene-mode">Scene detection</label>
+            <label for="analyze-scene-mode">Scene cut detection</label>
             <select id="analyze-scene-mode">
               <option value="transcript">Transcript only - silence gaps, instant</option>
               <option value="fast" selected>Fast - keyframes + transcript gaps (recommended)</option>
@@ -1442,7 +1442,7 @@
 
     <div class="section-title" style="margin-bottom:6px">Your workflow</div>
     <ol style="margin:0 0 16px;padding-left:20px;font-size:13px;line-height:1.9;color:var(--text)">
-      <li><strong>Analyze</strong> - click <em>+ Analyze</em> and select a recording. YuuClip transcribes the audio, detects scene changes, and scores every clip.</li>
+      <li><strong>Analyze</strong> - click <em>+ New Recording</em> and select a recording. YuuClip transcribes the audio, detects scene changes, and scores every clip.</li>
       <li><strong>Review</strong> - step through the clip list. Watch the preview, read the description, and press <kbd>A</kbd> to approve, <kbd>R</kbd> to reject, or <kbd>U</kbd> to mark it unreviewed again.</li>
       <li><strong>Export</strong> - click <em>Export</em> on any clip to extract it. Quick export copies the video out in seconds; Precise re-encodes for frame-accurate cuts. The export window tells you which one you'll get.</li>
       <li><strong>Build a reel</strong> - click <em>Highlight Reels</em> in the header, then <em>Build Reel</em> to compile approved clips into a single highlight reel with title cards and transitions.</li>
@@ -1747,7 +1747,7 @@
       Retranscribe before export
     </label>
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-      <label for="batch-retranscribe-model" style="font-size:13px;color:var(--muted);min-width:110px">Caption model</label>
+      <label for="batch-retranscribe-model" style="font-size:13px;color:var(--muted);min-width:110px">Speech-to-text model</label>
       <select id="batch-retranscribe-model" disabled style="flex:1;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">
         <option value="tiny">tiny - fastest, lowest quality (~75 MB download)</option>
         <option value="base">base - fast, lower quality (~140 MB download)</option>
@@ -1770,7 +1770,7 @@
   <div class="modal" style="width:360px">
     <h3>Retranscribe Clip</h3>
     <div class="field">
-      <label for="retranscribe-model">Caption model</label>
+      <label for="retranscribe-model">Speech-to-text model</label>
       <select id="retranscribe-model">
         <option value="tiny">tiny - fastest, lowest quality (~75 MB download)</option>
         <option value="base">base - fast, lower quality (~140 MB download)</option>
@@ -2053,7 +2053,7 @@
         </label>
       </div>
       <div style="display:flex;align-items:center;gap:10px">
-        <label for="export-retranscribe-model" style="font-size:13px;color:var(--muted);min-width:110px">Caption model</label>
+        <label for="export-retranscribe-model" style="font-size:13px;color:var(--muted);min-width:110px">Speech-to-text model</label>
         <select id="export-retranscribe-model" disabled style="flex:1;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px">
           <option value="tiny">tiny - fastest, lowest quality (~75 MB download)</option>
           <option value="base">base - fast, lower quality (~140 MB download)</option>
@@ -2083,7 +2083,7 @@
           <span style="color:var(--muted);font-size:12px">End</span>
           <input class="timing-input" id="export-trim-end" value="+0.0" placeholder="+0.0" title="End offset: ±seconds from clip boundary, or absolute M:SS">
         </div>
-        <div style="font-size:11px;color:var(--muted);margin-top:4px">e.g. <code>-2.0</code> starts 2 s earlier · <code>1:30</code> sets absolute time</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">e.g. <code>-2.0</code> starts 2 s earlier · <code>1:30</code> sets absolute time. Want to trim visually with the transcript, frame a vertical crop, or preview captions first? Close this and use <strong>Edit &amp; export</strong> instead.</div>
       </div>
       <div id="export-mode-summary" style="font-size:12px;border-top:1px solid var(--border);padding-top:10px"></div>
     </div>

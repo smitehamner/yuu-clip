@@ -24,7 +24,7 @@ function makeSteps(energyMode = 'fast') {
     { name: 'Extract audio', seconds: 360, note: '2 tracks', hms: '6m 00s' },
     { name: 'Transcribe (medium)', seconds: 200, note: '1 track on GPU', hms: '3m 20s' },
     { name, seconds, note, hms },
-    { name: 'Scene detection (fast)', seconds: 18, note: 'keyframes + transcript gaps', hms: '18s' },
+    { name: 'Scene cut detection (fast)', seconds: 18, note: 'keyframes + transcript gaps', hms: '18s' },
     { name: 'LLM scoring', seconds: 80, note: '~20 clips estimated', hms: '1m 20s' },
   ];
 }

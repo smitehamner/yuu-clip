@@ -2890,7 +2890,7 @@ class TestComputeTimeEstimateMeasured:
             db.commit()
             result = _compute_time_estimate(self._req(), db)
             energy = next(s for s in result["steps"] if s["name"].startswith("Audio energy"))
-            scene = next(s for s in result["steps"] if s["name"].startswith("Scene detection"))
+            scene = next(s for s in result["steps"] if s["name"].startswith("Scene cut detection"))
             llm = next(s for s in result["steps"] if s["name"] == "LLM scoring")
             assert llm["seconds"] == pytest.approx(600.0 - energy["seconds"] - scene["seconds"])
         finally:
@@ -2907,7 +2907,7 @@ class TestComputeTimeEstimateMeasured:
             db.commit()
             result = _compute_time_estimate(self._req(model="small"), db)
             energy = next(s for s in result["steps"] if s["name"].startswith("Audio energy"))
-            scene = next(s for s in result["steps"] if s["name"].startswith("Scene detection"))
+            scene = next(s for s in result["steps"] if s["name"].startswith("Scene cut detection"))
             llm = next(s for s in result["steps"] if s["name"] == "LLM scoring")
             assert result["source"] == "measured"
             assert llm["seconds"] == pytest.approx(600.0 - energy["seconds"] - scene["seconds"])

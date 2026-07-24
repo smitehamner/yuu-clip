@@ -134,7 +134,7 @@ describe('updateJobUI step advancement', () => {
   };
 
   it('a middle-step line marks prior steps done and itself active', () => {
-    // SCORE_STEPS = [Energy, Scenes, Scoring]; "Detecting scene" is step 1.
+    // SCORE_STEPS = [Energy, Scene cuts, Scoring]; "Detecting scene" is step 1.
     expect(classesAfter('Detecting scene changes')).toEqual(['step done', 'step active', 'step']);
   });
   it('the final-step line marks every prior step done', () => {

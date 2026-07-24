@@ -29,6 +29,7 @@ Most lookups only need this table: the authoritative user-facing term, the code 
 | Restore | `restore_into`, `/api/restore/*` | Rebuild a project from a Backup file. Re-points source-video folders that no longer resolve on this machine so restored clips still play |
 | Recording | `video`, `video_path` | A video file input - not "session" (that's the gameplay period) |
 | Session | - | The gameplay period captured in a recording |
+| Recording Segment / Split | `Video.parent_video_id`, `segment_start_s`/`segment_end_s` | A recording broken into pieces by Split Recording so each piece can be analyzed independently - not the Caption segment or Clip window meanings of "segment" |
 | Import from URL | `import-url` (CLI/API path), `url_import.py` | Download a public Twitch VOD or YouTube video to use as a Recording, instead of picking a local file |
 | Imported from | `source_url`, `source_title`, `source_uploader`, `source_upload_date`, `source_category` | Recording detail line showing the origin link/channel/date for a URL-imported Recording |
 | Duration | `duration_ms`, `duration_hms` | Display as `1h 23m 45s`, never raw ms |
@@ -39,7 +40,7 @@ Most lookups only need this table: the authoritative user-facing term, the code 
 | Pipeline stage | `step` | Inspect → Assign Tracks → Extract → Transcribe → Detect Speakers → Generate Clips → Score |
 | Inspect | `probe()` | Read recording metadata - never "probe" in UI |
 | Extract | `extract_audio()` | Track → WAV conversion (internal stage) |
-| Rescore | `score`, `/api/score` | Re-run scoring only |
+| Re-score | `score`, `/api/score` | Re-run scoring only |
 | Job | `ingest_proc` | The one active analysis/rescore operation |
 | Pause / Resume analysis | `analyze.pause` flag file | Hold a running analysis at its next pause point, without losing progress |
 | GPU temperature warning | `GpuThermalMonitor`, `ThermalTrigger` | Heads-up (and optional auto-pause) when the GPU runs hot during analysis |
@@ -88,7 +89,7 @@ Most lookups only need this table: the authoritative user-facing term, the code 
 | Last scored with | `*_context_json` | Contexts active at last scoring - not "provenance" in UI |
 | Export | `export_clip()` | Save one clip to a file |
 | Export preset | `ExportPreset`, `export_presets` | Named container/resolution/bitrate recipe for export ("YouTube 1080p", "Discord (≤10 MB)", or a custom one) |
-| Format | `ClipExport` (one row per clip+preset) | One of a clip's exported files - a clip can have several, one per Export preset used |
+| Export file | `ClipExport` (one row per clip+preset) | One of a clip's exported files - a clip can have several, one per Export preset used. UI heading: "Exports" |
 | Vertical framing | `crop_x`, `ExportPreset.vertical` | Which 9:16 slice of the frame fills a Shorts export - 0=left, 0.5=center, 1=right; not "crop position" in UI |
 | Quick export | `stream_copy=True` | Keyframe-aligned, no re-encode - not "stream copy" in UI |
 | Precise export | `reencode=True` | Frame-accurate re-encode; needed for baked-in captions or a title card |
@@ -133,8 +134,8 @@ deleting recordings.
   /api/sessions`
 - **Also called:** gaming session, gameplay session
 - **Members:** only top-level recordings carry a `session_id`; a split segment
-  belongs to a session via its parent, never directly (see [Recording
-  Segment](#recording-segment) / Split)
+  belongs to a session via its parent, never directly (see [Recording Segment /
+  Split](#recording-segment))
 - **Do not confuse with:** SQLAlchemy `Session` object (dev-only; never
   user-facing) - see [Disambiguation](#disambiguation); or **Recording
   Segments**, which split one file rather than grouping many
@@ -142,6 +143,34 @@ deleting recordings.
   Recordings sidebar; "Session Summary", "Unified Timeline", "Group",
   "Suggest sessions". A lone recording's own "Session Summary"/"Session
   Timeline" cards still describe that single recording's gameplay period.
+
+---
+
+<a id="recording-segment"></a>
+
+### Recording Segment / Split
+
+A recording broken into pieces by **Split Recording**, so each piece can be analyzed
+independently (e.g. a long session cut at its natural breaks). Each segment is its own
+`Video` row pointing back at the original recording; **Undo Split** reverses it,
+re-parenting the segments' clips back onto the original recording (restoring absolute
+timing) and deleting the segments so the original is visible again.
+
+- **Code:** `Video.parent_video_id` (set on a segment, `None` on a top-level recording),
+  `Video.segment_start_s` / `segment_end_s` (where the segment sits in the source file);
+  `POST /api/videos/{id}/split` (`split_video`) and `POST /api/videos/{id}/unsplit`
+  (`unsplit_video`) in `yuu_clip/web/routes/videos.py`; UI `yuu_clip/web/static/analyze/split.js`
+  (the pre-analysis Split Editor) and `videos.js` (`openSplitEditor`, `unsplitVideo`)
+- **Also called in codebase:** "segment" (matches the DB columns and routes above)
+- **UI label:** "Split Recording" (recording action, opens the **Split Editor**); a
+  segment's sidebar card shows "Where this part sits inside the original recording";
+  "Undo Split" (segment-only action) merges it back
+- **Do not confuse with:** the other two "segment" meanings in this glossary - **Caption
+  segment** (a timed Whisper output unit) and **Clip window** (a generated candidate) -
+  see [Disambiguation](#disambiguation)
+- **Notes:** A segment cannot itself be re-split (split the parent recording instead). A
+  segment belongs to a **Session** only via its parent, never directly - see
+  [Session](#session).
 
 ---
 
@@ -237,7 +266,7 @@ The end-to-end process of running a recording through all pipeline stages to pro
 - **Code:** `ingest`, `run_ingest()`
 - **Also called in codebase:** "ingest"
 - **Do not call it:** "ingest" in user-facing text
-- **UI label:** "Analyze" / "+ Analyze" button
+- **UI label:** "Analyze" / "+ New Recording" header button
 - **Notes:** Only one analysis can run at a time. Covers all pipeline stages.
 
 ---
@@ -259,8 +288,8 @@ One step in the ingest process. Displayed as step pills in the UI (gray → blue
 | 7 | **Score** | Evaluate all clip candidates |
 
 - **Code:** `step` (in SSE progress messages)
-- **UI label:** step pill text - matches stage names above (Extract / Transcribe / Speakers / Generate Clips / Energy / Scenes / Score)
-- **Notes:** **Detect Speakers** is its own stage (a distinct "Speakers" step pill), split out of Transcribe so the slow diarization pass doesn't look like a hung transcription. It is skipped entirely when the diarization backend is `null`.
+- **UI label:** step pill text - matches stage names above (Extract / Transcribe / Speakers / Generate Clips / Energy / Scene cuts / Score)
+- **Notes:** **Detect Speakers** is its own stage (a distinct "Speakers" step pill), split out of Transcribe so the slow diarization pass doesn't look like a hung transcription. It is skipped entirely when the diarization backend is `null`. The **Scene cuts** pill (code `stage: 'scenes'`) is the detected shot-boundary marker, not the `kind='scene'` clip-candidate type - see [Disambiguation](#disambiguation).
 
 ---
 
@@ -286,12 +315,14 @@ Convert a raw audio track to a standardized WAV file for transcription and energ
 
 ---
 
-### Rescore
+### Re-score
 
 Re-run the scoring stage on an already-ingested recording.
 
 - **Code:** `score` (CLI), `/api/score` (API)
-- **UI label:** "Rescore"
+- **Also called in codebase:** "rescore" (CLI/API naming; unchanged - only the
+  user-facing spelling took the hyphen)
+- **UI label:** "Re-score"
 - **Notes:** Does not re-transcribe or regenerate clips. Useful after changing world contexts or the AI model.
 
 ---
@@ -322,7 +353,7 @@ already made.
   than running straight to the end. Every pause point sits immediately after a commit -
   SQLite is single-writer here, so blocking with a write transaction open would lock the
   web server out of its own database for the whole hold. Flag-file only; does not survive
-  a server restart. Only the analyze job honours it - the standalone Rescore and
+  a server restart. Only the analyze job honours it - the standalone Re-score and
   Retranscribe jobs deliberately do not, having no Pause control to clear the flag.
 
 ---
@@ -362,12 +393,14 @@ The full text of everything said during a recording, as produced by speech-to-te
 The local AI model that converts audio to text. YuuClip uses Whisper.
 
 - **Code:** `whisper_model`
-- **UI label:** "Caption model" on the export/retranscribe surfaces
-  (Retranscribe Clip, Batch Export, Export Clip - decided 2026-07-02, M3-4);
-  "Whisper model" in the Analyze panel; "Model" in Settings under the
-  "Whisper (Speech-to-text)" section heading
+- **UI label:** "Speech-to-text model" everywhere - the export/retranscribe surfaces
+  (Retranscribe Clip, Batch Export, Export Clip), the New Recording panel's Advanced
+  options, and Settings under the "Speech-to-text (Whisper)" section heading. "Caption
+  model" (used on the export/retranscribe surfaces 2026-07-02 - M3-4) and the bare
+  "Whisper model" / "Model" labels are retired (Fable-review WS-2, TERM-M3).
 - **Also called:** "Whisper model", "transcription model"
-- **Do not call it:** just "model" - ambiguous with the AI scoring model
+- **Do not call it:** just "model" - ambiguous with the AI scoring model; "Caption
+  model" - retired, collides with the unrelated Caption Style feature
 - **Notes:** all five model selects share one canonical option-copy set
   (guarded by `tests/test_ui_terminology.py`)
 
@@ -590,7 +623,7 @@ Two or more clips in one recording whose time windows heavily overlap - usually 
 A longer contextual candidate - a 1-5 minute moment with a story arc, which may include pauses. Reviewed and exported through the same machinery as a Clip; only generation and scoring differ. Distinct from a Clip (a punchy 15-90s bit).
 
 - **Code:** a `ClipCandidate` row with `kind='scene'` (Clips are `kind='clip'`, the default)
-- **Also called in codebase:** not to be confused with `SceneBoundary` / `SceneScorer` (see Scene Scoring below), which are an unrelated **visual scene-cut timecode**, not this candidate type.
+- **Also called in codebase:** not to be confused with `SceneBoundary` / `SceneScorer` (see Scene Scoring below), which are an unrelated **visual scene-cut timecode**, not this candidate type. The UI calls that detector **"Scene cuts"** (the analyze step pill and the Settings/Advanced "Scene cut detection" option) precisely to avoid colliding with this term - see [Disambiguation](#disambiguation).
 - **Do not call it:** a "SceneBoundary" - that is a different concept.
 - **UI label:** "Scenes" (the All / Clips / Scenes filter chips above the clip list; scene rows carry a **SCENE** badge)
 - **Notes:** Shares the `clip_candidates` table with Clips via the `kind` discriminator. The review UI shows both kinds in one merged list by default (the **All** chip); the **Clips** / **Scenes** chips filter it client-side, and the choice persists in `localStorage` (`clips-kind-filter`).
@@ -629,19 +662,20 @@ The pixel-derived scoring dimension - how much is happening on screen, independe
 
 ---
 
-### Visual clips (mode)
+### No-dialogue clips (mode)
 
 The setting that controls whether silent, action-heavy moments become clips at all. The normal clip finder only proposes clips where there is speech, so a no-dialogue highlight (a clutch play, a crash) never surfaces; turning this on adds a second, model-free source that proposes clips from on-screen motion and scene-cut density.
 
 - **Code:** `visual_candidate_mode` (Config: `off` | `relax` | `gaps` | `parallel`); `yuu_clip/segments/visual_windower.py` (`generate_visual_candidates`), `yuu_clip/segments/merge.py` (`merge_candidates` - the dedup + per-recording cap guard). Visual-source clips are `ClipCandidate` rows with `kind="clip"` carrying the `visual` + `no_speech` tags and an empty `transcript_excerpt`.
-- **UI label:** "Visual clips" (Settings → Analysis defaults). Options: Off / Silent gaps (recommended) / Relaxed / Full.
-- **Notes:** `gaps` proposes visual clips only in the silent stretches between speech clips; `parallel` ("Full") scans the whole recording; `relax` instead keeps a low-speech speech-clip window when it overlaps high motion, rather than adding a separate source. A merge step drops a visual clip that overlaps a speech clip by more than `visual_dedup_overlap` (speech wins) and caps visual-only clips at `visual_candidate_cap` per recording - the "don't drown the talk-heavy core" guard. Distinct from the [Visual](#visual) scoring dimension (how a clip scores) and from [Scenes](#scene) (`kind="scene"`, a different candidate type).
+- **Also called in codebase:** "Visual clips" (pre-rename UI label, `visual_candidate_mode` config key, `s-visual-mode` element id) - renamed in the UI to align with the [No dialogue](#no-dialogue) filter chip that surfaces this mode's output; the code name is unchanged.
+- **UI label:** "No-dialogue clips" (Settings → Analysis defaults). Options: Off / Silent gaps (recommended) / Relaxed / Full.
+- **Notes:** `gaps` proposes visual clips only in the silent stretches between speech clips; `parallel` ("Full") scans the whole recording; `relax` instead keeps a low-speech speech-clip window when it overlaps high motion, rather than adding a separate source. A merge step drops a visual clip that overlaps a speech clip by more than `visual_dedup_overlap` (speech wins) and caps visual-only clips at `visual_candidate_cap` per recording - the "don't drown the talk-heavy core" guard. Distinct from the [Visual](#visual) scoring dimension (how a clip scores) and from [Scene](#scene) (`kind="scene"`, a different candidate type).
 
 ---
 
 ### No dialogue
 
-A clip with no transcript at all - typically a [Visual clip](#visual-clips-mode), a silent highlight surfaced by on-screen motion or scene cuts rather than speech. Its Transcript card shows an explicit "No dialogue in this clip" state (never left blank) plus the Visual score, so the clip stays legible without needing an LLM. A non-LLM one-liner ("Silent visual moment - high on-screen activity") fills the description until a vision-LLM description or a creator edit supersedes it.
+A clip with no transcript at all - typically a [No-dialogue clip](#no-dialogue-clips-mode), a silent highlight surfaced by on-screen motion or scene cuts rather than speech. Its Transcript card shows an explicit "No dialogue in this clip" state (never left blank) plus the Visual score, so the clip stays legible without needing an LLM. A non-LLM one-liner ("Silent visual moment - high on-screen activity") fills the description until a vision-LLM description or a creator edit supersedes it.
 
 - **Code:** tag `no_speech` on `ClipCandidate.tags`; template text from `yuu_clip/scoring/describe_basic.py` (`build_basic_description`, gated on the `visual` tag); filter chip token `no_speech` (`clips.js`)
 - **UI label:** "No dialogue" (transcript-card state, generated-tag pill, and the "No dialogue" filter chip under Clips → More filters)
@@ -1026,18 +1060,20 @@ a 0–1 fraction: 0 = left edge flush, 0.5 = center, 1 = right edge flush.
 
 ---
 
-### Format
+### Export file
 
 One of a clip's exported files - the per-preset counterpart to a plain **Export**.
-A clip can have several formats at once (e.g. an original-quality export plus a
-Discord-sized one); re-exporting the same Export preset replaces that format's
-file, a different preset adds another.
+A clip can have several export files at once (e.g. an original-quality export plus a
+Discord-sized one); re-exporting the same Export preset replaces that file, a
+different preset adds another.
 
 - **Code:** `ClipExport` (`clip_exports` table - one row per clip + preset_name)
-- **UI label:** one row per format in the clip detail's Export section (preset
-  label, container, size, date) with per-row Download / Show in folder / Copy
-  path / Regenerate / Delete; "Exported ×2" on the sidebar pill when a clip has
-  more than one format
+- **Also called in codebase:** "format" (retired from user-facing text - collided with
+  everyday "file format"; Fable-review WS-2, TERM-M5)
+- **UI label:** "Exports" heading in the clip detail's Export section, one row per
+  export file (preset label, container, size, date) with per-row Download / Show in
+  folder / Copy path / Regenerate / Delete; "+ Add another export" adds one; "Exported
+  ×2" on the sidebar pill when a clip has more than one
 - **Notes:** The original one-row-per-clip export columns
   (`exported_at`/`exported_container`/`exported_burn_subs`/…) stay in place
   alongside this table for now (they still drive the sidebar pill and aggregate
@@ -1342,7 +1378,9 @@ These terms are used with multiple meanings in the codebase or everyday speech. 
 |------|-----------|-----------|------|
 | **Session** | A gameplay period ("last night's session") | SQLAlchemy DB session object | Use "recording" for the file; "session" only for the gameplay period; "DB session" for SQLAlchemy - never expose the latter to creators |
 | **Segment** | Caption segment (a timed Whisper output unit) | Clip window (a generated highlight candidate) | Use **"caption segment"** for Whisper output; **"clip"** or **"clip window"** for generated candidates; never bare "segment" |
+| **Segment (recording)** | Recording Segment / Split (a piece of a recording made by Split Recording) | The other two "Segment" meanings above (caption segment / clip window) | See [Recording Segment / Split](#recording-segment); never bare "segment" for any of the three without context |
 | **Score** | A numeric rating (noun) | To evaluate a clip (verb) | Both valid; rely on context |
+| **Scene** | Scene (a `kind='scene'` clip candidate - a 1-5 min contextual moment) | Scene cuts (a detected visual shot-boundary timecode - `SceneBoundary`/`SceneScorer`) | Use **"Scene(s)"** only for the clip-candidate kind (filter chips, SCENE badge); use **"Scene cuts"** for the detector (analyze step pill, Settings/Advanced "Scene cut detection" option, the Scene cuts scoring weight) |
 | **Timeline** | Video-editing timeline (common meaning) | Session timeline (AI 15-min chunk descriptions) | Always say **"session timeline"** for the AI feature; avoid bare "timeline" in UI labels |
 | **Context** | World context (RP game info) | Python/FastAPI execution context | Use **"world context"** in user-facing text; reserve bare "context" for code |
 | **Speaker** | A diarized voice in a recording | - | A **Speaker** is a voice; a **Character** is a world-context lore entity. Don't use them interchangeably; never expose the raw `SPEAKER_00` label |

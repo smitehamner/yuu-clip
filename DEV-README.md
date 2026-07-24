@@ -58,7 +58,7 @@ pip install -e .        # contributors: use  pip install -e ".[dev]"  (adds test
 cd my-recordings-folder
 yuuclip serve
 ```
-Then navigate to `http://127.0.0.1:8080`. Use the **+ Analyze** button to add a video.
+Then navigate to `http://127.0.0.1:8080`. Use the **+ New Recording** button to add a video.
 
 ### CLI usage
 

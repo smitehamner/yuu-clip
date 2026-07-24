@@ -915,7 +915,7 @@ def _compute_time_estimate(req: EstimateRequest, db=None, warn_hours: float = 2.
             "note":    energy_label,
         },
         {
-            "name":    f"Scene detection ({req.scene_mode})",
+            "name":    f"Scene cut detection ({req.scene_mode})",
             "seconds": scene_seconds,
             "note":    _SCENE_MODE_LABELS.get(req.scene_mode, ""),
         },

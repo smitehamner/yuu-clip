@@ -639,7 +639,7 @@ function openVideoActionsModal(videoId) {
       { label: 'Save Captions to SRT', description: 'Write the transcript as an SRT caption file next to the source recording.', action: () => exportVideoTranscript(videoId) },
     ]},
     { heading: 'Danger Zone', rows: [
-      { label: 'Regenerate Clips', description: 'Rebuild clips from the existing transcript. Replaces every clip - discarding approvals, edits, tags, and scores - with fresh, unscored candidates. Skips re-transcription.', danger: true, action: () => regenerateClipsRun(videoId) },
+      { label: 'Regenerate Clips', description: 'Rebuild clips from the existing transcript. Replaces every clip - discarding approvals, edits, tags, and scores - with fresh, unscored clips. Skips re-transcription.', danger: true, action: () => regenerateClipsRun(videoId) },
       { label: 'Re-analyze (full)', description: 'Re-run the entire pipeline from scratch. Replaces all clips, scores, and speakers for this recording.', danger: true, action: () => reanalyzeVideo(videoId) },
       { label: 'Reset Approvals', description: 'Clear the approve/reject status on every clip in this recording.', danger: true, action: () => resetApprovals(videoId) },
       { label: 'Remove Recording', description: 'Remove this recording from YuuClip. The source file on disk is not deleted.', danger: true, action: () => deleteVideo(videoId) },

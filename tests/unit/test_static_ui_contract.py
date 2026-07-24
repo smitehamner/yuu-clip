@@ -11,10 +11,11 @@ CC-8: user-facing labels say "Recording(s)", never "Video(s)" (code keeps `video
 CC-10: counts pluralize via plural() - no "(s)" shorthand in user-facing strings.
 L4-3: the Scoring/Actions two-card row wraps on narrow layouts.
 M3-4 / L5-1: the speech-to-text model select is one concept everywhere - identical
-option copy across all six surfaces, "Caption model" label on the three
-export/retranscribe surfaces, and a static large-v3 default on the standalone
-Retranscribe Clip modal (the export-time pickers are driven by the
-export_retranscribe_model setting instead - see B20).
+option copy across all six surfaces, "Speech-to-text model" label on every surface
+(retiring the old "Caption model" / "Whisper model" / bare "Model" labels - Fable-review
+WS-2, TERM-M3), and a static large-v3 default on the standalone Retranscribe Clip modal
+(the export-time pickers are driven by the export_retranscribe_model setting instead -
+see B20).
 """
 from __future__ import annotations
 
@@ -136,9 +137,15 @@ def test_retranscribe_clip_model_default_is_large_v3():
 
 @pytest.mark.parametrize(
     "select_id",
-    ["batch-retranscribe-model", "retranscribe-model", "export-retranscribe-model"],
+    [
+        "s-whisper-model",
+        "analyze-model",
+        "batch-retranscribe-model",
+        "retranscribe-model",
+        "export-retranscribe-model",
+    ],
 )
-def test_export_surface_model_label_is_caption_model(select_id: str):
-    label = re.search(rf'<label for="{select_id}"[^>]*>([^<]*)</label>', INDEX_HTML)
+def test_model_select_label_is_speech_to_text_model(select_id: str):
+    label = re.search(rf'<label[^>]*\bfor="{select_id}"[^>]*>([^<]*)</label>', INDEX_HTML)
     assert label, f"no <label for=\"{select_id}\"> in index.html"
-    assert label.group(1).strip() == "Caption model"
+    assert label.group(1).strip() == "Speech-to-text model"

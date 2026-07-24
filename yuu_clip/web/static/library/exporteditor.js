@@ -91,6 +91,7 @@ function _edMount(container) {
   container.innerHTML = `
     <div style="font-size:12px;color:var(--muted)">
       Trim with the transcript, frame the vertical crop, preview captions, then export - in one place.
+      Just need a quick export with no visual tools? Cancel and use the plain <strong>Export</strong> button instead.
     </div>
     <div id="ed-preview-wrap" style="position:relative;height:42vh;aspect-ratio:16/9;max-width:100%;margin:0 auto;background:#000;border-radius:6px;overflow:hidden">
       <video id="ed-video" controls preload="metadata" aria-label="Clip preview"

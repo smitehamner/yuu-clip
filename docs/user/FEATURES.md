@@ -11,7 +11,7 @@ reference, [../dev/CLI-AND-INTERNALS.md](../dev/CLI-AND-INTERNALS.md).
 ### Layout
 
 - **Sidebar left pane** - recordings list with per-recording clip count, approved count, exported count, score range bar, and clipped time. Has its own search box (title/filename), sort dropdown (Recent / Title / Filename / Length / Clips - persisted), and everyday filter chips (All / Has clips); the rarer Unscored / Errors filters live under a **More filters** expander. A per-section "..." menu holds Group and Suggest sessions.
-- **Sidebar right pane** - clip list for the selected recording; the section header is a Clips / Scenes toggle. Sortable by Overall / Funny / Dramatic / Action / Laughs score, Length, or Timeline (chronological). Sorting by Laughs puts clips with no laugh measurement last. Everyday status filters (All / Unreviewed / Approved / Rejected) stay visible; the warning and export-state filters plus the minimum-score picker fold into a **More filters** expander that auto-opens when one of them is active. A per-section "..." menu holds New clip and Check duplicates.
+- **Sidebar right pane** - clip list for the selected recording; the section header is a Clips / Scenes toggle. Sortable by Overall / Funny / Dramatic / Action / Laughs score, Length, or Position (chronological). Sorting by Laughs puts clips with no laugh measurement last. Everyday status filters (All / Unreviewed / Approved / Rejected) stay visible; the warning and export-state filters plus the minimum-score picker fold into a **More filters** expander that auto-opens when one of them is active. A per-section "..." menu holds New clip and Check duplicates.
 - **Main panel** - detail view for the selected video or clip, plus video player. Long cards (Full transcript, Session Summary, timelines, Description, Related Clips, World Contexts, Speakers) collapse from their header - click the title or press Enter/Space on it; the open/closed state is remembered per card. The full-video transcript starts collapsed and loads when first opened.
 - **Header** - global action buttons and live job status (step pills + cancel button). The app runs **one job at a time**: while a job is running, actions that would start another job are disabled with a tooltip explaining why, and trying anyway gives a clear "another job is running - wait or cancel" message. The step pills advance in step with the engine's real progress. The primary actions you use most - **Analyze** and **Export** - are gold; other buttons are the cyan accent.
 - **Project switcher** - the current project name (top-left) is a dropdown: pick a recent project or "Open another project…" to point at any folder. YuuClip switches without a restart and reloads; a brand-new folder starts a fresh, empty project. Blocked while analysis or another job is running.
@@ -60,7 +60,7 @@ same tools as Clips; only how they're generated and scored differs.
   carries a small **SCENE** badge so it's easy to tell apart at a glance. Three chips
   above the list - **All**, **Clips**, **Scenes** - filter it; it defaults to **All**
   (both kinds together), and your choice is remembered. Sort applies across the merged
-  list, so a score sort interleaves clips and scenes while a timeline sort orders them
+  list, so a score sort interleaves clips and scenes while a Position sort orders them
   by when they happen.
 - **Make a scene by hand** - the manual picker (see Manual clip creation above) can
   create a Scene instead of a Clip: pick a longer start/end range and it's saved as a
@@ -128,7 +128,7 @@ Long recordings are multi-hour files the browser can't scrub smoothly, so the pr
 
 ### New Recording panel
 
-Open with the `+ Analyze` button in the header. It's a full panel that keeps the sidebar live.
+Open with the `+ New Recording` button in the header. It's a full panel that keeps the sidebar live.
 
 1. Click **Browse…** to pick a video file (native OS file picker), or paste a path; the file is inspected immediately - shows stream table and time estimate
 2. Optionally split the recording into segments before analysis (place markers on the waveform)
@@ -142,7 +142,7 @@ The time estimate panel breaks down expected wall-clock cost per step and warns 
 
 ### Job progress indicator
 
-Step pills in the header: Extract -> Transcribe -> Generate Clips -> Energy -> Scenes -> Score. Each pill is gray (pending) -> blue (active) -> green (done). A cancel button is visible during analysis; it stops the run and marks the job cancelled.
+Step pills in the header: Extract -> Transcribe -> Generate Clips -> Energy -> Scene cuts -> Score. Each pill is gray (pending) -> blue (active) -> green (done). A cancel button is visible during analysis; it stops the run and marks the job cancelled.
 
 ### Track layout manager
 
@@ -255,7 +255,7 @@ silent but action-heavy moment (a clutch play, a crash) can still surface even w
 dialogue for the transcript-driven scorers to read. It's measured on every analysis with
 no extra download.
 
-- **Visual clips** (Settings -> Analysis defaults) controls whether silent, visual
+- **No-dialogue clips** (Settings -> Analysis defaults) controls whether silent, visual
   moments become clips at all: **Off** (transcript-only clips), **Silent gaps**
   (recommended - fills quiet stretches between talk clips), **Relaxed** (keeps a
   low-speech window when it's visually active, instead of dropping it), or **Full**

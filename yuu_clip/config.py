@@ -808,7 +808,7 @@ class Config:
     # Unknown/unavailable values fall back to "tfidf" at make_backend time.
     similarity_backend: str = "embeddings"
 
-    # Scene detection mode: "transcript" | "fast" | "full"
+    # Scene cut detection mode: "transcript" | "fast" | "full"
     # transcript = silence gaps only (instant, no extra deps)
     # fast       = keyframes + transcript gaps (seconds, recommended default)
     # full       = ContentDetector on every frame (most accurate, slow on long VODs)

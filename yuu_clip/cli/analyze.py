@@ -95,7 +95,7 @@ def analyze(
     force: bool = typer.Option(False, "--force", help="Re-process even if already analyzed"),
     language: Optional[str] = typer.Option(None, "--language", "-l", help="Force speech-to-text language (e.g. en)"),
     energy_mode: str = typer.Option("fast", "--energy-mode", help="Audio energy analysis: none|fast|full"),
-    scene_mode: str = typer.Option("fast", "--scene-mode", help="Scene detection: transcript|fast|full"),
+    scene_mode: str = typer.Option("fast", "--scene-mode", help="Scene cut detection: transcript|fast|full"),
     scenes: bool = typer.Option(False, "--scenes", help="Also generate longer 'scene' candidates via the LLM (opt-in; off by default)"),
     diarize: Optional[bool] = typer.Option(None, "--diarize/--no-diarize", help="Override speaker diarization for this run (default: use config)"),
     no_interact: bool = typer.Option(False, "--no-interact", help="Never prompt interactively - use defaults or fail cleanly (set automatically by the web UI)"),

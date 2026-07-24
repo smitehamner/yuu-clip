@@ -18,7 +18,7 @@ When YuuClip opens, you'll see:
 
 - A **left sidebar** split into two panels: video list (top) and clip list (bottom). Both are empty until you analyze something.
 - A **main panel** on the right, showing the detail view for whatever clip is selected.
-- A **header bar** with `+ Analyze`, `Highlight Reels`, and a `≡` hamburger menu.
+- A **header bar** with `+ New Recording`, `Highlight Reels`, and a `≡` hamburger menu.
 - A **footer bar** at the bottom showing the app version.
 
 Nothing works yet - there's no data. Let's fix that.
@@ -29,7 +29,7 @@ Nothing works yet - there's no data. Let's fix that.
 
 **Goal:** Get a recording into the system and let the pipeline run.
 
-1. Click `+ Analyze` in the header. The **New Recording** panel takes over the main view.
+1. Click `+ New Recording` in the header. The **New Recording** panel takes over the main view.
 
 2. Click the file picker button and select your recording. After a few seconds you'll see an inspection summary: file duration, the audio tracks found, and a time estimate for transcription. The estimate is deliberately conservative - your actual runtime will often be shorter.
 
@@ -37,7 +37,7 @@ Nothing works yet - there's no data. Let's fix that.
 
 4. **Pick a track layout.** If you haven't created one yet, the default layout will be selected. A track layout tells the app which audio tracks to transcribe - for most recordings there's only one relevant track (your microphone), but OBS sometimes captures game audio separately, and you want to skip that.
 
-5. Click **Start Analysis**. The panel closes and the header shows a row of step chips: `Extract → Transcribe → Generate Clips → Energy → Scenes → Score`. These advance as each stage finishes.
+5. Click **Start Analysis**. The panel closes and the header shows a row of step chips: `Extract → Transcribe → Generate Clips → Energy → Scene cuts → Score`. These advance as each stage finishes.
 
 6. Wait. Whisper is doing the heavy lifting here. The time estimate from step 2 is your rough guide. The app keeps working in the background - you can leave the tab open and do something else.
 

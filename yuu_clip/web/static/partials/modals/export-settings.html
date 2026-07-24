@@ -91,7 +91,7 @@
         </label>
       </div>
       <div style="display:flex;align-items:center;gap:10px">
-        <label for="export-retranscribe-model" style="font-size:13px;color:var(--muted);min-width:110px">Caption model</label>
+        <label for="export-retranscribe-model" style="font-size:13px;color:var(--muted);min-width:110px">Speech-to-text model</label>
         <select id="export-retranscribe-model" disabled style="flex:1;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px">
           <option value="tiny">tiny - fastest, lowest quality (~75 MB download)</option>
           <option value="base">base - fast, lower quality (~140 MB download)</option>
@@ -121,7 +121,7 @@
           <span style="color:var(--muted);font-size:12px">End</span>
           <input class="timing-input" id="export-trim-end" value="+0.0" placeholder="+0.0" title="End offset: ±seconds from clip boundary, or absolute M:SS">
         </div>
-        <div style="font-size:11px;color:var(--muted);margin-top:4px">e.g. <code>-2.0</code> starts 2 s earlier · <code>1:30</code> sets absolute time</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">e.g. <code>-2.0</code> starts 2 s earlier · <code>1:30</code> sets absolute time. Want to trim visually with the transcript, frame a vertical crop, or preview captions first? Close this and use <strong>Edit &amp; export</strong> instead.</div>
       </div>
       <div id="export-mode-summary" style="font-size:12px;border-top:1px solid var(--border);padding-top:10px"></div>
     </div>

@@ -4,10 +4,13 @@
 A folder where YuuClip keeps one body of work - its recordings, clips, exports, and highlight reels all live under that folder. Use the project name at the top-left to switch between projects (for example, one per game or per channel) without restarting. Point it at a brand-new folder to start a fresh, empty project.
 
 ### Recording
-A video file of a gaming session - the main thing you feed into YuuClip. Each recording is listed in the Sessions panel on the left.
+A video file of a gaming session - the main thing you feed into YuuClip. Each recording is listed in the Recordings panel on the left.
 
 ### Session
 One sitting of gameplay - for example, "last night's session." When OBS splits a long sitting into several files, you can group those recordings into one Session: it gets a shared name, a combined Session Summary, and a Unified Timeline that runs continuously across every recording (with the real-world breaks between files marked). Use **Suggest sessions** to auto-group back-to-back recordings, or **Group** to pick them by hand; ungrouping never deletes anything.
+
+### Recording segment
+A piece of a recording created with **Split Recording**, so a long file can be analyzed in independent parts. Each segment shows where it sits inside the original recording, and **Undo Split** merges the segments (and their clips) back into the original at any time. This is a different "segment" from a caption segment (a line of transcript) or a clip's time window - see those entries below.
 
 ### Duration
 How long a recording or clip runs, shown as `1h 23m 45s` or `23m 45s`.
@@ -56,23 +59,26 @@ The steps an analysis goes through, shown as pills that turn from gray to blue t
 - **Inspect** - read the recording's details (length, resolution, tracks)
 - **Assign Tracks** - set each track's role
 - **Transcribe** - turn speech into text
+- **Detect Speakers** - figure out who's talking (only shown when Speaker labels are on)
 - **Generate Clips** - find candidate highlight moments
+- **Energy** - measure how loud and active the audio is
+- **Scene cuts** - detect visual shot changes (not the same as a "Scene" clip - see below)
 - **Score** - rate each clip
 
 ### Inspect
 A quick read of a recording's details without running a full analysis. It also runs as the first step of every analysis.
 
-### Rescore
+### Re-score
 Re-rate the clips of an already-analyzed recording without re-transcribing or regenerating them. Useful after you change world contexts or the scoring model.
 
 ### Job
-An analysis or rescore that's currently running. You can watch its progress and live log, and cancel it. Only one job runs at a time.
+An analysis or re-score that's currently running. You can watch its progress and live log, and cancel it. Only one job runs at a time.
 
-### Pause After Current Video
-Hold a multi-video analysis before it starts the next video, without losing the progress already made - the video currently in progress always finishes first. Doesn't survive a server restart, and has no effect when analyzing a single video.
+### Pause at next safe point
+Hold a running analysis at its next safe stopping point, without losing the progress already made. YuuClip looks for a safe point between videos in a multi-video batch, between pipeline stages, during a long transcription, and between clips while scoring - so even a single-video analysis can be paused within seconds instead of only at the very end. Doesn't survive a server restart.
 
 ### GPU Temperature Warning
-A heads-up when your GPU is running hot during analysis (NVIDIA graphics cards only). If it stays hot, analysis automatically pauses before the next video - configurable in Settings → Hardware.
+A heads-up when your GPU is running hot during analysis (NVIDIA graphics cards only). If it stays hot, analysis automatically pauses at its next safe point (see above) - configurable in Settings → Hardware.
 
 ---
 
@@ -185,7 +191,7 @@ A named bundle of background information - the setting, your characters, other c
 A world context that ships with YuuClip as starter content, marked with a "Template" badge. Edit it to fit your game, use it as a base for a new copy, or reset it back to the original shipped content at any time. Templates can't be deleted.
 
 ### Stale scores
-A warning that a recording's contexts changed since it was last scored, summarized, or had its timeline built - so those results may be out of date. Rescore to refresh them.
+A warning that a recording's contexts changed since it was last scored, summarized, or had its timeline built - so those results may be out of date. Re-score to refresh them.
 
 ---
 
@@ -203,8 +209,8 @@ Slower export that re-encodes the video to cut at the exact frame. Required when
 ### Export preset
 A named recipe for export - container, resolution, and bitrate - instead of exporting at original quality. Built-in presets include "YouTube 1080p", "Discord (≤10 MB)", and "TikTok / Shorts (9:16)"; you can also create your own in Settings → Export.
 
-### Format
-One of a clip's exported files. A clip can have more than one format at once (say, an original-quality export plus a Discord-sized one) - exporting with a new preset adds a format instead of replacing your existing one.
+### Exports
+The "Exports" list on a clip shows every file you've exported for it. A clip can have more than one at once (say, an original-quality export plus a Discord-sized one) - exporting with a new preset adds another export instead of replacing your existing one.
 
 ### Vertical framing
 When you export with a vertical (9:16) preset like "TikTok / Shorts", the video is cropped from your widescreen recording down to a tall frame. Vertical framing is the horizontal position of that crop - Left, Center, or Right, or anywhere in between with the slider - so you can keep the action in shot. "Auto-frame on faces" can suggest a position by finding faces in the clip (needs the optional MediaPipe package, installed from Settings → Export); you always confirm before it's used.

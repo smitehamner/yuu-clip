@@ -90,12 +90,12 @@ A one-glance "what to walk before public" list is in the final section.
 - **Actor goal:** get a recording into the system and let the pipeline find clips.
 - **Preconditions:** a project is open; a video file on disk; a Whisper model available; optionally an LLM model for descriptions.
 - **Steps:**
-  1. Click `+ Analyze`; the New Recording panel takes over the main view (sidebar stays live).
+  1. Click `+ New Recording`; the New Recording panel takes over the main view (sidebar stays live).
   2. Browse to / paste a file path; wait for inspection (duration, track list, per-step time estimate).
   3. Pick a Whisper model and a track layout; optionally assign world contexts, choose a captions source (skip STT with an SRT), or expand Advanced (scene mode, energy mode, speaker labels).
   4. Click Start Analysis.
-  5. Watch the header step pills advance: Extract -> Transcribe -> (Detect speakers) -> Generate Clips -> Energy -> Scenes -> Score.
-  6. Try `+ Analyze` again mid-run.
+  5. Watch the header step pills advance: Extract -> Transcribe -> (Detect speakers) -> Generate Clips -> Energy -> Scene cuts -> Score.
+  6. Try `+ New Recording` again mid-run.
 - **Expected:** estimate updates when model/layout change; on start the panel closes and pills advance in step with real progress; the recording appears in the sidebar immediately with a live stage spinner and survives a page refresh; a second analyze is blocked with a clear "another job is running" message; on completion the pills clear and clips are listed.
 - **Automation:** automated (drive the real `cli/_pipeline` analyze path against the fixture with Whisper + LLM stubbed) / golden (real models on a spoken clip).
 - **Coverage:** integration pipeline tests; ui analyze/progress tests; golden real-models path in tests/system/test_golden_path.py::test_golden_path_real_models (opt-in, `yuu-dev test-golden`). Automated by tests/system/test_uc_analyze_review_export_play.py::test_analyze_produces_scored_clips.

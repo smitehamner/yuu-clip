@@ -40,12 +40,12 @@ const INGEST_STEPS = [
   {label: 'Speakers',       stage: 'speakers',       patterns: ['Detecting speakers'],    estMatch: ['speaker labels']},
   {label: 'Generate Clips', stage: 'generate_clips', patterns: ['Generating clip']},
   {label: 'Energy',         stage: 'energy',         patterns: ['Computing audio energy'], estMatch: ['audio energy']},
-  {label: 'Scenes',         stage: 'scenes',         patterns: ['Detecting scene'],       estMatch: ['scene detection']},
+  {label: 'Scene cuts',     stage: 'scenes',         patterns: ['Detecting scene'],       estMatch: ['scene detection']},
   {label: 'Score',          stage: 'score',          patterns: ['Scoring clips'],         estMatch: ['llm scoring'], progressPattern: /Scoring (\d+)\/(\d+)/},
 ];
 const SCORE_STEPS = [
   {label: 'Energy',  stage: 'energy', patterns: ['Computing audio energy']},
-  {label: 'Scenes',  stage: 'scenes', patterns: ['Detecting scene']},
+  {label: 'Scene cuts', stage: 'scenes', patterns: ['Detecting scene']},
   {label: 'Scoring', stage: 'score',  patterns: ['Scoring clips'], progressPattern: /Scoring (\d+)\/(\d+)/},
 ];
 // Marker-driven only (the analyze-frames SSE emits no prose stage lines), so these

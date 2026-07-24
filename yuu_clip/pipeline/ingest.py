@@ -1126,12 +1126,12 @@ def _run_scoring(
                 mode=config.scene_detection_mode,
                 transcript_gap_s=config.scene_transcript_gap_s,
             )
-            msg = f"  [green]  OK[/green] {n} scene cuts detected" if n else "  [dim]  Scene detection already done or unavailable[/dim]"
+            msg = f"  [green]  OK[/green] {n} scene cuts detected" if n else "  [dim]  Scene cut detection already done or unavailable[/dim]"
             console.print(msg)
             session.flush()
         except Exception as e:
-            console.print(f"  [yellow]  Scene detection skipped: {e}[/yellow]")
-            log.exception("Scene detection failed: video_id=%s", video.id)
+            console.print(f"  [yellow]  Scene cut detection skipped: {e}[/yellow]")
+            log.exception("Scene cut detection failed: video_id=%s", video.id)
 
     if config.scorer_visual_enabled:
         from yuu_clip.analyze.motion import compute_activity

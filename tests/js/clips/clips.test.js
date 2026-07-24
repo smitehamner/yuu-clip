@@ -367,7 +367,7 @@ describe('_exportFormatsHtml', () => {
     });
     expect(html).toContain('data-export-id="1"');
     expect(html).not.toContain('data-export-id="2"');  // exists:false is filtered out
-    expect(html).toContain('Exported formats');
+    expect(html).toContain('Exports');
   });
 
   it('falls back to the legacy single-block display when has_export but no rows', () => {

@@ -89,7 +89,7 @@
     <div class="settings-section-title has-action"><span>Speech-to-text (Whisper)</span><button type="button" class="btn-secondary settings-reset-btn" data-revert-section="settings-sec-stt">Reset to defaults</button></div>
     <div class="settings-row">
       <div class="settings-col">
-        <label class="settings-label" for="s-whisper-model">Model</label>
+        <label class="settings-label" for="s-whisper-model">Speech-to-text model</label>
         <div class="settings-note">Takes effect on next analysis</div>
       </div>
       <select class="settings-select" id="s-whisper-model">
@@ -569,7 +569,7 @@
     <div class="settings-section-title has-action"><span>Analysis defaults <span style="font-size:11px;font-weight:400;color:var(--muted)">(pre-filled in Analyze modal)</span></span><button type="button" class="btn-secondary settings-reset-btn" data-revert-section="settings-sec-analysis">Reset to defaults</button></div>
     <div class="settings-row">
       <div class="settings-col">
-        <label class="settings-label" for="s-scene-mode">Scene detection mode</label>
+        <label class="settings-label" for="s-scene-mode">Scene cut detection</label>
       </div>
       <select class="settings-select" id="s-scene-mode">
         <option value="transcript">Transcript - silence gaps only (instant)</option>
@@ -579,7 +579,7 @@
     </div>
     <div class="settings-row">
       <div class="settings-col">
-        <label class="settings-label" for="s-visual-mode">Visual clips</label>
+        <label class="settings-label" for="s-visual-mode">No-dialogue clips</label>
         <div class="settings-note">Find silent, action-heavy moments (a clutch play, a crash) that have no dialogue, so they still become clips. "Silent gaps" is a good balance; "Full" finds the most but takes longer and can surface more clips to review.</div>
       </div>
       <select class="settings-select" id="s-visual-mode">
@@ -613,7 +613,7 @@
     <div class="settings-row">
       <div class="settings-col">
         <label class="settings-label" for="s-min-clip-ms">Minimum clip length (ms)</label>
-        <div class="settings-note">Shorter candidates are discarded</div>
+        <div class="settings-note">Shorter clips are discarded</div>
       </div>
       <div style="display:flex;flex-direction:column;gap:2px">
         <input class="settings-input" id="s-min-clip-ms" type="number" min="1000" max="120000" step="1000" style="max-width:120px"
