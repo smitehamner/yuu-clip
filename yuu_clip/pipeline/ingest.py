@@ -1037,6 +1037,56 @@ def _make_scoring_pause_gate(project_dir: Optional[Path]):
     )
 
 
+def _check_laugh_and_audio_event_availability(config):
+    """Build the laugh + audio-event scorers, printing a one-line notice for each that
+    is enabled-but-unavailable (in that fixed order). Returns (laugh_scorer,
+    audio_event_scorer, laugh_ok, audio_ok) - the scorers feed build_clip_scorers, the
+    ok flags feed the shared-model download notice."""
+    from yuu_clip.scoring.audio_event import AudioEventScorer
+    from yuu_clip.scoring.laugh import LaughScorer
+
+    laugh_scorer = LaughScorer(config)
+    laugh_ok = True
+    if config.scorer_laugh_mode in ("audio", "model"):
+        laugh_ok, laugh_reason = laugh_scorer.availability()
+        if not laugh_ok:
+            console.print(
+                f"  [yellow]Laughter detection unavailable - {laugh_reason}. "
+                f"Clips are still scored using the other signals.[/yellow]"
+            )
+
+    audio_event_scorer = AudioEventScorer(config)
+    audio_ok = True
+    if config.scorer_audio_event_enabled:
+        audio_ok, audio_reason = audio_event_scorer.availability()
+        if not audio_ok:
+            console.print(
+                f"  [yellow]Audio-event detection unavailable - {audio_reason}. "
+                f"Clips are still scored using the other signals.[/yellow]"
+            )
+    return laugh_scorer, audio_event_scorer, laugh_ok, audio_ok
+
+
+def _maybe_notice_shared_model_download(config, laugh_ok: bool, audio_ok: bool) -> None:
+    """Print the one-time AST-checkpoint download notice when the audio-event scorer or
+    laugh 'model' mode will actually run and its shared checkpoint isn't cached yet - one
+    notice covers both, since they share the same AST model."""
+    from yuu_clip.scoring.audio_event import audio_event_model_cached
+
+    uses_ast_model = (
+        (config.scorer_audio_event_enabled and audio_ok) or
+        (config.scorer_laugh_mode == "model" and laugh_ok)
+    )
+    if (
+        uses_ast_model and config.scorer_laugh_model_id
+        and not audio_event_model_cached(config.scorer_laugh_model_id)
+    ):
+        console.print(
+            "  [dim]Downloading the audio-event model (~350 MB) so laughter/action-sound "
+            "detection can run - this happens once...[/dim]"
+        )
+
+
 def _run_scoring(
     video, track_objs, config, session, energy_mode: str = "fast", context_text: str = "",
     proxy_dir: Optional[Path] = None, project_dir: Optional[Path] = None,
@@ -1049,10 +1099,8 @@ def _run_scoring(
     scoring; omit it (None) to skip that pass regardless of the config toggle.
     *project_dir* enables the mid-video pause point between clips; omit it (None)
     and scoring runs straight through."""
-    from yuu_clip.scoring.audio_event import AudioEventScorer, audio_event_model_cached
     from yuu_clip.scoring.energy import compute_energy
     from yuu_clip.scoring.engine import ScoringEngine
-    from yuu_clip.scoring.laugh import LaughScorer
     from yuu_clip.scoring.scenes import compute_scenes
 
     if config.scorer_energy_enabled and energy_mode != "none":
@@ -1107,40 +1155,10 @@ def _run_scoring(
             _llm_unavailable_notice(llm_reason)
             warnings.append(_llm_unavailable_message(llm_reason))
 
-    laugh_scorer = LaughScorer(config)
-    laugh_ok = True
-    if config.scorer_laugh_mode in ("audio", "model"):
-        laugh_ok, laugh_reason = laugh_scorer.availability()
-        if not laugh_ok:
-            console.print(
-                f"  [yellow]Laughter detection unavailable - {laugh_reason}. "
-                f"Clips are still scored using the other signals.[/yellow]"
-            )
-
-    audio_event_scorer = AudioEventScorer(config)
-    audio_ok = True
-    if config.scorer_audio_event_enabled:
-        audio_ok, audio_reason = audio_event_scorer.availability()
-        if not audio_ok:
-            console.print(
-                f"  [yellow]Audio-event detection unavailable - {audio_reason}. "
-                f"Clips are still scored using the other signals.[/yellow]"
-            )
-
-    # The audio-event scorer and LaughScorer's "model" mode share the same AST
-    # checkpoint - one visible notice covers both instead of printing it twice.
-    uses_ast_model = (
-        (config.scorer_audio_event_enabled and audio_ok) or
-        (config.scorer_laugh_mode == "model" and laugh_ok)
+    laugh_scorer, audio_event_scorer, laugh_ok, audio_ok = (
+        _check_laugh_and_audio_event_availability(config)
     )
-    if (
-        uses_ast_model and config.scorer_laugh_model_id
-        and not audio_event_model_cached(config.scorer_laugh_model_id)
-    ):
-        console.print(
-            "  [dim]Downloading the audio-event model (~350 MB) so laughter/action-sound "
-            "detection can run - this happens once...[/dim]"
-        )
+    _maybe_notice_shared_model_download(config, laugh_ok, audio_ok)
 
     from yuu_clip.db.models import HotWord, SensitiveTerm
     from yuu_clip.scoring.scorer_set import build_clip_scorers
