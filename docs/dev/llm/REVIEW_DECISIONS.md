@@ -11,6 +11,71 @@ same thing without the context. Most recent first.
 
 ---
 
+## Fable-review WS-5 - backend seam hygiene (2026-07-24)
+
+Three deliberate keep/exception calls made while shipping WS-5 (ARCH-1..4 +
+ARCH-policy) from `FABLE-REVIEW-PLAN-2026-07-23.md`. ARCH-1 (warn on unknown
+backend) and ARCH-2 (unify the seam availability probe on `available()`) were plain
+fixes, not keeps, so they are not recorded here.
+
+### align.py (forced alignment) is a documented exception to the seam convention (ARCH-3)
+Decision: `transcribe/align.py` stays a pair of module-level functions
+(`realign_words` / `realign_segment_words`) - NOT wrapped in the ABC +
+`make_*(config)` factory + `available()` convention that the other model-backed
+seams follow.
+Rationale: none of the convention's machinery has a consumer here. There is no
+`alignment_backend` config value, exactly one implementation (torchaudio
+WAV2VEC2_ASR_BASE_960H, English-only), and the single caller
+(`web/routes/common.py`) never probes availability - it calls
+`realign_segment_words` and falls back to a static caption line when it returns
+`None` (which the function already does for non-English audio or any failure, never
+raising). Adding a factory + Null backend + availability probe for one best-effort
+function would be speculative generality with nothing to serve. The trigger to
+promote it behind the convention: a second aligner (e.g. non-English) that a caller
+must select or gate on. Documented in `align.py`'s module docstring. Do not re-flag
+as a seam-convention violation.
+
+### The cancelable out-of-process vision path is llamacpp-server-only by design (ARCH-4)
+Decision: the frame-analysis subprocess (`pipeline/frame_analysis.py` ->
+`scoring/llm.describe_frames_via_server` -> `post_chat_completion`) POSTs vision
+requests straight to the parent web server's warm llama-server instead of going
+through the `LLMClient` seam. Left as-is and documented, NOT refactored to route
+through `make_client`.
+Rationale: the llama-server pool is per-process and warmed once per process.
+Constructing an `LLMClient` inside the subprocess (`make_client(config).chat_vision`)
+would spawn a second server and re-load the multi-GB vision model - the exact
+double-load the out-of-process design exists to avoid. In-process vision
+(`describe_frames`) DOES go through the seam and is backend-agnostic; only the
+cancelable path bypasses it. Consequence, stated in the seam contract
+(`llm_client.py` `vision_payload_messages` docstring): "a second LLM backend is a
+registration, not a rewrite" holds for scoring and in-process vision, but a new
+backend would need its own out-of-process mechanism to get cancelable frame
+analysis. A full routing fix was judged too risky for this pass (it would touch the
+per-process warm-server invariant). Do not re-flag as a seam leak without that
+context.
+
+### Policy: the setup wizard's scope does not grow toward Settings parity (ARCH-policy)
+Decision (locked policy, not just a keep): the Electron setup wizard stays
+minimum-viable first-run - pick/download ONE text LLM model and write `config.json`
+- and everything else (vision model, Whisper size, scoring weights, hardware, hot
+words, etc.) is finished in the in-app Settings. New model-selection or
+configuration surfaces are added to Settings, NOT mirrored into the wizard.
+Rationale: the wizard and Settings are two parallel model-selection stacks that
+CANNOT share runtime code (browser vs Electron main/Node, and the wizard runs before
+the Python server exists) - see the CLAUDE.md "Wizard and Settings are parallel
+model-selection stacks" section. `yuu-dev shared-data` + the drift guard keep the
+shared *data* (`catalog-data.json`) in sync, but they cannot see *behavior*
+duplication: the wizard's downloader (`electron/`) and `cli/models.py download-gguf`
+are independent implementations with independently-evolved retry/resume/verify.
+Every feature the wizard grows doubles that invisible surface. Holding the wizard's
+scope down is the mitigation the drift guard can't provide. If the wizard ever must
+gain a new config (e.g. vision-model selection), treat it as a deliberate,
+separately-reviewed scope expansion - and it must write the correct config key
+(`llm_vision_model_path`, never `llm_model_path`; enforced by
+`test_shared_data_drift.py`).
+
+---
+
 ## Refactor-for-quality WS-D - frontend JS extractions close-out (2026-07-23)
 
 WS-D (9 frontend JS extractions + vitest for zero-coverage modules, D1-D9) shipped one
@@ -82,6 +147,8 @@ prefix keeps both log lines byte-identical to the pre-refactor output; a structu
 would have forced one unified format and silently changed one of the two log lines. The
 extraction was behavior-preserving including diagnostic log text, so the string param is the
 faithful choice.
+
+---
 
 ### The URLSearchParams builders (reel.js/clipexport.js/exporteditor.js) are NOT part of WS-C
 Deferred to the WS-D (frontend) session's close-out, since they are JS modules WS-C never

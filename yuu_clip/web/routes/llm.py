@@ -173,7 +173,7 @@ def _capabilities(cfg) -> dict:
 
 # ── Capabilities overview (non-LLM upgrade tiers) ────────────────────────────
 # A read-only map of the tiered "lightweight-by-default" design (Stage 06). Each
-# tier sources its active state + install guidance from the same availability()
+# tier sources its active state + install guidance from the same available()
 # functions the features use, so the panel can never drift from reality. Static
 # checks only, mirroring _capabilities - no live backend probe.
 
@@ -185,14 +185,14 @@ _SIMILARITY_LABELS = {
 
 
 def _sentence(reason: str) -> str:
-    """Capitalise a lower-case availability() reason for display as a sentence."""
+    """Capitalise a lower-case available() reason for display as a sentence."""
     return reason[:1].upper() + reason[1:] if reason else ""
 
 
 def _similarity_tier(cfg, text_ok: bool) -> dict:
     from yuu_clip.scoring.similarity import EmbeddingsBackend, embeddings_model_cached
 
-    embed_ok, embed_reason = EmbeddingsBackend(cfg).availability()
+    embed_ok, embed_reason = EmbeddingsBackend(cfg).available()
     model_ready = embed_ok and embeddings_model_cached()
     configured = (getattr(cfg, "similarity_backend", "tfidf") or "tfidf").strip()
     if configured == "embeddings" and embed_ok:
@@ -276,7 +276,7 @@ def _speaker_labels_tier(cfg) -> dict:
 def _audio_events_tier(cfg) -> dict:
     from yuu_clip.scoring.audio_event import AudioEventScorer, audio_event_model_cached
 
-    available, reason = AudioEventScorer(cfg).availability()
+    available, reason = AudioEventScorer(cfg).available()
     model_ready = available and audio_event_model_cached(cfg.scorer_laugh_model_id)
     if not available:
         detail = _sentence(reason)

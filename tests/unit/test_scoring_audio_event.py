@@ -53,12 +53,12 @@ class TestGroupScore:
 
 class TestAvailability:
     def test_unavailable_when_disabled(self):
-        available, reason = _make_scorer(enabled=False).availability()
+        available, reason = _make_scorer(enabled=False).available()
         assert available is False
         assert "turned off" in reason
 
     def test_unavailable_when_no_model_id(self):
-        available, reason = _make_scorer(model_id="").availability()
+        available, reason = _make_scorer(model_id="").available()
         assert available is False
         assert "model" in reason
 
@@ -70,7 +70,7 @@ class TestAvailability:
     def test_missing_deps_reason_is_user_facing(self):
         scorer = _make_scorer()
         with mock.patch.dict(sys.modules, {"transformers": None, "torch": None}):
-            available, reason = scorer.availability()
+            available, reason = scorer.available()
         assert available is False
         assert "dependencies" in reason
 

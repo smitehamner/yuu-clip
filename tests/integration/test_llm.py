@@ -265,7 +265,7 @@ class TestCapabilityTiers:
         # where fastembed is actually installed.
         from yuu_clip.scoring.similarity import EmbeddingsBackend
 
-        monkeypatch.setattr(EmbeddingsBackend, "availability", lambda self: (False, "fastembed not installed"))
+        monkeypatch.setattr(EmbeddingsBackend, "available", lambda self: (False, "fastembed not installed"))
         tiers, _ = self._tiers(client)
         assert tiers["similarity"]["ready"] is False
         assert tiers["similarity"]["prefetch_slug"] is None
@@ -275,7 +275,7 @@ class TestCapabilityTiers:
     ):
         from yuu_clip.scoring.similarity import EmbeddingsBackend
 
-        monkeypatch.setattr(EmbeddingsBackend, "availability", lambda self: (True, ""))
+        monkeypatch.setattr(EmbeddingsBackend, "available", lambda self: (True, ""))
         monkeypatch.setattr("yuu_clip.scoring.similarity.embeddings_model_cached", lambda: False)
         tiers, _ = self._tiers(client)
         assert tiers["similarity"]["ready"] is False
@@ -285,7 +285,7 @@ class TestCapabilityTiers:
     def test_similarity_ready_and_no_prefetch_when_model_cached(self, client: TestClient, monkeypatch):
         from yuu_clip.scoring.similarity import EmbeddingsBackend
 
-        monkeypatch.setattr(EmbeddingsBackend, "availability", lambda self: (True, ""))
+        monkeypatch.setattr(EmbeddingsBackend, "available", lambda self: (True, ""))
         monkeypatch.setattr("yuu_clip.scoring.similarity.embeddings_model_cached", lambda: True)
         tiers, _ = self._tiers(client)
         assert tiers["similarity"]["ready"] is True
@@ -300,7 +300,7 @@ class TestCapabilityTiers:
         # packages. No deps -> nothing to prefetch either.
         from yuu_clip.scoring.audio_event import AudioEventScorer
 
-        monkeypatch.setattr(AudioEventScorer, "availability", lambda self: (False, "model deps unavailable"))
+        monkeypatch.setattr(AudioEventScorer, "available", lambda self: (False, "model deps unavailable"))
         tiers, _ = self._tiers(client)
         assert tiers["audio_events"]["active"] == "Off"
         assert tiers["audio_events"]["ready"] is False
@@ -309,7 +309,7 @@ class TestCapabilityTiers:
     def test_audio_events_offers_prefetch_when_deps_ready_but_model_not_cached(self, client: TestClient, monkeypatch):
         from yuu_clip.scoring.audio_event import AudioEventScorer
 
-        monkeypatch.setattr(AudioEventScorer, "availability", lambda self: (True, ""))
+        monkeypatch.setattr(AudioEventScorer, "available", lambda self: (True, ""))
         monkeypatch.setattr("yuu_clip.scoring.audio_event.audio_event_model_cached", lambda model_id: False)
         tiers, _ = self._tiers(client)
         assert tiers["audio_events"]["ready"] is False
@@ -319,7 +319,7 @@ class TestCapabilityTiers:
     def test_audio_events_ready_and_no_prefetch_when_model_cached(self, client: TestClient, monkeypatch):
         from yuu_clip.scoring.audio_event import AudioEventScorer
 
-        monkeypatch.setattr(AudioEventScorer, "availability", lambda self: (True, ""))
+        monkeypatch.setattr(AudioEventScorer, "available", lambda self: (True, ""))
         monkeypatch.setattr("yuu_clip.scoring.audio_event.audio_event_model_cached", lambda model_id: True)
         tiers, _ = self._tiers(client)
         assert tiers["audio_events"]["ready"] is True

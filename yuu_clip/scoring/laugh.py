@@ -119,7 +119,7 @@ class LaughScorer:
     def is_available(self) -> bool:
         if not self._config.scorer_laugh_enabled:
             return False
-        return self.availability()[0]
+        return self.available()[0]
 
     @property
     def load_failed(self) -> bool:
@@ -128,7 +128,7 @@ class LaughScorer:
         a visible one-time notice instead of a silent "always scores zero" run."""
         return self._load_failed
 
-    def availability(self) -> tuple[bool, str]:
+    def available(self) -> tuple[bool, str]:
         """(available, reason) - reason is a user-facing explanation when unavailable."""
         mode = self._config.scorer_laugh_mode
         if mode == "transcript":
