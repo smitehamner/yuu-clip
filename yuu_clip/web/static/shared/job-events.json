@@ -1,0 +1,249 @@
+{
+  "_generated_by": "yuu-dev shared-data",
+  "protocol_version": 1,
+  "event_types": [
+    "log",
+    "progress",
+    "result",
+    "done"
+  ],
+  "outcomes": [
+    "ok",
+    "error",
+    "cancelled"
+  ],
+  "log_levels": [
+    "info",
+    "warn",
+    "error"
+  ],
+  "stages": [
+    "extract",
+    "transcribe",
+    "speakers",
+    "generate_clips",
+    "energy",
+    "scenes",
+    "score",
+    "frames_sample",
+    "frames_describe"
+  ],
+  "decode_fixtures": [
+    {
+      "name": "typed log",
+      "payload": {
+        "v": 1,
+        "type": "log",
+        "text": "Extracting audio",
+        "level": "info"
+      },
+      "expected": {
+        "kind": "log",
+        "text": "Extracting audio",
+        "level": "info"
+      }
+    },
+    {
+      "name": "typed log defaults to info",
+      "payload": {
+        "v": 1,
+        "type": "log",
+        "text": "hello"
+      },
+      "expected": {
+        "kind": "log",
+        "text": "hello",
+        "level": "info"
+      }
+    },
+    {
+      "name": "typed log warn level",
+      "payload": {
+        "v": 1,
+        "type": "log",
+        "text": "GPU running hot",
+        "level": "warn"
+      },
+      "expected": {
+        "kind": "log",
+        "text": "GPU running hot",
+        "level": "warn"
+      }
+    },
+    {
+      "name": "typed progress",
+      "payload": {
+        "v": 1,
+        "type": "progress",
+        "stage": "score",
+        "done": 3,
+        "total": 12
+      },
+      "expected": {
+        "kind": "progress",
+        "stage": "score",
+        "done": 3,
+        "total": 12,
+        "label": null
+      }
+    },
+    {
+      "name": "typed progress with zero done and label",
+      "payload": {
+        "v": 1,
+        "type": "progress",
+        "stage": "transcribe",
+        "done": 0,
+        "total": 4,
+        "label": "Track 1/4"
+      },
+      "expected": {
+        "kind": "progress",
+        "stage": "transcribe",
+        "done": 0,
+        "total": 4,
+        "label": "Track 1/4"
+      }
+    },
+    {
+      "name": "typed result",
+      "payload": {
+        "v": 1,
+        "type": "result",
+        "data": {
+          "results": [
+            1,
+            2,
+            3
+          ]
+        }
+      },
+      "expected": {
+        "kind": "result",
+        "data": {
+          "results": [
+            1,
+            2,
+            3
+          ]
+        }
+      }
+    },
+    {
+      "name": "typed done ok",
+      "payload": {
+        "v": 1,
+        "type": "done",
+        "outcome": "ok"
+      },
+      "expected": {
+        "kind": "done",
+        "outcome": "ok",
+        "error": ""
+      }
+    },
+    {
+      "name": "typed done error",
+      "payload": {
+        "v": 1,
+        "type": "done",
+        "outcome": "error",
+        "error": "boom"
+      },
+      "expected": {
+        "kind": "done",
+        "outcome": "error",
+        "error": "boom"
+      }
+    },
+    {
+      "name": "typed done cancelled",
+      "payload": {
+        "v": 1,
+        "type": "done",
+        "outcome": "cancelled"
+      },
+      "expected": {
+        "kind": "done",
+        "outcome": "cancelled",
+        "error": ""
+      }
+    },
+    {
+      "name": "legacy bare string prose line",
+      "payload": "Extracting audio track 1",
+      "expected": {
+        "kind": "legacy-line",
+        "payload": "Extracting audio track 1"
+      }
+    },
+    {
+      "name": "legacy done bare string",
+      "payload": "__DONE__",
+      "expected": {
+        "kind": "legacy-done",
+        "payload": "__DONE__",
+        "error": null
+      }
+    },
+    {
+      "name": "legacy done failure object",
+      "payload": {
+        "type": "__DONE__",
+        "ok": false,
+        "error": "This job did not finish - check the log for details."
+      },
+      "expected": {
+        "kind": "legacy-done",
+        "payload": {
+          "type": "__DONE__",
+          "ok": false,
+          "error": "This job did not finish - check the log for details."
+        },
+        "error": "This job did not finish - check the log for details."
+      }
+    },
+    {
+      "name": "legacy done success object carrying result data",
+      "payload": {
+        "type": "__DONE__",
+        "results": [
+          1,
+          2
+        ]
+      },
+      "expected": {
+        "kind": "legacy-done",
+        "payload": {
+          "type": "__DONE__",
+          "results": [
+            1,
+            2
+          ]
+        },
+        "error": null
+      }
+    },
+    {
+      "name": "v1 unknown type is ignored",
+      "payload": {
+        "v": 1,
+        "type": "heartbeat"
+      },
+      "expected": {
+        "kind": "unknown"
+      }
+    },
+    {
+      "name": "newer protocol version",
+      "payload": {
+        "v": 2,
+        "type": "log",
+        "text": "from a newer server"
+      },
+      "expected": {
+        "kind": "newer-protocol"
+      }
+    }
+  ]
+}
