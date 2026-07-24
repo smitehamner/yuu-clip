@@ -3,7 +3,7 @@
 // was refactored to a pure (energyFlat, durationS) -> pins helper during the port, so
 // these no longer poke the module's live-state accessor bridge.
 import {
-  _parseSplitTime, _fmtSplitTime, computeSuggestionPins,
+  _parseSplitTime, _fmtSplitTime, computeSuggestionPins, segmentsFromSplitPoints,
 } from '../../../yuu_clip/web/static/analyze/split.js';
 
 describe('_parseSplitTime', () => {
@@ -21,6 +21,35 @@ describe('_fmtSplitTime', () => {
   it('round-trips through parse and format', () => {
     const rt = ['0:30', '9:59', '1:00:00', '2:34:56'].map((s) => _fmtSplitTime(_parseSplitTime(s)));
     expect(rt).toEqual(['0:30', '9:59', '1:00:00', '2:34:56']);
+  });
+});
+
+describe('segmentsFromSplitPoints', () => {
+  const kinds = (segs) => segs.map(s => [s.index, s.start, s.end, s.ignored, s.isFirst, s.isLast]);
+
+  it('no split points is one full-duration segment (both first and last)', () => {
+    expect(kinds(segmentsFromSplitPoints([], 100, new Set()))).toEqual([
+      [0, 0, 100, false, true, true],
+    ]);
+  });
+
+  it('n split points make n+1 consecutive segments spanning 0..duration', () => {
+    const segs = segmentsFromSplitPoints([30, 70], 100, new Set());
+    expect(kinds(segs)).toEqual([
+      [0, 0, 30, false, true, false],
+      [1, 30, 70, false, false, false],
+      [2, 70, 100, false, false, true],
+    ]);
+  });
+
+  it('propagates the ignored flag by segment index', () => {
+    const segs = segmentsFromSplitPoints([30, 70], 100, new Set([1]));
+    expect(segs.map(s => s.ignored)).toEqual([false, true, false]);
+  });
+
+  it('only the first/last segments carry the fixed-boundary flags', () => {
+    const segs = segmentsFromSplitPoints([50], 100, new Set());
+    expect(segs.map(s => [s.isFirst, s.isLast])).toEqual([[true, false], [false, true]]);
   });
 });
 

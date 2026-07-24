@@ -520,6 +520,21 @@ function _rebuildSplitNames() {
   _splitNames = Array.from({length: count}, (_, i) => `${stem} - Part ${i + 1}`);
 }
 
+// The segment intervals implied by the split points: boundaries are [0, ...points,
+// durationS] and each consecutive pair is one segment. index keys _splitNames /
+// _splitIgnored; isFirst/isLast gate the fixed (uneditable) start/end of the recording.
+export function segmentsFromSplitPoints(points, durationS, ignoredSet) {
+  const boundaries = [0, ...points, durationS];
+  return boundaries.slice(0, -1).map((start, index) => ({
+    index,
+    start,
+    end: boundaries[index + 1],
+    ignored: ignoredSet.has(index),
+    isFirst: index === 0,
+    isLast: index === boundaries.length - 2,
+  }));
+}
+
 function _renderSplitEditor() {
   _renderSplitTimeline();
   _updateSplitConfirmState();  // also re-renders the segment list
@@ -549,13 +564,11 @@ function _renderSplitTimeline() {
   _renderSuggestionLayer();
 
   // Segment colour bands
-  const pts = [0, ..._splitPoints, _splitDurationS];
   const palette = ['var(--accent)', 'var(--warning)', 'var(--green)', 'var(--red)'];
-  segments.innerHTML = pts.slice(0, -1).map((start, i) => {
-    const end      = pts[i + 1];
-    const widthPct = ((end - start) / _splitDurationS * 100).toFixed(3);
-    const col      = _splitIgnored.has(i) ? 'var(--muted)' : palette[i % palette.length];
-    const opacity  = _splitIgnored.has(i) ? '0.08' : '0.12';
+  segments.innerHTML = segmentsFromSplitPoints(_splitPoints, _splitDurationS, _splitIgnored).map(seg => {
+    const widthPct = ((seg.end - seg.start) / _splitDurationS * 100).toFixed(3);
+    const col      = seg.ignored ? 'var(--muted)' : palette[seg.index % palette.length];
+    const opacity  = seg.ignored ? '0.08' : '0.12';
     return `<div style="height:100%;width:${widthPct}%;background:${col};opacity:${opacity};border-right:1px solid ${col}"></div>`;
   }).join('');
 
@@ -604,22 +617,21 @@ function _updateSplitPoint(idx, timeStr, onRerender) {
 function _renderSegmentList(listId, showPlayBtn, showIgnore = true) {
   const list = document.getElementById(listId);
   if (!list || !_splitDurationS) return;
-  const pts = [0, ..._splitPoints, _splitDurationS];
 
-  list.innerHTML = pts.slice(0, -1).map((start, i) => {
-    const end      = pts[i + 1];
-    const ignored  = _splitIgnored.has(i);
+  list.innerHTML = segmentsFromSplitPoints(_splitPoints, _splitDurationS, _splitIgnored).map(seg => {
+    const i        = seg.index;
+    const { start, end, ignored } = seg;
     const name     = escHtml(_splitNames[i] || `Part ${i + 1}`);
     const startStr = escHtml(_fmtSplitTime(start));
     const endStr   = escHtml(_fmtSplitTime(end));
     const dimStyle = ignored ? 'opacity:0.45;' : '';
-    const startEl  = i === 0
+    const startEl  = seg.isFirst
       ? `<span style="font-size:12px;color:var(--muted);min-width:58px">${startStr}</span>`
       : `<input type="text" value="${startStr}" data-split-role="edit-point" data-split-point-idx="${i - 1}"
                style="font-size:12px;color:var(--muted);background:transparent;border:none;border-bottom:1px dashed var(--muted);width:58px;text-align:center;padding:1px 2px"
                title="Edit split point (h:mm:ss or m:ss)"
                aria-label="Segment ${i + 1} start time">`;
-    const endEl    = i === pts.length - 2
+    const endEl    = seg.isLast
       ? `<span style="font-size:12px;color:var(--muted);min-width:58px">${endStr}</span>`
       : `<input type="text" value="${endStr}" data-split-role="edit-point" data-split-point-idx="${i}"
                style="font-size:12px;color:var(--muted);background:transparent;border:none;border-bottom:1px dashed var(--muted);width:58px;text-align:center;padding:1px 2px"
@@ -875,12 +887,10 @@ function _renderPreSplitTimeline() {
   const segments = document.getElementById('pre-split-segments-layer');
   if (!markers || !_splitDurationS) return;
 
-  const pts     = [0, ..._splitPoints, _splitDurationS];
   const palette = ['var(--accent)', 'var(--warning)', 'var(--green)', 'var(--red)'];
-  segments.innerHTML = pts.slice(0, -1).map((start, i) => {
-    const end      = pts[i + 1];
-    const widthPct = ((end - start) / _splitDurationS * 100).toFixed(3);
-    const col      = palette[i % palette.length];
+  segments.innerHTML = segmentsFromSplitPoints(_splitPoints, _splitDurationS, _splitIgnored).map(seg => {
+    const widthPct = ((seg.end - seg.start) / _splitDurationS * 100).toFixed(3);
+    const col      = palette[seg.index % palette.length];
     return `<div style="height:100%;width:${widthPct}%;background:${col};opacity:0.12;border-right:1px solid ${col}"></div>`;
   }).join('');
 
