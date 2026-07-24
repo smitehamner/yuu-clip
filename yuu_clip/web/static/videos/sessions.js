@@ -395,7 +395,7 @@ function _renderUnifiedTimeline(session) {
     if (!m.has_timeline && !m.clips.length) {
       body = `<div class="meta" style="padding:4px 0 8px">No timeline yet - <a href="#" data-open-video="${m.id}">open to generate one</a>.</div>`;
     } else {
-      const rows = _mergeTimelineRows(m).map(r => r.html).join('');
+      const rows = mergeTimelineEntries(m.timeline, m.clips).map(r => _timelineRowHtml(r, m.id)).join('');
       body = `<div class="session-timeline-rows">${rows}</div>`;
     }
     return `<div class="session-member-block">${gap}${head}${body}</div>`;
@@ -403,27 +403,35 @@ function _renderUnifiedTimeline(session) {
   return blocks.join('');
 }
 
-// Interleaves a member's timeline entries and clip markers by absolute time so
-// the reader sees both on one axis. Each row carries the data-* nav attributes.
-function _mergeTimelineRows(member) {
+// Interleaves a member's timeline entries and clip markers into plain rows sorted by
+// absolute time, so the reader sees both on one axis. Rows carry only source data
+// (kind 'text'|'clip', abs, ...); _timelineRowHtml renders each with its nav attributes.
+export function mergeTimelineEntries(timelineEntries, clips) {
   const rows = [];
-  for (const e of member.timeline) {
-    rows.push({ abs: e.abs_ms, html: `
-      <div class="session-tl-row" data-goto-video="${member.id}" data-goto-ms="${e.local_ms}">
-        <span class="session-tl-stamp">${escHtml(_msToHms(e.abs_ms))}</span>
-        <span class="session-tl-text">${escHtml(e.text)}</span>
-      </div>` });
+  for (const e of timelineEntries) {
+    rows.push({ kind: 'text', abs: e.abs_ms, localMs: e.local_ms, text: e.text });
   }
-  for (const c of member.clips) {
-    rows.push({ abs: c.abs_ms, html: `
-      <div class="session-tl-row session-tl-clip" data-open-clip="${c.id}" data-clip-video="${member.id}">
-        <span class="session-tl-stamp">${escHtml(_msToHms(c.abs_ms))}</span>
-        <span class="session-tl-text">&#127916; ${escHtml(c.description || `Clip ${c.id}`)}
-          <span class="meta">&#11088; ${Math.round((c.score_overall || 0) * 100)}%</span></span>
-      </div>` });
+  for (const c of clips) {
+    rows.push({ kind: 'clip', abs: c.abs_ms, id: c.id, description: c.description, scoreOverall: c.score_overall });
   }
   rows.sort((a, b) => a.abs - b.abs);
   return rows;
+}
+
+function _timelineRowHtml(row, memberId) {
+  if (row.kind === 'text') {
+    return `
+      <div class="session-tl-row" data-goto-video="${memberId}" data-goto-ms="${row.localMs}">
+        <span class="session-tl-stamp">${escHtml(_msToHms(row.abs))}</span>
+        <span class="session-tl-text">${escHtml(row.text)}</span>
+      </div>`;
+  }
+  return `
+      <div class="session-tl-row session-tl-clip" data-open-clip="${row.id}" data-clip-video="${memberId}">
+        <span class="session-tl-stamp">${escHtml(_msToHms(row.abs))}</span>
+        <span class="session-tl-text">&#127916; ${escHtml(row.description || `Clip ${row.id}`)}
+          <span class="meta">&#11088; ${Math.round((row.scoreOverall || 0) * 100)}%</span></span>
+      </div>`;
 }
 
 function _wireTimelineNavigation() {
@@ -471,7 +479,7 @@ function _summarizeSession(sessionId) {
   );
 }
 
-function _fmtGap(ms) {
+export function _fmtGap(ms) {
   const mins = Math.round(ms / 60000);
   if (mins < 60) return plural(mins, 'min');
   const h = Math.floor(mins / 60), m = mins % 60;
