@@ -1167,7 +1167,7 @@ function openScoreOverride(clipId) {
   const slider = document.getElementById('score-override-slider');
   slider.value = current;
   document.getElementById('score-override-display').textContent = Math.round(current*100) + '%';
-  document.getElementById('score-override-llm-note').textContent = `Current auto score: ${Math.round(current*100)}%`;
+  document.getElementById('score-override-llm-note').textContent = `Current generated score: ${Math.round(current*100)}%`;
   document.getElementById('score-override-modal').classList.add('visible');
   setTimeout(() => document.getElementById('score-override-slider')?.focus(), 50);
 }
@@ -1272,7 +1272,7 @@ async function scanDuplicates(busyBtn) {
   if (btn) { btn.disabled = true; btn.textContent = 'Checking...'; }
   try {
     const res = await fetch(`/api/videos/${videoId}/scan-duplicates`, {method: 'POST'});
-    if (!res.ok) { const e = await res.json().catch(() => ({})); showToast(e.detail || 'Duplicate scan failed', 'error'); return; }
+    if (!res.ok) { const e = await res.json().catch(() => ({})); showToast(e.detail || 'Duplicate check failed', 'error'); return; }
     const body = await res.json();
     await _reloadClipList(videoId);
     if (AppState.activeClipId) refreshClipDetail(AppState.activeClipId);

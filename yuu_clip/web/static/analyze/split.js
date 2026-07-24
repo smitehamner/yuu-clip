@@ -427,7 +427,7 @@ function _renderClipsLayer() {
   el.innerHTML = _splitClipRanges.map(({ start_ms, end_ms }) => {
     const leftPct  = (start_ms / 1000 / _splitDurationS * 100).toFixed(3);
     const widthPct = ((end_ms - start_ms) / 1000 / _splitDurationS * 100).toFixed(3);
-    return `<div style="position:absolute;left:${leftPct}%;width:${widthPct}%;top:50%;transform:translateY(-50%);height:4px;background:color-mix(in srgb, var(--text) 22%, transparent);border-radius:2px" title="Existing clip ${_fmtSplitTime(start_ms/1000)}–${_fmtSplitTime(end_ms/1000)}"></div>`;
+    return `<div style="position:absolute;left:${leftPct}%;width:${widthPct}%;top:50%;transform:translateY(-50%);height:4px;background:color-mix(in srgb, var(--text) 22%, transparent);border-radius:2px" title="Existing clip ${_fmtSplitTime(start_ms/1000)} - ${_fmtSplitTime(end_ms/1000)}"></div>`;
   }).join('');
 }
 
@@ -646,7 +646,7 @@ function _renderSegmentList(listId, showPlayBtn, showIgnore = true) {
     return `
       <div style="display:flex;align-items:center;gap:10px;padding:6px 10px;background:var(--surface);border:1px solid var(--border);border-radius:6px;${ignored ? 'opacity:0.5' : ''}">
         ${playBtn}
-        <div style="display:flex;align-items:center;gap:4px;white-space:nowrap;${dimStyle}">${startEl}<span style="font-size:12px;color:var(--muted)">–</span>${endEl}</div>
+        <div style="display:flex;align-items:center;gap:4px;white-space:nowrap;${dimStyle}">${startEl}<span style="font-size:12px;color:var(--muted)"> - </span>${endEl}</div>
         <input type="text" value="${name}" data-split-role="name" data-split-idx="${i}"
                style="flex:1;padding:4px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px"
                ${ignored ? 'disabled' : ''}
@@ -798,7 +798,7 @@ export async function _reanalyzeSegmentsSequentially(segmentIds, index, params) 
   if (index >= segmentIds.length) {
     AppState.analyzeFilename = null;
     loadVideos().then(() =>
-      showToast(`Reanalysis complete - ${plural(segmentIds.length, 'segment')}`)
+      showToast(`Re-analysis complete - ${plural(segmentIds.length, 'segment')}`)
     );
     return;
   }

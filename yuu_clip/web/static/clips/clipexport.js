@@ -222,6 +222,10 @@ export function _onExportPresetChange(presetName) {
 
   containerSel.disabled = usingPreset;
   softsubOpt.disabled = usingPreset;
+  // Explain why these are locked, rather than leaving them greyed with no reason.
+  const lockedReason = usingPreset ? 'Set by the chosen preset.' : '';
+  containerSel.title = lockedReason;
+  captionsSel.title = lockedReason;
   if (usingPreset && captionsSel.value === 'softsub') captionsSel.value = 'none';
   document.getElementById('export-framing').style.display =
     exportPresetIsVertical(presetName) ? '' : 'none';
@@ -272,9 +276,10 @@ export function _setExportFraming(fraction) {
 }
 
 // Ask the server to suggest a crop position from faces in the clip (MediaPipe).
-// Fills the slider on success; the creator still confirms by exporting. Absent
-// package (503) points at the Settings install; no face found leaves the manual
-// position untouched.
+// Fills the slider on success; the creator still confirms by exporting. A missing
+// face-detection component (503) is a broken-install case (it ships with the app
+// and auto-downloads), so we point at reinstalling; no face found leaves the
+// manual position untouched.
 async function _autoFrameExport() {
   const btn  = document.getElementById('export-autoframe-btn');
   const note = document.getElementById('export-autoframe-note');
@@ -283,12 +288,8 @@ async function _autoFrameExport() {
   try {
     const res = await fetch(`/api/clips/${_exportClipId}/suggest-framing`, {method: 'POST'});
     if (res.status === 503) {
-      note.innerHTML = 'Needs MediaPipe - <a href="#" id="export-autoframe-settings-link">install it in Settings</a>.';
-      document.getElementById('export-autoframe-settings-link').addEventListener('click', e => {
-        e.preventDefault();
-        closeExportModal();
-        openSettings();
-      });
+      note.textContent = "Auto-frame isn't available - the face-detection component is missing. "
+        + 'Try reinstalling YuuClip, or set the crop by hand.';
       return;
     }
     if (!res.ok) throw new Error(formatApiError(await res.json().catch(() => ({}))) || `HTTP ${res.status}`);

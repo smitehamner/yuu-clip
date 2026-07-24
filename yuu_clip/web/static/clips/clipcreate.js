@@ -207,7 +207,7 @@ function _ccRenderHeader() {
       header.style.color = 'var(--muted)';
     } else {
       const durationS = Math.round((_ccEndMs - _ccStartMs) / 1000);
-      header.textContent = `${_ccFmt(_ccStartMs)} – ${_ccFmt(_ccEndMs)} (${durationS}s)`;
+      header.textContent = `${_ccFmt(_ccStartMs)} - ${_ccFmt(_ccEndMs)} (${durationS}s)`;
       header.style.color = 'var(--text)';
     }
   }

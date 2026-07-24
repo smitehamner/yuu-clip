@@ -682,7 +682,7 @@ async function _analyzeSegmentsSequentially(
   }
   await _waitWhileAnalyzePaused();
   const seg = segments[index];
-  appendLog(`Analyzing segment ${index + 1}/${segments.length}: ${_fmtSplitTime(seg.start_s)}–${_fmtSplitTime(seg.end_s)}`);
+  appendLog(`Analyzing segment ${index + 1}/${segments.length}: ${_fmtSplitTime(seg.start_s)} - ${_fmtSplitTime(seg.end_s)}`);
   fetch('/api/analyze/start', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},

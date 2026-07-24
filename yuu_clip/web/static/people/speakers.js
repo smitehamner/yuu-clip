@@ -112,8 +112,8 @@ function _renderSpeakersCard(speakers) {
         ${play}
         <span class="speaker-tag">Speaker ${s.display_index}</span>
         <input class="speaker-color-input" type="color" data-speaker-id="${s.id}"
-               value="${escHtml(s.color)}" title="Subtitle color for this speaker"
-               aria-label="Subtitle color for Speaker ${s.display_index}">
+               value="${escHtml(s.color)}" title="Caption color for this speaker"
+               aria-label="Caption color for Speaker ${s.display_index}">
         <input class="speaker-name-input" type="text" data-speaker-id="${s.id}"
                value="${inputValue}" placeholder="Add a name&hellip;"
                aria-label="Name for Speaker ${s.display_index}" maxlength="60">

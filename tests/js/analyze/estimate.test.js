@@ -14,8 +14,8 @@ const MOCK_INFO = {
 
 const ENERGY = {
   none: ['Audio energy (none)', 0, 'skipped', '0s'],
-  fast: ['Audio energy (fast)', 14.4, '4 kHz numpy', '14s'],
-  full: ['Audio energy (full)', 36.0, '16 kHz numpy', '36s'],
+  fast: ['Audio energy (fast)', 14.4, 'lower-detail scan', '14s'],
+  full: ['Audio energy (full)', 36.0, 'full-detail scan', '36s'],
 };
 
 function makeSteps(energyMode = 'fast') {

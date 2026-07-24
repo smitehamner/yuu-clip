@@ -463,7 +463,7 @@
     <h3 class="settings-section-title has-action"><span>Speaker labels</span><button type="button" class="btn-secondary settings-reset-btn" data-revert-section="settings-sec-speakers">Reset to defaults</button></h3>
     <div class="settings-row">
       <div class="settings-col">
-        <label class="settings-label" for="s-diarization-backend">Backend</label>
+        <label class="settings-label" for="s-diarization-backend">Detection method</label>
         <div class="settings-note">Identifies who is speaking within each audio track and prefixes transcripts accordingly</div>
       </div>
       <select class="settings-select" id="s-diarization-backend">
@@ -565,7 +565,7 @@
       <label class="settings-label" for="s-laugh-mode" style="white-space:nowrap;min-width:90px">Laugh mode</label>
       <select id="s-laugh-mode" class="settings-input" style="flex:1">
         <option value="transcript">Transcript (default - pattern matching)</option>
-        <option value="audio">Audio (spectral rhythm, no extra deps)</option>
+        <option value="audio">Audio (listens for laughter rhythm - nothing extra to download)</option>
         <option value="model">Model (HuggingFace classifier, best accuracy)</option>
       </select>
     </div>
@@ -691,7 +691,7 @@
 
   <!-- Analysis defaults section -->
   <div class="settings-section" id="settings-sec-analysis">
-    <h3 class="settings-section-title has-action"><span>Analysis defaults <span style="font-size:11px;font-weight:400;color:var(--muted)">(pre-filled in Analyze modal)</span></span><button type="button" class="btn-secondary settings-reset-btn" data-revert-section="settings-sec-analysis">Reset to defaults</button></h3>
+    <h3 class="settings-section-title has-action"><span>Analysis defaults <span style="font-size:11px;font-weight:400;color:var(--muted)">(pre-filled in the New Recording panel)</span></span><button type="button" class="btn-secondary settings-reset-btn" data-revert-section="settings-sec-analysis">Reset to defaults</button></h3>
     <div class="settings-row">
       <div class="settings-col">
         <label class="settings-label" for="s-scene-mode">Scene cut detection</label>
@@ -720,8 +720,8 @@
       </div>
       <select class="settings-select" id="s-energy-mode">
         <option value="none">None - skip (fastest)</option>
-        <option value="fast">Fast - 4 kHz numpy (recommended)</option>
-        <option value="full">Full - 16 kHz numpy (most accurate)</option>
+        <option value="fast">Fast - lower-detail scan (recommended)</option>
+        <option value="full">Full - full-detail scan (most accurate)</option>
       </select>
     </div>
     <div class="settings-row">
@@ -1072,7 +1072,7 @@
 
   <!-- Paths section (read-only for now) -->
   <div class="settings-section" id="settings-sec-paths">
-    <h3 class="settings-section-title">Paths <span style="font-size:11px;font-weight:400;color:var(--muted)">(read-only - set via --project flag)</span></h3>
+    <h3 class="settings-section-title">Paths <span style="font-size:11px;font-weight:400;color:var(--muted)">(read-only - to work in a different project folder, use Open Project from the project menu)</span></h3>
     <div id="s-paths-display" style="font-size:12px;color:var(--muted);line-height:2"></div>
   </div>
 </div><!-- /.settings-inner -->
@@ -1278,8 +1278,8 @@
             <label for="analyze-energy-mode">Audio energy</label>
             <select id="analyze-energy-mode">
               <option value="none">None - skip (fastest)</option>
-              <option value="fast" selected>Fast - 4 kHz numpy (recommended)</option>
-              <option value="full">Full - 16 kHz numpy (most accurate)</option>
+              <option value="fast" selected>Fast - lower-detail scan (recommended)</option>
+              <option value="full">Full - full-detail scan (most accurate)</option>
             </select>
           </div>
         </details>
@@ -1473,7 +1473,7 @@
       <li>Use the search box and score filter in the sidebar to find specific moments</li>
       <li>Press <kbd>&#8592;</kbd> / <kbd>&#8594;</kbd> to move between clips without touching the mouse</li>
       <li>Open <em>Controls</em> from the menu for the full keyboard shortcut list</li>
-      <li>Open <em>World Contexts</em> from the menu to add people and setting info before scoring</li>
+      <li>Click <em>World Contexts</em> in the top bar to add people and setting info before scoring</li>
     </ul>
 
     <div class="modal-actions">
@@ -1508,8 +1508,8 @@
     <p style="color:var(--muted);font-size:13px;margin:0 0 12px">
       <span id="about-version">Version unknown</span><br>
       Built by <strong>smitehamner</strong>. Provided as-is with absolutely no warranty.<br>
-      Licence: <a href="https://github.com/smitehamner/yuu-clip/blob/main/LICENSE" target="_blank" rel="noopener">Apache License 2.0</a> - also in the LICENSE file included with YuuClip.<br>
-      Bundled third-party components carry their own licences (listed below); full licence texts are in the <a href="https://github.com/smitehamner/yuu-clip/tree/main/third-party-notices" target="_blank" rel="noopener">third-party notices</a>.
+      License: <a href="https://github.com/smitehamner/yuu-clip/blob/main/LICENSE" target="_blank" rel="noopener">Apache License 2.0</a> - also in the LICENSE file included with YuuClip.<br>
+      Bundled third-party components carry their own licenses (listed below); full license texts are in the <a href="https://github.com/smitehamner/yuu-clip/tree/main/third-party-notices" target="_blank" rel="noopener">third-party notices</a>.
     </p>
     <div class="section-title" style="margin-bottom:4px">Included with YuuClip</div>
     <table style="width:100%;font-size:12px;border-collapse:collapse;color:var(--muted);margin-bottom:12px">

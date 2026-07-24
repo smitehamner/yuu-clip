@@ -33,9 +33,21 @@ async function _renderGettingStartedBanner() {
     banner.innerHTML = '<strong>Baseline scoring is working.</strong> Transcription and the core scoring - laughter, excitement, keywords, scene and on-screen action - run right now. See <em>Settings &rarr; Capabilities</em> to check what\'s active.';
     return;
   }
-  banner.innerHTML = data.lightweight
-    ? '<strong>Baseline scoring is working.</strong> Transcription and the core scoring - laughter, excitement, keywords, scene and on-screen action - run right now, and clips get a short template description. Setting up a local language model is the normal next step: a one-click download that adds written AI descriptions, session summaries, and a smarter read on scoring. See <em>Settings &rarr; Capabilities</em> to set one up and check what\'s active.'
-    : '<strong>A local language model is active</strong> - clips get AI descriptions and semantic scoring on top of the core signals (laughter, excitement, keywords, scene and on-screen action). See <em>Settings &rarr; Capabilities</em> to check what\'s active.';
+  if (!data.lightweight) {
+    banner.innerHTML = '<strong>A local language model is active</strong> - clips get AI descriptions and semantic scoring on top of the core signals (laughter, excitement, keywords, scene and on-screen action). See <em>Settings &rarr; Capabilities</em> to check what\'s active.';
+    return;
+  }
+  // Lightweight: a model may already be downloading (queued by the wizard, or
+  // started this session), so don't tell the user to go set one up when one is
+  // already on the way - point them at the live progress banner instead.
+  let downloading = false;
+  try {
+    const dl = await fetch('/api/llm/download-status').then(r => r.json());
+    downloading = !!(dl && (dl.downloading || dl.pending_model_id));
+  } catch { /* treat unknown as not downloading */ }
+  banner.innerHTML = downloading
+    ? '<strong>Baseline scoring is working.</strong> Transcription and the core scoring - laughter, excitement, keywords, scene and on-screen action - run right now, and clips get a short template description. Your language model is downloading now - watch the progress banner below. When it finishes, clips also get written AI descriptions, session summaries, and a smarter read on scoring.'
+    : '<strong>Baseline scoring is working.</strong> Transcription and the core scoring - laughter, excitement, keywords, scene and on-screen action - run right now, and clips get a short template description. Setting up a local language model is the normal next step: a one-click download that adds written AI descriptions, session summaries, and a smarter read on scoring. See <em>Settings &rarr; Capabilities</em> to set one up and check what\'s active.';
 }
 export function closeGettingStartedModal() {
   document.getElementById('getting-started-modal').classList.remove('visible');
@@ -173,7 +185,10 @@ export async function openGlossaryModal() {
   const el = document.getElementById('glossary-content');
   if (el.dataset.loaded) { _filterGlossary(''); return; }
   try {
-    const md = await fetch('/api/glossary').then(r => r.text());
+    const md = await fetch('/api/glossary').then(r => {
+      if (!r.ok) throw new Error(String(r.status));
+      return r.text();
+    });
     el.innerHTML = _renderGlossaryMd(md);
     el.dataset.loaded = '1';
   } catch (e) {

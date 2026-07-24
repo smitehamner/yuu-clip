@@ -450,7 +450,11 @@ async function _edAutoFrame() {
   note.textContent = 'Finding faces…';
   try {
     const res = await fetch(`/api/clips/${_edClipId}/suggest-framing`, { method: 'POST' });
-    if (res.status === 503) { note.textContent = 'Needs MediaPipe - install it in Settings → Export.'; return; }
+    if (res.status === 503) {
+      note.textContent = "Auto-frame isn't available - the face-detection component is missing. "
+        + 'Try reinstalling YuuClip, or set the crop by hand.';
+      return;
+    }
     if (!res.ok) throw new Error(formatApiError(await res.json().catch(() => ({}))) || `HTTP ${res.status}`);
     const { crop_x } = await res.json();
     if (crop_x == null) { note.textContent = 'No face found - set the crop manually.'; return; }

@@ -97,8 +97,8 @@ _SCENE_MODE_LABELS = {
 # fast and full are close; the real difference is transient resolution.
 _ENERGY_MODE: dict[str, tuple[float, str]] = {
     "none": (0.0,   "skipped"),
-    "fast": (0.002, "4 kHz numpy"),
-    "full": (0.005, "16 kHz numpy"),
+    "fast": (0.002, "lower-detail scan"),
+    "full": (0.005, "full-detail scan"),
 }
 
 # Speaker diarization: seconds of audio processed per second of

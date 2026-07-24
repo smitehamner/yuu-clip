@@ -226,7 +226,7 @@ function _videoItemLi(v, analyzingName, inSession) {
     ? ` (${Math.round(v.total_clip_ms / v.duration_ms * 100)}%)`
     : '';
   const scoreBar = (v.score_min !== null && v.score_max !== null && v.clip_count > 0)
-    ? `<div class="meta">Scores: ${Math.round(v.score_min * 100)}% – ${Math.round(v.score_max * 100)}%</div>`
+    ? `<div class="meta">Scores: ${Math.round(v.score_min * 100)}% - ${Math.round(v.score_max * 100)}%</div>`
     : '';
   const segmentMeta = (v.segment_start_s != null && v.segment_end_s != null)
     ? `<div class="meta" style="color:var(--accent2)" title="Where this part sits inside the original recording">from ${_msToHms(v.segment_start_s * 1000)} to ${_msToHms(v.segment_end_s * 1000)}</div>`

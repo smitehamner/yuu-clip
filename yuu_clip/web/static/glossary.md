@@ -136,7 +136,7 @@ For fast scrubbing, YuuClip plays a smaller **720p** copy of a recording in the 
 ## Scoring
 
 ### Score
-A 0–1 rating of a clip. Higher is better. The overall score is a weighted blend of the four dimensions below (Visual counts for half as much as the others by default).
+A 0% to 100% rating of a clip. Higher is better. The overall score is a weighted blend of the four dimensions below (Visual counts for half as much as the others by default).
 
 ### Scoring dimensions
 The four things each clip is rated on:
@@ -213,7 +213,7 @@ A named recipe for export - container, resolution, and bitrate - instead of expo
 The "Exports" list on a clip shows every file you've exported for it. A clip can have more than one at once (say, an original-quality export plus a Discord-sized one) - exporting with a new preset adds another export instead of replacing your existing one.
 
 ### Vertical framing
-When you export with a vertical (9:16) preset like "TikTok / Shorts", the video is cropped from your widescreen recording down to a tall frame. Vertical framing is the horizontal position of that crop - Left, Center, or Right, or anywhere in between with the slider - so you can keep the action in shot. "Auto-frame on faces" can suggest a position by finding faces in the clip (needs the optional MediaPipe package, installed from Settings → Export); you always confirm before it's used.
+When you export with a vertical (9:16) preset like "TikTok / Shorts", the video is cropped from your widescreen recording down to a tall frame. Vertical framing is the horizontal position of that crop - Left, Center, or Right, or anywhere in between with the slider - so you can keep the action in shot. "Auto-frame on faces" can suggest a position by finding faces in the clip (uses the built-in face detector, which downloads automatically the first time you use it); you always confirm before it's used.
 
 ### Clip export editor
 The "Edit & export" panel opens a full-screen editor where you fine-tune the clip and export it all in one place: drag the trim in and out using the transcript (with about 30 seconds of surrounding lines you can extend into), position the vertical 9:16 crop by dragging the box over the video, and preview the captions live. The plain "Export" button is still there for quick exports. The caption preview is an approximation of the final look.

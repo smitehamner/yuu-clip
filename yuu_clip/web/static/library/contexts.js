@@ -264,8 +264,8 @@ export function _deriveContextId(name) {
 async function saveContext() {
   const context_id  = AppState.editingContextId || document.getElementById('ce-context-id').value.trim();
   const displayName = document.getElementById('ce-display-name').value.trim();
-  if (!context_id)  { showToast('Context ID is required', 'warning'); return; }
-  if (!displayName) { showToast('Display name is required', 'warning'); return; }
+  if (!context_id)  { showToast('Context ID is required', 'warning'); document.getElementById('ce-context-id')?.focus(); return; }
+  if (!displayName) { showToast('Display name is required', 'warning'); document.getElementById('ce-display-name')?.focus(); return; }
   const res = await fetch('/api/contexts', {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({
@@ -390,7 +390,7 @@ async function saveCharacter() {
   const slug = AppState.editingContextId;
   if (!slug) return;
   const name = document.getElementById('ce-char-name').value.trim();
-  if (!name) { showToast('Character name is required', 'warning'); return; }
+  if (!name) { showToast('Character name is required', 'warning'); document.getElementById('ce-char-name')?.focus(); return; }
   const payload = {
     name,
     lore: document.getElementById('ce-char-lore').value,
