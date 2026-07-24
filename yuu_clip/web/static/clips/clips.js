@@ -103,26 +103,39 @@ function _renderClipFilterCounts() {
     for (const key of ['all', 'clip', 'scene']) setKindCount(key, null);
     return;
   }
+  const counts = computeClipFilterCounts(AppState.clips);
+  setCount('all', counts.total);
+  setCount('pending', counts.pending);
+  setCount('approved', counts.approved);
+  setCount('rejected', counts.rejected);
+  setCount('error', counts.error || null);
+  setCount('duplicate', counts.duplicate || null);
+  setKindCount('all', counts.total);
+  setKindCount('clip', counts.clipKind);
+  setKindCount('scene', counts.sceneKind);
+}
+
+// Per-status / per-tag / per-kind tallies over the whole clip list (status counts,
+// llm_error + possible_duplicate tag counts, clip vs scene kind). Pure; the renderer
+// decides which zero counts blank out (error/duplicate) vs show as 0.
+export function computeClipFilterCounts(clips) {
   const counts = {pending: 0, approved: 0, rejected: 0};
   let errorCount = 0;
   let duplicateCount = 0;
   let clipKindCount = 0;
   let sceneKindCount = 0;
-  for (const c of AppState.clips) {
+  for (const c of clips) {
     counts[c.status] = (counts[c.status] || 0) + 1;
     if ((c.tags || []).includes('llm_error')) errorCount++;
     if ((c.tags || []).includes('possible_duplicate')) duplicateCount++;
     if (c.kind === 'scene') sceneKindCount++; else clipKindCount++;
   }
-  setCount('all', AppState.clips.length);
-  setCount('pending', counts.pending);
-  setCount('approved', counts.approved);
-  setCount('rejected', counts.rejected);
-  setCount('error', errorCount || null);
-  setCount('duplicate', duplicateCount || null);
-  setKindCount('all', AppState.clips.length);
-  setKindCount('clip', clipKindCount);
-  setKindCount('scene', sceneKindCount);
+  return {
+    total: clips.length,
+    pending: counts.pending, approved: counts.approved, rejected: counts.rejected,
+    error: errorCount, duplicate: duplicateCount,
+    clipKind: clipKindCount, sceneKind: sceneKindCount,
+  };
 }
 
 function _renderClipStatsLine(shown) {
@@ -132,15 +145,26 @@ function _renderClipStatsLine(shown) {
     el.style.display = 'none';
     return;
   }
+  const stats = computeClipStats(shown, AppState.clips);
+  el.textContent = `${stats.shownCount} shown · ${stats.pending} unreviewed · ` +
+    `${stats.approved} approved · ${stats.rejected} rejected · ${fmtDuration(stats.totalSeconds)} total`;
+  el.style.display = '';
+}
+
+// Stats-line tallies: per-status counts over the whole list plus the summed duration
+// (seconds) of the shown subset, guarding non-finite clip lengths to 0. Pure.
+export function computeClipStats(shown, all) {
   const counts = {pending: 0, approved: 0, rejected: 0};
-  for (const c of AppState.clips) counts[c.status] = (counts[c.status] || 0) + 1;
+  for (const c of all) counts[c.status] = (counts[c.status] || 0) + 1;
   const totalSeconds = shown.reduce((sum, c) => {
     const len = (c.end_ms - c.start_ms) / 1000;
     return sum + (Number.isFinite(len) ? len : 0);
   }, 0);
-  el.textContent = `${shown.length} shown · ${counts.pending} unreviewed · ` +
-    `${counts.approved} approved · ${counts.rejected} rejected · ${fmtDuration(totalSeconds)} total`;
-  el.style.display = '';
+  return {
+    shownCount: shown.length,
+    pending: counts.pending, approved: counts.approved, rejected: counts.rejected,
+    totalSeconds,
+  };
 }
 
 function _clearClipFilters() {
@@ -473,7 +497,7 @@ async function _releasePlayerBeforeDelete() {
 }
 
 // ── detail ────────────────────────────────────────────────────────────────────
-function _fmtSizeMb(bytes) {
+export function _fmtSizeMb(bytes) {
   if (bytes == null) return '';
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
@@ -481,7 +505,7 @@ function _fmtSizeMb(bytes) {
 // One row per exported format (Export presets - Plan 07). Falls back to the
 // legacy single-block display when a clip has has_export but no clip_exports
 // rows yet (a project not backfilled, or a clip mutated directly in a test).
-function _exportFormatsHtml(clip) {
+export function _exportFormatsHtml(clip) {
   if (!clip.has_export) return '';
   const rows = (clip.exports || []).filter(r => r.exists);
   if (!rows.length) {
@@ -531,7 +555,7 @@ function _exportFormatsHtml(clip) {
 // transcript words) reads as a broken description, so the description area shows a
 // clear "set up a model" placeholder instead of quoting it. A user edit (which
 // strips desc_basic anyway) is never hidden.
-function _descNeedsModel(clip) {
+export function _descNeedsModel(clip) {
   return !!clip.tags && clip.tags.includes('desc_basic')
     && !clip.description_is_edited
     && !((window._prereqs || {}).llm_ok)

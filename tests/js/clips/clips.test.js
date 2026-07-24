@@ -5,6 +5,7 @@ import { AppState } from '../../../yuu_clip/web/static/core/state.js';
 import {
   _applyFilters, _parseTimingOffset,
   _duplicatePartners, _mergeNeighbors, _generatedTagPillsHTML,
+  computeClipFilterCounts, computeClipStats, _descNeedsModel, _fmtSizeMb, _exportFormatsHtml,
 } from '../../../yuu_clip/web/static/clips/clips.js';
 
 describe('_parseTimingOffset', () => {
@@ -255,5 +256,124 @@ describe('_generatedTagPillsHTML', () => {
   });
   it('drops hidden tokens but keeps visible ones in the same list', () => {
     expect(labels(['llm_scored', 'no_speech', 'energy_scored'])).toEqual(['No dialogue']);
+  });
+});
+
+describe('computeClipFilterCounts', () => {
+  const clip = (over) => ({ status: 'pending', tags: [], kind: 'clip', ...over });
+
+  it('tallies statuses, error/duplicate tags, and clip vs scene kind', () => {
+    const counts = computeClipFilterCounts([
+      clip({ status: 'pending' }),
+      clip({ status: 'approved', tags: ['llm_error'] }),
+      clip({ status: 'rejected', tags: ['possible_duplicate'], kind: 'scene' }),
+      clip({ status: 'approved', tags: ['llm_error', 'possible_duplicate'] }),
+    ]);
+    expect(counts).toEqual({
+      total: 4, pending: 1, approved: 2, rejected: 1,
+      error: 2, duplicate: 2, clipKind: 3, sceneKind: 1,
+    });
+  });
+
+  it('is all-zero for an empty list', () => {
+    expect(computeClipFilterCounts([])).toEqual({
+      total: 0, pending: 0, approved: 0, rejected: 0,
+      error: 0, duplicate: 0, clipKind: 0, sceneKind: 0,
+    });
+  });
+
+  it('treats a missing tags array as no tags', () => {
+    const counts = computeClipFilterCounts([{ status: 'approved', kind: 'clip' }]);
+    expect([counts.error, counts.duplicate]).toEqual([0, 0]);
+  });
+});
+
+describe('computeClipStats', () => {
+  const clip = (over) => ({ status: 'pending', start_ms: 0, end_ms: 10_000, ...over });
+
+  it('counts statuses over all clips and sums only the shown durations', () => {
+    const all = [
+      clip({ status: 'pending' }),
+      clip({ status: 'approved' }),
+      clip({ status: 'rejected' }),
+    ];
+    const shown = [clip({ start_ms: 0, end_ms: 30_000 })];
+    const stats = computeClipStats(shown, all);
+    expect(stats).toEqual({
+      shownCount: 1, pending: 1, approved: 1, rejected: 1, totalSeconds: 30,
+    });
+  });
+
+  it('guards a non-finite clip length to 0 seconds', () => {
+    const shown = [clip({ start_ms: null, end_ms: null }), clip({ start_ms: 0, end_ms: 5_000 })];
+    expect(computeClipStats(shown, []).totalSeconds).toBe(5);
+  });
+});
+
+describe('_fmtSizeMb', () => {
+  it('formats bytes as MB to one decimal', () => {
+    expect(_fmtSizeMb(5 * 1024 * 1024)).toBe('5.0 MB');
+  });
+  it('is blank for a null size', () => {
+    expect(_fmtSizeMb(null)).toBe('');
+  });
+});
+
+describe('_descNeedsModel', () => {
+  afterEach(() => { delete window._prereqs; delete window._aiPrivacyMode; });
+
+  const basicClip = (over) => ({ tags: ['desc_basic'], description_is_edited: false, ...over });
+
+  it('is true for a desc_basic clip when no model is ready and AI is not off', () => {
+    window._prereqs = { llm_ok: false };
+    window._aiPrivacyMode = 'local_only';
+    expect(_descNeedsModel(basicClip())).toBe(true);
+  });
+
+  it('is false once a language model is ready', () => {
+    window._prereqs = { llm_ok: true };
+    expect(_descNeedsModel(basicClip())).toBe(false);
+  });
+
+  it('is false when generative AI was deliberately turned off', () => {
+    window._prereqs = { llm_ok: false };
+    window._aiPrivacyMode = 'none';
+    expect(_descNeedsModel(basicClip())).toBe(false);
+  });
+
+  it('never hides a user-edited description', () => {
+    window._prereqs = { llm_ok: false };
+    expect(_descNeedsModel(basicClip({ description_is_edited: true }))).toBe(false);
+  });
+
+  it('is false for a clip that is not desc_basic', () => {
+    window._prereqs = { llm_ok: false };
+    expect(_descNeedsModel({ tags: ['llm_scored'], description_is_edited: false })).toBe(false);
+  });
+});
+
+describe('_exportFormatsHtml', () => {
+  it('is blank for a clip with no export', () => {
+    expect(_exportFormatsHtml({ has_export: false })).toBe('');
+  });
+
+  it('renders one row per existing export format with its preset id', () => {
+    const html = _exportFormatsHtml({
+      id: 5, has_export: true,
+      exports: [
+        { id: 1, exists: true, preset_name: 'tiktok', filename: 'a.mp4', container: 'mp4', size_bytes: 1048576, created_at: '2026-07-23T00:00:00' },
+        { id: 2, exists: false, preset_name: 'gone', filename: 'b.mp4', container: 'mp4' },
+      ],
+    });
+    expect(html).toContain('data-export-id="1"');
+    expect(html).not.toContain('data-export-id="2"');  // exists:false is filtered out
+    expect(html).toContain('Exported formats');
+  });
+
+  it('falls back to the legacy single-block display when has_export but no rows', () => {
+    const html = _exportFormatsHtml({ id: 5, has_export: true, exports: [], exported_container: 'mkv', subtitle_status: 'baked-in' });
+    expect(html).toContain('Exported');
+    expect(html).toContain('MKV');
+    expect(html).toContain('Baked in');
   });
 });
