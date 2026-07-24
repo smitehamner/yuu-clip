@@ -627,6 +627,15 @@ explicit product decision.
   fallback) so a future *local* backend stays a registration, not a rewrite.
 
 ### Wizard and Settings are parallel model-selection stacks (layout differs; data is generated)
+**Policy (locked): the wizard's scope does not grow toward Settings parity.** The wizard
+stays minimum-viable first-run - pick/download ONE text model and write `config.json`;
+everything else is finished in Settings. New model-selection/config surfaces go in Settings,
+not the wizard. The two stacks are independent *behavior* (two downloaders with their own
+retry/resume/verify) that the `catalog-data.json` drift guard cannot see - holding wizard
+scope down is the mitigation the guard can't provide. Any wizard scope expansion is a
+deliberate, separately-reviewed decision. Rationale + the ARCH-policy record are in
+`docs/dev/llm/REVIEW_DECISIONS.md`.
+
 Model selection lives in two runtimes that CANNOT share runtime code - different runtimes
 (browser vs Electron main/Node) and the wizard runs BEFORE the Python server exists, so it
 can't call the server endpoints Settings depends on:

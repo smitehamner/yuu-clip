@@ -11,6 +11,19 @@ first use, no new Python dependency (torch/torchaudio are already base deps).
 Trained on LibriSpeech, so it is English-only; realignment is skipped (returns
 None -> caller clears words_json -> static caption fallback) for any non-English
 segment or any failure, never raising into the caption-edit route.
+
+Seam-convention exception (deliberate). The project's hard rule puts every
+AI/model-backed capability behind an ABC + make_*(config) factory keyed on a
+*_backend config value, exposing available() -> (ok, reason). Forced alignment is
+an explicit, documented exception rather than a forced fit, because none of that
+machinery has a consumer here: there is no alignment_backend config value, only
+one implementation, and the single caller (web/routes/common.py) never gates on an
+availability probe - it just calls realign_segment_words and falls back to a static
+caption when it returns None. Wrapping one English-only best-effort function in a
+factory + Null backend + availability probe would be speculative generality with
+nothing to serve. The trigger to promote it behind the convention: a second aligner
+(e.g. a non-English one) that a caller must select or probe. See
+docs/dev/llm/REVIEW_DECISIONS.md.
 """
 from __future__ import annotations
 

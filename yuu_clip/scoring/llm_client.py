@@ -136,7 +136,23 @@ def vision_payload_messages(messages: list[dict], images: list[Path]) -> list[di
     """Build the OpenAI-style chat messages llama-server expects, with *images*
     attached to the user turn as base64 data URLs. Shared by
     LlamaCppServerClient.chat_vision and the frame-analysis subprocess (which POSTs
-    to a warm server directly, bypassing the pool)."""
+    to a warm server directly, bypassing the pool).
+
+    Seam-contract note - the cancelable, out-of-process vision path is
+    llamacpp-server-only by design. In-process image analysis (describe_frames)
+    goes through the seam via make_client(config).chat_vision and is
+    backend-agnostic. The cancelable path used by the frame-analysis subprocess
+    (describe_frames_via_server -> post_chat_completion) does NOT: it builds these
+    OpenAI-style messages and POSTs them straight to the PARENT web server's
+    already-warm llama-server. It deliberately does not construct an LLMClient in
+    the subprocess, because the llama-server pool is per-process and warmed once per
+    process - a subprocess make_client().chat_vision() would spawn a second server
+    and re-load the multi-GB vision model. Consequence: "a second LLM backend is a
+    registration, not a rewrite" holds for scoring and in-process vision, but a new
+    backend would NOT automatically get cancelable frame analysis - it would need
+    its own out-of-process mechanism. Kept documented rather than refactored to
+    avoid breaking the per-process warm-server invariant. See
+    pipeline/frame_analysis.py and docs/dev/llm/REVIEW_DECISIONS.md."""
     content: list[dict] = [{"type": "text", "text": _user_text(messages)}]
     content += [
         {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{data}"}}
