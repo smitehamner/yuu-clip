@@ -18,6 +18,24 @@ export function openGettingStartedModal() {
   const panel = document.getElementById('getting-started-modal-panel');
   if (panel) panel.scrollTop = 0;
   setTimeout(() => document.getElementById('getting-started-x-btn')?.focus(), 50);
+  _renderGettingStartedBanner();
+}
+
+// State-driven off /api/capabilities/tiers so a user who already set up a local
+// model isn't told to do it again every time this modal reopens.
+async function _renderGettingStartedBanner() {
+  const banner = document.getElementById('getting-started-model-banner');
+  if (!banner) return;
+  let data;
+  try {
+    data = await fetch('/api/capabilities/tiers').then(r => r.json());
+  } catch {
+    banner.innerHTML = '<strong>Baseline scoring is working.</strong> Transcription and the core scoring - laughter, excitement, keywords, scene and on-screen action - run right now. See <em>Settings &rarr; Capabilities</em> to check what\'s active.';
+    return;
+  }
+  banner.innerHTML = data.lightweight
+    ? '<strong>Baseline scoring is working.</strong> Transcription and the core scoring - laughter, excitement, keywords, scene and on-screen action - run right now, and clips get a short template description. Setting up a local language model is the normal next step: a one-click download that adds written AI descriptions, session summaries, and a smarter read on scoring. See <em>Settings &rarr; Capabilities</em> to set one up and check what\'s active.'
+    : '<strong>A local language model is active</strong> - clips get AI descriptions and semantic scoring on top of the core signals (laughter, excitement, keywords, scene and on-screen action). See <em>Settings &rarr; Capabilities</em> to check what\'s active.';
 }
 export function closeGettingStartedModal() {
   document.getElementById('getting-started-modal').classList.remove('visible');

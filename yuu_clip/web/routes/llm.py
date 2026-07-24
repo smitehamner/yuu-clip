@@ -493,6 +493,18 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             raise
         return register_model_download(response, ctx, _WHISPER_DOWNLOAD_KEY)
 
+    @router.get("/api/whisper/model-cached")
+    def whisper_model_cached_route(model: str):
+        # Filesystem-only check for a specific model *size* the caller is about to
+        # select (e.g. the Retranscribe dialog), independent of the project's saved
+        # whisper_model default that make_transcriber().model_cached() checks.
+        from yuu_clip.config import ALLOWED_WHISPER_MODELS
+        from yuu_clip.transcribe.transcriber import whisper_model_cached
+
+        if model not in ALLOWED_WHISPER_MODELS:
+            raise HTTPException(400, f"Unknown whisper model '{model}'")
+        return {"cached": whisper_model_cached(model)}
+
     @router.get("/api/llm/download-status")
     def download_status():
         # One read surface for every in-flight required-model download, so the

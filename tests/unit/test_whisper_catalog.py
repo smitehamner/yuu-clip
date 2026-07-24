@@ -9,20 +9,20 @@ from yuu_clip import whisper_catalog
 
 
 class TestOptionText:
-    def test_includes_vram_clause_when_a_model_has_a_vram_figure(self):
+    def test_includes_graphics_card_clause_when_a_model_has_a_vram_figure(self):
         small = next(m for m in whisper_catalog.WHISPER_UI_MODELS if m.id == "small")
-        assert small.option_text() == "small - fast, decent quality (~465 MB download, ~1 GB VRAM)"
+        assert small.option_text() == "small - fast, decent quality (~465 MB download, needs a ~1 GB graphics card)"
 
-    def test_omits_the_vram_clause_for_a_cpu_friendly_model(self):
+    def test_omits_the_graphics_card_clause_for_a_cpu_friendly_model(self):
         tiny = next(m for m in whisper_catalog.WHISPER_UI_MODELS if m.id == "tiny")
         # tiny/base carry no VRAM figure, so the parenthetical is download-only.
         assert tiny.option_text() == "tiny - fastest, lowest quality (~75 MB download)"
-        assert "VRAM" not in tiny.option_text()
+        assert "graphics card" not in tiny.option_text()
 
 
 class TestOptionTextLookup:
     def test_returns_the_label_for_a_known_id(self):
-        assert whisper_catalog.option_text("medium") == "medium - good balance (~1.5 GB download, ~2.8 GB VRAM)"
+        assert whisper_catalog.option_text("medium") == "medium - good balance (~1.5 GB download, needs a ~2.8 GB graphics card)"
 
     def test_returns_none_for_an_unknown_id(self):
         assert whisper_catalog.option_text("gpt-4") is None

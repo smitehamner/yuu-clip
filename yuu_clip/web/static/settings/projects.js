@@ -113,10 +113,17 @@ function openOpenProjectModal() {
   _openProjectOpener = document.activeElement;
   document.getElementById('open-project-path').value = '';
   // A picker is available either way now: Electron's native dialog, or the
-  // server-side tkinter fallback (_pickFolderServerSide) in a plain browser.
-  document.getElementById('btn-project-browse').style.display = '';
+  // server-side tkinter fallback (_pickFolderServerSide) in a plain browser. In
+  // Electron, lead with a full-width primary Browse button and demote the path
+  // field to a read-back (still editable for a hand-typed path); in a plain
+  // browser tab, keep the path field primary with Browse as its secondary.
+  const isElectron = !!window.electronAPI?.pickProjectFolder;
+  document.getElementById('btn-project-browse-primary').style.display = isElectron ? '' : 'none';
+  document.getElementById('open-project-path-label').style.display = isElectron ? '' : 'none';
+  document.getElementById('btn-project-browse').style.display = isElectron ? 'none' : '';
   document.getElementById('open-project-modal').classList.add('visible');
-  setTimeout(() => document.getElementById('open-project-path').focus(), 50);
+  const focusId = isElectron ? 'btn-project-browse-primary' : 'open-project-path';
+  setTimeout(() => document.getElementById(focusId).focus(), 50);
 }
 function closeOpenProjectModal() {
   document.getElementById('open-project-modal').classList.remove('visible');
@@ -182,6 +189,7 @@ function initProjectListeners() {
     if (e.target === e.currentTarget) closeOpenProjectModal();
   });
   document.getElementById('btn-project-browse').addEventListener('click', browseForProjectFolder);
+  document.getElementById('btn-project-browse-primary').addEventListener('click', browseForProjectFolder);
   document.getElementById('btn-open-project-cancel').addEventListener('click', closeOpenProjectModal);
   document.getElementById('btn-open-project-confirm').addEventListener('click', _openProjectConfirm);
 }

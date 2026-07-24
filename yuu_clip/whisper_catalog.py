@@ -7,8 +7,8 @@ UI actually offers, with the display copy (blurb + download size + VRAM) shown n
 each `<option>`. Those size/VRAM strings were the classic drift point: they lived only
 in HTML, hand-copied across five web `<select>`s and the setup wizard. This module is
 now their single Python source of truth - `yuu-dev shared-data` bakes them into
-`catalog-data.json`, and `tests/ui/test_ui_terminology.py` binds the web option copy to
-`option_text()` here.
+`catalog-data.json`, and `tests/unit/test_static_ui_contract.py` binds the web option
+copy to `option_text()` here.
 
 Download sizes are the on-disk float16 weights; VRAM figures are measured peak during a
 float16/CUDA transcription (see the plan's B1-hardware-facts). tiny/base run comfortably
@@ -32,10 +32,10 @@ class WhisperUIModel:
 
     def option_text(self) -> str:
         """The full `<option>` label, e.g.
-        'small - fast, decent quality (~465 MB download, ~1 GB VRAM)'."""
+        'small - fast, decent quality (~465 MB download, needs a ~1 GB graphics card)'."""
         paren = f"{self.download} download"
         if self.vram:
-            paren += f", {self.vram} VRAM"
+            paren += f", needs a {self.vram} graphics card"
         return f"{self.id} - {self.blurb} ({paren})"
 
     def to_dict(self) -> dict:

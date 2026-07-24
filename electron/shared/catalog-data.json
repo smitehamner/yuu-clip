@@ -30,21 +30,21 @@
       "blurb": "fast, decent quality",
       "download": "~465 MB",
       "vram": "~1 GB",
-      "option_text": "small - fast, decent quality (~465 MB download, ~1 GB VRAM)"
+      "option_text": "small - fast, decent quality (~465 MB download, needs a ~1 GB graphics card)"
     },
     {
       "id": "medium",
       "blurb": "good balance",
       "download": "~1.5 GB",
       "vram": "~2.8 GB",
-      "option_text": "medium - good balance (~1.5 GB download, ~2.8 GB VRAM)"
+      "option_text": "medium - good balance (~1.5 GB download, needs a ~2.8 GB graphics card)"
     },
     {
       "id": "large-v3",
       "blurb": "best quality",
       "download": "~2.9 GB",
       "vram": "~4.2 GB",
-      "option_text": "large-v3 - best quality (~2.9 GB download, ~4.2 GB VRAM)"
+      "option_text": "large-v3 - best quality (~2.9 GB download, needs a ~4.2 GB graphics card)"
     }
   ],
   "whisper_languages": [

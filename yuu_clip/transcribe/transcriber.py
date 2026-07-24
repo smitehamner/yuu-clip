@@ -91,6 +91,15 @@ def _whisper_repo_id(model: str) -> str:
     return f"Systran/faster-whisper-{model}"
 
 
+def whisper_model_cached(model: str) -> bool:
+    """Whether the given whisper model *size* (e.g. "large-v3") is already
+    downloaded - filesystem-only, no network. Unlike Transcriber.model_cached(),
+    this checks an arbitrary size rather than the project's saved default, for
+    UI preflight checks (e.g. the Retranscribe dialog's model picker)."""
+    from yuu_clip.hf_cache import repo_cached
+    return repo_cached(_whisper_repo_id(model))
+
+
 def _resolve_device_and_compute(config: Config) -> tuple[str, str]:
     """Return (device, compute_type) resolving 'auto' on both config knobs.
 
@@ -256,8 +265,7 @@ class FasterWhisperTranscriber(Transcriber):
         return True, ""
 
     def model_cached(self) -> bool:
-        from yuu_clip.hf_cache import repo_cached
-        return repo_cached(_whisper_repo_id(self._config.whisper_model))
+        return whisper_model_cached(self._config.whisper_model)
 
     def prefetch(self) -> None:
         """Download the configured model into the shared HF cache now.

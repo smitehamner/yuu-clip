@@ -27,7 +27,7 @@ import {
   ensureContexts, openAutoApproveModal, rescoreAllClips, redescribeAllClips, resetApprovals,
   openContextManager, rescoreClips, rescoreFailedClips, addVideoContext,
 } from '../library/contexts.js';
-import { hasEnabledSemanticHotwords, confirmScanHotwordsForVideo } from '../library/hotwords.js';
+import { hasEnabledSemanticHotwords, confirmScanHotwordsForVideo, _rescanHotwords } from '../library/hotwords.js';
 import { loadSpeakers } from '../people/speakers.js';
 import { reloadVideoTranscriptIfOpen } from '../analyze/transcript.js';
 import { _renderTimelineHTML, _timelineEmptyNoteHTML, generateTimeline } from './videos-timeline.js';
@@ -624,6 +624,7 @@ function openVideoActionsModal(videoId) {
       { label: 'Re-detect Speakers', description: 'Re-run speaker detection on the existing transcript. Clips and scores are kept; named speakers re-attach to matching voices.', action: () => rediarizeVideo(videoId) },
       { label: 'Re-transcribe Recording', description: 'Re-run speech-to-text for the whole recording. Clips are kept but flagged for a re-score; regenerate clips to rebuild them from the new transcript.', action: () => retranscribeVideoRun(videoId) },
       { label: 'Re-extract Audio', description: 'Rebuild the audio tracks from the source file, e.g. after changing the track layout. Re-transcribe afterward to update the transcript.', action: () => reextractVideoRun(videoId) },
+      { label: 'Rescan Hot-words', description: 'Re-check every clip in this recording against your current hot-words, without a full re-score.', action: () => _rescanHotwords(videoId) },
       ...(hasEnabledSemanticHotwords() ? [
         { label: 'Scan for Hot-words', description: 'Check every clip against your "Meaning" hot-words using the Similarity engine.', action: () => confirmScanHotwordsForVideo(videoId, document.createElement('button')) },
       ] : []),

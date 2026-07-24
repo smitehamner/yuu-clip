@@ -102,10 +102,18 @@ let _contextModalOpener = null;
 // ID stops following the name so a hand-chosen ID is never overwritten.
 let _contextIdEdited = false;
 
+// The modal-level Close button only makes sense over the context list - while the
+// editor is open, Save/Cancel in its own footer are the only exits, so a second
+// "Close" a scroll away would be a redundant, ambiguous-vs-Cancel affordance.
+function _setContextListFooterVisible(visible) {
+  document.getElementById('context-list-footer').style.display = visible ? 'flex' : 'none';
+}
+
 export async function openContextManager() {
   _contextModalOpener = document.activeElement;
   document.getElementById('context-modal').classList.add('visible');
   document.getElementById('context-editor').style.display = 'none';
+  _setContextListFooterVisible(true);
   await _refreshContextList();
   setTimeout(() => document.querySelector('#context-modal .btn.primary')?.focus(), 50);
 }
@@ -167,6 +175,7 @@ export function openNewContext() {
   cancelCharacterEdit();
   _updateCharacterSectionVisibility();
   document.getElementById('context-editor').style.display = 'flex';
+  _setContextListFooterVisible(false);
   document.getElementById('ce-display-name').focus();
 }
 
@@ -194,11 +203,13 @@ function editContext(context_id) {
   _updateCharacterSectionVisibility();
   _loadCharacters(context_id);
   document.getElementById('context-editor').style.display = 'flex';
+  _setContextListFooterVisible(false);
 }
 
 export function cancelContextEdit() {
   _contextEditorDirty = false;
   document.getElementById('context-editor').style.display = 'none';
+  _setContextListFooterVisible(true);
 }
 
 // Keeps whatever is currently in the editor (including unsaved edits) and turns
@@ -275,6 +286,7 @@ async function saveContext() {
   }
   _contextEditorDirty = false;
   document.getElementById('context-editor').style.display = 'none';
+  _setContextListFooterVisible(true);
   await _refreshContextList();
   showToast(`Context "${displayName}" saved`);
 }
@@ -301,6 +313,7 @@ async function _doDeleteContext(name) {
     return;
   }
   document.getElementById('context-editor').style.display = 'none';
+  _setContextListFooterVisible(true);
   await _refreshContextList();
   showToast(`Context "${name}" deleted`);
 }
@@ -801,7 +814,32 @@ export function closeRetranscribeModal() {
   if (opener?.focus) opener.focus();
 }
 
-export function startRetranscribe() {
+// Preflight the selected model's cache state before starting, matching the
+// analyze flow's "still downloading" confirm - a picked large-v3 (~2.9 GB) should
+// never start downloading as a surprise side effect of clicking Retranscribe.
+export async function startRetranscribe() {
+  if (!_retranscribeClipId) return;
+  const modelSelect = document.getElementById('retranscribe-model');
+  const model = modelSelect.value;
+  let cached = true;
+  try {
+    ({ cached } = await fetch(`/api/whisper/model-cached?model=${encodeURIComponent(model)}`).then(r => r.json()));
+  } catch { /* can't tell - don't block the user */ }
+  if (!cached) {
+    const modelLabel = modelSelect.options[modelSelect.selectedIndex]?.textContent || model;
+    showConfirm(
+      'Download speech model?',
+      `The ${escHtml(modelLabel)} model isn't downloaded yet. Retranscribing will download it ` +
+        `first, then transcribe. Continue?`,
+      'Download & retranscribe',
+      _doStartRetranscribe,
+    );
+    return;
+  }
+  _doStartRetranscribe();
+}
+
+function _doStartRetranscribe() {
   if (!_retranscribeClipId) return;
   // Capture now: reopening the modal for another clip mid-job would repoint the
   // module-level id, making onDone select the wrong clip when this job finishes.

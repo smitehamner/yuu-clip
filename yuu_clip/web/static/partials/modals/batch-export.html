@@ -28,8 +28,8 @@
       <label for="batch-captions" style="font-size:13px;color:var(--muted);min-width:110px">Captions</label>
       <select id="batch-captions" style="flex:1;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">
         <option value="none">None</option>
-        <option value="softsub" selected>Embed captions track (softsub, fast)</option>
-        <option value="hardsub">Burn in captions (hardsub, re-encode)</option>
+        <option value="softsub" selected>Embed captions track (fast, no re-encode)</option>
+        <option value="hardsub">Burn in captions - can't turn off later (slower, re-encodes)</option>
       </select>
     </div>
     <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-bottom:8px">
@@ -41,9 +41,9 @@
       <select id="batch-retranscribe-model" disabled style="flex:1;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">
         <option value="tiny">tiny - fastest, lowest quality (~75 MB download)</option>
         <option value="base">base - fast, lower quality (~140 MB download)</option>
-        <option value="small">small - fast, decent quality (~465 MB download, ~1 GB VRAM)</option>
-        <option value="medium">medium - good balance (~1.5 GB download, ~2.8 GB VRAM)</option>
-        <option value="large-v3">large-v3 - best quality (~2.9 GB download, ~4.2 GB VRAM)</option>
+        <option value="small">small - fast, decent quality (~465 MB download, needs a ~1 GB graphics card)</option>
+        <option value="medium">medium - good balance (~1.5 GB download, needs a ~2.8 GB graphics card)</option>
+        <option value="large-v3">large-v3 - best quality (~2.9 GB download, needs a ~4.2 GB graphics card)</option>
       </select>
     </div>
     <div id="batch-mode-summary" style="font-size:12px;border-top:1px solid var(--border);padding-top:10px;margin-bottom:14px"></div>

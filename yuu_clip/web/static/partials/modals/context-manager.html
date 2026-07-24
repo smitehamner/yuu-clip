@@ -75,12 +75,17 @@
           <button class="btn primary" id="context-save-btn">Save</button>
           <button class="btn" id="btn-duplicate-context" title="Start a new context pre-filled with this template's content">Use as base for new copy</button>
           <button class="btn" style="margin-left:auto" id="context-cancel-btn">Cancel</button>
-          <button class="btn danger" id="btn-delete-context">Delete</button>
-          <button class="btn danger" id="btn-reset-context" title="Replace your edits with the original shipped content">Reset to template</button>
+        </div>
+        <div style="border-top:1px solid var(--border);margin-top:10px;padding-top:8px">
+          <div class="section-title" style="margin:0 0 6px;font-size:11px">Danger zone</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn danger" id="btn-delete-context">Delete</button>
+            <button class="btn danger" id="btn-reset-context" title="Replace your edits with the original shipped content">Reset to template</button>
+          </div>
         </div>
       </div>
     </div>
-    <div style="margin-top:12px;display:flex;justify-content:flex-end">
+    <div id="context-list-footer" style="margin-top:12px;display:flex;justify-content:flex-end">
       <button class="btn" id="context-close-btn">Close</button>
     </div>
   </div>

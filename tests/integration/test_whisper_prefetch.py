@@ -155,6 +155,28 @@ class TestWhisperPrefetchRoute:
         assert _WHISPER_KEY not in ctx.model_downloads
 
 
+# -- per-model cache preflight (Retranscribe dialog's "confirm the download") --
+
+class TestWhisperModelCachedRoute:
+    def test_reports_cached_for_arbitrary_model(self, client: TestClient, monkeypatch):
+        from yuu_clip import hf_cache
+        monkeypatch.setattr(hf_cache, "repo_cached", lambda repo, **k: True)
+        resp = client.get("/api/whisper/model-cached", params={"model": "large-v3"})
+        assert resp.status_code == 200
+        assert resp.json() == {"cached": True}
+
+    def test_reports_not_cached(self, client: TestClient, monkeypatch):
+        from yuu_clip import hf_cache
+        monkeypatch.setattr(hf_cache, "repo_cached", lambda repo, **k: False)
+        resp = client.get("/api/whisper/model-cached", params={"model": "tiny"})
+        assert resp.status_code == 200
+        assert resp.json() == {"cached": False}
+
+    def test_unknown_model_is_rejected(self, client: TestClient):
+        resp = client.get("/api/whisper/model-cached", params={"model": "not-a-model"})
+        assert resp.status_code == 400
+
+
 # -- generalized download-status read surface ---------------------------------
 
 class TestDownloadStatusWhisper:

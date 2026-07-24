@@ -174,7 +174,7 @@
     <div class="settings-row">
       <div class="settings-col">
         <label class="settings-label">GPU acceleration for transcription</label>
-        <div class="settings-note">On an NVIDIA GPU, installs the CUDA support libraries (cuBLAS + cuDNN) so transcription runs on the GPU - much faster than CPU. About 1&nbsp;GB. Re-run analysis after installing. To stop using the GPU without uninstalling, switch <button type="button" class="settings-jump-link" data-section="settings-sec-stt">Compute device</button> to cpu instead.</div>
+        <div class="settings-note">On an NVIDIA GPU, installs the CUDA support libraries (cuBLAS + cuDNN) so transcription runs on the GPU - much faster than CPU. About 1&nbsp;GB. Re-run analysis after installing. To stop using the GPU without uninstalling, switch <button type="button" class="settings-jump-link" data-section="s-whisper-advanced">Compute device</button> to cpu instead.</div>
       </div>
       <div style="display:flex;gap:8px;align-items:center">
         <button class="btn-secondary" id="btn-install-cuda-libs">Enable GPU acceleration</button>
@@ -220,9 +220,9 @@
       <select class="settings-select" id="s-whisper-model">
         <option value="tiny">tiny - fastest, lowest quality (~75 MB download)</option>
         <option value="base">base - fast, lower quality (~140 MB download)</option>
-        <option value="small">small - fast, decent quality (~465 MB download, ~1 GB VRAM)</option>
-        <option value="medium">medium - good balance (~1.5 GB download, ~2.8 GB VRAM)</option>
-        <option value="large-v3">large-v3 - best quality (~2.9 GB download, ~4.2 GB VRAM)</option>
+        <option value="small">small - fast, decent quality (~465 MB download, needs a ~1 GB graphics card)</option>
+        <option value="medium">medium - good balance (~1.5 GB download, needs a ~2.8 GB graphics card)</option>
+        <option value="large-v3">large-v3 - best quality (~2.9 GB download, needs a ~4.2 GB graphics card)</option>
       </select>
     </div>
     <div class="settings-row">
@@ -233,9 +233,9 @@
       <select class="settings-select" id="s-export-retranscribe-model">
         <option value="tiny">tiny - fastest, lowest quality (~75 MB download)</option>
         <option value="base">base - fast, lower quality (~140 MB download)</option>
-        <option value="small">small - fast, decent quality (~465 MB download, ~1 GB VRAM)</option>
-        <option value="medium">medium - good balance (~1.5 GB download, ~2.8 GB VRAM)</option>
-        <option value="large-v3">large-v3 - best quality (~2.9 GB download, ~4.2 GB VRAM)</option>
+        <option value="small">small - fast, decent quality (~465 MB download, needs a ~1 GB graphics card)</option>
+        <option value="medium">medium - good balance (~1.5 GB download, needs a ~2.8 GB graphics card)</option>
+        <option value="large-v3">large-v3 - best quality (~2.9 GB download, needs a ~4.2 GB graphics card)</option>
       </select>
     </div>
     <div class="settings-row">
@@ -247,30 +247,33 @@
         <option value="">Auto-detect (recommended)</option>
       </select>
     </div>
-    <div class="settings-row">
-      <div class="settings-col">
-        <label class="settings-label" for="s-whisper-device">Compute device</label>
-        <div class="settings-note">auto = CUDA if available, else CPU. GPU transcription needs the CUDA support libraries installed first - see <button type="button" class="settings-jump-link" data-section="settings-sec-hardware">Hardware</button> below to install or remove them.</div>
+    <details class="settings-advanced" id="s-whisper-advanced">
+      <summary>Advanced transcription options</summary>
+      <div class="settings-row">
+        <div class="settings-col">
+          <label class="settings-label" for="s-whisper-device">Compute device</label>
+          <div class="settings-note">auto = CUDA if available, else CPU. GPU transcription needs the CUDA support libraries installed first - see <button type="button" class="settings-jump-link" data-section="settings-sec-hardware">Hardware</button> below to install or remove them.</div>
+        </div>
+        <select class="settings-select" id="s-whisper-device">
+          <option value="auto">auto (recommended)</option>
+          <option value="cuda">cuda (NVIDIA GPU)</option>
+          <option value="cpu">cpu</option>
+        </select>
       </div>
-      <select class="settings-select" id="s-whisper-device">
-        <option value="auto">auto (recommended)</option>
-        <option value="cuda">cuda (NVIDIA GPU)</option>
-        <option value="cpu">cpu</option>
-      </select>
-    </div>
-    <div class="settings-row">
-      <div class="settings-col">
-        <label class="settings-label" for="s-whisper-compute">Compute type</label>
-        <div class="settings-note">auto picks int8 on CPU, float16 on GPU. Pick int8 or float16 explicitly to force that type even on GPU (e.g. int8 to save VRAM)</div>
+      <div class="settings-row">
+        <div class="settings-col">
+          <label class="settings-label" for="s-whisper-compute">Compute type</label>
+          <div class="settings-note">auto picks int8 on CPU, float16 on GPU. Pick int8 or float16 explicitly to force that type even on GPU (e.g. int8 to save VRAM)</div>
+        </div>
+        <select class="settings-select" id="s-whisper-compute">
+          <option value="auto">auto (recommended)</option>
+          <option value="int8">int8</option>
+          <option value="float16">float16</option>
+          <option value="float32">float32</option>
+          <option value="int8_float16">int8_float16</option>
+        </select>
       </div>
-      <select class="settings-select" id="s-whisper-compute">
-        <option value="auto">auto (recommended)</option>
-        <option value="int8">int8</option>
-        <option value="float16">float16</option>
-        <option value="float32">float32</option>
-        <option value="int8_float16">int8_float16</option>
-      </select>
-    </div>
+    </details>
   </div>
 
   <!-- LLM scoring section. Restructured (UX review) to mirror the setup wizard:
@@ -581,6 +584,9 @@
              oninput="document.getElementById('s-lexicon-weight-val').textContent=parseFloat(this.value).toFixed(1)">
       <span class="settings-weight-val" id="s-lexicon-weight-val">1.0</span>
     </div>
+    <div style="font-size:11px;color:var(--muted);margin-top:2px;margin-bottom:4px">
+      Boosts clips whose transcript contains curated funny/dramatic/action marker phrases - a lightweight keyword signal, not the LLM.
+    </div>
     <div class="settings-weight-row">
       <span class="settings-weight-label">&#9889; Speech rate</span>
       <input type="range" min="0" max="5" step="0.1" id="s-speech-rate-weight" aria-label="Speech rate weight" style="flex:1"
@@ -593,11 +599,17 @@
              oninput="document.getElementById('s-churn-weight-val').textContent=parseFloat(this.value).toFixed(1)">
       <span class="settings-weight-val" id="s-churn-weight-val">0.5</span>
     </div>
+    <div style="font-size:11px;color:var(--muted);margin-top:2px;margin-bottom:4px">
+      Boosts clips with fast back-and-forth talking or cross-talk between speakers - needs Speaker labels turned on.
+    </div>
     <div class="settings-weight-row">
       <span class="settings-weight-label">&#128200; Prosody</span>
       <input type="range" min="0" max="5" step="0.1" id="s-prosody-weight" aria-label="Prosody weight" style="flex:1"
              oninput="document.getElementById('s-prosody-weight-val').textContent=parseFloat(this.value).toFixed(1)">
       <span class="settings-weight-val" id="s-prosody-weight-val">0.5</span>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-top:2px;margin-bottom:4px">
+      Boosts clips with expressive, varying vocal delivery - rising and falling volume and pitch - over a flat monotone.
     </div>
     <div class="settings-weight-row" style="margin-bottom:4px">
       <span class="settings-weight-label">&#128165; Audio events</span>
@@ -654,9 +666,9 @@
     <div class="settings-note" style="margin-bottom:8px">
       Boost a clip's score when a phrase is spoken - great for running gags or catchphrases.
       Leave one <strong>Global</strong> to apply everywhere, or scope it to a world context so it
-      only affects recordings tagged with that context. Saved instantly; use
-      <strong>Rescan current recording</strong> from the confirmation toast to apply changes to a
-      recording's existing clips without a full re-score.
+      only affects recordings tagged with that context. Saved instantly; use a recording's
+      <strong>Additional Actions &rarr; Rescan Hot-words</strong> (also offered right after saving,
+      as a toast shortcut) to apply changes to its existing clips without a full re-score.
     </div>
     <div id="s-hotword-rows"></div>
     <button type="button" class="btn-secondary" id="s-hotword-add" style="margin-top:4px">+ Add hot-word</button>
@@ -1241,9 +1253,9 @@
             <select id="analyze-model">
               <option value="tiny">tiny - fastest, lowest quality (~75 MB download)</option>
               <option value="base" selected>base - fast, lower quality (~140 MB download)</option>
-              <option value="small">small - fast, decent quality (~465 MB download, ~1 GB VRAM)</option>
-              <option value="medium">medium - good balance (~1.5 GB download, ~2.8 GB VRAM)</option>
-              <option value="large-v3">large-v3 - best quality (~2.9 GB download, ~4.2 GB VRAM)</option>
+              <option value="small">small - fast, decent quality (~465 MB download, needs a ~1 GB graphics card)</option>
+              <option value="medium">medium - good balance (~1.5 GB download, needs a ~2.8 GB graphics card)</option>
+              <option value="large-v3">large-v3 - best quality (~2.9 GB download, needs a ~4.2 GB graphics card)</option>
             </select>
           </div>
           <div class="field" id="analyze-diarize-field">
@@ -1424,8 +1436,8 @@
       <button class="btn ghost" style="padding:4px 8px" id="getting-started-x-btn" aria-label="Close">&#x2715;</button>
     </div>
 
-    <div style="margin:0 0 16px;padding:10px 12px;border:1px solid color-mix(in srgb, var(--accent) 40%, transparent);border-radius:8px;background:color-mix(in srgb, var(--accent) 8%, transparent);font-size:13px;line-height:1.6;color:var(--text)">
-      <strong>Baseline scoring is working.</strong> Transcription and the core scoring - laughter, excitement, keywords, scene and on-screen action - run right now, and clips get a short template description. Setting up a local language model is the normal next step: a one-click download that adds written AI descriptions, session summaries, and a smarter read on scoring. See <em>Settings &rarr; Capabilities</em> to set one up and check what's active.
+    <div id="getting-started-model-banner" style="margin:0 0 16px;padding:10px 12px;border:1px solid color-mix(in srgb, var(--accent) 40%, transparent);border-radius:8px;background:color-mix(in srgb, var(--accent) 8%, transparent);font-size:13px;line-height:1.6;color:var(--text)">
+      Checking your setup&#8230;
     </div>
 
     <div class="section-title" style="margin-bottom:6px">Your workflow</div>
@@ -1726,8 +1738,8 @@
       <label for="batch-captions" style="font-size:13px;color:var(--muted);min-width:110px">Captions</label>
       <select id="batch-captions" style="flex:1;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">
         <option value="none">None</option>
-        <option value="softsub" selected>Embed captions track (softsub, fast)</option>
-        <option value="hardsub">Burn in captions (hardsub, re-encode)</option>
+        <option value="softsub" selected>Embed captions track (fast, no re-encode)</option>
+        <option value="hardsub">Burn in captions - can't turn off later (slower, re-encodes)</option>
       </select>
     </div>
     <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-bottom:8px">
@@ -1739,9 +1751,9 @@
       <select id="batch-retranscribe-model" disabled style="flex:1;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">
         <option value="tiny">tiny - fastest, lowest quality (~75 MB download)</option>
         <option value="base">base - fast, lower quality (~140 MB download)</option>
-        <option value="small">small - fast, decent quality (~465 MB download, ~1 GB VRAM)</option>
-        <option value="medium">medium - good balance (~1.5 GB download, ~2.8 GB VRAM)</option>
-        <option value="large-v3">large-v3 - best quality (~2.9 GB download, ~4.2 GB VRAM)</option>
+        <option value="small">small - fast, decent quality (~465 MB download, needs a ~1 GB graphics card)</option>
+        <option value="medium">medium - good balance (~1.5 GB download, needs a ~2.8 GB graphics card)</option>
+        <option value="large-v3">large-v3 - best quality (~2.9 GB download, needs a ~4.2 GB graphics card)</option>
       </select>
     </div>
     <div id="batch-mode-summary" style="font-size:12px;border-top:1px solid var(--border);padding-top:10px;margin-bottom:14px"></div>
@@ -1762,9 +1774,9 @@
       <select id="retranscribe-model">
         <option value="tiny">tiny - fastest, lowest quality (~75 MB download)</option>
         <option value="base">base - fast, lower quality (~140 MB download)</option>
-        <option value="small">small - fast, decent quality (~465 MB download, ~1 GB VRAM)</option>
-        <option value="medium">medium - good balance (~1.5 GB download, ~2.8 GB VRAM)</option>
-        <option value="large-v3" selected>large-v3 - best quality (~2.9 GB download, ~4.2 GB VRAM)</option>
+        <option value="small">small - fast, decent quality (~465 MB download, needs a ~1 GB graphics card)</option>
+        <option value="medium">medium - good balance (~1.5 GB download, needs a ~2.8 GB graphics card)</option>
+        <option value="large-v3" selected>large-v3 - best quality (~2.9 GB download, needs a ~4.2 GB graphics card)</option>
       </select>
     </div>
     <div class="field">
@@ -1862,12 +1874,17 @@
           <button class="btn primary" id="context-save-btn">Save</button>
           <button class="btn" id="btn-duplicate-context" title="Start a new context pre-filled with this template's content">Use as base for new copy</button>
           <button class="btn" style="margin-left:auto" id="context-cancel-btn">Cancel</button>
-          <button class="btn danger" id="btn-delete-context">Delete</button>
-          <button class="btn danger" id="btn-reset-context" title="Replace your edits with the original shipped content">Reset to template</button>
+        </div>
+        <div style="border-top:1px solid var(--border);margin-top:10px;padding-top:8px">
+          <div class="section-title" style="margin:0 0 6px;font-size:11px">Danger zone</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn danger" id="btn-delete-context">Delete</button>
+            <button class="btn danger" id="btn-reset-context" title="Replace your edits with the original shipped content">Reset to template</button>
+          </div>
         </div>
       </div>
     </div>
-    <div style="margin-top:12px;display:flex;justify-content:flex-end">
+    <div id="context-list-footer" style="margin-top:12px;display:flex;justify-content:flex-end">
       <button class="btn" id="context-close-btn">Close</button>
     </div>
   </div>
@@ -1914,13 +1931,15 @@
   <div class="modal" style="width:520px">
     <h3 style="margin-top:0">Open another project</h3>
     <p style="color:var(--muted);font-size:13px;line-height:1.5;margin-top:-4px">
-      Enter the path to a project folder. A new folder becomes a fresh, empty project.
+      Choose a project folder. A new folder becomes a fresh, empty project.
     </p>
+    <button class="btn primary" id="btn-project-browse-primary" style="display:none;width:100%;margin-bottom:10px">Browse for a folder&hellip;</button>
     <div style="display:flex;gap:8px;align-items:center">
       <input type="text" id="open-project-path" placeholder="C:\Users\you\Videos\my-project"
              style="flex:1;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;font-family:inherit;box-sizing:border-box">
-      <button class="btn" id="btn-project-browse" style="display:none;white-space:nowrap">Browse…</button>
+      <button class="btn" id="btn-project-browse" style="display:none;white-space:nowrap">Browse&hellip;</button>
     </div>
+    <div id="open-project-path-label" style="display:none;font-size:11px;color:var(--muted);margin-top:4px">Picked folder - edit to type a different path instead</div>
     <div class="modal-actions">
       <button class="btn" id="btn-open-project-cancel">Cancel</button>
       <button class="btn primary" id="btn-open-project-confirm">Open</button>
@@ -1967,8 +1986,8 @@
         <label for="export-captions" style="font-size:13px;color:var(--muted);min-width:110px">Captions</label>
         <select id="export-captions" style="flex:1;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px">
           <option value="none">None</option>
-          <option value="softsub" selected>Embed captions track (softsub, fast)</option>
-          <option value="hardsub">Burn in captions (hardsub, re-encode)</option>
+          <option value="softsub" selected>Embed captions track (fast, no re-encode)</option>
+          <option value="hardsub">Burn in captions - can't turn off later (slower, re-encodes)</option>
         </select>
       </div>
       <details id="export-caption-style" style="border-top:1px solid var(--border);padding-top:10px">
@@ -2038,9 +2057,9 @@
         <select id="export-retranscribe-model" disabled style="flex:1;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px">
           <option value="tiny">tiny - fastest, lowest quality (~75 MB download)</option>
           <option value="base">base - fast, lower quality (~140 MB download)</option>
-          <option value="small">small - fast, decent quality (~465 MB download, ~1 GB VRAM)</option>
-          <option value="medium">medium - good balance (~1.5 GB download, ~2.8 GB VRAM)</option>
-          <option value="large-v3">large-v3 - best quality (~2.9 GB download, ~4.2 GB VRAM)</option>
+          <option value="small">small - fast, decent quality (~465 MB download, needs a ~1 GB graphics card)</option>
+          <option value="medium">medium - good balance (~1.5 GB download, needs a ~2.8 GB graphics card)</option>
+          <option value="large-v3">large-v3 - best quality (~2.9 GB download, needs a ~4.2 GB graphics card)</option>
         </select>
       </div>
       <div id="export-speaker-row" style="display:flex;align-items:center;gap:10px;padding-left:28px;opacity:.5">

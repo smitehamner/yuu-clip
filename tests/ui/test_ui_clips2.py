@@ -242,6 +242,15 @@ class TestRetranscribeRefresh:
         original_clip = page.evaluate("() => AppState.activeClipData")
         refreshed_clip = {**original_clip, "transcript_excerpt": "freshly retranscribed text"}
 
+        # startRetranscribe preflights whether the selected model is already
+        # downloaded before starting - stub it cached so the job starts on the
+        # first click instead of stopping at the download-confirm dialog.
+        page.route(
+            "**/api/whisper/model-cached**",
+            lambda route: route.fulfill(
+                status=200, content_type="application/json", body=json.dumps({"cached": True}),
+            ),
+        )
         page.route(
             f"**/api/clips/{clip_id}/retranscribe**",
             lambda route: route.fulfill(
@@ -274,6 +283,39 @@ class TestRetranscribeRefresh:
         page.click("#retranscribe-start-btn")
 
         expect(page.locator("#detail")).to_contain_text("freshly retranscribed text", timeout=5000)
+
+    def test_retranscribe_confirms_before_downloading_an_uncached_model(self, page: Page):
+        """UX-M6: an uncached model must not start downloading as a side effect of
+        clicking Retranscribe - it stops at a confirm first, matching the analyze
+        flow's existing "still downloading" preflight."""
+        import json
+        select_first_video_and_clip(page)
+        page.wait_for_selector("#clip-tag-input", timeout=3000)
+        clip_id = page.evaluate("() => AppState.activeClipId")
+
+        page.route(
+            "**/api/whisper/model-cached**",
+            lambda route: route.fulfill(
+                status=200, content_type="application/json", body=json.dumps({"cached": False}),
+            ),
+        )
+        retranscribe_requests: list = []
+        page.on(
+            "request",
+            lambda r: retranscribe_requests.append(r) if f"/api/clips/{clip_id}/retranscribe" in r.url else None,
+        )
+
+        page.click(".clip-actions button:has-text('Additional Actions')")
+        page.click("#actions-modal-body button:has-text('Retranscribe')")
+        page.wait_for_selector("#retranscribe-modal.visible", timeout=2000)
+        page.click("#retranscribe-start-btn")
+
+        page.wait_for_selector("#confirm-modal.visible", timeout=2000)
+        expect(page.locator("#confirm-title")).to_contain_text("Download speech model")
+        assert not retranscribe_requests
+        page.click("#confirm-modal button:has-text('Cancel')")
+        page.wait_for_selector("#confirm-modal.visible", state="hidden", timeout=2000)
+        assert not retranscribe_requests
 
 
 # ---------------------------------------------------------------------------

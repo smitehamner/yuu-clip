@@ -111,7 +111,10 @@ function _notifyHotwordSaved() {
   });
 }
 
-async function _rescanHotwords(videoId) {
+// Exported (not just used internally by the save-toast action above) so the
+// recording's Additional Actions modal can offer the same rescan as a durable
+// menu item, not only a one-shot toast a user can miss.
+export async function _rescanHotwords(videoId) {
   const res = await fetch(`/api/videos/${videoId}/hotword-rescan`, {method: 'POST'});
   if (!res.ok) {
     const e = await res.json().catch(() => ({}));
