@@ -4,6 +4,7 @@
 //   API: routes/analyze.py, routes/scoring.py (SSE endpoints) · Tests: tests/ui/test_ui_utils.py, tests/ui/test_ui_sse.py
 import { AppState } from './state.js';
 import { escHtml, formatApiError, _fmtElapsed } from './format.js';
+import { decodeEvent, isDoneSentinel, doneError } from './jobevents.js';
 
 // ── shared live job-render state ──────────────────────────────────────────────
 // _jobStepDefs / _activeStepIdx / _jobStartTime are read cross-module by videos.js's
@@ -396,21 +397,42 @@ function endJobUI() {
   }, 2000);
 }
 
-// ── done-sentinel decoding ────────────────────────────────────────────────────
-// The terminal SSE payload has two forms (see web/sse.py::_done_event): the bare
-// string "__DONE__" for success, and {type:'__DONE__', ok:false, error} for a job
-// that ended in failure. Every reader must understand BOTH - a reader that only
-// tests the string reports a failed job as a completed one and logs the object as
-// "[object Object]". These two helpers are the single place that knows the shape;
-// import them rather than hand-rolling the check.
-function isDoneSentinel(msg) {
-  return msg === '__DONE__' || (!!msg && typeof msg === 'object' && msg.type === '__DONE__');
-}
+// The done-sentinel helpers (isDoneSentinel/doneError) and the typed-event decoder
+// (decodeEvent) now live in core/jobevents.js - imported above and re-exported below.
 
-// The failure message for a done sentinel, or null when it signals success.
-function doneError(msg) {
-  if (!msg || typeof msg !== 'object' || msg.ok !== false) return null;
-  return msg.error || 'The job did not finish - check the log for details.';
+// Route one decoded SSE event to the raw-stream callbacks, reproducing the
+// pre-protocol behavior byte-for-byte: a legacy prose line -> onLine(payload); a
+// legacy __DONE__ sentinel -> onError/onDone via the same doneError check as before.
+// The typed kinds cannot occur until the emitters are converted in a later migration
+// stage; they are wired here for forward-compatibility (an unknown v1 type is ignored,
+// a newer-protocol frame asks the user to refresh). Returns true when the event is
+// terminal (done / fatal) so the reader stops exactly where the old code returned.
+function _routeSSEEvent(evt, onLine, onDone, onError) {
+  switch (evt.kind) {
+    case 'legacy-line':
+      onLine(evt.payload);
+      return false;
+    case 'log':
+      onLine(evt.text);
+      return false;
+    case 'legacy-done': {
+      const failure = doneError(evt.payload);
+      if (failure) onError(failure); else onDone(evt.payload);
+      return true;
+    }
+    case 'done':
+      if (evt.outcome === 'error') onError(evt.error || 'The job did not finish - check the log for details.');
+      else onDone(evt.outcome);
+      return true;
+    case 'newer-protocol':
+      onError('This page is out of date - refresh to continue.');
+      return true;
+    case 'unknown':
+      console.debug('Ignoring unknown SSE event type from a newer protocol', evt);
+      return false;
+    default: // 'progress' | 'result' - no emitter produces these yet in this stage
+      return false;
+  }
 }
 
 // ── SSE transport ─────────────────────────────────────────────────────────────
@@ -449,15 +471,7 @@ function _openSSE(url, onLine, onDone, onError, opts = {}) {
         buf = lines.pop();
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue;
-          const msg = JSON.parse(line.slice(6));
-          if (isDoneSentinel(msg)) {
-            // A failure sentinel means the job ended in error - route it to onError so
-            // callers never report a failed job as done.
-            const failure = doneError(msg);
-            if (failure) onError(failure); else onDone(msg);
-            return;
-          }
-          onLine(msg);
+          if (_routeSSEEvent(decodeEvent(JSON.parse(line.slice(6))), onLine, onDone, onError)) return;
         }
       }
     } catch (err) {

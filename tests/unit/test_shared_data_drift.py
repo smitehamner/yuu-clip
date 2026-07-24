@@ -18,10 +18,12 @@ from yuu_clip.config import ALLOWED_WHISPER_LANGUAGES
 from yuu_clip.dev.shareddata import (
     _MIRRORED,
     ELECTRON_JSON,
+    WEB_JOB_EVENTS_JSON,
     WEB_JSON,
     build_catalog_data,
     render_json,
 )
+from yuu_clip.web.jobevents import build_job_events_data
 
 
 @pytest.mark.parametrize("source,dest", _MIRRORED, ids=lambda p: p.name)
@@ -52,6 +54,21 @@ def test_electron_copy_is_current():
 
 def test_the_two_copies_are_byte_identical():
     assert WEB_JSON.read_bytes() == ELECTRON_JSON.read_bytes()
+
+
+def test_job_events_copy_is_current():
+    # The typed-SSE contract JSON (core/jobevents.js imports it) is generated from
+    # jobevents.py; stale until `yuu-dev shared-data` reruns. Web-only - no electron copy.
+    assert WEB_JOB_EVENTS_JSON.exists(), "run `yuu-dev shared-data`"
+    assert WEB_JOB_EVENTS_JSON.read_text(encoding="utf-8") == render_json(build_job_events_data()), (
+        f"{WEB_JOB_EVENTS_JSON.name} is stale - run `yuu-dev shared-data` and commit the result"
+    )
+
+
+def test_job_events_has_no_electron_copy():
+    # The setup wizard has no job streams, so the contract deliberately does not mirror
+    # into electron/shared - guard against a future edit accidentally adding one.
+    assert not (ELECTRON_JSON.parent / "job-events.json").exists()
 
 
 def test_recommended_model_is_a_recommended_text_entry():

@@ -30,11 +30,15 @@ from pathlib import Path
 from yuu_clip import content_presets, model_catalog, whisper_catalog
 from yuu_clip.config import ALLOWED_WHISPER_LANGUAGES
 from yuu_clip.dev._base import REPO_ROOT, app, console
+from yuu_clip.web.jobevents import build_job_events_data
 
 _WEB_SHARED = REPO_ROOT / "yuu_clip" / "web" / "static" / "shared"
 _ELECTRON_SHARED = REPO_ROOT / "electron" / "shared"
 WEB_JSON = _WEB_SHARED / "catalog-data.json"
 ELECTRON_JSON = _ELECTRON_SHARED / "catalog-data.json"
+# The typed-SSE contract mirror the web bundle imports (core/jobevents.js). Web-only:
+# the setup wizard has no job streams, so there is deliberately no electron/shared copy.
+WEB_JOB_EVENTS_JSON = _WEB_SHARED / "job-events.json"
 
 # The web app hand-edits these; the wizard cannot reach the web static tree at runtime
 # (separate package), so it gets committed mirror copies under electron/shared/. Mirrored
@@ -109,6 +113,10 @@ def write_shared_data() -> list[Path]:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(payload, encoding="utf-8", newline="\n")
         written.append(path)
+    job_events = render_json(build_job_events_data())
+    WEB_JOB_EVENTS_JSON.parent.mkdir(parents=True, exist_ok=True)
+    WEB_JOB_EVENTS_JSON.write_text(job_events, encoding="utf-8", newline="\n")
+    written.append(WEB_JOB_EVENTS_JSON)
     for source, dest in _MIRRORED:
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_bytes(source.read_bytes())
