@@ -13,7 +13,7 @@ vi.mock('../../../yuu_clip/web/static/people/speakers.js', () => ({ loadSpeakers
 vi.mock('../../../yuu_clip/web/static/clips/clips.js', () => ({ refreshClipDetail: vi.fn() }));
 
 import {
-  startRenameSpeaker, updateSpeakerLabelsInTranscript,
+  startRenameSpeaker, updateSpeakerLabelsInTranscript, _transcriptLineFlags,
 } from '../../../yuu_clip/web/static/analyze/transcript.js';
 
 // The speaker list is cached per video, so each test uses a fresh video id to keep the
@@ -43,6 +43,38 @@ function deferredSpeakersFetch(speakers) {
 }
 
 afterEach(() => { vi.restoreAllMocks(); document.body.innerHTML = ''; });
+
+describe('_transcriptLineFlags', () => {
+  const line = (over = {}) => ({ speaker: 'Alice', speaker_id: 7, seg_id: 3, ...over });
+  const opts = (over = {}) => ({ videoId: 42, readOnly: false, diarized: true, ...over });
+
+  it('shows the speaker label only when the name differs from the previous line', () => {
+    expect(_transcriptLineFlags(line(), 'Bob', opts()).showSpeaker).toBe(true);
+    expect(_transcriptLineFlags(line(), 'Alice', opts()).showSpeaker).toBe(false);
+  });
+
+  it('never shows a label for a line with no speaker', () => {
+    expect(_transcriptLineFlags(line({ speaker: null }), null, opts()).showSpeaker).toBe(false);
+  });
+
+  it('makes the name editable only for a diarized line in an editable (videoId) transcript', () => {
+    expect(_transcriptLineFlags(line(), null, opts()).nameEditable).toBe(true);
+    expect(_transcriptLineFlags(line(), null, opts({ videoId: null })).nameEditable).toBe(false);
+    expect(_transcriptLineFlags(line({ speaker_id: null }), null, opts()).nameEditable).toBe(false);
+  });
+
+  it('makes the caption editable only when not read-only and the line has a seg_id', () => {
+    expect(_transcriptLineFlags(line(), null, opts()).editable).toBe(true);
+    expect(_transcriptLineFlags(line(), null, opts({ readOnly: true })).editable).toBe(false);
+    expect(_transcriptLineFlags(line({ seg_id: null }), null, opts()).editable).toBe(false);
+  });
+
+  it('gives a speaker dot to a diarized line with a seg_id, including an unassigned one', () => {
+    expect(_transcriptLineFlags(line({ speaker_id: null }), null, opts()).hasSpeakerDot).toBe(true);
+    expect(_transcriptLineFlags(line(), null, opts({ diarized: false })).hasSpeakerDot).toBe(false);
+    expect(_transcriptLineFlags(line({ seg_id: null }), null, opts()).hasSpeakerDot).toBe(false);
+  });
+});
 
 describe('startRenameSpeaker', () => {
   it('a second click during the speaker fetch does not open a second editor', async () => {

@@ -33,6 +33,20 @@ function seekPlayerTo(seconds) {
 // reprint at every chunk boundary. opts.diarized overrides the auto-detected diarized
 // flag for the same reason: a chunk can contain zero diarized lines even though the
 // recording as a whole is diarized.
+// Per-line display flags, computed before HTML assembly. showSpeaker: print the speaker
+// label (the name changed from the previous line). nameEditable: the label doubles as an
+// inline rename control (a diarized line in an editable transcript). editable: the caption
+// text is click-to-edit. hasSpeakerDot: the line gets a reattribute dot (diarized lines
+// only, including Unassigned ones). opts: {videoId, readOnly, diarized}.
+export function _transcriptLineFlags(line, prevSpeaker, opts) {
+  return {
+    showSpeaker: !!(line.speaker && line.speaker !== prevSpeaker),
+    nameEditable: opts.videoId != null && line.speaker_id != null,
+    editable: !opts.readOnly && line.seg_id != null,
+    hasSpeakerDot: !!(opts.diarized && line.seg_id != null),
+  };
+}
+
 function _buildTranscriptRows(lines, opts) {
   const offsetS = opts.seekOffsetS || 0;
   const videoId = opts.videoId;
@@ -43,13 +57,13 @@ function _buildTranscriptRows(lines, opts) {
   const diarized = opts.diarized != null ? opts.diarized : (videoId != null && lines.some(l => l.speaker_id != null));
   let prevSpeaker = opts.initialPrevSpeaker != null ? opts.initialPrevSpeaker : null;
   return lines.map(line => {
-    const showSpeaker = line.speaker && line.speaker !== prevSpeaker;
+    const { showSpeaker, nameEditable, editable, hasSpeakerDot } =
+      _transcriptLineFlags(line, prevSpeaker, { videoId, readOnly, diarized });
     prevSpeaker = line.speaker;
     const colorAttr = line.color ? ` style="color:${escHtml(line.color)}"` : '';
     // The speaker name label doubles as a rename control (same gate as the dot):
     // click "Speaker 1" and type the real name. Read-only transcripts (no videoId)
     // keep a plain label.
-    const nameEditable = videoId != null && line.speaker_id != null;
     const nameEditAttrs = nameEditable
       ? ` data-speaker-id="${line.speaker_id}" data-video-id="${videoId}" role="button" tabindex="0" title="Click to rename this speaker"`
       : '';
@@ -58,7 +72,6 @@ function _buildTranscriptRows(lines, opts) {
       : '';
     const clock = fmtClock(line.start_ms);
     const seekS = (line.start_ms || 0) / 1000 + offsetS;
-    const editable = !readOnly && line.seg_id != null;
     const editAttrs = editable
       ? ` data-seg-id="${line.seg_id}" role="button" tabindex="0" title="Click to edit caption"`
       : '';
@@ -67,7 +80,7 @@ function _buildTranscriptRows(lines, opts) {
     const dotColor = line.color ? escHtml(line.color) : 'var(--muted)';
     const spkName = line.speaker ? escHtml(line.speaker) : 'Unassigned';
     const spkIdAttr = line.speaker_id != null ? line.speaker_id : '';
-    const spk = (diarized && line.seg_id != null)
+    const spk = hasSpeakerDot
       ? `<button class="tline-spk${line.speaker_edited ? ' edited' : ''}"
                  data-seg-id="${line.seg_id}" data-speaker-id="${spkIdAttr}" data-video-id="${videoId}"
                  title="${line.speaker_edited ? 'Reassigned by you - ' : ''}${spkName} - click to change or rename"
