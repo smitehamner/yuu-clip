@@ -11,6 +11,46 @@ same thing without the context. Most recent first.
 
 ---
 
+## Refactor-for-quality WS-D - frontend JS extractions close-out (2026-07-23)
+
+WS-D (9 frontend JS extractions + vitest for zero-coverage modules, D1-D9) shipped one
+item at a time (`d3e2718`..`4b83fde`) with a `yuu-dev bundle` + `yuu-dev test-js` gate
+between each (410 -> 492 JS tests) plus a full `yuu-dev test-ui` (650 passed, 1 known
+xdist-parallelism flake that passes in isolation) and `yuu-dev test-unit` 1777 (bundle/
+index/side-effect drift guards) at close. See
+`d:\1\Hamner\Code\000_project_planning\finalized_plans\yuu-clip_plans\plans\REFACTOR-FOR-QUALITY-PLAN-2026-07-23.md`
+for the per-item ledger and commit SHAs. No plan item was dropped or improvised. Recorded
+here per the close-out convention:
+
+### The three URLSearchParams query builders are deliberately NOT unified (anchored keep)
+Decision: `analyze/reel.js` (`_reelPoolQs`, `confirmBatchExport`), `clips/clipexport.js`,
+and `library/exporteditor.js` (`buildExportParams`, D2) each keep their own
+`URLSearchParams` assembly; they are not refactored into one shared builder.
+Rationale: this was flagged out of scope by the plan's "Deliberately out of scope" list and
+pre-recorded in the WS-C close-out entry below. The three build different query shapes for
+different endpoints (reel-pool filtering vs batch-export options vs single-clip export with
+caption-style fields) over different caller state - same basis as the anchored `routes/llm.py`
+capability-tier keep. D2 turned exporteditor's builder into a pure, testable
+`buildExportParams({captionMode, preset, titleCard, config})` but kept it editor-specific;
+that is intra-module extraction, not the cross-module unification this keep forbids. Do not
+re-flag the three as duplication.
+
+### Three extractions expanded the plan's sketch signatures - deliberate, not drift
+Decision: D1's `computeReelEstimate` omits the sketch's `transDur` param; D2's
+`computeTrimBoundary` ctx adds `effStartMs`/`effEndMs` beyond the sketch's
+`{clipStart, clipEnd, minDurationMs}`; D3's `_timelineRowHtml` takes a `memberId` the
+sketch's `(row)` omitted.
+Rationale: each is what behavior-preservation required, not a redesign. `updateReelEstimate`
+read `demo-trans-dur` into a `transDur` local the estimate math never used (a pre-existing
+dead read) - threading it through the pure fn would fabricate a used-looking param.
+`computeTrimBoundary`'s 1s-minimum guard floors against the opposite edge's *current*
+effective position (offset-adjusted), which `clipStart`/`clipEnd` alone cannot express.
+`_timelineRowHtml`'s `data-goto-video`/`data-clip-video` nav attrs need the member id, which
+`mergeTimelineEntries` deliberately keeps out of its pure rows. Each is noted inline in the
+plan's row.
+
+---
+
 ## Refactor-for-quality WS-C - Python behavior-preserving extractions close-out (2026-07-23)
 
 WS-C (7 behavior-preserving Python extractions, C1-C7) shipped one item at a time with a
