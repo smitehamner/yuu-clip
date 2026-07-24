@@ -298,10 +298,12 @@ bakes the recommended model, whisper models + languages, content presets, and AI
 copy from the Python sources of truth into `catalog-data.json`, written to two committed
 copies: `yuu_clip/web/static/shared/` (web) and `electron/shared/` (wizard). The wizard's
 `constants.js`/`recommend-model.js` `require()` the JSON, and the wizard renderer
-(`setup-renderer.js`) imports it at build time into `setup.bundle.js`. Run
-`yuu-dev shared-data` after touching
-`model_catalog.py` / `config.py` / `content_presets.py` / `whisper_catalog.py`;
-`tests/unit/test_shared_data_drift.py` guards it. Consequences:
+(`setup-renderer.js`) imports it at build time into `setup.bundle.js`. `yuu-dev bundle`
+already regenerates this (it runs shared-data before building the ESM bundles), so the
+normal after-edit `yuu-dev bundle` habit covers touching
+`model_catalog.py` / `config.py` / `content_presets.py` / `whisper_catalog.py` too - run
+`yuu-dev shared-data` directly only for a data-only edit where nothing else needs
+rebundling. `tests/unit/test_shared_data_drift.py` guards it. Consequences:
 
 - `DEFAULT_LLAMACPP_MODEL` and `recommend-model.js` are lookups into the generated
   `recommended_model` (= `model_catalog.text_models()[0]`), not literals - do not

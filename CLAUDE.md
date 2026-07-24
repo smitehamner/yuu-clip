@@ -625,8 +625,11 @@ truth (`model_catalog.py`, `config.ALLOWED_WHISPER_LANGUAGES`, `content_presets.
 `whisper_catalog.py`) into TWO committed copies - `yuu_clip/web/static/shared/` (web) and
 `electron/shared/` (wizard: `constants.js`/`recommend-model.js` `require()` it, and the
 wizard renderer `setup-renderer.js` imports it at build time into `setup.bundle.js`).
-**Run `yuu-dev shared-data` after editing any of those source modules**;
-`tests/unit/test_shared_data_drift.py` fails until you do. Consequences to respect:
+`yuu-dev bundle` already regenerates this too (it runs shared-data before building the
+ESM bundles), so the normal after-edit `yuu-dev bundle` habit covers a source-module edit
+as well - **run `yuu-dev shared-data` directly only for a data-only edit where nothing
+else needs rebundling.** `tests/unit/test_shared_data_drift.py` fails until either is run.
+Consequences to respect:
 - `DEFAULT_LLAMACPP_MODEL` and `recommend-model.js` are now lookups into the JSON's
   `recommended_model` (= `model_catalog.text_models()[0]`), not literals - don't re-hardcode.
 - LLM model config is split by function: text scoring uses `llm_model_path`; image analysis
