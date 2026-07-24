@@ -34,7 +34,7 @@
        the backend's availability() via /api/capabilities/tiers; "Set up" links jump
        to the section that holds the real install/enable control. -->
   <div class="settings-section" id="settings-sec-capabilities">
-    <div class="settings-section-title">Capabilities</div>
+    <h3 class="settings-section-title">Capabilities</h3>
     <div class="settings-note" id="s-capabilities-intro" style="margin-bottom:12px">Checking…</div>
     <div id="s-capabilities-list"></div>
   </div>
@@ -44,7 +44,7 @@
        CUDA libs, or LLM GPU offload silently falling back to CPU) is easy to find,
        not just flagged by the header's GPU-warning chip. -->
   <div class="settings-section" id="settings-sec-hardware">
-    <div class="settings-section-title has-action"><span>Hardware <span style="font-size:11px;font-weight:400;color:var(--muted)">(GPU temperature - NVIDIA only, hidden automatically otherwise)</span></span><button type="button" class="btn-secondary settings-reset-btn" data-revert-section="settings-sec-hardware">Reset to defaults</button></div>
+    <h3 class="settings-section-title has-action"><span>Hardware <span style="font-size:11px;font-weight:400;color:var(--muted)">(GPU temperature - NVIDIA only, hidden automatically otherwise)</span></span><button type="button" class="btn-secondary settings-reset-btn" data-revert-section="settings-sec-hardware">Reset to defaults</button></h3>
     <div class="settings-note" style="margin-bottom:12px">Two separate GPU paths: transcription (below) needs the NVIDIA-only CUDA libraries; <strong>LLM scoring</strong> uses a different, vendor-agnostic path (NVIDIA, AMD, or Intel) with its own <button type="button" class="settings-jump-link" data-section="s-llm-advanced">GPU toggle under LLM scoring's Advanced AI options</button> - installing or removing the CUDA libraries here has no effect on it.</div>
     <div class="settings-row">
       <div class="settings-col">
@@ -86,7 +86,7 @@
 
   <!-- Whisper section -->
   <div class="settings-section" id="settings-sec-stt">
-    <div class="settings-section-title has-action"><span>Speech-to-text (Whisper)</span><button type="button" class="btn-secondary settings-reset-btn" data-revert-section="settings-sec-stt">Reset to defaults</button></div>
+    <h3 class="settings-section-title has-action"><span>Speech-to-text (Whisper)</span><button type="button" class="btn-secondary settings-reset-btn" data-revert-section="settings-sec-stt">Reset to defaults</button></h3>
     <div class="settings-row">
       <div class="settings-col">
         <label class="settings-label" for="s-whisper-model">Speech-to-text model</label>
@@ -156,7 +156,7 @@
        engine choice, and manual model-file paths into "Advanced AI options" below,
        so a first-timer sees "pick a model", not "choose a backend". -->
   <div class="settings-section" id="settings-sec-llm">
-    <div class="settings-section-title has-action"><span>LLM scoring</span><button type="button" class="btn-secondary settings-reset-btn" data-revert-section="settings-sec-llm">Reset to defaults</button></div>
+    <h3 class="settings-section-title has-action"><span>LLM scoring</span><button type="button" class="btn-secondary settings-reset-btn" data-revert-section="settings-sec-llm">Reset to defaults</button></h3>
     <div class="settings-note" style="margin-bottom:10px">A local language model reads each clip's transcript to score it and write a description. Pick a model below to turn this on - leave it off and clips are still found by audio energy and scene detection, just without scores or descriptions.</div>
 
     <!-- Collapses to #s-privacy-none-summary when AI privacy = "No generative AI"
@@ -335,7 +335,7 @@
 
   <!-- Speaker labels section -->
   <div class="settings-section" id="settings-sec-speakers">
-    <div class="settings-section-title has-action"><span>Speaker labels</span><button type="button" class="btn-secondary settings-reset-btn" data-revert-section="settings-sec-speakers">Reset to defaults</button></div>
+    <h3 class="settings-section-title has-action"><span>Speaker labels</span><button type="button" class="btn-secondary settings-reset-btn" data-revert-section="settings-sec-speakers">Reset to defaults</button></h3>
     <div class="settings-row">
       <div class="settings-col">
         <label class="settings-label" for="s-diarization-backend">Backend</label>
@@ -391,10 +391,10 @@
 
   <!-- Scoring weights section -->
   <div class="settings-section" id="settings-sec-weights">
-    <div class="settings-section-title has-action">
+    <h3 class="settings-section-title has-action">
       <span>Scoring weights <span style="font-size:11px;font-weight:400;color:var(--muted)">(takes effect on next re-score)</span></span>
       <button type="button" class="btn-secondary settings-reset-btn" id="btn-reset-weights" data-revert-section="settings-sec-weights">Reset to defaults</button>
-    </div>
+    </h3>
     <!-- Content type preset (plan 12) - one-choice tuning applied on top of the sliders below -->
     <div id="s-content-preset-block" style="margin:0 0 16px;padding:10px 12px;border:1px solid var(--border);border-radius:8px">
       <label class="settings-label" for="s-content-preset" style="display:block;margin-bottom:2px">Content type</label>
@@ -537,7 +537,7 @@
 
   <!-- Hot-words section -->
   <div class="settings-section" id="settings-sec-hotwords">
-    <div class="settings-section-title">Hot-words</div>
+    <h3 class="settings-section-title">Hot-words</h3>
     <div class="settings-note" style="margin-bottom:8px">
       Boost a clip's score when a phrase is spoken - great for running gags or catchphrases.
       Leave one <strong>Global</strong> to apply everywhere, or scope it to a world context so it
@@ -551,7 +551,7 @@
 
   <!-- Sensitive Content section -->
   <div class="settings-section" id="settings-sec-sensitive">
-    <div class="settings-section-title">Sensitive Content</div>
+    <h3 class="settings-section-title">Sensitive Content</h3>
     <div class="settings-note" style="margin-bottom:8px">
       Flag clips containing names, personal info, or language you want to catch before sharing -
       kept completely separate from scoring, so it never changes a clip's score, only warns.
@@ -566,7 +566,7 @@
 
   <!-- Analysis defaults section -->
   <div class="settings-section" id="settings-sec-analysis">
-    <div class="settings-section-title has-action"><span>Analysis defaults <span style="font-size:11px;font-weight:400;color:var(--muted)">(pre-filled in Analyze modal)</span></span><button type="button" class="btn-secondary settings-reset-btn" data-revert-section="settings-sec-analysis">Reset to defaults</button></div>
+    <h3 class="settings-section-title has-action"><span>Analysis defaults <span style="font-size:11px;font-weight:400;color:var(--muted)">(pre-filled in Analyze modal)</span></span><button type="button" class="btn-secondary settings-reset-btn" data-revert-section="settings-sec-analysis">Reset to defaults</button></h3>
     <div class="settings-row">
       <div class="settings-col">
         <label class="settings-label" for="s-scene-mode">Scene cut detection</label>
@@ -635,7 +635,7 @@
 
   <!-- UI section -->
   <div class="settings-section" id="settings-sec-ui">
-    <div class="settings-section-title has-action"><span>UI</span><button type="button" class="btn-secondary settings-reset-btn" data-revert-section="settings-sec-ui">Reset to defaults</button></div>
+    <h3 class="settings-section-title has-action"><span>UI</span><button type="button" class="btn-secondary settings-reset-btn" data-revert-section="settings-sec-ui">Reset to defaults</button></h3>
     <div class="settings-row">
       <div class="settings-col">
         <label class="settings-label" for="s-theme">Theme</label>
@@ -665,32 +665,32 @@
     </div>
     <div class="settings-row">
       <div class="settings-col">
-        <div class="settings-label">Autoplay clips</div>
+        <div class="settings-label" id="lbl-autoplay">Autoplay clips</div>
         <div class="settings-note">Play clip automatically when selected</div>
       </div>
       <label class="settings-checkbox">
-        <input type="checkbox" id="s-autoplay">
-        <span style="font-size:13px">Enabled</span>
+        <input type="checkbox" id="s-autoplay" aria-labelledby="lbl-autoplay">
+        <span style="font-size:13px" aria-hidden="true">Enabled</span>
       </label>
     </div>
     <div class="settings-row">
       <div class="settings-col">
-        <div class="settings-label">Play next clip when finished</div>
+        <div class="settings-label" id="lbl-play-next">Play next clip when finished</div>
         <div class="settings-note">Advance to the next clip in the list when the current one ends</div>
       </div>
       <label class="settings-checkbox">
-        <input type="checkbox" id="s-play-next">
-        <span style="font-size:13px">Enabled</span>
+        <input type="checkbox" id="s-play-next" aria-labelledby="lbl-play-next">
+        <span style="font-size:13px" aria-hidden="true">Enabled</span>
       </label>
     </div>
     <div class="settings-row">
       <div class="settings-col">
-        <div class="settings-label">Loop clip</div>
+        <div class="settings-label" id="lbl-loop-clip">Loop clip</div>
         <div class="settings-note">Repeat the current clip instead of stopping at the end</div>
       </div>
       <label class="settings-checkbox">
-        <input type="checkbox" id="s-loop-clip">
-        <span style="font-size:13px">Enabled</span>
+        <input type="checkbox" id="s-loop-clip" aria-labelledby="lbl-loop-clip">
+        <span style="font-size:13px" aria-hidden="true">Enabled</span>
       </label>
     </div>
     <div class="settings-row">
@@ -715,7 +715,7 @@
       </div>
       <div style="display:flex;gap:6px;align-items:center">
         <input class="settings-input" id="s-timeline-interval" type="number" min="10" step="1" style="max-width:80px">
-        <select class="settings-select" id="s-timeline-unit">
+        <select class="settings-select" id="s-timeline-unit" aria-label="Timeline interval unit">
           <option value="seconds">seconds</option>
           <option value="minutes">minutes</option>
         </select>
@@ -725,7 +725,7 @@
 
   <!-- Export -->
   <div class="settings-section" id="settings-sec-export">
-    <div class="settings-section-title has-action"><span>Export</span><button type="button" class="btn-secondary settings-reset-btn" data-revert-section="settings-sec-export">Reset to defaults</button></div>
+    <h3 class="settings-section-title has-action"><span>Export</span><button type="button" class="btn-secondary settings-reset-btn" data-revert-section="settings-sec-export">Reset to defaults</button></h3>
     <div class="settings-row">
       <label class="settings-label" for="s-export-name-template">Export file name</label>
       <input class="settings-input" id="s-export-name-template" type="text"
@@ -884,7 +884,7 @@
 
   <!-- Notification sounds -->
   <div class="settings-section" id="settings-sec-sounds">
-    <div class="settings-section-title">Notification sounds <span style="font-size:11px;font-weight:400;color:var(--muted)">(off by default)</span></div>
+    <h3 class="settings-section-title">Notification sounds <span style="font-size:11px;font-weight:400;color:var(--muted)">(off by default)</span></h3>
     <div class="settings-note" style="margin-bottom:8px">Play a sound when a long-running action finishes so you can step away. Use <strong>Preview</strong> to hear each one. A <strong>Stop sound</strong> button appears while a sound plays.</div>
     <div class="settings-row">
       <div class="settings-col">
@@ -911,7 +911,7 @@
 
   <!-- Backup & Restore section -->
   <div class="settings-section" id="settings-sec-backup">
-    <div class="settings-section-title">Backup &amp; Restore</div>
+    <h3 class="settings-section-title">Backup &amp; Restore</h3>
     <div class="settings-note" style="margin-bottom:12px">
       Save this project's clips, settings, and world contexts to a single file you can keep somewhere safe or move to another computer. Your original video files are not included - if they have moved, Restore helps you point to them again.
     </div>
@@ -925,7 +925,7 @@
 
   <!-- Update check (notify-only) - GitHub only, no auto-install -->
   <div class="settings-section" id="settings-sec-updates">
-    <div class="settings-section-title">Updates</div>
+    <h3 class="settings-section-title">Updates</h3>
     <div class="settings-row">
       <div class="settings-col">
         <label class="settings-label" id="lbl-update-check-enabled" for="s-update-check-enabled">Check for updates automatically</label>
@@ -947,7 +947,7 @@
 
   <!-- Paths section (read-only for now) -->
   <div class="settings-section" id="settings-sec-paths">
-    <div class="settings-section-title">Paths <span style="font-size:11px;font-weight:400;color:var(--muted)">(read-only - set via --project flag)</span></div>
+    <h3 class="settings-section-title">Paths <span style="font-size:11px;font-weight:400;color:var(--muted)">(read-only - set via --project flag)</span></h3>
     <div id="s-paths-display" style="font-size:12px;color:var(--muted);line-height:2"></div>
   </div>
 </div><!-- /.settings-inner -->

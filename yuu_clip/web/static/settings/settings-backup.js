@@ -128,7 +128,7 @@ function _renderRestorePlan() {
     <div class="settings-note" style="margin-bottom:10px">
       Backup of <strong>${escHtml(manifest.project_name || 'project')}</strong> - created ${escHtml(created)}.
     </div>
-    <div class="settings-label" for="restore-target">Restore into folder</div>
+    <label class="settings-label" for="restore-target">Restore into folder</label>
     <div class="settings-note" style="margin-bottom:4px">Choose an empty or new folder. To replace the current project, enter its folder - a safety copy of its database is kept.</div>
     <div style="display:flex;gap:8px;align-items:center">
       <input type="text" id="restore-target" class="settings-input" style="flex:1" placeholder="Folder to restore into">

@@ -35,14 +35,17 @@ export function showConfirm(title, body, okLabel, onOk, danger = false, cancelLa
   document.getElementById('confirm-modal').classList.add('visible');
   setTimeout(() => document.getElementById('confirm-cancel-btn').focus(), 50);
 }
-function _confirmOk() {
+export function _confirmOk() {
   document.getElementById('confirm-modal').classList.remove('visible');
   const cb = AppState.confirmCallback;
   AppState.confirmCallback = null;
   const opener = _confirmOpener;
   _confirmOpener = null;
+  // Restore focus to the opener BEFORE running the callback (matching showKebab):
+  // the callback may open its own modal and move focus, so this only takes effect
+  // when it doesn't - the OK path used to skip focus return entirely.
+  if (opener?.focus) opener.focus();
   if (cb) cb();
-  else if (opener?.focus) opener.focus();
 }
 export function _confirmCancel() {
   document.getElementById('confirm-modal').classList.remove('visible');
@@ -623,6 +626,15 @@ function _wireModalButtons() {
   document.getElementById('diff-accept-new-btn').addEventListener('click', () => _diffAcceptNew());
   document.getElementById('field-edit-cancel-btn').addEventListener('click', () => closeFieldEditModal());
   document.getElementById('field-edit-save-btn').addEventListener('click', () => _fieldEditSave());
+  // The global Escape handler leaves genuine text-entry alone (a textarea's own
+  // Escape belongs to it), so these editors close via their own dirty-guarded
+  // closers - matching _modalEscapeClosers for when focus is elsewhere in the modal.
+  document.getElementById('field-edit-text').addEventListener('keydown', e => {
+    if (e.key === 'Escape') { e.preventDefault(); closeFieldEditModal(); }
+  });
+  document.getElementById('diff-modal').addEventListener('keydown', e => {
+    if (e.key === 'Escape' && e.target.tagName === 'TEXTAREA') { e.preventDefault(); _diffDiscard(); }
+  });
 }
 
 // "Controls" and "Download Log" are wired here because their onclick= called

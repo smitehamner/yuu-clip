@@ -233,16 +233,16 @@ footer {
 
     <!-- ═══ Required ═══ -->
     <section>
-      <div class="sec-title">Required</div>
+      <h2 class="sec-title">Required</h2>
       <div id="ffmpeg-slot"></div>
     </section>
 
     <!-- ═══ Basics ═══ -->
     <section>
-      <div class="sec-title">Basics</div>
+      <h2 class="sec-title">Basics</h2>
       <div class="sec-note" id="gpu-line"></div>
       <div class="cfg-row">
-        <span class="cfg-label">Project folder</span>
+        <label class="cfg-label" for="project-dir">Project folder</label>
         <input type="text" id="project-dir" readonly>
         <button class="sm" id="browse-btn">Browse…</button>
       </div>
@@ -252,7 +252,7 @@ footer {
         <span class="inline-note" style="margin:0">Rebuild this project from a backup .zip. Its saved settings are kept.</span>
       </div>
       <div class="cfg-row">
-        <span class="cfg-label">Speech-to-text model</span>
+        <label class="cfg-label" for="whisper-sel">Speech-to-text model</label>
         <select id="whisper-sel"></select>
         <span class="rec" id="rec-tag"></span>
       </div>
@@ -267,7 +267,7 @@ footer {
         OpenAI Whisper - MIT licence (commercial use permitted).
       </div>
       <div class="cfg-row">
-        <span class="cfg-label">Transcription language</span>
+        <label class="cfg-label" for="whisper-lang-sel">Transcription language</label>
         <select id="whisper-lang-sel"></select>
       </div>
       <div class="inline-note">
@@ -277,7 +277,7 @@ footer {
 
     <!-- LLM scoring -->
     <section>
-      <div class="sec-title">LLM scoring</div>
+      <h2 class="sec-title">LLM scoring</h2>
       <div class="sec-note">
         A local language model writes each clip's description and adds a semantic read on
         top of the scoring. Setting one up is the normal first step - a one-click download
@@ -320,7 +320,7 @@ footer {
         Everything runs locally - nothing you record ever leaves your machine.
       </div>
       <div class="cfg-row">
-        <span class="cfg-label">AI privacy</span>
+        <label class="cfg-label" for="ai-privacy-sel">AI privacy</label>
         <select id="ai-privacy-sel"></select>
       </div>
       <div class="desc" id="ai-privacy-note" style="margin:-2px 0 6px"></div>
@@ -337,7 +337,7 @@ footer {
           quality and speed), save it somewhere permanent, then choose it below.
         </div>
         <div class="cfg-row" style="margin-top:8px">
-          <span class="cfg-label">Model file (.gguf)</span>
+          <label class="cfg-label" for="llm-model-path">Model file (.gguf)</label>
           <input type="text" id="llm-model-path" placeholder="C:\models\Qwen2.5-7B-Instruct-Q4_K_M.gguf">
           <button class="sm" id="llm-browse-btn">Browse…</button>
         </div>
@@ -351,7 +351,7 @@ footer {
 
     <!-- ═══ Content type ═══ -->
     <section>
-      <div class="sec-title">Content type</div>
+      <h2 class="sec-title">Content type</h2>
       <div class="sec-note">
         Tune scoring for the kind of content you make. This sets sensible funny /
         dramatic / action weights and points the AI at what makes a good highlight
@@ -359,7 +359,7 @@ footer {
         any time in Settings.
       </div>
       <div class="cfg-row">
-        <span class="cfg-label">Content type</span>
+        <label class="cfg-label" for="content-preset-sel">Content type</label>
         <select id="content-preset-sel"></select>
       </div>
       <div class="inline-note" id="content-preset-note"></div>
@@ -367,7 +367,7 @@ footer {
 
     <!-- ═══ Optional ═══ -->
     <section id="optional-section">
-      <div class="sec-title">Optional</div>
+      <h2 class="sec-title">Optional</h2>
 
       <div id="cuda-slot"></div>
     </section>

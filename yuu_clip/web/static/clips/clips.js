@@ -1654,6 +1654,10 @@ function initClipsListeners() {
   scoreOverrideModal.addEventListener('click', e => { if (e.target === scoreOverrideModal) closeScoreOverrideModal(); });
   document.getElementById('score-override-cancel-btn').addEventListener('click', () => closeScoreOverrideModal());
   document.getElementById('score-override-save-btn').addEventListener('click', () => _scoreOverrideSave());
+  document.getElementById('score-override-slider').addEventListener('input', e => {
+    document.getElementById('score-override-display').textContent =
+      `${Math.round(parseFloat(e.target.value) * 100)}%`;
+  });
 }
 
 // Public API - symbols another already-ESM module reads off window as this

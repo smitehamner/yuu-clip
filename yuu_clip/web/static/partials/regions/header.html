@@ -28,20 +28,20 @@
   <button class="btn ghost" id="btn-settings-header" title="Settings" aria-label="Settings" style="font-size:15px;padding:5px 10px">&#9881;</button>
   <div class="hamburger-wrap" id="hamburger-wrap">
     <button class="btn ghost" id="btn-hamburger" title="More options" aria-label="More options" aria-haspopup="true" aria-expanded="false" style="font-size:17px;padding:5px 11px;line-height:1">&#9776;</button>
-    <div class="hamburger-menu" id="hamburger-menu">
+    <div class="hamburger-menu" id="hamburger-menu" role="menu" aria-label="More options">
       <!-- closeHamburger() runs first: it hands focus back to the trigger, so
            the modal being opened records the trigger as its return-focus target
            instead of a menu item that is about to be display:none'd. -->
-      <button class="hamburger-item" id="hamburger-item-getting-started"><span class="hamburger-icon" aria-hidden="true">&#128214;</span>Getting Started</button>
-      <button class="hamburger-item" id="hamburger-item-controls"><span class="hamburger-icon" aria-hidden="true">&#9000;</span>Controls</button>
-      <div class="hamburger-divider"></div>
-      <button class="hamburger-item" id="hamburger-item-glossary"><span class="hamburger-icon" aria-hidden="true">&#128218;</span>Glossary</button>
-      <button class="hamburger-item" id="hamburger-item-help"><span class="hamburger-icon" aria-hidden="true">&#10067;</span>Help &amp; Guides</button>
-      <div class="hamburger-divider"></div>
-      <a class="hamburger-item" id="hamburger-item-download-log" href="/api/logs/export" download="yuu-clip.log"><span class="hamburger-icon" aria-hidden="true">&#8595;</span>Download Log</a>
-      <button class="hamburger-item" id="hamburger-item-about"><span class="hamburger-icon" aria-hidden="true">&#9432;</span>About</button>
-      <button class="hamburger-item" id="btn-setup-wizard" onclick="closeHamburger();window.electronAPI.runSetupWizard()" style="display:none"><span class="hamburger-icon" aria-hidden="true">&#128295;</span>Re-run Setup Wizard</button>
-      <button class="hamburger-item" id="btn-refresh" onclick="closeHamburger();location.reload()" style="display:none"><span class="hamburger-icon" aria-hidden="true">&#8635;</span>Refresh</button>
+      <button class="hamburger-item" role="menuitem" id="hamburger-item-getting-started"><span class="hamburger-icon" aria-hidden="true">&#128214;</span>Getting Started</button>
+      <button class="hamburger-item" role="menuitem" id="hamburger-item-controls"><span class="hamburger-icon" aria-hidden="true">&#9000;</span>Controls</button>
+      <div class="hamburger-divider" role="separator"></div>
+      <button class="hamburger-item" role="menuitem" id="hamburger-item-glossary"><span class="hamburger-icon" aria-hidden="true">&#128218;</span>Glossary</button>
+      <button class="hamburger-item" role="menuitem" id="hamburger-item-help"><span class="hamburger-icon" aria-hidden="true">&#10067;</span>Help &amp; Guides</button>
+      <div class="hamburger-divider" role="separator"></div>
+      <a class="hamburger-item" role="menuitem" id="hamburger-item-download-log" href="/api/logs/export" download="yuu-clip.log"><span class="hamburger-icon" aria-hidden="true">&#8595;</span>Download Log</a>
+      <button class="hamburger-item" role="menuitem" id="hamburger-item-about"><span class="hamburger-icon" aria-hidden="true">&#9432;</span>About</button>
+      <button class="hamburger-item" role="menuitem" id="btn-setup-wizard" onclick="closeHamburger();window.electronAPI.runSetupWizard()" style="display:none"><span class="hamburger-icon" aria-hidden="true">&#128295;</span>Re-run Setup Wizard</button>
+      <button class="hamburger-item" role="menuitem" id="btn-refresh" onclick="closeHamburger();location.reload()" style="display:none"><span class="hamburger-icon" aria-hidden="true">&#8635;</span>Refresh</button>
     </div>
   </div>
 </header>

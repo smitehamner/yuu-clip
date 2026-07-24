@@ -22,7 +22,7 @@ import { closeProfileManager, _isNewRecordingPanelOpen, closeNewRecordingPanel }
 import { closeHighlightReelsModal, closeReelPreview, closeBatchExportModal } from '../analyze/reel.js';
 import { closeContextManager, closeAutoApproveModal, closeRetranscribeModal } from '../library/contexts.js';
 import { closeTimelineIntervalModal } from '../videos/videos-timeline.js';
-import { isProjectMenuOpen, closeProjectMenu } from '../settings/projects.js';
+import { isProjectMenuOpen, closeProjectMenu, closeOpenProjectModal } from '../settings/projects.js';
 import { closeSettings } from '../settings/settings.js';
 
 // ── keyboard shortcuts ────────────────────────────────────────────────────────
@@ -54,6 +54,7 @@ const _modalEscapeClosers = {
   'auto-approve-modal':      () => closeAutoApproveModal(),
   'similar-clips-modal':     () => closeSimilarClipsModal(),
   'actions-modal':           () => closeActionsModal(),
+  'open-project-modal':      () => closeOpenProjectModal(),
 };
 
 function _closeTopmostLayer() {
@@ -70,21 +71,40 @@ function _closeTopmostLayer() {
   if (_isNewRecordingPanelOpen()) closeNewRecordingPanel();
 }
 
+// Genuine free-text entry, where Escape belongs to the field (revert/cancel), not
+// to the global "close the topmost layer" handler. A range/checkbox/radio/number/
+// button-ish input has nothing to abandon on Escape, so it is NOT text entry and
+// Escape falls through to close the modal it lives in.
+const _NON_TEXT_INPUT_TYPES = new Set([
+  'range', 'checkbox', 'radio', 'button', 'submit', 'reset', 'file', 'color',
+  'image', 'number',
+]);
+
+export function _isTextEntry(el) {
+  if (!el) return false;
+  if (el.isContentEditable) return true;
+  if (el.tagName === 'TEXTAREA') return true;
+  if (el.tagName === 'INPUT') return !_NON_TEXT_INPUT_TYPES.has((el.type || 'text').toLowerCase());
+  return false;
+}
+
 function _handleGlobalKeydown(e) {
   // A focused list item (clip/video <li>) handles Enter/Space itself and calls
   // preventDefault - don't ALSO run the global shortcut (e.g. Space toggling
   // play/pause while the li activation is selecting a clip).
   if (e.defaultPrevented) return;
 
-  const isTyping = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable;
+  const t = e.target;
+  const isFormField = t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable;
 
-  // Escape must work with focus on a button/select/link - that's where every
-  // modal places focus on open. Only typing surfaces keep Escape to themselves
-  // (their own handlers, e.g. the inline caption editor, use it to cancel).
-  if (e.key === 'Escape' && isTyping) return;
+  // Escape must work with focus on a button/select/link/slider/checkbox - that's
+  // where most modals place focus on open. Only genuine free-text entry keeps
+  // Escape to itself (its own handler uses it to cancel); a range/checkbox/number
+  // input has no text to abandon, so Escape should close the topmost layer.
+  if (e.key === 'Escape' && _isTextEntry(t)) return;
 
   if (e.key !== 'Escape' &&
-      (isTyping || e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT' || e.target.tagName === 'A')) return;
+      (isFormField || t.tagName === 'BUTTON' || t.tagName === 'SELECT' || t.tagName === 'A')) return;
 
   // Ctrl/Cmd+Z (undo) is the only binding that intentionally uses a modifier.
   // Every other shortcut is a bare key, so let modifier chords fall through to

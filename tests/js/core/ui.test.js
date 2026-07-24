@@ -4,9 +4,40 @@
 // The download-resync fetch flow stays in Playwright.
 import {
   _applyPrereqWarnings, playbackRatePref, applyPlaybackRate,
+  showConfirm, _confirmOk,
 } from '../../../yuu_clip/web/static/core/ui.js';
 
 const banner = () => document.getElementById('prereq-banner');
+
+// M14 (UX-REVIEW-2026-07-23): the confirm modal's OK path never restored focus to
+// the opener (only the no-callback and Cancel paths did). Focus must return to the
+// opener BEFORE the callback runs, so a callback that opens no modal leaves focus
+// on the control the user came from, not on <body>.
+describe('showConfirm OK-path focus return', () => {
+  beforeEach(() => {
+    document.body.innerHTML = `
+      <button id="opener">Delete</button>
+      <div id="confirm-modal"><div id="confirm-title"></div><div id="confirm-body"></div>
+        <button id="confirm-cancel-btn"></button><button id="confirm-ok-btn"></button></div>`;
+  });
+
+  it('restores focus to the opener when the callback opens nothing', () => {
+    const opener = document.getElementById('opener');
+    opener.focus();
+    showConfirm('Delete?', 'Sure?', 'Delete', () => {});
+    _confirmOk();
+    expect(document.activeElement).toBe(opener);
+  });
+
+  it('focuses the opener before invoking the callback', () => {
+    const opener = document.getElementById('opener');
+    opener.focus();
+    let focusAtCallback = null;
+    showConfirm('Delete?', 'Sure?', 'Delete', () => { focusAtCallback = document.activeElement; });
+    _confirmOk();
+    expect(focusAtCallback).toBe(opener);
+  });
+});
 
 describe('_applyPrereqWarnings', () => {
   it('shows the banner when FFmpeg is missing', () => {

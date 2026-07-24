@@ -184,6 +184,9 @@ function initProjectListeners() {
 
   document.getElementById('open-project-path').addEventListener('keydown', e => {
     if (e.key === 'Enter') { e.preventDefault(); _openProjectConfirm(); }
+    // The global Escape handler leaves genuine text-entry alone, so this text
+    // field must close its own modal (with focus return) on Escape.
+    else if (e.key === 'Escape') { e.preventDefault(); closeOpenProjectModal(); }
   });
   document.getElementById('open-project-modal').addEventListener('click', e => {
     if (e.target === e.currentTarget) closeOpenProjectModal();

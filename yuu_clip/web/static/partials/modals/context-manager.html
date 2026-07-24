@@ -40,8 +40,8 @@
           <div id="ce-characters-note" style="font-size:12px;color:var(--muted);display:none">Save this world context first, then add characters to it.</div>
           <div id="ce-characters-list" style="display:flex;flex-direction:column;gap:6px"></div>
           <div id="ce-character-form" style="display:none;border:1px solid var(--border);border-radius:6px;padding:10px;margin-top:8px;display:flex;flex-direction:column;gap:8px">
-            <input type="text" id="ce-char-name" placeholder="Character name (e.g. Alara)">
-            <textarea class="ctx-textarea" id="ce-char-lore" rows="2" placeholder="What the scorer should know about this character - role, arc, personality."></textarea>
+            <input type="text" id="ce-char-name" aria-label="Character name" placeholder="Character name (e.g. Alara)">
+            <textarea class="ctx-textarea" id="ce-char-lore" rows="2" aria-label="Character lore" placeholder="What the scorer should know about this character - role, arc, personality."></textarea>
             <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)">
               <label for="ce-char-boost" style="white-space:nowrap">Score boost</label>
               <input type="range" id="ce-char-boost" min="0" max="1" step="0.05" value="0" style="flex:1">
