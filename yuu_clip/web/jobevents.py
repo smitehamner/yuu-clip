@@ -43,19 +43,30 @@ STAGE_IDS = tuple(stage.value for stage in Stage)
 _DONE_SENTINEL = "__DONE__"
 
 
-def _frame(payload: Any) -> str:
+def frame(payload: Any) -> str:
+    """Wrap one already-built event payload in the ``data: <json>\\n\\n`` SSE envelope.
+
+    Public because ``AnalyzeJob`` buffers raw event dicts (built by the ``*_payload``
+    functions) and frames them only at stream time - live and on reconnect replay.
+    Emitters that yield a frame immediately use the ``*_event`` convenience builders.
+    """
     return f"data: {json.dumps(payload)}\n\n"
 
 
-def log_event(text: str, level: str = "info") -> str:
+# ── payload builders (raw dicts) ─────────────────────────────────────────────
+# The dict half of the contract, for emitters that keep a buffer of events and frame
+# them later (AnalyzeJob). The validation lives here so both the dict path and the
+# framed *_event path below reject the same bad input.
+
+def log_payload(text: str, level: str = "info") -> dict:
     if level not in LOG_LEVELS:
         raise ValueError(f"invalid log level {level!r}; expected one of {LOG_LEVELS}")
-    return _frame({"v": PROTOCOL_VERSION, "type": EVENT_LOG, "text": text, "level": level})
+    return {"v": PROTOCOL_VERSION, "type": EVENT_LOG, "text": text, "level": level}
 
 
-def progress_event(
+def progress_payload(
     stage, done: Optional[int] = None, total: Optional[int] = None, label: Optional[str] = None
-) -> str:
+) -> dict:
     stage_id = stage.value if isinstance(stage, Stage) else str(stage)
     if stage_id not in STAGE_IDS:
         raise ValueError(f"unknown progress stage {stage_id!r}; expected one of {STAGE_IDS}")
@@ -66,20 +77,40 @@ def progress_event(
         payload["total"] = total
     if label is not None:
         payload["label"] = label
-    return _frame(payload)
+    return payload
 
 
-def result_event(data: Any) -> str:
-    return _frame({"v": PROTOCOL_VERSION, "type": EVENT_RESULT, "data": data})
+def result_payload(data: Any) -> dict:
+    return {"v": PROTOCOL_VERSION, "type": EVENT_RESULT, "data": data}
 
 
-def done_event(outcome: str, error: str = "") -> str:
+def done_payload(outcome: str, error: str = "") -> dict:
     if outcome not in OUTCOMES:
         raise ValueError(f"invalid outcome {outcome!r}; expected one of {OUTCOMES}")
     payload: dict = {"v": PROTOCOL_VERSION, "type": EVENT_DONE, "outcome": outcome}
     if error:
         payload["error"] = error
-    return _frame(payload)
+    return payload
+
+
+# ── framed builders (ready-to-yield strings) ─────────────────────────────────
+
+def log_event(text: str, level: str = "info") -> str:
+    return frame(log_payload(text, level))
+
+
+def progress_event(
+    stage, done: Optional[int] = None, total: Optional[int] = None, label: Optional[str] = None
+) -> str:
+    return frame(progress_payload(stage, done=done, total=total, label=label))
+
+
+def result_event(data: Any) -> str:
+    return frame(result_payload(data))
+
+
+def done_event(outcome: str, error: str = "") -> str:
+    return frame(done_payload(outcome, error))
 
 
 def _decode_string(payload: str) -> dict:

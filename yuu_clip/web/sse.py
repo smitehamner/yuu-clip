@@ -5,12 +5,14 @@ All long-running pipeline operations (ingest, score, export, demo, retranscribe)
 are launched as subprocesses. Their combined stdout+stderr is forwarded as SSE
 so the browser can display live progress without polling.
 
-Each line is JSON-encoded and sent as::
-
-    data: "the line text"\n\n
-
-A ``"__DONE__"`` sentinel is sent when the process exits. Lines are also
-forwarded to the application log so they appear in the exported debug log.
+``subprocess_sse`` is the typed-protocol emitter: it translates each child stdout
+line into a typed job event (an ``@@PROGRESS`` marker into a ``progress`` event,
+every other line into a ``log`` event) and ends with exactly one ``done`` event
+carrying the outcome (``ok`` / ``error`` / ``cancelled``). See
+``yuu_clip/web/jobevents.py`` for the wire vocabulary. The legacy ``__DONE__``
+sentinel helper below is retained only for the hand-rolled route generators not
+yet converted (migration stage 2). Lines are also forwarded to the application
+log so they appear in the exported debug log.
 """
 from __future__ import annotations
 
@@ -26,6 +28,15 @@ from typing import AsyncGenerator
 from fastapi.responses import StreamingResponse
 
 from yuu_clip.log import get_logger
+from yuu_clip.pipeline.progress import parse_progress
+from yuu_clip.web.jobevents import (
+    OUTCOME_CANCELLED,
+    OUTCOME_ERROR,
+    OUTCOME_OK,
+    done_event,
+    log_event,
+    progress_event,
+)
 
 _log = get_logger(__name__)
 _SSE_DONE_SENTINEL = "__DONE__"
@@ -34,18 +45,19 @@ _SSE_DONE_SENTINEL = "__DONE__"
 def sse_event(payload) -> str:
     """One SSE ``data:`` frame: JSON-encode *payload* and wrap it in the
     ``data: <json>\\n\\n`` envelope. The single definition of the SSE line
-    contract shared by every streaming route (and ``_done_event`` below)."""
+    contract shared by the hand-rolled route generators still on the legacy
+    wire (converted route by route in migration stage 2)."""
     return f"data: {json.dumps(payload)}\n\n"
 
 
 def _done_event(*, ok: bool = True, error: str = "") -> str:
-    """The terminal SSE completion payload.
+    """The legacy terminal SSE completion payload (two-form ``__DONE__`` sentinel).
 
-    Success stays the bare ``"__DONE__"`` string, so the many plain-sentinel
-    consumers keep working unchanged. A failure carries the object form
-    ``{"type": "__DONE__", "ok": false, "error": ...}``; the frontend routes that
-    to its error handler instead of the success handler, so a subprocess that
-    exits non-zero can no longer report the job as complete.
+    Retained only for the hand-rolled route generators not yet converted to the
+    typed protocol (``routes/videos.py`` waveform/preview). The two central
+    emitters - ``subprocess_sse`` and ``AnalyzeJob`` - now end with a typed
+    ``done_event(outcome)`` instead. Removed in migration stage 4 once every
+    hand-rolled route speaks the typed wire.
     """
     if ok:
         return sse_event(_SSE_DONE_SENTINEL)
@@ -231,27 +243,39 @@ async def subprocess_sse(
                 async for raw_line in proc.stdout:
                     text = raw_line.decode("utf-8", errors="replace").rstrip()
                     _log.debug("[subprocess] %s", text)
-                    yield sse_event(text)
+                    # Translate the child's prose+marker stdout into the typed wire:
+                    # an @@PROGRESS marker becomes a progress event (never ALSO a log
+                    # twin - the client fallback then simply never matches), every
+                    # other line a log event. See the design's double-emission note.
+                    marker = parse_progress(text)
+                    if marker is not None:
+                        yield progress_event(
+                            marker["stage"], done=marker.get("done"),
+                            total=marker.get("total"), label=marker.get("label"),
+                        )
+                    else:
+                        yield log_event(text)
                 await proc.wait()
-                failed = False
+                outcome = OUTCOME_OK
+                error = ""
                 if cancel_flag_attr and ctx is not None and getattr(ctx, cancel_flag_attr, False):
                     setattr(ctx, cancel_flag_attr, False)
                     _log.info("Subprocess (pid %s) cancelled by user", proc.pid)
-                    yield sse_event(cancel_message)
+                    if cancel_message:
+                        yield log_event(cancel_message)
+                    outcome = OUTCOME_CANCELLED
                 elif proc.returncode != 0:
                     _log.error(
                         "Subprocess exited with code %d: %s",
                         proc.returncode,
                         " ".join(str(c) for c in cmd),
                     )
-                    yield sse_event(f"[Error: subprocess exited with code {proc.returncode}]")
-                    failed = True
+                    yield log_event(f"[Error: subprocess exited with code {proc.returncode}]", level="error")
+                    outcome = OUTCOME_ERROR
+                    error = "This job did not finish - check the log for details."
                 else:
                     _log.info("Subprocess (pid %s) completed successfully", proc.pid)
-                yield _done_event(
-                    ok=not failed,
-                    error="This job did not finish - check the log for details.",
-                )
+                yield done_event(outcome, error=error)
             finally:
                 if proc.returncode is None:
                     await terminate_process_tree_async(proc)
@@ -272,8 +296,8 @@ async def subprocess_sse(
             # no __DONE__, so endJobUI never runs and the job pill sticks. Mirror
             # AnalyzeJob._pump - log it and emit an error line + the done sentinel.
             _log.exception("Subprocess stream failed: %s", " ".join(str(c) for c in cmd))
-            yield sse_event("[Error: could not start subprocess]")
-            yield _done_event(ok=False, error="This job could not start - check the log for details.")
+            yield log_event("[Error: could not start subprocess]", level="error")
+            yield done_event(OUTCOME_ERROR, error="This job could not start - check the log for details.")
         finally:
             if track_active_job and ctx is not None:
                 release_counted_job(ctx, proc)

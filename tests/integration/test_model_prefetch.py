@@ -65,7 +65,7 @@ class TestPrefetchOfflineFailure:
     def test_download_failure_streams_an_error_line_not_a_500(self, tmp_path: Path):
         """A prefetch subprocess whose fetcher fails (exits non-zero after printing
         a "Download failed: ..." line) must surface as a 200 streaming response
-        carrying that readable line plus the __DONE__ sentinel - never a raw 500.
+        carrying that readable line plus a typed done{error} event - never a raw 500.
         This is how the browser distinguishes "download failed, retry" from a
         server crash. Driven against a real failing subprocess through the actual
         subprocess_sse streaming path (the route builds an identical command), so
@@ -87,4 +87,4 @@ class TestPrefetchOfflineFailure:
         asyncio.run(drive())
         body = "".join(chunks)
         assert "Download failed" in body
-        assert "__DONE__" in body
+        assert '"type": "done"' in body and '"outcome": "error"' in body

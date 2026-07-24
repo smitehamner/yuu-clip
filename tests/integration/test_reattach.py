@@ -28,6 +28,16 @@ def _payloads(sse_chunks: list[str]) -> list:
     return out
 
 
+def _log_texts(payloads: list) -> list[str]:
+    """The text of every typed ``log`` event, for prose assertions."""
+    return [p["text"] for p in payloads if isinstance(p, dict) and p.get("type") == "log"]
+
+
+def _done_outcomes(payloads: list) -> list[str]:
+    """The outcome of every terminal ``done`` event (expect exactly one)."""
+    return [p["outcome"] for p in payloads if isinstance(p, dict) and p.get("type") == "done"]
+
+
 async def _consume(job: AnalyzeJob) -> list:
     return [chunk async for chunk in job._stream()]
 
@@ -48,45 +58,69 @@ class TestAnalyzeJobBroadcast:
             return _payloads(await _consume(job))  # a later client replays the buffer
 
         replay = asyncio.run(drive())
-        assert "alpha" in replay
-        assert "beta" in replay
-        assert "__DONE__" in replay
+        assert "alpha" in _log_texts(replay)
+        assert "beta" in _log_texts(replay)
+        assert _done_outcomes(replay) == ["ok"]
 
     def test_replay_trims_a_long_buffer_to_the_latest_marker_per_stage_plus_a_tail(self):
         # A reconnect shouldn't replay the whole buffer - just enough to restore the
-        # step pills (the latest @@PROGRESS marker per stage, however far back it
-        # was emitted) plus a small tail of ordinary lines for scrollback.
-        from yuu_clip.pipeline.progress import Stage, format_progress
-        from yuu_clip.web.analyze_job import _REPLAY_TAIL_LINES, _replay_lines
+        # step pills (the latest progress event per stage, however far back it was
+        # emitted) plus a small tail of ordinary events for scrollback.
+        from yuu_clip.pipeline.progress import Stage
+        from yuu_clip.web.analyze_job import _REPLAY_TAIL_LINES, _replay_events
+        from yuu_clip.web.jobevents import log_payload, progress_payload
 
-        buffer = ["noise 0", format_progress(Stage.EXTRACT, done=1, total=1)]
-        buffer += [f"noise {i}" for i in range(1, 20)]
-        buffer.append(format_progress(Stage.TRANSCRIBE, done=3, total=10))
-        buffer += [f"tail {i}" for i in range(_REPLAY_TAIL_LINES - 1)]
+        extract_evt = progress_payload(Stage.EXTRACT, done=1, total=1)
+        transcribe_evt = progress_payload(Stage.TRANSCRIBE, done=3, total=10)
+        buffer = [log_payload("noise 0"), extract_evt]
+        buffer += [log_payload(f"noise {i}") for i in range(1, 20)]
+        buffer.append(transcribe_evt)
+        buffer += [log_payload(f"tail {i}") for i in range(_REPLAY_TAIL_LINES - 1)]
 
-        replay = _replay_lines(buffer)
+        replay = _replay_events(buffer)
 
         assert len(replay) < len(buffer)
-        # The stale extract marker survives outside the tail window (pill state),
-        # but the plain noise lines around it are dropped.
-        assert format_progress(Stage.EXTRACT, done=1, total=1) in replay
-        assert "noise 5" not in replay
+        # The stale extract progress event survives outside the tail window (pill
+        # state), but the plain noise events around it are dropped.
+        assert extract_evt in replay
+        assert log_payload("noise 5") not in replay
         # Everything inside the tail window - including the more recent transcribe
-        # marker - is kept verbatim.
+        # progress event - is kept verbatim.
         assert replay[-_REPLAY_TAIL_LINES:] == buffer[-_REPLAY_TAIL_LINES:]
 
     def test_emit_caps_buffer_to_most_recent_lines(self, tmp_path):
         # An unbounded buffer makes the reconnect replay so large the browser's
         # fetch reader can throw mid-stream; _emit keeps only the most recent lines.
         from yuu_clip.web.analyze_job import _MAX_BUFFER_LINES
+        from yuu_clip.web.jobevents import log_payload
 
         job = AnalyzeJob(["noop"], tmp_path, filename="rec.mkv")
         total = _MAX_BUFFER_LINES + 250
         for i in range(total):
-            job._emit(f"line {i}")
+            job._emit(log_payload(f"line {i}"))
         assert len(job.buffer) == _MAX_BUFFER_LINES
-        assert job.buffer[0] == f"line {total - _MAX_BUFFER_LINES}"
-        assert job.buffer[-1] == f"line {total - 1}"
+        assert job.buffer[0] == log_payload(f"line {total - _MAX_BUFFER_LINES}")
+        assert job.buffer[-1] == log_payload(f"line {total - 1}")
+
+    def test_pump_translates_a_progress_marker_into_a_progress_event(self, tmp_path):
+        # Symmetric with subprocess_sse: an @@PROGRESS marker on the child's stdout
+        # becomes a typed progress event in the buffer (never also a log twin), so a
+        # reconnect restores the pills by field access.
+        from yuu_clip.pipeline.progress import Stage, format_progress
+
+        marker = format_progress(Stage.SCORE, done=2, total=5)
+
+        async def drive():
+            job = AnalyzeJob(
+                [sys.executable, "-u", "-c", f"print('scoring'); print({marker!r})"], tmp_path,
+            )
+            await job.start()
+            return _payloads(await _consume(job))
+
+        payloads = asyncio.run(drive())
+        assert {"v": 1, "type": "progress", "stage": "score", "done": 2, "total": 5} in payloads
+        assert "scoring" in _log_texts(payloads)
+        assert not any(t.startswith("@@PROGRESS") for t in _log_texts(payloads))
 
     def test_two_concurrent_subscribers_both_receive_every_line(self, tmp_path):
         async def drive():
@@ -99,9 +133,12 @@ class TestAnalyzeJobBroadcast:
 
         first, second = asyncio.run(drive())
         for stream in (first, second):
-            assert {"one", "two", "three", "__DONE__"} <= set(stream)
+            assert {"one", "two", "three"} <= set(_log_texts(stream))
+            assert _done_outcomes(stream) == ["ok"]
 
-    def test_cancel_emits_cancelled_message(self, tmp_path):
+    def test_cancel_ends_with_a_cancelled_done_event(self, tmp_path):
+        # A user cancel is now first-class: the terminal event is done{cancelled},
+        # no longer a prose "[Analysis cancelled]" line + a success sentinel.
         async def drive():
             job = AnalyzeJob(
                 [sys.executable, "-u", "-c", "import time; print('started'); time.sleep(30)"], tmp_path,
@@ -115,7 +152,7 @@ class TestAnalyzeJobBroadcast:
 
             consumer = asyncio.create_task(consume())
             for _ in range(200):
-                if any("started" in line for line in job.buffer):
+                if any(evt.get("type") == "log" and "started" in evt.get("text", "") for evt in job.buffer):
                     break
                 await asyncio.sleep(0.05)
             await job.cancel()
@@ -123,9 +160,9 @@ class TestAnalyzeJobBroadcast:
             return _payloads(collected)
 
         payloads = asyncio.run(drive())
-        assert "[Analysis cancelled]" in payloads
-        assert "__DONE__" in payloads
-        assert not any(isinstance(p, str) and p.startswith("[Error:") for p in payloads)
+        assert _done_outcomes(payloads) == ["cancelled"]
+        # A cancel is not a failure: no error done, no error log line.
+        assert not any(isinstance(p, dict) and p.get("level") == "error" for p in payloads)
 
     def test_mid_run_subscriber_replays_buffer_then_gets_live_lines_exactly_once(self, tmp_path):
         # The replay/subscribe atomicity: a client attaching WHILE the job is live
@@ -133,14 +170,15 @@ class TestAnalyzeJobBroadcast:
         # with every line delivered exactly once (never both replayed and queued).
         # Driven without a real subprocess so the interleave is deterministic.
         from yuu_clip.web.analyze_job import _QUEUE_DONE
+        from yuu_clip.web.jobevents import log_payload
 
         async def drive():
             job = AnalyzeJob(["noop"], tmp_path)
-            job._emit("before-1")
-            job._emit("before-2")
+            job._emit(log_payload("before-1"))
+            job._emit(log_payload("before-2"))
             stream = job._stream()
             replayed = [await stream.__anext__(), await stream.__anext__()]
-            job._emit("live-1")                # emitted only after the subscriber attached
+            job._emit(log_payload("live-1"))   # emitted only after the subscriber attached
             live = await stream.__anext__()
             job.done = True
             for queue in job.subscribers:
@@ -150,24 +188,27 @@ class TestAnalyzeJobBroadcast:
             return _payloads(replayed), _payloads([live]), _payloads([done])
 
         replay, live, done = asyncio.run(drive())
-        assert replay == ["before-1", "before-2"]
-        assert live == ["live-1"]
-        assert done == ["__DONE__"]
+        assert _log_texts(replay) == ["before-1", "before-2"]
+        assert _log_texts(live) == ["live-1"]
+        assert _done_outcomes(done) == ["ok"]
 
     def test_subscriber_attaching_after_done_is_never_registered(self, tmp_path):
         # The already_done fast path: a client attaching after the job finished gets
         # the buffer + __DONE__ and must NOT be added to subscribers (the pump has
         # already fanned out _QUEUE_DONE, so it would never be signalled and would
         # leak).
+        from yuu_clip.web.jobevents import log_payload
+
         async def drive():
             job = AnalyzeJob(["noop"], tmp_path)
-            job._emit("only-line")
+            job._emit(log_payload("only-line"))
             job.done = True
             chunks = [chunk async for chunk in job._stream()]
             return _payloads(chunks), len(job.subscribers)
 
         payloads, remaining = asyncio.run(drive())
-        assert payloads == ["only-line", "__DONE__"]
+        assert _log_texts(payloads) == ["only-line"]
+        assert _done_outcomes(payloads) == ["ok"]
         assert remaining == 0
 
 

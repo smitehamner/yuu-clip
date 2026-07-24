@@ -50,9 +50,10 @@ class TestDemoEventsSSE:
             "print('reel progress 1'); print('reel progress 2')",
         ]
         messages = _drain_sse(client)
-        assert "reel progress 1" in messages
-        assert "reel progress 2" in messages
-        assert messages[-1] == "__DONE__"
+        texts = [m["text"] for m in messages if isinstance(m, dict) and m.get("type") == "log"]
+        assert "reel progress 1" in texts
+        assert "reel progress 2" in texts
+        assert messages[-1] == {"v": 1, "type": "done", "outcome": "ok"}
 
     def test_events_clears_queued_cmd_and_proc_on_success(self, client):
         ctx = client.app.state.ctx
@@ -67,11 +68,14 @@ class TestDemoEventsSSE:
         ctx = client.app.state.ctx
         ctx.demo_cmd = [sys.executable, "-c", "import sys; sys.exit(3)"]
         messages = _drain_sse(client)
-        assert any(isinstance(m, str) and "exited with code 3" in m for m in messages)
-        # A non-zero exit ends with the failure sentinel, not a bare "__DONE__", so the
-        # frontend routes it to its error path instead of reporting the reel complete.
+        assert any(
+            isinstance(m, dict) and m.get("type") == "log" and "exited with code 3" in m.get("text", "")
+            for m in messages
+        )
+        # A non-zero exit ends with a typed done{error}, not done{ok}, so the frontend
+        # routes it to its error path instead of reporting the reel complete.
         done = messages[-1]
-        assert isinstance(done, dict) and done["type"] == "__DONE__" and done["ok"] is False
+        assert done["type"] == "done" and done["outcome"] == "error"
         assert ctx.demo_cmd is None
 
     def test_events_rejected_while_analyze_is_queued_but_not_yet_launched(self, client):

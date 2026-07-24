@@ -33,6 +33,7 @@ from yuu_clip.config import resolve_ai_permissions, validate_whisper_model
 from yuu_clip.export.paths import validate_caption_style_query, validate_export_preset_query
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
+from yuu_clip.web.jobevents import log_payload
 from yuu_clip.web.routes.common import (
     analyze_in_flight,
     job_in_flight,
@@ -768,7 +769,7 @@ async def _thermal_poll_loop(ctx: ProjectContext, job) -> None:
                     "GPU thermal warning: %.0f°C sustained (warn threshold %.0f°C)",
                     result.temp_c, cfg.thermal_warn_c,
                 )
-                job._emit(f"[Warning: GPU at {result.temp_c:.0f}°C]")
+                job._emit(log_payload(f"[Warning: GPU at {result.temp_c:.0f}°C]", level="warn"))
             if result.pause_triggered:
                 _log.warning(
                     "Auto-paused analysis: GPU reached %.0f°C sustained "
@@ -777,10 +778,11 @@ async def _thermal_poll_loop(ctx: ProjectContext, job) -> None:
                 )
                 create_pause_flag(ctx.project_dir)
                 job.pause_requested = True
-                job._emit(
+                job._emit(log_payload(
                     f"[Auto-paused: GPU reached {result.temp_c:.0f}°C "
-                    " -  will hold at the next pause point]"
-                )
+                    " -  will hold at the next pause point]",
+                    level="warn",
+                ))
             await asyncio.sleep(_THERMAL_POLL_INTERVAL_S)
     except asyncio.CancelledError:
         pass

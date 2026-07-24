@@ -452,20 +452,27 @@ function endJobUI() {
 // The done-sentinel helpers (isDoneSentinel/doneError) and the typed-event decoder
 // (decodeEvent) now live in core/jobevents.js - imported above and re-exported below.
 
-// Route one decoded SSE event to the raw-stream callbacks, reproducing the
-// pre-protocol behavior byte-for-byte: a legacy prose line -> onLine(payload); a
-// legacy __DONE__ sentinel -> onError/onDone via the same doneError check as before.
-// The typed kinds cannot occur until the emitters are converted in a later migration
-// stage; they are wired here for forward-compatibility (an unknown v1 type is ignored,
-// a newer-protocol frame asks the user to refresh). Returns true when the event is
-// terminal (done / fatal) so the reader stops exactly where the old code returned.
-function _routeSSEEvent(evt, onLine, onDone, onError) {
+// Route one decoded SSE event to the raw-stream callbacks. Legacy frames reproduce
+// the pre-protocol behavior byte-for-byte (a prose line -> onLine(payload); a legacy
+// __DONE__ sentinel -> onError/onDone via the same doneError check), so routes not yet
+// converted keep working. The typed kinds are live from migration stage 1: a `progress`
+// event -> onProgress(evt), a `result` event -> onResult(evt.data), a typed `done` ->
+// onError/onDone by outcome. An unknown v1 type is ignored; a newer-protocol frame asks
+// the user to refresh. Returns true when the event is terminal (done / fatal) so the
+// reader stops exactly where the old code returned.
+function _routeSSEEvent(evt, onLine, onDone, onError, onProgress, onResult) {
   switch (evt.kind) {
     case 'legacy-line':
       onLine(evt.payload);
       return false;
     case 'log':
       onLine(evt.text);
+      return false;
+    case 'progress':
+      if (onProgress) onProgress(evt);
+      return false;
+    case 'result':
+      if (onResult) onResult(evt.data);
       return false;
     case 'legacy-done': {
       const failure = doneError(evt.payload);
@@ -482,7 +489,7 @@ function _routeSSEEvent(evt, onLine, onDone, onError) {
     case 'unknown':
       console.debug('Ignoring unknown SSE event type from a newer protocol', evt);
       return false;
-    default: // 'progress' | 'result' - no emitter produces these yet in this stage
+    default:
       return false;
   }
 }
@@ -491,15 +498,18 @@ function _routeSSEEvent(evt, onLine, onDone, onError) {
 // Low-level SSE reader using fetch + ReadableStream so non-200 HTTP responses
 // can be read for their error detail (EventSource.onerror cannot do this).
 //
-// onLine(msg)  - called for each parsed SSE payload before __DONE__
-// onDone(msg)  - called with the full __DONE__ payload (string or object)
-// onError(str) - called with a plain-language message on HTTP error or network loss
+// onLine(msg)  - called for each log / legacy prose payload before the terminal event
+// onDone(msg)  - called on success: a typed outcome string ('ok'|'cancelled'), or the
+//                full legacy __DONE__ payload (string or object) for unconverted routes
+// onError(str) - called with a plain-language message on failure / HTTP error / net loss
 //
 // opts (optional): extra fetch init, e.g. {method: 'POST'} for the model-download
 // endpoints, which are POST-only (a GET 405s). Defaults to a GET, as the analyze
 // and score SSE streams use.
+// onProgress(evt) (optional): a typed `progress` event {stage, done, total, label}.
+// onResult(data)  (optional): the `data` of a typed `result` event.
 // Returns a handle with .close() that aborts the in-flight request.
-function _openSSE(url, onLine, onDone, onError, opts = {}) {
+function _openSSE(url, onLine, onDone, onError, opts = {}, onProgress = null, onResult = null) {
   const ctrl = new AbortController();
   const handle = {close: () => ctrl.abort()};
   fetch(url, {signal: ctrl.signal, ...opts}).then(async res => {
@@ -523,7 +533,7 @@ function _openSSE(url, onLine, onDone, onError, opts = {}) {
         buf = lines.pop();
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue;
-          if (_routeSSEEvent(decodeEvent(JSON.parse(line.slice(6))), onLine, onDone, onError)) return;
+          if (_routeSSEEvent(decodeEvent(JSON.parse(line.slice(6))), onLine, onDone, onError, onProgress, onResult)) return;
         }
       }
     } catch (err) {
@@ -584,8 +594,11 @@ function streamSSE(url, onDone, stepDefs, jobLabel, cancellable = false, onLine 
   const handle = _openSSE(
     url,
     text => {
-      // A @@PROGRESS marker drives the pills deterministically and is NOT shown as
-      // a log line; everything else falls through to the log + prose fallback.
+      // Migration safety net (kept one release): a converted emitter now sends
+      // progress as a typed event (handled by onProgress below), so the server no
+      // longer puts an @@PROGRESS marker on the log stream. This parseProgress branch
+      // only still fires for any not-yet-converted emitter that streams raw markers;
+      // everything else falls through to the log + prose fallback.
       const marker = stepDefs ? parseProgress(text) : null;
       if (marker) { _driveStepFromMarker(marker); return; }
       appendLog(text); if (onLine) onLine(text); if (stepDefs) updateJobUI(text);
@@ -608,6 +621,8 @@ function streamSSE(url, onDone, stepDefs, jobLabel, cancellable = false, onLine 
       window.loadVideos();
     },
     opts,
+    // Typed progress event -> the same deterministic pill advance the marker drove.
+    progressEvt => { if (stepDefs) _driveStepFromMarker(progressEvt); },
   );
   _setActiveStream(handle, stepDefs ? endJobUI : null);
 }

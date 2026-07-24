@@ -1504,6 +1504,15 @@ class TestThermalStatusFields:
         assert d["gpu_state"] == "unavailable"
 
 
+def _sse_log_texts(data_values) -> list[str]:
+    """The text of every typed ``log`` event in a decoded analyze SSE stream.
+
+    Thermal warn/auto-pause notices ride the stream as ``log`` events (level
+    ``warn``) now, not bare prose strings - so a substring check reads from here.
+    """
+    return [v["text"] for v in data_values if isinstance(v, dict) and v.get("type") == "log"]
+
+
 class TestThermalPollLoopIntegration:
     """End-to-end: a hot injected sampler drives the real /api/analyze/events
     lifecycle through warn -> auto-pause, using a tiny poll interval so the
@@ -1533,8 +1542,9 @@ class TestThermalPollLoopIntegration:
 
         app, lines = self._run(project_dir, monkeypatch, sampler=lambda: 95.0)
         data_values = [_json.loads(ln.removeprefix("data: ")) for ln in lines if ln.startswith("data: ")]
-        assert any("[Warning: GPU at 95" in v for v in data_values if isinstance(v, str))
-        assert any("[Auto-paused: GPU reached 95" in v for v in data_values if isinstance(v, str))
+        texts = _sse_log_texts(data_values)
+        assert any("[Warning: GPU at 95" in t for t in texts)
+        assert any("[Auto-paused: GPU reached 95" in t for t in texts)
 
         from yuu_clip.analyze.pause import pause_flag_exists
         assert pause_flag_exists(app.state.ctx.project_dir) is True
@@ -1546,8 +1556,9 @@ class TestThermalPollLoopIntegration:
 
         app, lines = self._run(project_dir, monkeypatch, sampler=lambda: 50.0)
         data_values = [_json.loads(ln.removeprefix("data: ")) for ln in lines if ln.startswith("data: ")]
-        assert not any("Warning: GPU" in v for v in data_values if isinstance(v, str))
-        assert not any("Auto-paused" in v for v in data_values if isinstance(v, str))
+        texts = _sse_log_texts(data_values)
+        assert not any("Warning: GPU" in t for t in texts)
+        assert not any("Auto-paused" in t for t in texts)
 
         from yuu_clip.analyze.pause import pause_flag_exists
         assert pause_flag_exists(app.state.ctx.project_dir) is False
@@ -1573,8 +1584,9 @@ class TestThermalPollLoopIntegration:
             with tc.stream("GET", "/api/analyze/events") as resp:
                 lines = list(resp.iter_lines())
         data_values = [_json.loads(ln.removeprefix("data: ")) for ln in lines if ln.startswith("data: ")]
-        assert any("[Warning: GPU at 95" in v for v in data_values if isinstance(v, str))
-        assert not any("Auto-paused" in v for v in data_values if isinstance(v, str))
+        texts = _sse_log_texts(data_values)
+        assert any("[Warning: GPU at 95" in t for t in texts)
+        assert not any("Auto-paused" in t for t in texts)
 
         from yuu_clip.analyze.pause import pause_flag_exists
         assert pause_flag_exists(app.state.ctx.project_dir) is False
@@ -1765,8 +1777,8 @@ class TestSseCommandCleared:
             with tc.stream("GET", "/api/analyze/events") as resp:
                 lines = list(resp.iter_lines())
         data_values = [_json.loads(ln.removeprefix("data: ")) for ln in lines if ln.startswith("data: ")]
-        assert "marker-line" in data_values
-        assert "__DONE__" in data_values
+        assert "marker-line" in _sse_log_texts(data_values)
+        assert {"v": 1, "type": "done", "outcome": "ok"} in data_values
 
     def test_analyze_events_without_any_job_returns_400(self, project_dir):
         """With neither a queued command nor a prior job, /api/analyze/events is a 400."""
@@ -1827,7 +1839,10 @@ class TestSseOutputPaths:
         with tc.stream("GET", url) as resp:
             return list(resp.iter_lines())
 
-    def test_successful_subprocess_emits_done_sentinel(self, project_dir):
+    def _done_events(self, data_values):
+        return [v for v in data_values if isinstance(v, dict) and v.get("type") == "done"]
+
+    def test_successful_subprocess_emits_done_ok(self, project_dir):
         import json as _json
         import sys
 
@@ -1840,14 +1855,14 @@ class TestSseOutputPaths:
             app.state.ctx.analyze_cmd = [sys.executable, "-c", "print('hi')"]
             lines = self._stream_lines(tc, "/api/analyze/events")
         data_values = [_json.loads(ln.removeprefix("data: ")) for ln in lines if ln.startswith("data: ")]
-        assert "__DONE__" in data_values
+        assert self._done_events(data_values) == [{"v": 1, "type": "done", "outcome": "ok"}]
 
-    def test_failed_subprocess_emits_error_and_failure_done(self, project_dir):
-        """A non-zero analyze exit must end with the FAILURE done sentinel.
+    def test_failed_subprocess_emits_error_log_and_done_error(self, project_dir):
+        """A non-zero analyze exit must end with a typed done{error}.
 
-        The bare "__DONE__" string is the frontend's success signal (jobs.js routes it
-        to onDone), so emitting it here made a crashed analysis render as
-        "Analysis complete - 0 clips found" with the success chime.
+        A success terminal (jobs.js routes it to onDone) made a crashed analysis
+        render as "Analysis complete - 0 clips found" with the success chime; the
+        typed error outcome is what routes it to onError instead.
         """
         import json as _json
         import sys
@@ -1861,19 +1876,21 @@ class TestSseOutputPaths:
             app.state.ctx.analyze_cmd = [sys.executable, "-c", "raise SystemExit(1)"]
             lines = self._stream_lines(tc, "/api/analyze/events")
         data_values = [_json.loads(ln.removeprefix("data: ")) for ln in lines if ln.startswith("data: ")]
-        assert any(isinstance(v, str) and "[Error:" in v for v in data_values)
-        assert "__DONE__" not in data_values
-        done = [v for v in data_values if isinstance(v, dict) and v.get("type") == "__DONE__"]
+        assert any(
+            isinstance(v, dict) and v.get("type") == "log" and v.get("level") == "error"
+            and "[Error:" in v.get("text", "")
+            for v in data_values
+        )
+        done = self._done_events(data_values)
         assert len(done) == 1
-        assert done[0]["ok"] is False
+        assert done[0]["outcome"] == "error"
         assert done[0]["error"]
 
-    def test_failed_job_replays_failure_done_to_a_reattaching_client(self, project_dir):
+    def test_failed_job_replays_done_error_to_a_reattaching_client(self, project_dir):
         """The reattach path (already-finished job) must report failure too.
 
         A page refreshed after the analysis died replays the buffer and then the
-        sentinel; the bare string there was the same false-success bug on the
-        reconnect branch.
+        terminal event; the reconnect branch must carry the same error outcome.
         """
         import json as _json
         import sys
@@ -1889,18 +1906,14 @@ class TestSseOutputPaths:
             # Second connect: no queued command, so this replays the finished job.
             lines = self._stream_lines(tc, "/api/analyze/events")
         data_values = [_json.loads(ln.removeprefix("data: ")) for ln in lines if ln.startswith("data: ")]
-        assert "__DONE__" not in data_values
-        done = [v for v in data_values if isinstance(v, dict) and v.get("type") == "__DONE__"]
+        done = self._done_events(data_values)
         assert len(done) == 1
-        assert done[0]["ok"] is False
+        assert done[0]["outcome"] == "error"
 
-    def test_cancelled_job_emits_the_plain_done_sentinel(self, project_dir):
-        """A user cancel is not a failure - it keeps the plain sentinel.
-
-        Matches subprocess_sse's cancel branch (which leaves failed=False), so a
-        reattached client sees a clean end rather than an error toast for something
-        the user asked for.
-        """
+    def test_cancelled_job_emits_done_cancelled(self, project_dir):
+        """A user cancel is first-class: outcome 'cancelled', not conflated with
+        success or failure, so a reattached client sees a clean end rather than an
+        error toast for something the user asked for."""
         import asyncio
         import json as _json
 
@@ -1908,6 +1921,7 @@ class TestSseOutputPaths:
 
         from yuu_clip.web.analyze_job import AnalyzeJob
         from yuu_clip.web.app import create_app
+        from yuu_clip.web.jobevents import log_payload
 
         app = create_app(project_dir)
         with TestClient(app):
@@ -1915,7 +1929,7 @@ class TestSseOutputPaths:
             job.cancelled = True
             job.returncode = 1
             job.done = True
-            job.buffer = ["[Analysis cancelled]"]
+            job.buffer = [log_payload("stopping")]
 
             async def _collect():
                 return [chunk async for chunk in job._stream()]
@@ -1925,7 +1939,7 @@ class TestSseOutputPaths:
             _json.loads(c.removeprefix("data: ").strip())
             for c in chunks if c.startswith("data: ")
         ]
-        assert "__DONE__" in data_values
+        assert self._done_events(data_values) == [{"v": 1, "type": "done", "outcome": "cancelled"}]
 
 # ---------------------------------------------------------------------------
 # Cancel endpoint - state side-effects
