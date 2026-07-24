@@ -42,7 +42,7 @@ async function _loadModelCatalog() {
     _modelCatalog = [];
     const failedEl = document.getElementById('s-llamacpp-recommended');
     if (failedEl) failedEl.innerHTML =
-      '<div class="settings-note">Could not load the recommended model list - check your internet connection and reopen Settings. You can still set a model file by hand under Advanced AI options below.</div>';
+      '<div class="settings-note">Could not load the recommended model list. Reopen Settings to try again, or set a model file by hand under Advanced AI options below.</div>';
     return;
   }
   _renderRecommendedModels('s-llamacpp-recommended', 'llamacpp');
@@ -162,7 +162,9 @@ function _llamacppActions(m) {
     parts.push(`<span class="rec-model-note warn">File missing - re-download to restore it.</span>`);
     parts.push(`<button type="button" class="btn-secondary" data-act="download-gguf">Re-download</button>`);
   } else if (m.active) {
-    parts.push(`<span class="rec-model-note">In use for local scoring.</span>`);
+    const inUseFor = (Array.isArray(m.kinds) && m.kinds.includes('vision'))
+      ? 'image analysis' : 'LLM scoring';
+    parts.push(`<span class="rec-model-note">In use for ${inUseFor}.</span>`);
   } else if (m.installed) {
     parts.push(`<button type="button" class="btn-secondary" data-act="use-gguf">Use this model</button>`);
   } else {
@@ -391,7 +393,13 @@ async function _finishGgufDownload(modelId) {
   _renderCapabilityTiers();
   await refreshModelCatalog();
   if (window.refreshServerState) window.refreshServerState();
-  showToast('Local model ready - now active for LLM scoring.', 'success');
+  const isVision = model && Array.isArray(model.kinds) && model.kinds.includes('vision');
+  showToast(
+    isVision
+      ? 'Local model ready - now active for image analysis.'
+      : 'Local model ready - now active for LLM scoring.',
+    'success',
+  );
 }
 
 // Idempotent: the 1s reconnect poll can overlap itself across its awaits, so a

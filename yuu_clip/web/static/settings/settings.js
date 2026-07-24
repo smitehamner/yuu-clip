@@ -34,8 +34,10 @@ const _settingsFieldIds = [
   's-speech-rate-weight','s-churn-weight','s-prosody-weight',
   's-funny-weight','s-dramatic-weight','s-action-weight','s-visual-weight',
   's-scene-mode','s-energy-mode','s-silence-ms','s-min-clip-ms','s-scene-generation',
+  's-visual-mode',
   's-thermal-autopause','s-thermal-warn-c','s-thermal-pause-c',
-  's-audio-event-enabled',
+  's-audio-event-enabled','s-audio-event-weight',
+  's-speaker-min-cluster-seconds',
   's-update-check-enabled',
   's-timeline-interval','s-timeline-unit','s-autoplay','s-play-next','s-loop-clip','s-playback-rate',
   's-export-name-template',
@@ -305,11 +307,18 @@ function _applyUpdatesFields(cfg) {
   _setFieldChk('s-update-check-enabled', cfg.update_check_enabled !== false);
 }
 
-// Fetches a live status (not cached) each time it runs - a manual click, or
-// Settings opening - and keeps the header banner in sync with the result.
-async function _refreshUpdateStatus() {
+// Fetches a live status (not cached) from GitHub. The automatic call on Settings
+// open is skipped when the update-check toggle is off (a local-only tool must not
+// phone home behind a disabled setting); the manual "Check now" button passes
+// manual=true so it always runs.
+async function _refreshUpdateStatus(manual = false) {
   const statusEl = document.getElementById('s-update-check-status');
   if (!statusEl) return;
+  const enabled = document.getElementById('s-update-check-enabled')?.checked;
+  if (!manual && !enabled) {
+    statusEl.textContent = 'Automatic update checks are off. Use "Check now" to check once.';
+    return;
+  }
   statusEl.textContent = 'Checking…';
   const result = await checkForUpdatesNow();
   statusEl.textContent = updateStatusText(result);
@@ -409,14 +418,21 @@ function _resetUiPrefsToDefaults() {
 // until the user clicks Save. Defaults are prefetched when Settings opens.
 function revertSection(sectionId) {
   const applier = _SECTION_APPLIERS[sectionId];
-  if (!applier || !_defaultsCfg) return;
+  if (!applier) return;
+  if (!_defaultsCfg) {
+    showToast('Defaults are not available - reopen Settings and try again.', 'error');
+    return;
+  }
   applier(_defaultsCfg);
   if (sectionId === 'settings-sec-ui') _resetUiPrefsToDefaults();
   _checkSettingsDirty();
 }
 
 function revertAllSettings() {
-  if (!_defaultsCfg) return;
+  if (!_defaultsCfg) {
+    showToast('Defaults are not available - reopen Settings and try again.', 'error');
+    return;
+  }
   showConfirm(
     'Reset all settings to defaults?',
     'Every setting will be replaced with its default value. Nothing is saved until you click Save, so you can cancel by closing Settings without saving.',
@@ -512,7 +528,9 @@ async function _updateDiarizationStatus() {
   try {
     installed = !!(await fetch('/api/install/speechbrain').then(r => r.json())).installed;
   } catch { /* treat unknown as not installed */ }
-  el.innerHTML = `<span>${installed ? '✓' : '○'} SpeechBrain installed - no token needed</span>`;
+  el.innerHTML = installed
+    ? '<span>✓ Speaker labels ready</span>'
+    : '<span>○ Speaker labels unavailable - try reinstalling YuuClip</span>';
   el.style.color = installed ? 'var(--green)' : 'var(--muted)';
 }
 
@@ -559,7 +577,14 @@ async function initContentPresetSettings() {
     sel.innerHTML = _contentPresets.map(p =>
       `<option value="${escHtml(p.id)}">${escHtml(p.name)}</option>`).join('');
     sel.value = _activeContentPresetId;
-  } catch { _contentPresets = []; }
+  } catch {
+    _contentPresets = [];
+    const descEl = document.getElementById('s-content-preset-desc');
+    if (descEl) descEl.textContent = 'Could not load content types - reopen Settings to try again.';
+    const applyBtn = document.getElementById('btn-apply-content-preset');
+    if (applyBtn) applyBtn.disabled = true;
+    return;
+  }
   _renderContentPresetInfo();
 }
 
@@ -753,7 +778,7 @@ async function saveSettings() {
     });
     if (!res.ok) {
       const e = await res.json().catch(() => ({}));
-      showToast(`Settings error: ${e.detail || 'save failed'}`, 'error');
+      showToast(formatApiError(e) || 'Settings could not be saved - try again', 'error');
       if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
       return;
     }
@@ -868,7 +893,7 @@ function _wireExportSection() {
 }
 
 function _wireUpdatesSection() {
-  document.getElementById('btn-check-for-updates')?.addEventListener('click', () => _refreshUpdateStatus());
+  document.getElementById('btn-check-for-updates')?.addEventListener('click', () => _refreshUpdateStatus(true));
 }
 
 function _wireStaticSettingsControls() {

@@ -238,9 +238,9 @@ async function _onSoundUpload(input) {
     const pending = _uiSoundState() || _loadState();
     _sounds = await fetch('/api/sounds').then(r => r.json());
     _renderSoundRows(pending);
-    if (status) { status.textContent = `✓ Added "${file.name}" - pick it in a dropdown above`; status.style.color = 'var(--green, #22c55e)'; }
+    if (status) { status.textContent = `✓ Added "${file.name}" - pick it in a dropdown above`; status.style.color = 'var(--green)'; }
   } catch (e) {
-    if (status) { status.textContent = `✗ ${e.message}`; status.style.color = 'var(--red, #ef4444)'; }
+    if (status) { status.textContent = `✗ ${e.message}`; status.style.color = 'var(--red)'; }
   } finally {
     input.value = '';
   }

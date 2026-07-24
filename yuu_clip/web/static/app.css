@@ -94,6 +94,12 @@ header h1 { font-size: 18px; font-weight: 700; letter-spacing: .5px; color: var(
 .btn.danger  { border-color: var(--red); color: var(--red); }
 .btn.danger:hover:not(:disabled)  { background: color-mix(in srgb, var(--red) 12%, transparent); color: var(--red); }
 .btn.active  { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+/* Secondary: a self-contained, de-emphasised sibling of .btn used standalone
+   (class="btn-secondary", without .btn) for section resets, "Add ..." rows,
+   Browse, download/use-model, etc. Transparent surface keeps it below .btn. */
+.btn-secondary { padding: 6px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: transparent; color: var(--text); cursor: pointer; font-size: 13px; transition: background .15s, opacity .15s; white-space: nowrap; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+.btn-secondary:hover:not(:disabled) { background: var(--border); }
+.btn-secondary:disabled { opacity: .45; cursor: not-allowed; }
 
 /* ── toast notifications ── */
 .toast-container { position: fixed; top: 52px; right: 16px; z-index: 400; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
