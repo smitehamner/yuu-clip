@@ -14,7 +14,7 @@ same thing without the context. Most recent first.
 ## Phase 7 UX/UI - full-surface review (2026-07-23, shipped 2026-07-24)
 
 The `UX-REVIEW-2026-07-23.md` fix plan shipped across six stages (commit range
-`d5a3618..HEAD`): all 11 HIGH, ~24 MEDIUM, and ~29 LOW findings from a full
+`d5a3618..fd43f3e`): all 11 HIGH, ~24 MEDIUM, and ~29 LOW findings from a full
 shqr-ux-ui-review surface walk were fixed or deliberately skipped. Owner decisions:
 H9 kept the wizard Launch block and added a Cancel to the CUDA install; M21 unified
 both export surfaces on soft (embedded) captions as the default; M22 uses undo-toasts
