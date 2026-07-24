@@ -795,36 +795,6 @@ class TestRunExportSubprocessCleanup:
         term.assert_called_once_with(proc)
 
 
-class TestSafeFilename:
-    """_safe_filename strips directory traversal components."""
-
-    def _safe(self, name, default="highlights.mkv"):
-        from yuu_clip.web.routes.reel import _safe_filename
-        return _safe_filename(name, default)
-
-    def test_plain_name_unchanged(self):
-        assert self._safe("myreel.mkv") == "myreel.mkv"
-
-    def test_strips_parent_components(self):
-        assert self._safe("../../etc/evil") == "evil"
-
-    def test_strips_windows_path(self):
-        # Path("C:/Windows/System32/cmd.exe").name == "cmd.exe" on all platforms
-        result = self._safe("C:/Windows/System32/cmd.exe")
-        assert "/" not in result
-        assert "\\" not in result
-
-    def test_empty_name_returns_default(self):
-        assert self._safe("", "highlights.mkv") == "highlights.mkv"
-
-    def test_custom_default_used_when_empty(self):
-        assert self._safe("", "fallback.mkv") == "fallback.mkv"
-
-    def test_name_with_spaces_preserved(self):
-        result = self._safe("my reel.mkv")
-        assert result == "my reel.mkv"
-
-
 # ---------------------------------------------------------------------------
 # _resolve_clip_files
 # ---------------------------------------------------------------------------

@@ -32,11 +32,23 @@ class TestSafeFilename:
         # Path("some/dir/foo").name == "foo" - parent components are stripped
         assert self._fn("some/dir/foo") == "foo"
 
-    def test_windows_path_stripped(self):
+    def test_windows_path_with_backslashes_stripped(self):
         # pathlib.Path normalises \ to / on Windows; Path("C:\\evil.mkv").name == "evil.mkv"
         from pathlib import Path
         result = self._fn("C:\\evil.mkv")
         assert result == Path("C:\\evil.mkv").name
+
+    def test_windows_path_with_forward_slashes_stripped(self):
+        # Path("C:/Windows/System32/cmd.exe").name == "cmd.exe" on all platforms
+        result = self._fn("C:/Windows/System32/cmd.exe")
+        assert "/" not in result
+        assert "\\" not in result
+
+    def test_custom_default_used_when_empty(self):
+        assert self._fn("", default="fallback.mkv") == "fallback.mkv"
+
+    def test_name_with_spaces_preserved(self):
+        assert self._fn("my reel.mkv") == "my reel.mkv"
 
 
 # ---------------------------------------------------------------------------
