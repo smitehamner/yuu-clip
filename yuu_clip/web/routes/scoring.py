@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import json as json_lib
+from dataclasses import dataclass
 from dataclasses import replace as _dc_replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -310,6 +311,56 @@ async def _maybe_analyze_frames(ctx, score_db, clip, config, context_text: str) 
         _log.warning("Batch frame analysis failed for clip %d: %s", clip.id, exc, exc_info=True)
 
 
+@dataclass
+class _ClipScoreOutcome:
+    """Result of scoring one clip: an error string (None = success) plus the pre-restore
+    description snapshot the single-clip route needs for its compare modal (None for the
+    batch route, which does not snapshot)."""
+    error: Optional[str] = None
+    description_new: Optional[str] = None
+    description_long_new: Optional[str] = None
+
+
+async def _score_one_clip(
+    ctx: ProjectContext, clip_id: int, engine, scorer, *,
+    preserve, error_log_prefix: str,
+    config=None, context_text: str = "",
+    include_frames: bool = False, snapshot_descriptions: bool = False,
+) -> _ClipScoreOutcome:
+    """Score one clip in its own DB session with the error handling both rescore routes
+    share: detect the llm_error tag, commit on success, roll back and capture the error
+    string on failure, always close the session. Batch rescore opts into frame analysis
+    before scoring; single-clip rescore opts into a description snapshot+restore (scores
+    commit, descriptions revert so the compare modal can offer them)."""
+    score_db = ctx.get_db()
+    outcome = _ClipScoreOutcome()
+    try:
+        clip = score_db.get(ClipCandidate, clip_id)
+        if clip:
+            if include_frames:
+                await _maybe_analyze_frames(ctx, score_db, clip, config, context_text)
+            old_descriptions = (
+                (clip.description, clip.description_long) if snapshot_descriptions else None
+            )
+            await asyncio.to_thread(
+                engine.score_clip, clip, score_db, preserve_unscored_dims=preserve
+            )
+            if engine.has_scorers and "llm_error" in clip.tags:
+                outcome.error = scorer.last_error or "LLM scoring failed - see yuu-clip.log for details"
+            if old_descriptions is not None:
+                outcome.description_new = clip.description
+                outcome.description_long_new = clip.description_long
+                clip.description, clip.description_long = old_descriptions
+            score_db.commit()
+    except Exception as exc:
+        score_db.rollback()
+        outcome.error = str(exc)
+        _log.error("%s: %s", error_log_prefix, exc, exc_info=True)
+    finally:
+        score_db.close()
+    return outcome
+
+
 def _rescore_video_clips(
     ctx: ProjectContext, video_id: int, failed_only: bool, include_frames: bool = False,
     full: bool = False,
@@ -360,30 +411,16 @@ def _rescore_video_clips(
             )
 
             for i, clip_id in enumerate(clip_ids, 1):
-                score_db = ctx.get_db()
-                error = None
-                try:
-                    clip = score_db.get(ClipCandidate, clip_id)
-                    if clip:
-                        if include_frames:
-                            await _maybe_analyze_frames(ctx, score_db, clip, config, context_text)
-                        # Default rescore preserves the Visual/laugh axes it does not
-                        # recompute; a full rescore (build_rescore_scorers full=True)
-                        # rebuilds the analyze set and resets every axis.
-                        await asyncio.to_thread(
-                            engine.score_clip, clip, score_db, preserve_unscored_dims=preserve
-                        )
-                        if engine.has_scorers and "llm_error" in clip.tags:
-                            error = scorer.last_error or "LLM scoring failed - see yuu-clip.log for details"
-                        score_db.commit()
-                except Exception as exc:
-                    score_db.rollback()
-                    error = str(exc)
-                    _log.error("rescore_clips: clip %d failed for video %d: %s", clip_id, video_id, exc, exc_info=True)
-                finally:
-                    score_db.close()
-                if error:
-                    yield sse_event(f'[Error scoring clip {clip_id}: {error}]')
+                # Default rescore preserves the Visual/laugh axes it does not recompute;
+                # a full rescore (build_rescore_scorers full=True) rebuilds the analyze
+                # set and resets every axis.
+                outcome = await _score_one_clip(
+                    ctx, clip_id, engine, scorer, preserve=preserve,
+                    error_log_prefix=f"rescore_clips: clip {clip_id} failed for video {video_id}",
+                    config=config, context_text=context_text, include_frames=include_frames,
+                )
+                if outcome.error:
+                    yield sse_event(f'[Error scoring clip {clip_id}: {outcome.error}]')
                 else:
                     yield sse_event(f'Scored {i}/{total} clips')
 
@@ -672,44 +709,23 @@ def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> Non
                     hot_words=hot_words, sensitive_terms=sensitive_terms,
                     scene_scorers=build_scene_scorers(config, context_text=context_text),
                 )
-                score_db = ctx.get_db()
-                error = None
-                desc_new = desc_long_new = None
-                try:
-                    clip = score_db.get(ClipCandidate, clip_id)
-                    if clip:
-                        # Snapshot existing descriptions before scoring so we can restore them -
-                        # scores are committed but descriptions go back via the compare modal.
-                        old_desc      = clip.description
-                        old_desc_long = clip.description_long
-                        # Default rescore keeps the Visual/laugh axes it does not
-                        # recompute; a full rescore rebuilds the analyze set and resets
-                        # every axis (a scene row still full-resets - see _score_scene).
-                        await asyncio.to_thread(
-                            engine.score_clip, clip, score_db, preserve_unscored_dims=preserve
-                        )
-                        if engine.has_scorers and "llm_error" in clip.tags:
-                            error = scorer.last_error or "LLM scoring failed - see yuu-clip.log for details"
-                        desc_new      = clip.description
-                        desc_long_new = clip.description_long
-                        clip.description      = old_desc
-                        clip.description_long = old_desc_long
-                        score_db.commit()
-                except Exception as exc:
-                    score_db.rollback()
-                    error = str(exc)
-                    _log.error("rescore_clip: clip %d failed: %s", clip_id, exc, exc_info=True)
-                finally:
-                    score_db.close()
-
-                if error:
-                    yield sse_event(f'[Error: {error}]')
+                # Default rescore keeps the Visual/laugh axes it does not recompute; a
+                # full rescore rebuilds the analyze set and resets every axis (a scene
+                # row still full-resets - see _score_scene). Scores are committed but
+                # descriptions are snapshot+restored so they go back via the compare modal.
+                outcome = await _score_one_clip(
+                    ctx, clip_id, engine, scorer, preserve=preserve,
+                    error_log_prefix=f"rescore_clip: clip {clip_id} failed",
+                    snapshot_descriptions=True,
+                )
+                if outcome.error:
+                    yield sse_event(f'[Error: {outcome.error}]')
                 else:
                     yield sse_event('Scored 1/1 clips')
                 done_payload = {
                     "type": "__DONE__",
-                    "description_new": desc_new,
-                    "description_long_new": desc_long_new,
+                    "description_new": outcome.description_new,
+                    "description_long_new": outcome.description_long_new,
                 }
                 yield sse_event(done_payload)
 
