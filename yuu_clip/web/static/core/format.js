@@ -67,6 +67,18 @@ function _msToHms(ms) {
   return `${h}h ${String(min).padStart(2, '0')}m`;
 }
 
+// m:ss (or h:mm:ss past an hour) clock for a millisecond timestamp. Clamps negative
+// input to 0. Shared by the transcript line views and the clip export editor.
+function fmtClock(ms) {
+  const total = Math.max(0, Math.round((ms || 0) / 1000));
+  const s = total % 60;
+  const m = Math.floor(total / 60) % 60;
+  const h = Math.floor(total / 3600);
+  const mm = String(m).padStart(2, '0');
+  const ss = String(s).padStart(2, '0');
+  return h ? `${h}:${mm}:${ss}` : `${m}:${ss}`;
+}
+
 function plural(count, singular, pluralForm) {
   return `${count} ${count === 1 ? singular : (pluralForm || singular + 's')}`;
 }
@@ -169,6 +181,6 @@ function _parseIntervalS(value, unit) {
 
 export {
   AXIS_ICONS, _scoreIcon, _lerpColor, _scoreBorderColor, _sortScore, _fmtVideoStatus, _msToHms,
-  plural, finiteOr, fmtDuration, truncate, escHtml, formatApiError, stripRichMarkup,
+  fmtClock, plural, finiteOr, fmtDuration, truncate, escHtml, formatApiError, stripRichMarkup,
   _parseServerDate, _fmtDate, _fmtAgo, _fmtOffset, _fmtElapsed, _parseIntervalS, stripQuotedPath,
 };

@@ -1,7 +1,7 @@
 // Feature-map - Transcript views + click-to-edit captions (code: TranscriptSegment).
 //   API: routes/videos.py, routes/scoring.py · Tests: tests/ui/test_ui_transcript.py, tests/integration/test_transcript_edit.py
 import { AppState } from '../core/state.js';
-import { escHtml, plural, formatApiError } from '../core/format.js';
+import { escHtml, plural, formatApiError, fmtClock } from '../core/format.js';
 import { showToast } from '../core/utils.js';
 import { loadSpeakers } from '../people/speakers.js';
 import { refreshClipDetail } from '../clips/clips.js';
@@ -19,16 +19,6 @@ function seekPlayerTo(seconds) {
   video.currentTime = Math.max(0, seconds || 0);
   const attempt = video.play();
   if (attempt && attempt.catch) attempt.catch(() => {});
-}
-
-function _clock(ms) {
-  const total = Math.max(0, Math.round((ms || 0) / 1000));
-  const s = total % 60;
-  const m = Math.floor(total / 60) % 60;
-  const h = Math.floor(total / 3600);
-  const mm = String(m).padStart(2, '0');
-  const ss = String(s).padStart(2, '0');
-  return h ? `${h}:${mm}:${ss}` : `${m}:${ss}`;
 }
 
 // opts.seekOffsetS is added to each line's play target - 0 for a clip (its player
@@ -66,7 +56,7 @@ function _buildTranscriptRows(lines, opts) {
     const speaker = showSpeaker
       ? `<div class="tline-speaker${nameEditable ? ' editable' : ''}"${colorAttr}${nameEditAttrs}>${escHtml(line.speaker)}</div>`
       : '';
-    const clock = _clock(line.start_ms);
+    const clock = fmtClock(line.start_ms);
     const seekS = (line.start_ms || 0) / 1000 + offsetS;
     const editable = !readOnly && line.seg_id != null;
     const editAttrs = editable

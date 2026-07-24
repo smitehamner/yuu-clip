@@ -1,5 +1,5 @@
 import { AppState } from '../core/state.js';
-import { escHtml, formatApiError } from '../core/format.js';
+import { escHtml, formatApiError, fmtClock } from '../core/format.js';
 import { PanelNav } from '../core/panelnav.js';
 import { setupRecordingPreview, releaseVideoRespectingPip } from '../core/preview.js';
 import { openLog, showToast } from '../core/utils.js';
@@ -223,7 +223,7 @@ function _edRenderTranscript() {
   const effStart = _edEffStartMs(), effEnd = _edEffEndMs();
   const rows = _edLines.map(line => {
     const inClip = line.start_ms < effEnd && line.end_ms > effStart;
-    const clock  = _edClock(line.start_ms);
+    const clock  = fmtClock(line.start_ms);
     const spk = line.speaker
       ? `<span class="tline-speaker" style="align-self:center;margin-top:0${line.color ? `;color:${escHtml(line.color)}` : ''}">${escHtml(line.speaker)}</span>`
       : '';
@@ -251,27 +251,44 @@ function _edOnTranscriptClick(e) {
 function _edEffStartMs() { return _edClip.start_ms + _edStartOffset * 1000; }
 function _edEffEndMs()   { return _edClip.end_ms   + _edEndOffset   * 1000; }
 
+// Compute the new trim offset (seconds, 3dp) for a boundary change, or signal too-short.
+// edge 'start' clamps the requested ms to >=0 and floors the duration against the current
+// effective end; edge 'end' floors against the current effective start. requestedMs and
+// effStart/EndMs are recording-relative ms; clipStart/EndMs are the clip's saved baseline
+// the offset is measured from. Returns {ok:true, offset} or {ok:false}.
+export function computeTrimBoundary(edge, requestedMs, {clipStartMs, clipEndMs, effStartMs, effEndMs, minDurationMs}) {
+  if (edge === 'start') {
+    const startMs = Math.max(0, requestedMs);
+    if (effEndMs - startMs < minDurationMs) return { ok: false };
+    return { ok: true, offset: +((startMs - clipStartMs) / 1000).toFixed(3) };
+  }
+  if (requestedMs - effStartMs < minDurationMs) return { ok: false };
+  return { ok: true, offset: +((requestedMs - clipEndMs) / 1000).toFixed(3) };
+}
+
 function _edSetBoundaryToLine(edge, ms) {
   if (edge === 'start') _edApplyStartMs(ms);
   else                  _edApplyEndMs(ms);
 }
 
-function _edApplyStartMs(effStartMs) {
-  effStartMs = Math.max(0, effStartMs);
-  if (_edEffEndMs() - effStartMs < _ED_MIN_DURATION_MS) {
-    showToast('Clip must stay at least 1 second long', 'warning');
-    return;
-  }
-  _edStartOffset = +((effStartMs - _edClip.start_ms) / 1000).toFixed(3);
+function _edBoundaryCtx() {
+  return {
+    clipStartMs: _edClip.start_ms, clipEndMs: _edClip.end_ms,
+    effStartMs: _edEffStartMs(), effEndMs: _edEffEndMs(), minDurationMs: _ED_MIN_DURATION_MS,
+  };
+}
+
+function _edApplyStartMs(requestedMs) {
+  const result = computeTrimBoundary('start', requestedMs, _edBoundaryCtx());
+  if (!result.ok) { showToast('Clip must stay at least 1 second long', 'warning'); return; }
+  _edStartOffset = result.offset;
   _edAfterBoundaryChange();
 }
 
-function _edApplyEndMs(effEndMs) {
-  if (effEndMs - _edEffStartMs() < _ED_MIN_DURATION_MS) {
-    showToast('Clip must stay at least 1 second long', 'warning');
-    return;
-  }
-  _edEndOffset = +((effEndMs - _edClip.end_ms) / 1000).toFixed(3);
+function _edApplyEndMs(requestedMs) {
+  const result = computeTrimBoundary('end', requestedMs, _edBoundaryCtx());
+  if (!result.ok) { showToast('Clip must stay at least 1 second long', 'warning'); return; }
+  _edEndOffset = result.offset;
   _edAfterBoundaryChange();
 }
 
@@ -296,8 +313,8 @@ function _edRenderReadouts() {
   const startEl = document.getElementById('ed-start-read');
   const endEl   = document.getElementById('ed-end-read');
   const durEl   = document.getElementById('ed-duration');
-  if (startEl) startEl.textContent = _edClock(_edEffStartMs());
-  if (endEl)   endEl.textContent   = _edClock(_edEffEndMs());
+  if (startEl) startEl.textContent = fmtClock(_edEffStartMs());
+  if (endEl)   endEl.textContent   = fmtClock(_edEffEndMs());
   if (durEl)   durEl.textContent   = `${((_edEffEndMs() - _edEffStartMs()) / 1000).toFixed(1)}s`;
 }
 
@@ -379,8 +396,8 @@ function _edUpdateCaptionOverlay(recordingMs) {
 // ── vertical crop box ─────────────────────────────────────────────────────────
 
 // Fraction of frame width the 9:16 crop column occupies: min(1, (9/16)/aspect).
-function _edCropWFrac() {
-  return Math.min(1, (9 / 16) / _edAspect);
+export function cropWidthFraction(aspect) {
+  return Math.min(1, (9 / 16) / aspect);
 }
 
 function _edUpdateVerticalControls() {
@@ -397,7 +414,7 @@ function _edUpdateVerticalControls() {
 function _edRenderCropBox() {
   const box = document.getElementById('ed-crop-box');
   if (!box) return;
-  const wFrac = _edCropWFrac();
+  const wFrac = cropWidthFraction(_edAspect);
   box.style.width = `${(wFrac * 100).toFixed(2)}%`;
   box.style.left  = `${(_edCropX * (1 - wFrac) * 100).toFixed(2)}%`;
 }
@@ -410,7 +427,7 @@ function _edSetCropX(fraction) {
 function _edCropPointerDown(e) {
   e.preventDefault();
   const wrap  = document.getElementById('ed-preview-wrap');
-  const wFrac = _edCropWFrac();
+  const wFrac = cropWidthFraction(_edAspect);
   if (wFrac >= 0.999 || !wrap) return;  // source already ≤9:16 - nothing to pan
   function onMove(ev) {
     const rect = wrap.getBoundingClientRect();
@@ -481,16 +498,19 @@ async function _edSaveEdits() {
   return true;
 }
 
-function _edExportParams() {
+// Build the single-clip export query from the editor's current state. captionMode is
+// none | embed | burn; burn-in additionally carries the caption-style fields from config.
+// Kept editor-specific (the export dialog and reel builder assemble different fields).
+export function buildExportParams({captionMode, preset, titleCard, config}) {
   const params = new URLSearchParams();
-  if (_edCaptionMode === 'burn')  params.set('burn_subs', 'true');
-  if (_edCaptionMode === 'embed') params.set('embed_subs', 'true');
-  if (_edPreset)   params.set('preset', _edPreset);
-  if (_edTitleCard) params.set('title_card', 'true');
-  if (_edCaptionMode === 'burn') {
-    params.set('caption_font', _edConfig.caption_font_name || '');
-    params.set('caption_size', String(_edConfig.caption_font_size || 0));
-    params.set('caption_position', _edConfig.caption_position || 'bottom');
+  if (captionMode === 'burn')  params.set('burn_subs', 'true');
+  if (captionMode === 'embed') params.set('embed_subs', 'true');
+  if (preset)   params.set('preset', preset);
+  if (titleCard) params.set('title_card', 'true');
+  if (captionMode === 'burn') {
+    params.set('caption_font', config.caption_font_name || '');
+    params.set('caption_size', String(config.caption_font_size || 0));
+    params.set('caption_position', config.caption_position || 'bottom');
   }
   return params;
 }
@@ -501,7 +521,9 @@ async function _edExport() {
   btn.disabled = true;
   if (!await _edSaveEdits()) { btn.disabled = false; return; }
 
-  const params = _edExportParams();
+  const params = buildExportParams({
+    captionMode: _edCaptionMode, preset: _edPreset, titleCard: _edTitleCard, config: _edConfig,
+  });
   const qs = params.toString() ? `?${params}` : '';
   openLog();
   streamSSE(
@@ -539,11 +561,3 @@ async function _edExport() {
   });
 }
 
-// ── helpers ───────────────────────────────────────────────────────────────────
-
-function _edClock(ms) {
-  const total = Math.max(0, Math.round((ms || 0) / 1000));
-  const s = total % 60, m = Math.floor(total / 60) % 60, h = Math.floor(total / 3600);
-  const mm = String(m).padStart(2, '0'), ss = String(s).padStart(2, '0');
-  return h ? `${h}:${mm}:${ss}` : `${m}:${ss}`;
-}

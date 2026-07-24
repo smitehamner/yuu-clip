@@ -5,7 +5,7 @@
 import {
   escHtml, _parseServerDate, _fmtAgo, _fmtOffset, _msToHms, finiteOr, fmtDuration,
   formatApiError, stripRichMarkup, _scoreBorderColor, _lerpColor, _fmtElapsed,
-  _fmtVideoStatus, _fmtDate, _sortScore, plural, _parseIntervalS, stripQuotedPath,
+  _fmtVideoStatus, _fmtDate, _sortScore, plural, _parseIntervalS, stripQuotedPath, fmtClock,
 } from '../../../yuu_clip/web/static/core/format.js';
 
 describe('escHtml', () => {
@@ -44,6 +44,18 @@ describe('_fmtOffset', () => {
 describe('_msToHms', () => {
   it('formats minutes with zero-padded seconds', () => {
     expect([_msToHms(5000), _msToHms(65000)]).toEqual(['5s', '1m 05s']);
+  });
+});
+
+describe('fmtClock', () => {
+  it('renders m:ss under an hour and h:mm:ss past it', () => {
+    expect(fmtClock(5000)).toBe('0:05');
+    expect(fmtClock(65000)).toBe('1:05');
+    expect(fmtClock(3_725_000)).toBe('1:02:05');
+  });
+  it('clamps a negative or missing timestamp to 0:00', () => {
+    expect(fmtClock(-500)).toBe('0:00');
+    expect(fmtClock(undefined)).toBe('0:00');
   });
 });
 
