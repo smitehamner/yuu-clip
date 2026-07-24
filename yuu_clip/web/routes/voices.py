@@ -14,7 +14,6 @@ route, so transcripts/captions/exports stay in sync.
 """
 from __future__ import annotations
 
-import re
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -27,11 +26,9 @@ from yuu_clip.db.models import Character, ClipCandidate, ProjectVoice, Speaker, 
 from yuu_clip.log import get_logger
 from yuu_clip.transcribe.project_voice import cluster_speakers_into_voices
 from yuu_clip.web.deps import ProjectContext
-from yuu_clip.web.routes.common import rebuild_video_excerpts
+from yuu_clip.web.routes.common import parse_optional_color, rebuild_video_excerpts
 
 _log = get_logger(__name__)
-
-_HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 
 
 class PromoteVoice(BaseModel):
@@ -116,11 +113,12 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 voice.name = new_name
                 voice.confirmed = True
             if "color" in fields:
-                color = (body.color or "").strip()
-                if color and not _HEX_COLOR_RE.match(color):
-                    raise HTTPException(400, "Color must be a hex value like #4fc3f7")
-                color_changed = (color or None) != voice.color
-                voice.color = color or None
+                try:
+                    color = parse_optional_color(body.color)
+                except ValueError:
+                    raise HTTPException(400, "Color must be a hex value like #4fc3f7") from None
+                color_changed = color != voice.color
+                voice.color = color
             db.flush()
             member_video_ids = _member_video_ids(db, voice_id)
             if name_changed:

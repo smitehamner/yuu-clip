@@ -16,6 +16,7 @@ from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.exc import OperationalError
 
+from yuu_clip.config import validate_hex_color
 from yuu_clip.db.models import ClipCandidate, Transcript, TranscriptSegment, Video
 from yuu_clip.log import get_logger
 
@@ -269,6 +270,22 @@ def require_clip(db, clip_id: int) -> ClipCandidate:
     if not clip:
         raise HTTPException(404, "Clip not found")
     return clip
+
+
+def parse_optional_color(value: Optional[str]) -> Optional[str]:
+    """Normalize an optional #RRGGBB color: blank/None clears (returns None); a
+    non-blank value must be a strict 6-digit hex or ValueError is raised.
+
+    Shared by the Speaker/Person color routes so "a blank color clears, a present
+    one must be #RRGGBB" is decided in one place, delegating the format check to
+    config.validate_hex_color. Callers wrap the ValueError into an
+    HTTPException(400) with their own user-facing message.
+    """
+    color = (value or "").strip()
+    if not color:
+        return None
+    validate_hex_color(color, "Color")
+    return color
 
 
 def normalize_context_slug(raw: Optional[str]) -> Optional[str]:

@@ -34,6 +34,7 @@ from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.routes.common import (
     active_job,
     json_list,
+    parse_optional_color,
     rebuild_video_excerpts,
     reject_if_busy,
     sse_response,
@@ -42,9 +43,6 @@ from yuu_clip.web.routes.common import (
 )
 
 _log = get_logger(__name__)
-
-
-_HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 
 
 class SpeakerRename(BaseModel):
@@ -209,10 +207,10 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                     touch_video_transcript_edited(db, speaker.video_id)
 
                 if "color" in fields_set:
-                    color = (body.color or "").strip()
-                    if color and not _HEX_COLOR_RE.match(color):
-                        raise HTTPException(400, "Color must be a hex value like #4fc3f7")
-                    speaker.color = color or None
+                    try:
+                        speaker.color = parse_optional_color(body.color)
+                    except ValueError:
+                        raise HTTPException(400, "Color must be a hex value like #4fc3f7") from None
 
                 db.commit()
                 return speaker.id, speaker.video_id, speaker.name, speaker.color, [c.id for c in affected], refreshed
@@ -381,15 +379,16 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             if not video:
                 raise HTTPException(404, "Video not found")
             name = (body.name or "").strip() or None
-            color = (body.color or "").strip()
-            if color and not _HEX_COLOR_RE.match(color):
-                raise HTTPException(400, "Color must be a hex value like #4fc3f7")
+            try:
+                color = parse_optional_color(body.color)
+            except ValueError:
+                raise HTTPException(400, "Color must be a hex value like #4fc3f7") from None
             next_index = (
                 db.query(func.max(Speaker.display_index)).filter_by(video_id=video_id).scalar() or 0
             ) + 1
             speaker = Speaker(
                 video_id=video_id, display_index=next_index, name=name,
-                source="manual", confirmed=True, color=color or None,
+                source="manual", confirmed=True, color=color,
             )
             db.add(speaker)
             db.commit()
