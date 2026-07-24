@@ -10,7 +10,6 @@ already on disk are not rewritten (re-export to pick up the new name).
 from __future__ import annotations
 
 import asyncio
-import json as json_lib
 import re
 from datetime import datetime, timezone
 from typing import Optional
@@ -41,6 +40,7 @@ from yuu_clip.web.routes.common import (
     touch_video_transcript_edited,
     with_write_retry,
 )
+from yuu_clip.web.sse import sse_event
 
 _log = get_logger(__name__)
 
@@ -137,15 +137,15 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
         async def event_stream():
             async with active_job(ctx):
-                yield f"data: {json_lib.dumps('[Suggesting speaker names…]')}\n\n"
+                yield sse_event('[Suggesting speaker names…]')
                 try:
                     raw = await asyncio.to_thread(
                         infer_speaker_names, labeled, ctx.config, context_text=context_text
                     )
                 except Exception as exc:
                     _log.warning("Name inference failed for video %d: %s", video_id, exc, exc_info=True)
-                    yield f"data: {json_lib.dumps(f'[Error: {exc}]')}\n\n"
-                    yield f"data: {json_lib.dumps('__DONE__')}\n\n"
+                    yield sse_event(f'[Error: {exc}]')
+                    yield sse_event('__DONE__')
                     return
 
                 save_db = ctx.get_db()
@@ -175,8 +175,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                     f"[{applied} name suggestion(s) - review and accept]" if applied
                     else "[No names could be inferred from the transcript]"
                 )
-                yield f"data: {json_lib.dumps(summary)}\n\n"
-                yield f"data: {json_lib.dumps({'type': '__DONE__', 'suggested': applied})}\n\n"
+                yield sse_event(summary)
+                yield sse_event({'type': '__DONE__', 'suggested': applied})
 
         return sse_response(event_stream())
 

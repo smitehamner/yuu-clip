@@ -23,6 +23,7 @@ from yuu_clip.log import get_logger
 from yuu_clip.sessions import SessionCandidate, recording_start_time, suggest_session_groups
 from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.routes.common import active_job, json_list, reject_if_busy, sse_response
+from yuu_clip.web.sse import sse_event
 
 _log = get_logger(__name__)
 
@@ -295,15 +296,15 @@ def _register_detail_routes(router: APIRouter, ctx: ProjectContext) -> None:
 
         async def event_stream():
             async with active_job(ctx):
-                yield f"data: {json_lib.dumps('[Generating session summary…]')}\n\n"
+                yield sse_event('[Generating session summary…]')
                 try:
                     title_new, summary_new = await asyncio.to_thread(
                         summarize_session, member_pairs, ctx.config, context_text
                     )
                 except Exception as exc:
                     _log.warning("session summarize failed for session %d: %s", session_id, exc, exc_info=True)
-                    yield f"data: {json_lib.dumps(f'[Error: {exc}]')}\n\n"
-                    yield f"data: {json_lib.dumps('__DONE__')}\n\n"
+                    yield sse_event(f'[Error: {exc}]')
+                    yield sse_event('__DONE__')
                     return
 
                 save_db = ctx.get_db()
@@ -320,8 +321,8 @@ def _register_detail_routes(router: APIRouter, ctx: ProjectContext) -> None:
                 finally:
                     save_db.close()
 
-                yield f"data: {json_lib.dumps('[Session summary generated]')}\n\n"
-                yield f"data: {json_lib.dumps('__DONE__')}\n\n"
+                yield sse_event('[Session summary generated]')
+                yield sse_event('__DONE__')
 
         return sse_response(event_stream())
 

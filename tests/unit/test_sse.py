@@ -13,6 +13,36 @@ from pathlib import Path
 from unittest.mock import patch
 
 
+class TestSseEvent:
+    """The single SSE data-frame contract shared by every streaming route."""
+
+    def test_string_payload_framed_and_json_encoded(self):
+        from yuu_clip.web.sse import sse_event
+
+        assert sse_event("hello") == 'data: "hello"\n\n'
+
+    def test_dict_payload_json_encoded(self):
+        from yuu_clip.web.sse import sse_event
+
+        frame = sse_event({"type": "__DONE__", "ok": False})
+        assert frame.startswith("data: ")
+        assert frame.endswith("\n\n")
+        assert json.loads(frame.removeprefix("data: ").rstrip()) == {"type": "__DONE__", "ok": False}
+
+    def test_frame_ends_with_blank_line_terminator(self):
+        from yuu_clip.web.sse import sse_event
+
+        assert sse_event(42).endswith("\n\n")
+
+    def test_special_characters_are_escaped(self):
+        from yuu_clip.web.sse import sse_event
+
+        # A newline / quote in the payload must not break the frame's own delimiters.
+        frame = sse_event('line1\nline2 "quoted"')
+        assert frame.count("\n\n") == 1  # only the terminator, not the embedded newline
+        assert json.loads(frame.removeprefix("data: ").rstrip()) == 'line1\nline2 "quoted"'
+
+
 def _payloads(chunks: list) -> list:
     out = []
     for chunk in chunks:

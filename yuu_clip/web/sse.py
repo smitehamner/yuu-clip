@@ -31,6 +31,13 @@ _log = get_logger(__name__)
 _SSE_DONE_SENTINEL = "__DONE__"
 
 
+def sse_event(payload) -> str:
+    """One SSE ``data:`` frame: JSON-encode *payload* and wrap it in the
+    ``data: <json>\\n\\n`` envelope. The single definition of the SSE line
+    contract shared by every streaming route (and ``_done_event`` below)."""
+    return f"data: {json.dumps(payload)}\n\n"
+
+
 def _done_event(*, ok: bool = True, error: str = "") -> str:
     """The terminal SSE completion payload.
 
@@ -41,9 +48,8 @@ def _done_event(*, ok: bool = True, error: str = "") -> str:
     exits non-zero can no longer report the job as complete.
     """
     if ok:
-        return f"data: {json.dumps(_SSE_DONE_SENTINEL)}\n\n"
-    payload = {"type": _SSE_DONE_SENTINEL, "ok": False, "error": error}
-    return f"data: {json.dumps(payload)}\n\n"
+        return sse_event(_SSE_DONE_SENTINEL)
+    return sse_event({"type": _SSE_DONE_SENTINEL, "ok": False, "error": error})
 
 
 def new_session_kwargs() -> dict:
@@ -225,20 +231,20 @@ async def subprocess_sse(
                 async for raw_line in proc.stdout:
                     text = raw_line.decode("utf-8", errors="replace").rstrip()
                     _log.debug("[subprocess] %s", text)
-                    yield f"data: {json.dumps(text)}\n\n"
+                    yield sse_event(text)
                 await proc.wait()
                 failed = False
                 if cancel_flag_attr and ctx is not None and getattr(ctx, cancel_flag_attr, False):
                     setattr(ctx, cancel_flag_attr, False)
                     _log.info("Subprocess (pid %s) cancelled by user", proc.pid)
-                    yield f"data: {json.dumps(cancel_message)}\n\n"
+                    yield sse_event(cancel_message)
                 elif proc.returncode != 0:
                     _log.error(
                         "Subprocess exited with code %d: %s",
                         proc.returncode,
                         " ".join(str(c) for c in cmd),
                     )
-                    yield f"data: {json.dumps(f'[Error: subprocess exited with code {proc.returncode}]')}\n\n"
+                    yield sse_event(f"[Error: subprocess exited with code {proc.returncode}]")
                     failed = True
                 else:
                     _log.info("Subprocess (pid %s) completed successfully", proc.pid)
@@ -266,7 +272,7 @@ async def subprocess_sse(
             # no __DONE__, so endJobUI never runs and the job pill sticks. Mirror
             # AnalyzeJob._pump - log it and emit an error line + the done sentinel.
             _log.exception("Subprocess stream failed: %s", " ".join(str(c) for c in cmd))
-            yield f"data: {json.dumps('[Error: could not start subprocess]')}\n\n"
+            yield sse_event("[Error: could not start subprocess]")
             yield _done_event(ok=False, error="This job could not start - check the log for details.")
         finally:
             if track_active_job and ctx is not None:

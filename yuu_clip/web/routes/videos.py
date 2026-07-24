@@ -33,7 +33,7 @@ from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.file_deletion import delete_files, locked_files_error
 from yuu_clip.web.media import media_file_response
 from yuu_clip.web.routes.common import active_job, json_list, srt_to_vtt, sse_response
-from yuu_clip.web.sse import _done_event
+from yuu_clip.web.sse import _done_event, sse_event
 
 _log = get_logger(__name__)
 
@@ -409,19 +409,19 @@ def _register_media_routes(router: APIRouter, ctx: ProjectContext) -> None:
 
         async def event_stream():
             async with active_job(ctx):
-                yield f"data: {json_lib.dumps('[Inspecting audio streams…]')}\n\n"
+                yield sse_event('[Inspecting audio streams…]')
 
                 try:
                     from yuu_clip.analyze.probe import probe_video
                     info = await asyncio.to_thread(probe_video, video_path)
                 except Exception as exc:
                     _log.error("compute_waveform: probe failed for video %d: %s", video_id, exc, exc_info=True)
-                    yield f"data: {json_lib.dumps(f'[Error inspecting video: {exc}]')}\n\n"
+                    yield sse_event(f'[Error inspecting video: {exc}]')
                     yield _done_event(ok=False, error=f"Could not inspect the video: {exc}")
                     return
 
                 if not info.audio_streams:
-                    yield f"data: {json_lib.dumps('[No audio streams found - waveform unavailable]')}\n\n"
+                    yield sse_event('[No audio streams found - waveform unavailable]')
                     yield _done_event(ok=False, error="No audio streams found - waveform unavailable")
                     return
 
@@ -433,11 +433,11 @@ def _register_media_routes(router: APIRouter, ctx: ProjectContext) -> None:
                 for i, (track_id, stream_index, extracted_path, has_energy) in enumerate(track_data, 1):
                     label = f"track {i}/{len(track_data)}"
                     if has_energy:
-                        yield f"data: {json_lib.dumps(f'[{label}: energy already computed, skipping]')}\n\n"
+                        yield sse_event(f'[{label}: energy already computed, skipping]')
                         continue
 
                     if not extracted_path or not Path(extracted_path).exists():
-                        yield f"data: {json_lib.dumps(f'Extracting audio {label}…')}\n\n"
+                        yield sse_event(f'Extracting audio {label}…')
                         stem = Path(video_path).stem
                         out_wav = audio_dir / f"{stem}_stream{stream_index}.wav"
                         try:
@@ -455,10 +455,10 @@ def _register_media_routes(router: APIRouter, ctx: ProjectContext) -> None:
                                 upd_db.close()
                         except Exception as exc:
                             _log.error("compute_waveform: audio extraction failed for video %d track %d: %s", video_id, track_id, exc, exc_info=True)
-                            yield f"data: {json_lib.dumps(f'[Error extracting {label}: {exc}]')}\n\n"
+                            yield sse_event(f'[Error extracting {label}: {exc}]')
                             continue
 
-                    yield f"data: {json_lib.dumps(f'Computing waveform {label}…')}\n\n"
+                    yield sse_event(f'Computing waveform {label}…')
                     energy_db = ctx.get_db()
                     try:
                         track_obj = energy_db.get(AudioTrack, track_id)
@@ -468,12 +468,12 @@ def _register_media_routes(router: APIRouter, ctx: ProjectContext) -> None:
                     except Exception as exc:
                         energy_db.rollback()
                         _log.error("compute_waveform: energy computation failed for video %d track %d: %s", video_id, track_id, exc, exc_info=True)
-                        yield f"data: {json_lib.dumps(f'[Error computing waveform {label}: {exc}]')}\n\n"
+                        yield sse_event(f'[Error computing waveform {label}: {exc}]')
                     finally:
                         energy_db.close()
 
-                yield f"data: {json_lib.dumps('Waveform ready')}\n\n"
-                yield f"data: {json_lib.dumps('__DONE__')}\n\n"
+                yield sse_event('Waveform ready')
+                yield sse_event('__DONE__')
 
         return sse_response(event_stream())
 
@@ -555,12 +555,12 @@ def _register_media_routes(router: APIRouter, ctx: ProjectContext) -> None:
         async def event_stream():
             async with active_job(ctx):
                 if already_fresh:
-                    yield f"data: {json_lib.dumps('[Preview already prepared]')}\n\n"
-                    yield f"data: {json_lib.dumps('__DONE__')}\n\n"
+                    yield sse_event('[Preview already prepared]')
+                    yield sse_event('__DONE__')
                     return
                 if source_key in ctx.proxy_generating:
-                    yield f"data: {json_lib.dumps('[Preview is already being prepared…]')}\n\n"
-                    yield f"data: {json_lib.dumps('__DONE__')}\n\n"
+                    yield sse_event('[Preview is already being prepared…]')
+                    yield sse_event('__DONE__')
                     return
 
                 ctx.proxy_generating.add(source_key)
@@ -593,7 +593,7 @@ def _register_media_routes(router: APIRouter, ctx: ProjectContext) -> None:
                 _PROXY_WORKERS.add(worker)
                 worker.add_done_callback(_PROXY_WORKERS.discard)
 
-                yield f"data: {json_lib.dumps('Building 720p preview…')}\n\n"
+                yield sse_event('Building 720p preview…')
                 last_pct = -100
                 failure = None
                 while True:
@@ -602,13 +602,13 @@ def _register_media_routes(router: APIRouter, ctx: ProjectContext) -> None:
                         pct = int(payload * 100)
                         if pct >= last_pct + 5:
                             last_pct = pct
-                            yield f"data: {json_lib.dumps(f'Building 720p preview… {pct}%')}\n\n"
+                            yield sse_event(f'Building 720p preview… {pct}%')
                     elif kind == "done":
-                        yield f"data: {json_lib.dumps('720p preview ready')}\n\n"
+                        yield sse_event('720p preview ready')
                         break
                     else:  # error
                         failure = str(payload)
-                        yield f"data: {json_lib.dumps(f'[Preview generation failed: {failure}]')}\n\n"
+                        yield sse_event(f'[Preview generation failed: {failure}]')
                         break
                 yield _done_event(
                     ok=failure is None,
