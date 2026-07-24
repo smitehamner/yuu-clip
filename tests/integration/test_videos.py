@@ -2802,8 +2802,8 @@ class TestComputeWaveformGuards:
 
     def test_probe_failure_ends_with_a_failure_done_sentinel(self, client, project_dir, monkeypatch):
         # bug-hunt 4.1 - a probe failure used to end the stream with the bare
-        # success "__DONE__" sentinel; a reader that only checks the sentinel
-        # form (not every log line) would report the job as complete.
+        # success sentinel; the typed protocol makes the failure machine-readable
+        # as a done event with outcome=error, so no reader can misreport it complete.
         import yuu_clip.analyze.probe as probe_mod
 
         def _boom(path):
@@ -2816,7 +2816,7 @@ class TestComputeWaveformGuards:
         lines, done = self._last_sse_payload(client, f"/api/videos/{vid_id}/compute-waveform")
         assert any("Error inspecting video" in line for line in lines)
         assert done == {
-            "type": "__DONE__", "ok": False,
+            "v": 1, "type": "done", "outcome": "error",
             "error": "Could not inspect the video: ffprobe exploded",
         }
 
@@ -2837,7 +2837,7 @@ class TestComputeWaveformGuards:
         lines, done = self._last_sse_payload(client, f"/api/videos/{vid_id}/compute-waveform")
         assert any("No audio streams found" in line for line in lines)
         assert done == {
-            "type": "__DONE__", "ok": False,
+            "v": 1, "type": "done", "outcome": "error",
             "error": "No audio streams found - waveform unavailable",
         }
 
@@ -2946,7 +2946,8 @@ class TestVideoProxy:
 
         stream = client.get("/api/videos/1/proxy/generate").text
         assert "720p preview ready" in stream
-        assert "__DONE__" in stream
+        assert '"type": "done"' in stream
+        assert '"outcome": "ok"' in stream
 
         status = client.get("/api/videos/1/proxy-status").json()
         assert status["available"] is True
@@ -2969,12 +2970,12 @@ class TestVideoProxy:
         stream = client.get("/api/videos/1/proxy/generate").text
         assert "Preview generation failed" in stream
         # bug-hunt 4.1 - an encode failure used to end the stream with the bare
-        # success "__DONE__" sentinel (a substring of the failure form too, so
-        # this must parse the terminal line rather than just check containment).
+        # success sentinel; the typed done makes the failure machine-readable, so
+        # parse the terminal line and assert its outcome rather than substring-checking.
         lines = [line for line in stream.splitlines() if line.startswith("data: ")]
         done = json.loads(lines[-1][len("data: "):])
         assert done == {
-            "type": "__DONE__", "ok": False,
+            "v": 1, "type": "done", "outcome": "error",
             "error": "Preview generation failed: encoder exploded",
         }
         assert client.get("/api/videos/1/proxy-status").json()["available"] is False

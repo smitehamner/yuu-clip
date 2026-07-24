@@ -18,8 +18,9 @@ from yuu_clip.db.models import ClipCandidate, Video
 from yuu_clip.export.paths import export_paths, validate_export_preset_query
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
+from yuu_clip.web.jobevents import OUTCOME_OK, done_event, log_event
 from yuu_clip.web.routes.common import active_job, reject_if_busy, sse_response
-from yuu_clip.web.sse import new_session_kwargs, sse_event, terminate_process_tree_async
+from yuu_clip.web.sse import new_session_kwargs, terminate_process_tree_async
 
 _log = get_logger(__name__)
 
@@ -114,10 +115,10 @@ def _clip_export_stream_response(
             for i, cid in enumerate(clip_ids, 1):
                 if skip_exported and _clip_has_export_file(ctx, cid):
                     skipped += 1
-                    yield sse_event(f'Skipping clip {cid} (already exported) [{i}/{total}]')
+                    yield log_event(f'Skipping clip {cid} (already exported) [{i}/{total}]')
                     continue
 
-                yield sse_event(f'Exporting clip {cid} [{i}/{total}]...')
+                yield log_event(f'Exporting clip {cid} [{i}/{total}]...')
                 cmd = _build_export_cmd(
                     ctx, cid,
                     burn_subs=burn_subs, embed_subs=embed_subs,
@@ -129,18 +130,20 @@ def _clip_export_stream_response(
                     returncode, out = await _run_export_subprocess(cmd, ctx.project_dir)
                     if returncode == 0:
                         exported += 1
-                        yield sse_event(f'OK clip {cid} [{i}/{total}]')
+                        yield log_event(f'OK clip {cid} [{i}/{total}]')
                     else:
                         msg = out.decode(errors="replace").strip().splitlines()
                         last = msg[-1] if msg else "unknown error"
                         _log.error("clip export failed for clip %d (rc=%d): %s", cid, returncode, last)
-                        yield sse_event(f'[Error clip {cid} (exit {returncode}): {last}]')
+                        yield log_event(f'[Error clip {cid} (exit {returncode}): {last}]', level="error")
                 except Exception as exc:
                     _log.error("clip export subprocess failed for clip %d: %s", cid, exc, exc_info=True)
-                    yield sse_event(f'[Error clip {cid}: {exc}]')
+                    yield log_event(f'[Error clip {cid}: {exc}]', level="error")
 
-            yield sse_event(f'Export complete: {exported} exported, {skipped} skipped')
-            yield sse_event('__DONE__')
+            # Partial failures stay prose-only by design: individual clips may fail
+            # (log level=error above) while the batch as a whole ends OK.
+            yield log_event(f'Export complete: {exported} exported, {skipped} skipped')
+            yield done_event(OUTCOME_OK)
 
     return sse_response(event_stream())
 
