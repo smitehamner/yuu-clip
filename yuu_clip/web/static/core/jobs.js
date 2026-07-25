@@ -672,8 +672,8 @@ async function _doCancelJob() {
 // onclick="togglePauseJob()"/"cancelJob()" attributes that used to live there -
 // can never double-wire. Called from boot.js at first paint (see initHotwordListeners
 // in hotwords.js for the reference pattern) so importing this module has no DOM side
-// effect. (videos.js's in-detail Cancel button still uses its own inline
-// onclick="cancelJob()"; that markup lives in videos.js, out of scope here.)
+// effect. (videos.js's in-detail Cancel button calls the imported cancelJob() through
+// its data-act="cancel-job" delegation, not an inline onclick string.)
 function initJobsListeners() {
   document.getElementById('btn-pause-job').addEventListener('click', togglePauseJob);
   document.getElementById('btn-cancel-job').addEventListener('click', cancelJob);

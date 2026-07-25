@@ -106,13 +106,16 @@ import './core/boot.js';
 // ============================================================================
 
 // ---- GROUP 1: genuine production coupling (read off window at runtime) ----
-// jobs.js's own refresh reads (loadVideos/_renderClips/_clipsSortParam/...) moved
-// behind the core/refreshhooks.js registration seam in the ui-shim-retirement plan's
-// Phase 2 (2026-07-25), so those individual window.* assignments are gone. The one
-// spread that remains: jobs.js's exported cancel/pause handlers are still read off
-// window by inline onclick="cancelJob()"/"togglePauseJob()" markup that videos.js
-// BUILDS as HTML strings - a separate coupling direction, out of scope for the
-// refresh-registry work (its own delegation would be a later opportunistic drain).
+// Phase 2 (2026-07-25) moved jobs.js's own refresh reads and format.js's
+// _clipsSortParam behind the core/refreshhooks.js registration seam, so no individual
+// window.* assignment remains. The lone survivor, Object.assign(window, jobs), turns
+// out to have NO production reader: videos.js imports cancelJob/togglePauseJob and
+// invokes them via data-act event delegation (videos.js's action dispatch), not an
+// inline onclick string. Its only consumers are tests/ui page.evaluate pokes
+// (startJobUI/updateJobUI/endJobUI/streamSSE/_blockedByAnalyze/...), so it is really a
+// GROUP 2 test-only bridge kept - for now - as a blanket spread. Narrowing it to just
+// the poked names and moving it into the GROUP 2 block below (which empties GROUP 1)
+// is the scoped follow-on.
 Object.assign(window, jobs);
 
 // ---- GROUP 2: test-only hooks (reachable ONLY via a tests/ui page.evaluate
