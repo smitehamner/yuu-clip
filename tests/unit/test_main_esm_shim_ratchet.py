@@ -41,17 +41,20 @@ MAIN_ESM = STATIC_DIR / "main.esm.js"
 # test_no_new_group1_assignment.
 _EXPECTED_GROUP1_ASSIGNMENTS: frozenset[str] = frozenset()
 
-# GROUP 1, whole-namespace spreads `Object.assign(window, X)` - the one that remains is
-# jobs.js's cross-cutting exports (its cancel/pause handlers are read off window by inline
-# onclick markup that videos.js builds). format's spread dropped in Phase 2 (its sole live
-# poke, fmtDuration, moved to GROUP 2).
-_EXPECTED_GROUP1_SPREADS: frozenset[str] = frozenset({"jobs"})
+# GROUP 1, whole-namespace spreads `Object.assign(window, X)`. Emptied in the Phase 2
+# follow-on (2026-07-25): the last spread, Object.assign(window, jobs), had no production
+# reader (videos.js imports cancelJob/togglePauseJob and dispatches via data-act, not an
+# inline onclick), so it was narrowed to its 9 genuinely-poked names and folded into
+# GROUP 2. Kept as an (empty) ceiling so a re-added spread still trips test_no_new_group1_spread.
+_EXPECTED_GROUP1_SPREADS: frozenset[str] = frozenset()
 
 # GROUP 2, the test-only `Object.assign(window, { ... })` block: names reachable ONLY via a
 # tests/ui page.evaluate poke, kept so page.evaluate("name()") resolves. No production
 # JS/HTML reader (the per-cluster note in main.esm.js records why each can't drop yet).
 _EXPECTED_GROUP2: frozenset[str] = frozenset({
     "AppState", "ColorPicker", "fmtDuration",
+    "startJobUI", "updateJobUI", "endJobUI", "streamSSE", "INGEST_STEPS", "SCORE_STEPS",
+    "_blockedByAnalyze", "_setPausedUIFromStatus", "_abortActiveStream",
     "showAlert", "showConfirm", "_confirmCancel", "toggleHamburger",
     "openControlsModal", "openDiffModal", "showKebab", "showUndoToast",
     "openHelpModal", "closeHelpModal", "openGlossaryModal",
@@ -71,7 +74,9 @@ _EXPECTED_GROUP2: frozenset[str] = frozenset({
 
 # The ONLY source modules allowed to read a GROUP 1 assigned name off `window`. main.esm.js
 # (the assignment site) and bundle.esm.js (the generated build artifact mirroring it) are
-# excluded from the scan. Paths are relative to STATIC_DIR (POSIX separators).
+# excluded from the scan. Paths are relative to STATIC_DIR (POSIX separators). Currently
+# INERT - _EXPECTED_GROUP1_ASSIGNMENTS is empty, so the scan builds no patterns; kept (with
+# the historical readers) in case a GROUP 1 assignment is ever reintroduced.
 _ALLOWED_GROUP1_READERS: frozenset[str] = frozenset({"core/jobs.js", "core/format.js"})
 
 _BLOCK_COMMENT_RE = re.compile(r"/\*.*?\*/", re.DOTALL)

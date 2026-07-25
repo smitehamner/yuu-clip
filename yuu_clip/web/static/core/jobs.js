@@ -668,12 +668,12 @@ async function _doCancelJob() {
 }
 
 // The job header's Pause/Cancel buttons are static markup in index.html (never
-// re-rendered), so a single listener wired once here - replacing the
-// onclick="togglePauseJob()"/"cancelJob()" attributes that used to live there -
-// can never double-wire. Called from boot.js at first paint (see initHotwordListeners
-// in hotwords.js for the reference pattern) so importing this module has no DOM side
-// effect. (videos.js's in-detail Cancel button calls the imported cancelJob() through
-// its data-act="cancel-job" delegation, not an inline onclick string.)
+// re-rendered), so a single listener wired once here - replacing the inline
+// pause/cancel handler attributes that used to live on those buttons - can never
+// double-wire. Called from boot.js at first paint (see initHotwordListeners in
+// hotwords.js for the reference pattern) so importing this module has no DOM side
+// effect. (videos.js's in-detail Cancel button calls the imported cancelJob via its
+// data-act cancel-job delegation, not an inline handler attribute.)
 function initJobsListeners() {
   document.getElementById('btn-pause-job').addEventListener('click', togglePauseJob);
   document.getElementById('btn-cancel-job').addEventListener('click', cancelJob);

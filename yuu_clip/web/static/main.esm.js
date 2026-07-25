@@ -13,7 +13,11 @@
 import { AppState } from './core/state.js';
 import { fmtDuration } from './core/format.js';
 import { ColorPicker } from './library/colorpicker.js';
-import * as jobs from './core/jobs.js';
+import {
+  startJobUI, updateJobUI, endJobUI, streamSSE,
+  INGEST_STEPS, SCORE_STEPS,
+  _blockedByAnalyze, _setPausedUIFromStatus, _abortActiveStream,
+} from './core/jobs.js';
 import {
   showAlert, showConfirm, _confirmCancel,
   toggleHamburger,
@@ -88,8 +92,10 @@ import './core/boot.js';
 // then that cluster itself moved behind core/refreshhooks.js in Phase 2, 2026-07-25 -
 // every name that moved to a real addEventListener/import/registration seam lost its
 // production reader and either dropped entirely or, if a tests/ui page.evaluate still
-// pokes it, moved down to GROUP 2. GROUP 1 is now the single Object.assign(window, jobs)
-// spread that inline onclick markup built by videos.js still depends on).
+// pokes it, moved down to GROUP 2. GROUP 1 is now EMPTY: the last entry, the blanket
+// Object.assign(window, jobs) spread, turned out to have no production reader either -
+// it was narrowed to the 9 names tests actually poke and folded into GROUP 2, so the
+// whole shim is now test-only hooks).
 //
 // This is a readability move, not a testability one: it makes the KIND of
 // coupling legible by separating names the APP needs at runtime from names only
@@ -106,17 +112,12 @@ import './core/boot.js';
 // ============================================================================
 
 // ---- GROUP 1: genuine production coupling (read off window at runtime) ----
-// Phase 2 (2026-07-25) moved jobs.js's own refresh reads and format.js's
-// _clipsSortParam behind the core/refreshhooks.js registration seam, so no individual
-// window.* assignment remains. The lone survivor, Object.assign(window, jobs), turns
-// out to have NO production reader: videos.js imports cancelJob/togglePauseJob and
-// invokes them via data-act event delegation (videos.js's action dispatch), not an
-// inline onclick string. Its only consumers are tests/ui page.evaluate pokes
-// (startJobUI/updateJobUI/endJobUI/streamSSE/_blockedByAnalyze/...), so it is really a
-// GROUP 2 test-only bridge kept - for now - as a blanket spread. Narrowing it to just
-// the poked names and moving it into the GROUP 2 block below (which empties GROUP 1)
-// is the scoped follow-on.
-Object.assign(window, jobs);
+// EMPTY. Phase 2 (2026-07-25) moved jobs.js's refresh reads and format.js's
+// _clipsSortParam behind the core/refreshhooks.js registration seam; the follow-on
+// then established that the last GROUP 1 entry, Object.assign(window, jobs), had no
+// production reader at all (videos.js imports cancelJob/togglePauseJob and dispatches
+// them via data-act delegation) - so its 9 genuinely-poked names were folded into the
+// GROUP 2 block below. There is no production window.* coupling left to retire.
 
 // ---- GROUP 2: test-only hooks (reachable ONLY via a tests/ui page.evaluate
 //      poke; no production JS/HTML reader) ----
@@ -157,8 +158,19 @@ Object.assign(window, jobs);
 //    generic dirty-check, decoupled from any one real caller on purpose);
 //    closeExportModal / openSettings (many tests jump straight to a modal state
 //    via page.evaluate rather than driving the real open->close click sequence).
+//  * Job-machinery pokes (formerly the blanket Object.assign(window, jobs) spread,
+//    narrowed to just these 9 in the ui-shim-retirement follow-on): startJobUI,
+//    updateJobUI, endJobUI + the INGEST_STEPS/SCORE_STEPS step-defs drive the header
+//    pill row directly because a real analyze subprocess is too slow/nondeterministic
+//    for a UI test (the pure step-machine is also covered in tests/js/core/jobs.test.js);
+//    streamSSE needs the real fetch/stream transport (test_ui_sse.py, test_ui_projects.py);
+//    _blockedByAnalyze reads seeded AppState; _setPausedUIFromStatus mirrors a page
+//    reconnect; _abortActiveStream is the tests/ui conftest teardown that aborts any
+//    in-flight stream between tests.
 Object.assign(window, {
   AppState, ColorPicker, fmtDuration,
+  startJobUI, updateJobUI, endJobUI, streamSSE, INGEST_STEPS, SCORE_STEPS,
+  _blockedByAnalyze, _setPausedUIFromStatus, _abortActiveStream,
   showAlert, showConfirm, _confirmCancel, toggleHamburger, openControlsModal, openDiffModal,
   showKebab, showUndoToast,
   openHelpModal, closeHelpModal, openGlossaryModal,
