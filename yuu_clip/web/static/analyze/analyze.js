@@ -450,7 +450,7 @@ const _warnThresholdMin = 30;
 // the Import from URL inspect card (renderImportUrlEstimate) - both call
 // /api/estimate and show the same per-step breakdown, just under a different
 // header (local file probe info vs. downloaded-video metadata).
-function _estimateBodyHTML(data) {
+export function _estimateBodyHTML(data) {
   AppState.lastEstimateSteps = data.steps;
   const warnS = _warnThresholdMin * 60;
   const tClass = s => s >= warnS ? 't-warn' : s >= warnS / 3 ? 't-medium' : 't-fast';
