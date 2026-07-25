@@ -6,6 +6,7 @@ import { AppState } from '../../../yuu_clip/web/static/core/state.js';
 import {
   _applyVideoFilters, _reanalyzeParams, _analysisLivePanelHTML, _syncAnalysisLivePanel,
   _autoSelectAnalyzingId, fetchClipsList,
+  computeVideoFilterCounts, _isVideoBeingAnalyzed, _needsModelCtaHTML, _contextsAreStale,
 } from '../../../yuu_clip/web/static/videos/videos.js';
 import { startJobUI, updateJobUI, endJobUI } from '../../../yuu_clip/web/static/core/jobs.js';
 
@@ -191,5 +192,77 @@ describe('fetchClipsList', () => {
   it('returns null on a network failure', async () => {
     globalThis.fetch = () => Promise.reject(new Error('offline'));
     expect(await fetchClipsList(7)).toBeNull();
+  });
+});
+
+describe('computeVideoFilterCounts', () => {
+  const video = (over) => ({ clip_count: 0, clips_scored_at: null, clips_llm_error: 0, ...over });
+
+  it('tallies has-clips, unscored, and error counts', () => {
+    const counts = computeVideoFilterCounts([
+      video({ clip_count: 3, clips_scored_at: 'x' }),
+      video({ clip_count: 0 }),
+      video({ clip_count: 5, clips_llm_error: 2 }),
+    ]);
+    expect(counts).toEqual({ total: 3, hasClips: 2, unscored: 2, errors: 1 });
+  });
+
+  it('is all-zero for an empty list', () => {
+    expect(computeVideoFilterCounts([])).toEqual({ total: 0, hasClips: 0, unscored: 0, errors: 0 });
+  });
+});
+
+describe('_isVideoBeingAnalyzed', () => {
+  afterEach(() => { AppState.analyzeFilename = null; });
+
+  it('is true when this video matches the in-flight filename and is not done', () => {
+    AppState.analyzeFilename = 'a.mkv';
+    expect(_isVideoBeingAnalyzed({ filename: 'a.mkv', status: 'transcribing' })).toBe(true);
+  });
+
+  it('is false once the recording reaches done, even with a matching filename', () => {
+    AppState.analyzeFilename = 'a.mkv';
+    expect(_isVideoBeingAnalyzed({ filename: 'a.mkv', status: 'done' })).toBe(false);
+  });
+
+  it('is false for a different recording', () => {
+    AppState.analyzeFilename = 'a.mkv';
+    expect(_isVideoBeingAnalyzed({ filename: 'b.mkv', status: 'transcribing' })).toBe(false);
+  });
+
+  it('is false when nothing is analyzing', () => {
+    expect(_isVideoBeingAnalyzed({ filename: 'a.mkv', status: 'transcribing' })).toBe(false);
+  });
+});
+
+describe('_needsModelCtaHTML', () => {
+  it('shows the heading, detail, and install CTA by default', () => {
+    const html = _needsModelCtaHTML({ heading: 'No model set up', detail: 'Install one to continue.' });
+    expect(html).toContain('No model set up');
+    expect(html).toContain('Install one to continue.');
+    expect(html).toContain('Install a local model');
+  });
+
+  it('hides the install CTA when show_cta is false', () => {
+    const html = _needsModelCtaHTML({ heading: 'AI is off', detail: 'Generative AI is turned off.', show_cta: false });
+    expect(html).not.toContain('Install a local model');
+  });
+});
+
+describe('_contextsAreStale', () => {
+  it('is false for the same set, regardless of order', () => {
+    expect(_contextsAreStale(['b', 'a'], ['a', 'b'])).toBe(false);
+  });
+
+  it('is true when the assigned set differs from what clips were scored with', () => {
+    expect(_contextsAreStale(['a', 'c'], ['a', 'b'])).toBe(true);
+  });
+
+  it('is true when contexts were added since scoring', () => {
+    expect(_contextsAreStale(['a', 'b'], ['a'])).toBe(true);
+  });
+
+  it('is false for two empty sets', () => {
+    expect(_contextsAreStale([], [])).toBe(false);
   });
 });

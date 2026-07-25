@@ -132,9 +132,21 @@ function _applyVideoFilters(videos) {
   return result;
 }
 
+// Per-filter tallies over the whole recording list, using the same predicates as
+// _applyVideoFilters. Pure; the renderer below decides that a zero errors count
+// blanks out rather than showing "0".
+export function computeVideoFilterCounts(videos) {
+  return {
+    total: videos.length,
+    hasClips: videos.filter(v => v.clip_count > 0).length,
+    unscored: videos.filter(v => !v.clips_scored_at).length,
+    errors: videos.filter(v => (v.clips_llm_error || 0) > 0).length,
+  };
+}
+
 // Per-filter counts shown inline on the recording filter chips ("Unscored 4").
-// Counts reflect every loaded recording, not the search-narrowed subset, and use
-// the same predicates as _applyVideoFilters. Blank when there are no recordings.
+// Counts reflect every loaded recording, not the search-narrowed subset. Blank
+// when there are no recordings.
 function _renderVideoFilterCounts() {
   const setCount = (key, value) => {
     const badge = document.querySelector(`.clip-chip-count[data-vcount="${key}"]`);
@@ -145,10 +157,11 @@ function _renderVideoFilterCounts() {
     for (const key of ['all', 'has-clips', 'unscored', 'errors']) setCount(key, null);
     return;
   }
-  setCount('all', videos.length);
-  setCount('has-clips', videos.filter(v => v.clip_count > 0).length);
-  setCount('unscored', videos.filter(v => !v.clips_scored_at).length);
-  setCount('errors', videos.filter(v => (v.clips_llm_error || 0) > 0).length || null);
+  const counts = computeVideoFilterCounts(videos);
+  setCount('all', counts.total);
+  setCount('has-clips', counts.hasClips);
+  setCount('unscored', counts.unscored);
+  setCount('errors', counts.errors || null);
 }
 
 // Rebuilds the sidebar video list from AppState.videos, applying the active
@@ -721,7 +734,7 @@ async function _doDeleteVideo(id, name) {
 // A recording is "being analyzed" when it matches the filename of the active
 // analyze job (AppState.analyzeFilename, set on start/reattach) and hasn't yet
 // reached 'done'. Same rule the sidebar uses for its spinner.
-function _isVideoBeingAnalyzed(video) {
+export function _isVideoBeingAnalyzed(video) {
   return !!AppState.analyzeFilename
     && video.filename === AppState.analyzeFilename
     && video.status !== 'done';
@@ -769,6 +782,12 @@ function _syncAnalysisLivePanel() {
   }
 }
 
+// A recording's clips were scored against a different context set than what's
+// currently assigned - order-independent (a re-ordering alone isn't "changed").
+export function _contextsAreStale(assigned, scoredCtx) {
+  return JSON.stringify([...assigned].sort()) !== JSON.stringify([...scoredCtx].sort());
+}
+
 function _renderContextSection(video) {
   const assigned = video.context_names || [];
   const chips = assigned.map(context_id => {
@@ -788,7 +807,7 @@ function _renderContextSection(video) {
   const provLines = [];
   if (video.clips_scored_at) {
     const scoredCtx = video.clips_scored_context || [];
-    const stale = JSON.stringify([...assigned].sort()) !== JSON.stringify([...scoredCtx].sort());
+    const stale = _contextsAreStale(assigned, scoredCtx);
     const when = _fmtDate(video.clips_scored_at);
     const ctxNames = scoredCtx.map(s => { const c = AppState.contexts.find(x => x.context_id === s); return c ? c.display_name : s; });
     const ctxStr = ctxNames.length ? ' · ' + ctxNames.map(escHtml).join(', ') : ' · no context';
