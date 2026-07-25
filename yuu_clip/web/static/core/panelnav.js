@@ -12,6 +12,7 @@
 // onClose() must move it back out to a stable, always-in-document location -
 // otherwise it goes with the container and getElementById can't find it on
 // the next open. See split.js's _teardownSplitEditor for the pattern.
+import { showConfirm } from './ui.js';
 
 const _stack = [];  // [{id, title, isDirty, onClose, container}]
 
@@ -78,7 +79,7 @@ function panelNavClose() {
   const top = _top();
   if (!top) return;
   if (top.isDirty()) {
-    window.showConfirm(
+    showConfirm(
       'Discard changes?',
       'You have unsaved changes. Close without saving?',
       'Discard',

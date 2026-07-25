@@ -1176,6 +1176,21 @@ function _handleDetailChange(e) {
   el.value = '';
 }
 
+// Recordings-panel sort/search/filter controls plus the clips-sort select (owned
+// here because onClipsSortChange is a videos.js concern, even though the <select>
+// itself sits in the clips sidebar group) - fixed, never-recreated elements, so
+// wiring them once at module load can't double-fire on a re-render. Replaces the
+// onchange=/onclick=/oninput= attributes that used to live on that markup directly.
+function _wireVideoSidebarControls() {
+  document.getElementById('videos-sort').addEventListener('change', e => setVideoSort(e.target.value));
+  document.getElementById('videos-sort-dir').addEventListener('click', () => toggleVideoSortDir());
+  document.getElementById('video-search-input').addEventListener('input', e => setVideoSearch(e.target.value));
+  document.querySelectorAll('[data-vfilter]').forEach(chip => {
+    chip.addEventListener('click', () => toggleVideoFilter(chip.dataset.vfilter));
+  });
+  document.getElementById('clips-sort').addEventListener('change', () => onClipsSortChange());
+}
+
 // #detail is a fixed, never-recreated element in index.html, so wiring it once
 // here can't double-fire on a re-render. Called once from boot.js at first paint
 // (see initHotwordListeners in hotwords.js for the reference pattern) so importing
@@ -1183,6 +1198,7 @@ function _handleDetailChange(e) {
 function initVideosListeners() {
   document.getElementById('detail').addEventListener('click', _handleDetailClick);
   document.getElementById('detail').addEventListener('change', _handleDetailChange);
+  _wireVideoSidebarControls();
 }
 
 // Public API - symbols another already-ESM module reads off window, an inline

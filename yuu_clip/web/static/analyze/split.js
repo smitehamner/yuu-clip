@@ -1051,6 +1051,7 @@ function _wireSplitEditor() {
     _promoteSuggestionPin(Number(pin.dataset.pin));
   });
   document.getElementById('btn-split-confirm')?.addEventListener('click', confirmSplit);
+  document.getElementById('split-cancel-btn')?.addEventListener('click', () => PanelNav.close());
   document.getElementById('split-action-options')?.addEventListener('change', _updateSplitConfirmState);
   document.querySelector('#split-waveform-notice button')?.addEventListener('click', _generateWaveform);
 

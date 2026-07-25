@@ -2,6 +2,12 @@
 // forceClose stack, the isDirty discard gate, and root show/hide. Driven on a bare
 // DOM through the public API; the live breadcrumb geometry stays in
 // tests/ui/test_ui_panelnav.py.
+vi.mock('../../../yuu_clip/web/static/core/ui.js', async (importActual) => {
+  const actual = await importActual();
+  return { ...actual, showConfirm: vi.fn() };
+});
+
+import { showConfirm } from '../../../yuu_clip/web/static/core/ui.js';
 import { PanelNav } from '../../../yuu_clip/web/static/core/panelnav.js';
 
 const seedDom = () => {
@@ -20,12 +26,11 @@ const root = () => document.getElementById('panelnav-root');
 
 beforeEach(() => {
   seedDom();
-  window.showConfirm = vi.fn();
+  showConfirm.mockClear();
 });
 
 afterEach(() => {
   while (PanelNav.isOpen()) PanelNav.forceClose();  // drain the module-level stack
-  delete window.showConfirm;
   document.body.innerHTML = '';
 });
 
@@ -89,12 +94,12 @@ describe('the dirty discard gate', () => {
     openPanel({ isDirty: () => true, onClose });
     PanelNav.close();
 
-    expect(window.showConfirm).toHaveBeenCalledTimes(1);
+    expect(showConfirm).toHaveBeenCalledTimes(1);
     expect(PanelNav.isOpen()).toBe(true);   // still open
     expect(onClose).not.toHaveBeenCalled();
 
     // showConfirm(title, body, label, onConfirm, danger) - fire its confirm callback.
-    const onConfirm = window.showConfirm.mock.calls[0][3];
+    const onConfirm = showConfirm.mock.calls[0][3];
     onConfirm();
     expect(PanelNav.isOpen()).toBe(false);
     expect(onClose).toHaveBeenCalledTimes(1);
@@ -103,14 +108,14 @@ describe('the dirty discard gate', () => {
   it('forceClose bypasses the gate and closes immediately', () => {
     openPanel({ isDirty: () => true });
     PanelNav.forceClose();
-    expect(window.showConfirm).not.toHaveBeenCalled();
+    expect(showConfirm).not.toHaveBeenCalled();
     expect(PanelNav.isOpen()).toBe(false);
   });
 
   it('a clean panel closes without prompting', () => {
     openPanel({ isDirty: () => false });
     PanelNav.close();
-    expect(window.showConfirm).not.toHaveBeenCalled();
+    expect(showConfirm).not.toHaveBeenCalled();
     expect(PanelNav.isOpen()).toBe(false);
   });
 });

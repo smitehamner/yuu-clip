@@ -640,8 +640,8 @@ function _wireModalButtons() {
 // "Controls" and "Download Log" are wired here because their onclick= called
 // only ui.js functions. The Getting Started / Glossary / Help / About items call
 // closeHamburger() (ui.js) plus a helpmodals.js modal-open, so helpmodals.js owns
-// their delegation. "Re-run Setup Wizard" and "Refresh" (electronAPI / location)
-// remain inline until their owning code migrates.
+// their delegation. "Re-run Setup Wizard" and "Refresh" close the menu then hand
+// off to electronAPI / location - neither a ui.js concern - so they're wired here too.
 function _wireHamburgerHandlers() {
   document.getElementById('btn-hamburger').addEventListener('click', () => toggleHamburger());
   document.getElementById('hamburger-item-controls').addEventListener('click', () => {
@@ -649,6 +649,14 @@ function _wireHamburgerHandlers() {
     openControlsModal();
   });
   document.getElementById('hamburger-item-download-log').addEventListener('click', () => closeHamburger());
+  document.getElementById('btn-setup-wizard').addEventListener('click', () => {
+    closeHamburger();
+    window.electronAPI.runSetupWizard();
+  });
+  document.getElementById('btn-refresh').addEventListener('click', () => {
+    closeHamburger();
+    location.reload();
+  });
 }
 
 // Wires every fixed, never-recreated ui.js listener once - the Tab focus trap,

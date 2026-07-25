@@ -2,7 +2,8 @@
 // The setup file (tests/js/setup.js) seeds index.html's body so utils.js's
 // load-time listener wiring and the #log-lines element resolve.
 import {
-  _diarizationReason, _diarizationNoteHtml, appendLog, clearLog, showToast,
+  _diarizationReason, _diarizationNoteHtml, _wireDiarizationSettingsLink,
+  appendLog, clearLog, showToast,
   _exportRetranscribeDefault,
 } from '../../../yuu_clip/web/static/core/utils.js';
 
@@ -45,10 +46,24 @@ describe('_diarizationReason', () => {
 });
 
 describe('_diarizationNoteHtml', () => {
-  it('escapes the onclick and includes a Settings button', () => {
-    const out = _diarizationNoteHtml('Requires a HuggingFace token', 'foo();bar()');
+  it('escapes the reason and includes a Settings button', () => {
+    const out = _diarizationNoteHtml('Requires a <script> HuggingFace token');
+    expect(out).toContain('Requires a &lt;script&gt; HuggingFace token');
+    expect(out).toContain('class="btn ghost diar-settings-link"');
     expect(out).toContain('>Settings</button>');
-    expect(out).toContain('onclick="foo();bar()"');
+    expect(out).not.toContain('onclick=');
+  });
+});
+
+describe('_wireDiarizationSettingsLink', () => {
+  it('wires the rendered Settings button to the given callback', () => {
+    document.body.innerHTML = '<div id="note"></div>';
+    const note = document.getElementById('note');
+    note.innerHTML = _diarizationNoteHtml('some reason');
+    const onGoToSettings = vi.fn();
+    _wireDiarizationSettingsLink(note, onGoToSettings);
+    note.querySelector('.diar-settings-link').click();
+    expect(onGoToSettings).toHaveBeenCalledTimes(1);
   });
 });
 

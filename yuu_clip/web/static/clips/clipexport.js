@@ -11,6 +11,7 @@ import { streamSSE, setJobCancel } from '../core/jobs.js';
 import {
   openLog, showToast, revealInFolder, copyText,
   _diarizationNoteHtml, _diarizationReadiness, _exportRetranscribeDefault,
+  _wireDiarizationSettingsLink,
 } from '../core/utils.js';
 import { showConfirm } from '../core/ui.js';
 import {
@@ -320,7 +321,8 @@ function _onExportRetranscribeChange(checked) {
   // Only surface the prerequisite note when retranscribe is on; when it's off the
   // row is dimmed for that reason and a token/install note would be ambiguous.
   if (checked && !_exportDiarReady) {
-    note.innerHTML = _diarizationNoteHtml(_exportDiarReason, 'closeExportModal();openSettings()');
+    note.innerHTML = _diarizationNoteHtml(_exportDiarReason);
+    _wireDiarizationSettingsLink(note, () => { closeExportModal(); openSettings(); });
   } else {
     note.textContent = '';
   }

@@ -6,6 +6,7 @@
 
 import { renderMarkdown } from './markdown.js';
 import { escHtml } from '../shared/escapehtml.js';
+import { closeHamburger } from './ui.js';
 
 // ── getting started modal ─────────────────────────────────────────────────────
 let _gettingStartedOpener = null;
@@ -314,24 +315,23 @@ function _wireModalButtons() {
   document.getElementById('glossary-filter').addEventListener('input', e => _filterGlossary(e.target.value));
 }
 
-// The 4 hamburger items ui.js's own migration deferred (their inline onclick=
-// mixed ui.js's closeHamburger() with a helpmodals.js modal-open call) - this
-// module now owns the modal-open half, so it owns retiring them too.
+// Each of these 4 hamburger items closes the menu (ui.js) then opens a modal
+// this module owns, so this module wires them rather than ui.js.
 function _wireHamburgerHandlers() {
   document.getElementById('hamburger-item-getting-started').addEventListener('click', () => {
-    window.closeHamburger();
+    closeHamburger();
     openGettingStartedModal();
   });
   document.getElementById('hamburger-item-glossary').addEventListener('click', () => {
-    window.closeHamburger();
+    closeHamburger();
     openGlossaryModal();
   });
   document.getElementById('hamburger-item-help').addEventListener('click', () => {
-    window.closeHamburger();
+    closeHamburger();
     openHelpModal();
   });
   document.getElementById('hamburger-item-about').addEventListener('click', () => {
-    window.closeHamburger();
+    closeHamburger();
     openAboutModal();
   });
 }

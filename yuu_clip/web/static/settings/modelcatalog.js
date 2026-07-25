@@ -7,7 +7,7 @@
 import { escHtml } from '../core/format.js';
 import { showToast } from '../core/utils.js';
 import { decodeEvent } from '../core/jobevents.js';
-import { _checkSettingsDirty, markModelPathsApplied, _scrollToSettingsSection } from './settings.js';
+import { _checkSettingsDirty, markModelPathsApplied, _scrollToSettingsSection, openSettings } from './settings.js';
 
 // ── model catalog (recommended text + vision models) ────────────────────────
 // Loaded once per session. Fills the recommended model lists; the capabilities
@@ -657,7 +657,8 @@ export async function gateOnCapability(el, capability, message) {
       note.className = 'gate-note';
       el.parentElement?.appendChild(note);
     }
-    note.innerHTML = `${escHtml(message)} <a href="#" onclick="openSettings();return false">Open Settings</a>`;
+    note.innerHTML = `${escHtml(message)} <a href="#" class="gate-note-settings-link">Open Settings</a>`;
+    note.querySelector('.gate-note-settings-link').addEventListener('click', e => { e.preventDefault(); openSettings(); });
   } else if (note) {
     note.remove();
   }

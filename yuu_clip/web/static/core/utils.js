@@ -45,12 +45,22 @@ export async function _diarizationReadiness() {
 }
 
 // Note shown on a disabled speaker-labels control: the blocking reason plus a
-// button that jumps to Settings. settingsOnclick closes the host surface first
-// (the analyze panel or export modal) so Settings isn't opened behind it.
-export function _diarizationNoteHtml(reason, settingsOnclick) {
+// button that jumps to Settings. The caller must wire the returned button's
+// click (class "diar-settings-link") to close its host surface (the analyze
+// panel or export modal) before opening Settings, so Settings isn't opened
+// behind it - see _wireDiarizationSettingsLink below.
+export function _diarizationNoteHtml(reason) {
   return escHtml(reason) + ' - set up in ' +
-    '<button class="btn ghost" style="font-size:11px;padding:0 4px;color:var(--accent);' +
-    `display:inline-flex" onclick="${escHtml(settingsOnclick)}">Settings</button>`;
+    '<button class="btn ghost diar-settings-link" style="font-size:11px;padding:0 4px;color:var(--accent);' +
+    'display:inline-flex">Settings</button>';
+}
+
+// Wires the "Settings" button _diarizationNoteHtml just rendered into `note`.
+// onGoToSettings runs BEFORE openSettings (imported by the caller) so it can
+// close the host surface first - matching the old inline-onclick ordering.
+export function _wireDiarizationSettingsLink(note, onGoToSettings) {
+  const btn = note.querySelector('.diar-settings-link');
+  if (btn) btn.addEventListener('click', onGoToSettings);
 }
 
 // ── export-time retranscribe default (B20) ─────────────────────────────────────

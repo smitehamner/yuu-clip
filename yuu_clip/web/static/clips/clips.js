@@ -30,7 +30,7 @@ import { openExportEditor } from '../library/exporteditor.js';
 import {
   exportClip, _handleExportFormatAction, _downloadClipExport, _copyClipExportPaths, _revealClipExport,
 } from './clipexport.js';
-import { _pruneClipSelection, _updateBulkToolbar, _toggleClipSelection } from './clipbulk.js';
+import { _pruneClipSelection, _updateBulkToolbar, _toggleClipSelection, undoLastBulkStatus } from './clipbulk.js';
 
 // ── clip list & filtering ─────────────────────────────────────────────────────────────────────
 function _applyFilters() {

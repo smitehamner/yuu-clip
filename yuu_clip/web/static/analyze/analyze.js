@@ -4,7 +4,10 @@ import { AppState } from '../core/state.js';
 import { PanelNav } from '../core/panelnav.js';
 import { escHtml, plural, formatApiError, _msToHms, _fmtElapsed } from '../core/format.js';
 import { showConfirm } from '../core/ui.js';
-import { showToast, openLog, appendLog, netErrMsg, _diarizationReadiness, _diarizationNoteHtml } from '../core/utils.js';
+import {
+  showToast, openLog, appendLog, netErrMsg,
+  _diarizationReadiness, _diarizationNoteHtml, _wireDiarizationSettingsLink,
+} from '../core/utils.js';
 import {
   streamSSE, INGEST_STEPS, setJobCancel, _waitWhileAnalyzePaused, _setPausedUIFromStatus,
 } from '../core/jobs.js';
@@ -17,7 +20,7 @@ import {
 import { openContextManager } from '../library/contexts.js';
 import { getWhisperDownloadPct } from '../settings/modeldownload.js';
 import { SoundFx } from '../library/sounds.js';
-import { closeSettings } from '../settings/settings.js';
+import { closeSettings, openSettings } from '../settings/settings.js';
 
 // ── shared live panel state ───────────────────────────────────────────────────
 // _probedInfo and _panelDirty are read cross-file by videos.js (analyze-button
@@ -259,7 +262,8 @@ async function _loadDiarizationDefault() {
     if (!readiness.ready) {
       box.checked = false;
       box.disabled = true;
-      note.innerHTML = _diarizationNoteHtml(readiness.reason, 'closeNewRecordingPanel();openSettings()');
+      note.innerHTML = _diarizationNoteHtml(readiness.reason);
+      _wireDiarizationSettingsLink(note, () => { closeNewRecordingPanel(); openSettings(); });
     } else {
       const enabledByDefault = readiness.backend !== 'null';
       box.disabled = false;

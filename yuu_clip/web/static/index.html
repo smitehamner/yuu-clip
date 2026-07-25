@@ -86,8 +86,8 @@
       <div class="hamburger-divider" role="separator"></div>
       <a class="hamburger-item" role="menuitem" id="hamburger-item-download-log" href="/api/logs/export" download="yuu-clip.log"><span class="hamburger-icon" aria-hidden="true">&#8595;</span>Download Log</a>
       <button class="hamburger-item" role="menuitem" id="hamburger-item-about"><span class="hamburger-icon" aria-hidden="true">&#9432;</span>About</button>
-      <button class="hamburger-item" role="menuitem" id="btn-setup-wizard" onclick="closeHamburger();window.electronAPI.runSetupWizard()" style="display:none"><span class="hamburger-icon" aria-hidden="true">&#128295;</span>Re-run Setup Wizard</button>
-      <button class="hamburger-item" role="menuitem" id="btn-refresh" onclick="closeHamburger();location.reload()" style="display:none"><span class="hamburger-icon" aria-hidden="true">&#8635;</span>Refresh</button>
+      <button class="hamburger-item" role="menuitem" id="btn-setup-wizard" style="display:none"><span class="hamburger-icon" aria-hidden="true">&#128295;</span>Re-run Setup Wizard</button>
+      <button class="hamburger-item" role="menuitem" id="btn-refresh" style="display:none"><span class="hamburger-icon" aria-hidden="true">&#8635;</span>Refresh</button>
     </div>
   </div>
 </header>
@@ -1085,29 +1085,29 @@
       <div class="clips-section-header">
         <span>Recordings</span>
         <div style="display:flex;align-items:center;gap:4px">
-          <select id="videos-sort" class="clips-sort-select" aria-label="Sort recordings by" onchange="setVideoSort(this.value)">
+          <select id="videos-sort" class="clips-sort-select" aria-label="Sort recordings by">
             <option value="recent">&#128338; Recent</option>
             <option value="title">&#128292; Title</option>
             <option value="filename">&#128196; Filename</option>
             <option value="length">&#8986; Length</option>
             <option value="clips">&#127902; Clips</option>
           </select>
-          <button id="videos-sort-dir" class="sort-dir-btn" onclick="toggleVideoSortDir()">&#8595;</button>
+          <button id="videos-sort-dir" class="sort-dir-btn">&#8595;</button>
           <button class="kebab-btn section-actions-btn" id="btn-recordings-actions" aria-label="Recording list actions" title="Recording list actions" aria-haspopup="true" aria-expanded="false">&#8942;</button>
         </div>
       </div>
       <div class="clip-search-row">
-        <input type="search" id="video-search-input" placeholder="Search recordings…" oninput="setVideoSearch(this.value)" aria-label="Search recordings">
+        <input type="search" id="video-search-input" placeholder="Search recordings…" aria-label="Search recordings">
       </div>
       <div class="clip-filter-tabs" aria-label="Recording filters">
-        <button class="clip-chip active" aria-pressed="true"  data-vfilter="all"       onclick="toggleVideoFilter('all')">All<span class="clip-chip-count" data-vcount="all"></span></button>
-        <button class="clip-chip"        aria-pressed="false" data-vfilter="has-clips" onclick="toggleVideoFilter('has-clips')">Has clips<span class="clip-chip-count" data-vcount="has-clips"></span></button>
+        <button class="clip-chip active" aria-pressed="true"  data-vfilter="all">All<span class="clip-chip-count" data-vcount="all"></span></button>
+        <button class="clip-chip"        aria-pressed="false" data-vfilter="has-clips">Has clips<span class="clip-chip-count" data-vcount="has-clips"></span></button>
       </div>
       <details class="clip-more-filters" id="video-more-filters">
         <summary>More filters<span class="clip-more-flag" data-more-flag hidden aria-hidden="true"></span></summary>
         <div class="clip-filter-tabs" aria-label="More recording filters">
-          <button class="clip-chip"        aria-pressed="false" data-vfilter="unscored"  onclick="toggleVideoFilter('unscored')">Unscored<span class="clip-chip-count" data-vcount="unscored"></span></button>
-          <button class="clip-chip"        aria-pressed="false" data-vfilter="errors"    onclick="toggleVideoFilter('errors')" title="Recordings with clip scoring errors">&#9888; Errors<span class="clip-chip-count" data-vcount="errors"></span></button>
+          <button class="clip-chip"        aria-pressed="false" data-vfilter="unscored">Unscored<span class="clip-chip-count" data-vcount="unscored"></span></button>
+          <button class="clip-chip"        aria-pressed="false" data-vfilter="errors"    title="Recordings with clip scoring errors">&#9888; Errors<span class="clip-chip-count" data-vcount="errors"></span></button>
         </div>
       </details>
       <div class="session-grouping-bar" id="session-grouping-bar" style="display:none">
@@ -1131,7 +1131,7 @@
           <button class="clip-chip"        aria-pressed="false" data-kfilter="scene" title="Show only longer scenes (1-5 min contextual moments)">Scenes<span class="clip-chip-count" data-kcount="scene"></span></button>
         </div>
         <div style="display:flex;align-items:center;gap:8px">
-          <select id="clips-sort" class="clips-sort-select" aria-label="Sort clips by" onchange="onClipsSortChange()">
+          <select id="clips-sort" class="clips-sort-select" aria-label="Sort clips by">
             <option value="score">&#11088; Overall</option>
             <option value="funny">&#128514; Funny</option>
             <option value="dramatic">&#127917; Dramatic</option>
@@ -1407,7 +1407,7 @@
     </div>
     <div style="display:flex;gap:10px">
       <button class="btn primary" id="btn-split-confirm">Split recording</button>
-      <button class="btn" onclick="PanelNav.close()">Cancel</button>
+      <button class="btn" id="split-cancel-btn">Cancel</button>
     </div>
   </div>
 </div>

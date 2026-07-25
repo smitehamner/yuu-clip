@@ -3,7 +3,10 @@
 import { AppState } from '../core/state.js';
 import { escHtml, formatApiError, plural } from '../core/format.js';
 import { showConfirm, openDiffModal } from '../core/ui.js';
-import { showToast, openLog, appendLog, _diarizationReadiness, _diarizationNoteHtml, _exportRetranscribeDefault } from '../core/utils.js';
+import {
+  showToast, openLog, appendLog,
+  _diarizationReadiness, _diarizationNoteHtml, _wireDiarizationSettingsLink, _exportRetranscribeDefault,
+} from '../core/utils.js';
 import {
   _blockedByAnalyze, _openSSE, streamSSE, setJobCancel, _setActiveStream, _clearActiveStream,
   _supersedeActiveStream, startJobUI, updateJobUI, endJobUI, SCORE_STEPS,
@@ -12,6 +15,7 @@ import {
 import { loadVideos, renderVideoDetail, fetchClipsList } from '../videos/videos.js';
 import { selectClip, _renderClips } from '../clips/clips.js';
 import { SoundFx } from './sounds.js';
+import { openSettings } from '../settings/settings.js';
 
 // ── context manager ───────────────────────────────────────────────────────────
 export function _parseWeight(id) {
@@ -793,7 +797,8 @@ async function _loadRetranscribeSpeakerDefault() {
   box.disabled = !readiness.ready;
   box.checked  = readiness.ready;  // on by default when fully set up
   if (!readiness.ready) {
-    note.innerHTML = _diarizationNoteHtml(readiness.reason, 'closeRetranscribeModal();openSettings()');
+    note.innerHTML = _diarizationNoteHtml(readiness.reason);
+    _wireDiarizationSettingsLink(note, () => { closeRetranscribeModal(); openSettings(); });
   } else {
     note.textContent = '';
   }

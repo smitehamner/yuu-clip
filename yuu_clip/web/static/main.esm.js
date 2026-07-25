@@ -13,11 +13,10 @@
 import { AppState } from './core/state.js';
 import * as format from './core/format.js';
 import { ColorPicker } from './library/colorpicker.js';
-import { PanelNav } from './core/panelnav.js';
 import * as jobs from './core/jobs.js';
 import {
   showAlert, showConfirm, _confirmCancel,
-  toggleHamburger, closeHamburger,
+  toggleHamburger,
   openControlsModal,
   openDiffModal,
   showKebab, showUndoToast,
@@ -35,11 +34,11 @@ import {
 } from './settings/modelcatalog.js';
 import {
   loadVideos, renderVideoDetail,
-  onClipsSortChange, _clipsSortParam, fetchClipsList,
+  _clipsSortParam, fetchClipsList,
   _updateDemoButton,
   _syncAnalysisLivePanel,
   _renderVideoList,
-  setVideoSearch, setVideoSort, toggleVideoSortDir, toggleVideoFilter,
+  toggleVideoFilter,
 } from './videos/videos.js';
 import { regenSummaryAuto } from './videos/videos-summary.js';
 import { toggleGroupSelect } from './videos/sessions.js';
@@ -50,13 +49,12 @@ import {
   _renderClipFilterCounts,
   openClipActionsModal,
 } from './clips/clips.js';
-import { undoLastBulkStatus } from './clips/clipbulk.js';
 import {
   closeExportModal,
 } from './clips/clipexport.js';
 import { openClipCreatePicker } from './clips/clipcreate.js';
 import {
-  openReanalyzePanel, closeNewRecordingPanel,
+  openReanalyzePanel,
   startAnalyze, openNewRecordingPanel,
 } from './analyze/analyze.js';
 import {
@@ -64,7 +62,6 @@ import {
 } from './analyze/reel.js';
 import {
   _deriveContextId,
-  closeRetranscribeModal,
 } from './library/contexts.js';
 import {
   openSettings,
@@ -90,13 +87,17 @@ import './core/boot.js';
 
 // ============================================================================
 // RESIDUAL window.* SHIM - consolidated into two labeled groups
-// (Phase 3 of the module-testability plan, 2026-07-23).
+// (Phase 3 of the module-testability plan, 2026-07-23; GROUP 1 drained to the
+// jobs.js/format.js cluster in the ui-shim-retirement plan's Phase 1, 2026-07-24 -
+// every name that moved to a real addEventListener/import lost its production
+// reader and either dropped entirely or, if a tests/ui page.evaluate still pokes
+// it, moved down to GROUP 2).
 //
 // This is a readability move, not a testability one: it makes the KIND of
 // coupling legible by separating names the APP needs at runtime from names only
 // a TEST reaches. Both groups keep every name as a bare `window.X` global, so
-// inline on*-handlers, page.evaluate("name()") pokes, and test_ui_globals.py's
-// window-function check all keep working unchanged.
+// page.evaluate("name()") pokes and test_ui_globals.py's window-function check
+// all keep working unchanged.
 //
 // Retiring an entry: a GROUP 1 line drops only when its runtime reader is
 // converted to a direct import (or the inline handler to addEventListener); a
@@ -120,24 +121,6 @@ window._syncAnalysisLivePanel = _syncAnalysisLivePanel;
 window._renderClips = _renderClips;
 window._renderClipFilterCounts = _renderClipFilterCounts;
 window._clipsSortParam = _clipsSortParam;  // read by format.js as window._clipsSortParam
-// panelnav.js / helpmodals.js read these off window explicitly:
-window.showConfirm = showConfirm;
-window.closeHamburger = closeHamburger;  // + index.html/header.html inline handler
-window.PanelNav = PanelNav;              // index.html + split-editor.html inline handlers
-// index.html/sidebar.html inline on*-handlers call these:
-window.onClipsSortChange = onClipsSortChange;
-window.setVideoSearch = setVideoSearch;
-window.setVideoSort = setVideoSort;
-window.toggleVideoSortDir = toggleVideoSortDir;
-window.toggleVideoFilter = toggleVideoFilter;
-// bare-global reads (shortcuts.js/clips.js) or the module's own onclick-string
-// self-reference (a _diarizationNoteHtml "Settings" link built as an innerHTML
-// onclick attribute, evaluated in global scope when clicked):
-window.undoLastBulkStatus = undoLastBulkStatus;          // clips.js bare-global
-window.closeExportModal = closeExportModal;              // clipexport.js onclick-string
-window.closeNewRecordingPanel = closeNewRecordingPanel;  // analyze.js onclick-string
-window.closeRetranscribeModal = closeRetranscribeModal;  // contexts.js onclick-string
-window.openSettings = openSettings;                      // analyze/contexts/clipexport/modelcatalog onclick-string
 
 // ---- GROUP 2: test-only hooks (reachable ONLY via a tests/ui page.evaluate
 //      poke; no production JS/HTML reader) ----
@@ -158,26 +141,31 @@ window.openSettings = openSettings;                      // analyze/contexts/cli
 //    bypass), toggleClipFilter (chip hidden inside a collapsed expander),
 //    openNewRecordingPanel (its header button sits under the PanelNav overlay
 //    when a flow like the Split Editor is open - the real click can't reach it,
-//    but a drag-and-drop file onto the window calls it directly; bug-hunt 3.2).
+//    but a drag-and-drop file onto the window calls it directly; bug-hunt 3.2),
+//    showConfirm (test_ui_keyboard.py stacks it to verify focus-trap layering).
 //  * No reachable precondition - startAnalyze's button is disabled until a real
 //    probe against a real file succeeds (the fixture has none);
 //    openHighlightReelsModal is poked with a 'view' arg the single real
 //    (build-only) button can't reach; toggleGroupSelect's real-click swap was
 //    tried and reverted (list re-render races Playwright's actionability retry -
-//    see test_ui_sessions.py).
+//    see test_ui_sessions.py); toggleVideoFilter's 'unscored'/'errors' tokens
+//    live inside the collapsed "More filters" expander (test_ui_video.py).
 //  * Setup shortcut with no cheaper real path yet, or a real-browser-only
 //    sibling behavior (audio, geometry, string-indirection mount): ColorPicker,
 //    SoundFx, commitSoundSettings, openHelpModal, closeHelpModal,
 //    refreshModelCatalog, gateOnCapability, openPeopleView, openExportEditor,
 //    openClipCreatePicker, showUndoToast, openDiffModal (tests the modal's own
-//    generic dirty-check, decoupled from any one real caller on purpose).
+//    generic dirty-check, decoupled from any one real caller on purpose);
+//    closeExportModal / openSettings (many tests jump straight to a modal state
+//    via page.evaluate rather than driving the real open->close click sequence).
 Object.assign(window, {
   AppState, ColorPicker,
-  showAlert, _confirmCancel, toggleHamburger, openControlsModal, openDiffModal,
+  showAlert, showConfirm, _confirmCancel, toggleHamburger, openControlsModal, openDiffModal,
   showKebab, showUndoToast,
   openHelpModal, closeHelpModal, openGlossaryModal,
   refreshModelCatalog, gateOnCapability,
   renderVideoDetail, _renderVideoList, regenSummaryAuto, toggleGroupSelect,
+  toggleVideoFilter,
   renderDetail, toggleClipFilter, _applyFilters, openClipActionsModal,
   openClipCreatePicker,
   openReanalyzePanel, startAnalyze, openNewRecordingPanel,
@@ -186,4 +174,5 @@ Object.assign(window, {
   SoundFx, commitSoundSettings,
   openPeopleView, openExportEditor,
   openSplitEditor, closeSplitEditor,
+  closeExportModal, openSettings,
 });
