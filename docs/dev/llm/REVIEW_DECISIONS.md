@@ -130,10 +130,10 @@ WS-D (9 frontend JS extractions + vitest for zero-coverage modules, D1-D9) shipp
 item at a time (`d3e2718`..`4b83fde`) with a `yuu-dev bundle` + `yuu-dev test-js` gate
 between each (410 -> 492 JS tests) plus a full `yuu-dev test-ui` (650 passed, 1 known
 xdist-parallelism flake that passes in isolation) and `yuu-dev test-unit` 1777 (bundle/
-index/side-effect drift guards) at close. See
-`d:\1\Hamner\Code\000_project_planning\finalized_plans\yuu-clip_plans\plans\REFACTOR-FOR-QUALITY-PLAN-2026-07-23.md`
-for the per-item ledger and commit SHAs. No plan item was dropped or improvised. Recorded
-here per the close-out convention:
+index/side-effect drift guards) at close. See the refactor-for-quality plan's per-item
+ledger and commit SHAs in the planning workspace history (plan doc since archived - all
+items shipped). No plan item was dropped or improvised. Recorded here per the close-out
+convention:
 
 ### The three URLSearchParams query builders are deliberately NOT unified (anchored keep)
 Decision: `analyze/reel.js` (`_reelPoolQs`, `confirmBatchExport`), `clips/clipexport.js`,
@@ -168,10 +168,10 @@ plan's row.
 
 WS-C (7 behavior-preserving Python extractions, C1-C7) shipped one item at a time with a
 full `yuu-dev test-api` gate between each (all green: 3120 -> 3161 passed) plus a final
-`yuu-dev test-system` real-pipeline pass. See
-`d:\1\Hamner\Code\000_project_planning\finalized_plans\yuu-clip_plans\plans\REFACTOR-FOR-QUALITY-PLAN-2026-07-23.md`
-for the per-item ledger and commit SHAs. No plan item was dropped or improvised. Recorded
-here per the close-out convention:
+`yuu-dev test-system` real-pipeline pass. See the refactor-for-quality plan's per-item
+ledger and commit SHAs in the planning workspace history (plan doc since archived - all
+items shipped). No plan item was dropped or improvised. Recorded here per the close-out
+convention:
 
 ### `web/analyze_job.py`'s 2 SSE frames were deliberately NOT converted to `sse_event` (C4)
 SUPERSEDED by the SSE typed-event migration (stage 4, 2026-07-24): `sse_event` /
@@ -215,9 +215,9 @@ anchored `routes/llm.py` capability-tier keep.
 
 WS-A (10 test-file splits moving pure-by-dependency tests from `tests/integration`
 to `tests/unit`) and WS-B (new unit tests on already-pure, previously-untested
-logic) both shipped - see
-`d:\1\Hamner\Code\000_project_planning\finalized_plans\yuu-clip_plans\plans\REFACTOR-FOR-QUALITY-PLAN-2026-07-23.md`
-for the full per-item ledger. Recorded here per the close-out convention:
+logic) both shipped - see the refactor-for-quality plan's full per-item ledger in the
+planning workspace history (plan doc since archived - all items shipped). Recorded
+here per the close-out convention:
 
 ### 4 of WS-B's 8 items were SKIPPED - already covered, not written
 Decision: do not write near-duplicate tests for B1, B2, B4, B6.
