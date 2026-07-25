@@ -34,35 +34,31 @@ MAIN_ESM = STATIC_DIR / "main.esm.js"
 # Each set is the ceiling: the parsed shim must be a SUBSET. Delete a name here in the same
 # commit that drops its shim line; adding one needs a documented reason in the shim banner.
 
-# GROUP 1, individual `window.X = X` assignments: the jobs.js/format.js cross-module reads
-# that a direct import would break (vitest vi.mock(importActual) resolution - the plan's
-# one documented exception).
-_EXPECTED_GROUP1_ASSIGNMENTS: frozenset[str] = frozenset({
-    "loadVideos",
-    "_fetchClipsList",
-    "_updateDemoButton",
-    "_syncAnalysisLivePanel",
-    "_renderClips",
-    "_renderClipFilterCounts",
-    "_clipsSortParam",
-})
+# GROUP 1, individual `window.X = X` assignments. Emptied in Phase 2 (2026-07-25): the
+# jobs.js/format.js refresh reads that used to live here moved behind the
+# core/refreshhooks.js registration seam, so no individual window.* assignment remains.
+# Kept as an (empty) ratchet ceiling so a re-added `window.X = ...` line still trips
+# test_no_new_group1_assignment.
+_EXPECTED_GROUP1_ASSIGNMENTS: frozenset[str] = frozenset()
 
-# GROUP 1, whole-namespace spreads `Object.assign(window, X)` - the modules still read
-# wholesale off window (format's _clipsSortParam; jobs.js's cross-cutting exports).
-_EXPECTED_GROUP1_SPREADS: frozenset[str] = frozenset({"format", "jobs"})
+# GROUP 1, whole-namespace spreads `Object.assign(window, X)` - the one that remains is
+# jobs.js's cross-cutting exports (its cancel/pause handlers are read off window by inline
+# onclick markup that videos.js builds). format's spread dropped in Phase 2 (its sole live
+# poke, fmtDuration, moved to GROUP 2).
+_EXPECTED_GROUP1_SPREADS: frozenset[str] = frozenset({"jobs"})
 
 # GROUP 2, the test-only `Object.assign(window, { ... })` block: names reachable ONLY via a
 # tests/ui page.evaluate poke, kept so page.evaluate("name()") resolves. No production
 # JS/HTML reader (the per-cluster note in main.esm.js records why each can't drop yet).
 _EXPECTED_GROUP2: frozenset[str] = frozenset({
-    "AppState", "ColorPicker",
+    "AppState", "ColorPicker", "fmtDuration",
     "showAlert", "showConfirm", "_confirmCancel", "toggleHamburger",
     "openControlsModal", "openDiffModal", "showKebab", "showUndoToast",
     "openHelpModal", "closeHelpModal", "openGlossaryModal",
     "refreshModelCatalog", "gateOnCapability",
     "renderVideoDetail", "_renderVideoList", "regenSummaryAuto", "toggleGroupSelect",
     "toggleVideoFilter",
-    "renderDetail", "toggleClipFilter", "_applyFilters", "openClipActionsModal",
+    "renderDetail", "toggleClipFilter", "_applyFilters", "_renderClips", "openClipActionsModal",
     "openClipCreatePicker",
     "openReanalyzePanel", "startAnalyze", "openNewRecordingPanel",
     "openHighlightReelsModal",

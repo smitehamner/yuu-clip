@@ -8,6 +8,7 @@ import { showToast, appendLog, netErrMsg } from './utils.js';
 import { showConfirm } from './ui.js';
 import { SoundFx } from '../library/sounds.js';
 import { decodeEvent } from './jobevents.js';
+import { refreshHooks } from './refreshhooks.js';
 
 // ── shared live job-render state ──────────────────────────────────────────────
 // _jobStepDefs / _activeStepIdx / _jobStartTime are read cross-module by videos.js's
@@ -167,10 +168,7 @@ function startJobUI(stepDefs, jobLabel, cancellable = false, pausable = false) {
     _pollThermalStatus();
     _jobThermalPollTimer = setInterval(_pollThermalStatus, 5000);
   }
-  // window.* read: a direct import here adds a jobs.js <-> videos/clips edge that
-  // esbuild bundles fine, but it breaks vitest's vi.mock/importActual resolution -
-  // the real streamSSE runs instead of the mock. See MODULE-TESTABILITY-PLAN.
-  if (window._renderClipFilterCounts) _renderClipFilterCounts();
+  refreshHooks.renderClipFilterCounts();
 }
 
 // Polled every 5s (only while a pausable - i.e. analyze-type - job is active) to
@@ -307,10 +305,7 @@ function updateJobUI(line) {
     const m = line.match(activeDef.progressPattern);
     if (m) _setStepProgress(_activeStepIdx, parseInt(m[1], 10), parseInt(m[2], 10));
   }
-  // window.* read: a direct import here adds a jobs.js <-> videos/clips edge that
-  // esbuild bundles fine, but it breaks vitest's vi.mock/importActual resolution -
-  // the real streamSSE runs instead of the mock. See MODULE-TESTABILITY-PLAN.
-  if (window._syncAnalysisLivePanel) _syncAnalysisLivePanel();
+  refreshHooks.syncAnalysisLivePanel();
 }
 
 // Drive the pill row from a parsed @@PROGRESS marker: deterministic stage
@@ -322,19 +317,13 @@ function _driveStepFromMarker(marker) {
   if (typeof marker.done === 'number' && typeof marker.total === 'number' && marker.total > 0) {
     _setStepProgress(idx, marker.done, marker.total);
   }
-  // window.* read: a direct import here adds a jobs.js <-> videos/clips edge that
-  // esbuild bundles fine, but it breaks vitest's vi.mock/importActual resolution -
-  // the real streamSSE runs instead of the mock. See MODULE-TESTABILITY-PLAN.
-  if (window._syncAnalysisLivePanel) _syncAnalysisLivePanel();
+  refreshHooks.syncAnalysisLivePanel();
 }
 
 let _sidebarRefreshTimer = null;
 function _debouncedSidebarRefresh() {
   if (_sidebarRefreshTimer) return;
-  // window.* read: a direct import here adds a jobs.js <-> videos/clips edge that
-  // esbuild bundles fine, but it breaks vitest's vi.mock/importActual resolution -
-  // the real streamSSE runs instead of the mock. See MODULE-TESTABILITY-PLAN.
-  _sidebarRefreshTimer = setTimeout(() => { _sidebarRefreshTimer = null; window.loadVideos(); }, 1200);
+  _sidebarRefreshTimer = setTimeout(() => { _sidebarRefreshTimer = null; refreshHooks.loadVideos(); }, 1200);
 }
 
 let _clipListRefreshTimer = null;
@@ -350,13 +339,10 @@ function _debouncedClipListRefresh() {
     if (!AppState.activeVideoId || !AppState.analyzeFilename) return;
     const analyzing = AppState.videos.find(v => v.filename === AppState.analyzeFilename);
     if (!analyzing || analyzing.id !== AppState.activeVideoId) return;
-    // window.* reads: a direct import here adds a jobs.js <-> videos/clips edge that
-    // esbuild bundles fine, but it breaks vitest's vi.mock/importActual resolution -
-    // the real streamSSE runs instead of the mock. See MODULE-TESTABILITY-PLAN.
-    const clips = await window._fetchClipsList(AppState.activeVideoId);
+    const clips = await refreshHooks.fetchClipsList(AppState.activeVideoId);
     if (!clips) return;
     AppState.clips = clips;
-    window._renderClips();
+    refreshHooks.renderClips();
   }, 1200);
 }
 
@@ -411,10 +397,7 @@ function _renderStepPill(idx) {
 }
 
 function _tickJobTimer() {
-  // window.* read: a direct import here adds a jobs.js <-> videos/clips edge that
-  // esbuild bundles fine, but it breaks vitest's vi.mock/importActual resolution -
-  // the real streamSSE runs instead of the mock. See MODULE-TESTABILITY-PLAN.
-  if (window._syncAnalysisLivePanel) _syncAnalysisLivePanel();
+  refreshHooks.syncAnalysisLivePanel();
   if (_activeStepIdx < 0) return;
   _renderStepPill(_activeStepIdx);
 }
@@ -441,11 +424,8 @@ function endJobUI() {
     if (analyzeBtn) analyzeBtn.title = '';
     _setJobBlockedButtons(false);
     const totalApproved = (AppState.videos || []).reduce((n, v) => n + v.approved, 0);
-    // window.* reads: a direct import here adds a jobs.js <-> videos/clips edge that
-    // esbuild bundles fine, but it breaks vitest's vi.mock/importActual resolution -
-    // the real streamSSE runs instead of the mock. See MODULE-TESTABILITY-PLAN.
-    window._updateDemoButton(totalApproved);
-    if (window._renderClipFilterCounts) _renderClipFilterCounts();
+    refreshHooks.updateDemoButton(totalApproved);
+    refreshHooks.renderClipFilterCounts();
   }, 2000);
 }
 
@@ -603,10 +583,7 @@ function streamSSE(url, onDone, stepDefs, jobLabel, cancellable = false, onLine 
       SoundFx.play('error');
       if (stepDefs) endJobUI();
       if (onError) onError(errMsg);
-      // window.* read: a direct import here adds a jobs.js <-> videos/clips edge that
-      // esbuild bundles fine, but it breaks vitest's vi.mock/importActual resolution -
-      // the real streamSSE runs instead of the mock. See MODULE-TESTABILITY-PLAN.
-      window.loadVideos();
+      refreshHooks.loadVideos();
     },
     opts,
     // Typed progress event -> the same deterministic pill advance the marker drove.
@@ -687,10 +664,7 @@ async function _doCancelJob() {
   // keep an unclickable "Analyzing…" placeholder until a manual page refresh.
   // (Analyze-only; the in-process jobs never set analyzeFilename.)
   AppState.analyzeFilename = null;
-  // window.* read: a direct import here adds a jobs.js <-> videos/clips edge that
-  // esbuild bundles fine, but it breaks vitest's vi.mock/importActual resolution -
-  // the real streamSSE runs instead of the mock. See MODULE-TESTABILITY-PLAN.
-  window.loadVideos();
+  refreshHooks.loadVideos();
 }
 
 // The job header's Pause/Cancel buttons are static markup in index.html (never

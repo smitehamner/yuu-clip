@@ -4,6 +4,7 @@
 // escHtml is the shared escaper (also used by the Electron wizard); re-exported here so
 // the many `import { escHtml } from '../core/format.js'` call sites stay unchanged.
 import { escHtml } from '../shared/escapehtml.js';
+import { refreshHooks } from './refreshhooks.js';
 
 // ── score utils ───────────────────────────────────────────────────────────────
 const AXIS_ICONS = {
@@ -41,7 +42,7 @@ function _scoreBorderColor(score, isRejected) {
 }
 
 function _sortScore(clip) {
-  const sort = window._clipsSortParam();
+  const sort = refreshHooks.clipsSortParam();
   if (sort === 'funny')    return clip.score_funny;
   if (sort === 'dramatic') return clip.score_dramatic;
   if (sort === 'action')   return clip.score_action;

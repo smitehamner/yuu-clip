@@ -28,6 +28,7 @@ import {
   SPEAKER_NAMES_STEPS, FIND_SIMILAR_STEPS, TIMELINE_JOB_STEPS, setJobProgress,
   setJobCancel, cancelJob,
 } from '../../../yuu_clip/web/static/core/jobs.js';
+import { registerRefreshHooks, _resetRefreshHooks } from '../../../yuu_clip/web/static/core/refreshhooks.js';
 
 const stepClass = (i) => document.getElementById(`step-${i}`).className;
 const marker = (obj) => '@@PROGRESS ' + JSON.stringify(obj);
@@ -275,13 +276,16 @@ describe('client-only job cancel', () => {
     vi.useFakeTimers();
     origFetch = global.fetch;
     global.fetch = vi.fn(() => Promise.resolve({ ok: true }));
-    window.loadVideos = vi.fn();
-    window._updateDemoButton = vi.fn();
+    // endJobUI / _doCancelJob refresh videos + the demo button through the
+    // refreshhooks seam - register no-op fakes so the flushed timers don't reach
+    // an unregistered hook (a no-op anyway, but this mirrors boot.js's wiring).
+    registerRefreshHooks({ loadVideos: vi.fn(), updateDemoButton: vi.fn() });
     showConfirm.mockImplementation((title, body, confirmLabel, onConfirm) => onConfirm());
   });
   afterEach(() => {
     vi.runOnlyPendingTimers();
     global.fetch = origFetch;
+    _resetRefreshHooks();
     vi.useRealTimers();
     vi.restoreAllMocks();
   });

@@ -11,7 +11,7 @@
 // of coupling legible; it is not a classic-script bridge. Full per-name drop
 // history lives in git and the MODULE-TESTABILITY plan doc.
 import { AppState } from './core/state.js';
-import * as format from './core/format.js';
+import { fmtDuration } from './core/format.js';
 import { ColorPicker } from './library/colorpicker.js';
 import * as jobs from './core/jobs.js';
 import {
@@ -33,10 +33,7 @@ import {
   gateOnCapability,
 } from './settings/modelcatalog.js';
 import {
-  loadVideos, renderVideoDetail,
-  _clipsSortParam, fetchClipsList,
-  _updateDemoButton,
-  _syncAnalysisLivePanel,
+  renderVideoDetail,
   _renderVideoList,
   toggleVideoFilter,
 } from './videos/videos.js';
@@ -46,7 +43,6 @@ import {
   renderDetail,
   toggleClipFilter,
   _applyFilters, _renderClips,
-  _renderClipFilterCounts,
   openClipActionsModal,
 } from './clips/clips.js';
 import {
@@ -88,10 +84,12 @@ import './core/boot.js';
 // ============================================================================
 // RESIDUAL window.* SHIM - consolidated into two labeled groups
 // (Phase 3 of the module-testability plan, 2026-07-23; GROUP 1 drained to the
-// jobs.js/format.js cluster in the ui-shim-retirement plan's Phase 1, 2026-07-24 -
-// every name that moved to a real addEventListener/import lost its production
-// reader and either dropped entirely or, if a tests/ui page.evaluate still pokes
-// it, moved down to GROUP 2).
+// jobs.js/format.js cluster in the ui-shim-retirement plan's Phase 1, 2026-07-24,
+// then that cluster itself moved behind core/refreshhooks.js in Phase 2, 2026-07-25 -
+// every name that moved to a real addEventListener/import/registration seam lost its
+// production reader and either dropped entirely or, if a tests/ui page.evaluate still
+// pokes it, moved down to GROUP 2. GROUP 1 is now the single Object.assign(window, jobs)
+// spread that inline onclick markup built by videos.js still depends on).
 //
 // This is a readability move, not a testability one: it makes the KIND of
 // coupling legible by separating names the APP needs at runtime from names only
@@ -108,19 +106,14 @@ import './core/boot.js';
 // ============================================================================
 
 // ---- GROUP 1: genuine production coupling (read off window at runtime) ----
-Object.assign(window, format);  // format.js reads window._clipsSortParam
-Object.assign(window, jobs);    // jobs.js is cross-cutting; its exports still
-                                // have window.* consumers / inline handlers
-// jobs.js reads these videos.js/clips.js exports off window - NOT converted to a
-// direct import: a jobs.js<->videos/clips edge breaks vitest's
-// vi.mock(importActual) resolution (the plan's one documented exception).
-window.loadVideos = loadVideos;
-window._fetchClipsList = fetchClipsList;
-window._updateDemoButton = _updateDemoButton;
-window._syncAnalysisLivePanel = _syncAnalysisLivePanel;
-window._renderClips = _renderClips;
-window._renderClipFilterCounts = _renderClipFilterCounts;
-window._clipsSortParam = _clipsSortParam;  // read by format.js as window._clipsSortParam
+// jobs.js's own refresh reads (loadVideos/_renderClips/_clipsSortParam/...) moved
+// behind the core/refreshhooks.js registration seam in the ui-shim-retirement plan's
+// Phase 2 (2026-07-25), so those individual window.* assignments are gone. The one
+// spread that remains: jobs.js's exported cancel/pause handlers are still read off
+// window by inline onclick="cancelJob()"/"togglePauseJob()" markup that videos.js
+// BUILDS as HTML strings - a separate coupling direction, out of scope for the
+// refresh-registry work (its own delegation would be a later opportunistic drain).
+Object.assign(window, jobs);
 
 // ---- GROUP 2: test-only hooks (reachable ONLY via a tests/ui page.evaluate
 //      poke; no production JS/HTML reader) ----
@@ -130,10 +123,13 @@ window._clipsSortParam = _clipsSortParam;  // read by format.js as window._clips
 // attempting any drop):
 //  * Synthetic-state seeds - the test hand-builds an AppState / clip / video
 //    combination no fixture project or real click sequence produces:
-//    AppState, renderDetail, renderVideoDetail, _renderVideoList,
+//    AppState, renderDetail, renderVideoDetail, _renderVideoList, _renderClips
+//    (many tests seed AppState.clips then re-paint the list directly),
 //    regenSummaryAuto, openReanalyzePanel, openClipActionsModal (its merge
-//    tests), _deriveContextId + _applyFilters (compute an expected value for
-//    comparison, not a trigger).
+//    tests), _deriveContextId + _applyFilters + fmtDuration (compute an expected
+//    value for comparison, not a trigger; fmtDuration was the sole live poke left
+//    in format.js's names, so its blanket Object.assign(window, format) dropped in
+//    Phase 2 and just this one name moved here).
 //  * Modal/panel overlay blocks the real trigger by design - the test stacks a
 //    modal/panel to verify Escape/focus layering and the real button is covered:
 //    showAlert, showKebab, toggleHamburger, openControlsModal, openGlossaryModal,
@@ -159,14 +155,14 @@ window._clipsSortParam = _clipsSortParam;  // read by format.js as window._clips
 //    closeExportModal / openSettings (many tests jump straight to a modal state
 //    via page.evaluate rather than driving the real open->close click sequence).
 Object.assign(window, {
-  AppState, ColorPicker,
+  AppState, ColorPicker, fmtDuration,
   showAlert, showConfirm, _confirmCancel, toggleHamburger, openControlsModal, openDiffModal,
   showKebab, showUndoToast,
   openHelpModal, closeHelpModal, openGlossaryModal,
   refreshModelCatalog, gateOnCapability,
   renderVideoDetail, _renderVideoList, regenSummaryAuto, toggleGroupSelect,
   toggleVideoFilter,
-  renderDetail, toggleClipFilter, _applyFilters, openClipActionsModal,
+  renderDetail, toggleClipFilter, _applyFilters, _renderClips, openClipActionsModal,
   openClipCreatePicker,
   openReanalyzePanel, startAnalyze, openNewRecordingPanel,
   openHighlightReelsModal,

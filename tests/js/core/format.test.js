@@ -7,6 +7,7 @@ import {
   formatApiError, stripRichMarkup, _scoreBorderColor, _lerpColor, _fmtElapsed,
   _fmtVideoStatus, _fmtDate, _sortScore, plural, _parseIntervalS, stripQuotedPath, fmtClock,
 } from '../../../yuu_clip/web/static/core/format.js';
+import { registerRefreshHooks, _resetRefreshHooks } from '../../../yuu_clip/web/static/core/refreshhooks.js';
 
 describe('escHtml', () => {
   it('escapes the double-quote for data-*/title attributes', () => {
@@ -250,10 +251,10 @@ describe('_fmtDate', () => {
   });
 });
 
-// _sortScore reaches back into videos.js's sort control via window._clipsSortParam
-// (a residual shim coupling: format.js is a leaf yet reads a videos.js global). We
-// reproduce that indirection here rather than refactor it. TODO(shim-collapse): pass
-// the sort dimension in instead so format.js has no window dependency.
+// _sortScore reaches back into videos.js's sort control via the refreshhooks.js
+// registration seam (format.js is a leaf yet needs the current sort dimension; a
+// direct import would break vitest vi.mock resolution - see core/refreshhooks.js).
+// We register the same accessor boot.js wires in production.
 describe('_sortScore', () => {
   const clip = { score_overall: 0.5, score_funny: 0.9, score_dramatic: 0.4, score_action: 0.3 };
   const sortBy = (v) => {
@@ -264,9 +265,9 @@ describe('_sortScore', () => {
     const opts = ['funny', 'dramatic', 'action', 'score', 'timeline']
       .map((v) => `<option value="${v}">${v}</option>`).join('');
     document.body.innerHTML = `<select id="clips-sort">${opts}</select>`;
-    window._clipsSortParam = () => document.getElementById('clips-sort').value;
+    registerRefreshHooks({ clipsSortParam: () => document.getElementById('clips-sort').value });
   });
-  afterEach(() => { delete window._clipsSortParam; });
+  afterEach(() => { _resetRefreshHooks(); });
   it('a dimension selects the matching field', () => {
     expect(sortBy('funny')).toBe(0.9);
     expect(sortBy('dramatic')).toBe(0.4);

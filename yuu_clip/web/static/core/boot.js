@@ -5,10 +5,14 @@ import { AppState } from './state.js';
 import { initResize, initPlaybackRate, _applyPrereqWarnings, initUiListeners } from './ui.js';
 import { _syncSortDirBtn, initUtilsListeners } from './utils.js';
 import { initJobsListeners } from './jobs.js';
+import { registerRefreshHooks } from './refreshhooks.js';
 import { initShortcuts } from './shortcuts.js';
 import { initProjectSwitcher, initProjectListeners } from '../settings/projects.js';
 import { _loadContexts, initContextsListeners } from '../library/contexts.js';
-import { loadVideos, initVideosListeners } from '../videos/videos.js';
+import {
+  loadVideos, fetchClipsList, _updateDemoButton, _syncAnalysisLivePanel,
+  _clipsSortParam, initVideosListeners,
+} from '../videos/videos.js';
 import { ensureHotwordsCache, initHotwordListeners } from '../library/hotwords.js';
 import { ensureExportPresetsCache, initExportPresetListeners } from '../library/exportpresets.js';
 import { initSensitiveListeners } from '../library/sensitive.js';
@@ -18,7 +22,7 @@ import { initReelListeners } from '../analyze/reel.js';
 import { initTranscriptListeners } from '../analyze/transcript.js';
 import { openGettingStartedModal, initHelpModalsListeners } from './helpmodals.js';
 import { initModelDownload, initModelPrefetch } from '../settings/modeldownload.js';
-import { _renderClips, _syncKindChips, initClipsListeners } from '../clips/clips.js';
+import { _renderClips, _renderClipFilterCounts, _syncKindChips, initClipsListeners } from '../clips/clips.js';
 import { initClipBulkListeners } from '../clips/clipbulk.js';
 import { initClipExportListeners } from '../clips/clipexport.js';
 import { renderGpuWarningChip } from './gpustatus.js';
@@ -52,6 +56,21 @@ document.querySelectorAll('.modal-bg').forEach((bg, i) => {
     heading.id = heading.id || labelId;
     inner.setAttribute('aria-labelledby', heading.id || labelId);
   }
+});
+
+// ── refresh-hook registration ───────────────────────────────────────────────────
+// jobs.js (job-completion refresh) and format.js (clip sort) reach videos.js/clips.js
+// through this seam instead of a direct import - see core/refreshhooks.js for why.
+// Must run before initJobsListeners / loadVideos below so any job that starts finds
+// its hooks registered.
+registerRefreshHooks({
+  loadVideos,
+  fetchClipsList,
+  renderClips: _renderClips,
+  renderClipFilterCounts: _renderClipFilterCounts,
+  updateDemoButton: _updateDemoButton,
+  syncAnalysisLivePanel: _syncAnalysisLivePanel,
+  clipsSortParam: _clipsSortParam,
 });
 
 // ── boot ──────────────────────────────────────────────────────────────────────
