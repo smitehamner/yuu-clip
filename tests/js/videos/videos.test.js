@@ -7,6 +7,7 @@ import {
   _applyVideoFilters, _reanalyzeParams, _analysisLivePanelHTML, _syncAnalysisLivePanel,
   _autoSelectAnalyzingId, fetchClipsList,
   computeVideoFilterCounts, _isVideoBeingAnalyzed, _needsModelCtaHTML, _contextsAreStale,
+  _renderImportedFromLine, _videoErrBadgeHtml,
 } from '../../../yuu_clip/web/static/videos/videos.js';
 import { startJobUI, updateJobUI, endJobUI } from '../../../yuu_clip/web/static/core/jobs.js';
 
@@ -264,5 +265,49 @@ describe('_contextsAreStale', () => {
 
   it('is false for two empty sets', () => {
     expect(_contextsAreStale([], [])).toBe(false);
+  });
+});
+
+describe('_renderImportedFromLine', () => {
+  it('blank for a recording with no source_url (added from a local file)', () => {
+    expect(_renderImportedFromLine({ source_url: '' })).toBe('');
+  });
+
+  it('names the uploader and links the original for an imported recording', () => {
+    const html = _renderImportedFromLine({ source_url: 'https://example.com/vod', source_uploader: 'SomeStreamer' });
+    expect(html).toContain('Imported from');
+    expect(html).toContain('SomeStreamer');
+    expect(html).toContain('href="https://example.com/vod"');
+  });
+
+  it('includes the upload date when present, omits it when absent', () => {
+    const withDate = _renderImportedFromLine({ source_url: 'https://x', source_uploader: 'A', source_upload_date: '2026-01-01' });
+    expect(withDate).toContain('2026-01-01');
+    const withoutDate = _renderImportedFromLine({ source_url: 'https://x', source_uploader: 'A' });
+    expect(withoutDate).not.toContain('&middot; &middot;');
+  });
+});
+
+describe('_videoErrBadgeHtml', () => {
+  it('blank when there are no scoring errors', () => {
+    expect(_videoErrBadgeHtml(0, true)).toBe('');
+    expect(_videoErrBadgeHtml(0, false)).toBe('');
+  });
+
+  it('a calm setup note when no language model is usable right now (not a failure)', () => {
+    const html = _videoErrBadgeHtml(3, false);
+    expect(html).toContain('Scored without a language model');
+    expect(html).not.toContain('var(--warning)');
+  });
+
+  it('an alarming re-score-to-retry badge when a model is usable', () => {
+    const html = _videoErrBadgeHtml(2, true);
+    expect(html).toContain('2 scoring errors');
+    expect(html).toContain('re-score to retry');
+  });
+
+  it('pluralizes the error count correctly', () => {
+    expect(_videoErrBadgeHtml(1, true)).toContain('1 scoring error<');
+    expect(_videoErrBadgeHtml(2, true)).toContain('2 scoring errors<');
   });
 });

@@ -221,6 +221,17 @@ function _renderGroupedVideoItems(list, shown, analyzingName) {
   }
 }
 
+// Sidebar row's scoring-error note: blank when there are no errors, a calm
+// "scored without a language model" note when none is usable right now (a setup
+// state, not a failure), otherwise the alarming re-score-to-retry badge.
+export function _videoErrBadgeHtml(errCount, llmUsable) {
+  if (errCount === 0) return '';
+  if (!llmUsable) {
+    return `<div class="meta" style="margin-top:2px;color:var(--muted)" title="These clips were scored before a language model was set up - set one up, then re-score for LLM scoring and descriptions">Scored without a language model</div>`;
+  }
+  return `<div class="meta" style="margin-top:2px;color:var(--warning)" title="LLM scoring failed for ${plural(errCount, 'clip')} - re-score to retry">&#9888; ${plural(errCount, 'scoring error')}</div>`;
+}
+
 // Builds one recording <li>. inSession indents it under its session header;
 // grouping selection mode adds a checkbox and suppresses normal navigation.
 function _videoItemLi(v, analyzingName, inSession) {
@@ -244,15 +255,10 @@ function _videoItemLi(v, analyzingName, inSession) {
   const segmentMeta = (v.segment_start_s != null && v.segment_end_s != null)
     ? `<div class="meta" style="color:var(--accent2)" title="Where this part sits inside the original recording">from ${_msToHms(v.segment_start_s * 1000)} to ${_msToHms(v.segment_end_s * 1000)}</div>`
     : '';
-  const errCount = v.clips_llm_error || 0;
   // A missing model is a setup state, not a failure: when no language model is
   // usable right now, these clips were simply scored before one was set up, so
   // show a calm note rather than an alarming red "N scoring errors" badge.
-  const llmUsable = !!(window._prereqs || {}).llm_ok;
-  const errBadge = errCount === 0 ? ''
-    : llmUsable
-    ? `<div class="meta" style="margin-top:2px;color:var(--warning)" title="LLM scoring failed for ${plural(errCount, 'clip')} - re-score to retry">&#9888; ${plural(errCount, 'scoring error')}</div>`
-    : `<div class="meta" style="margin-top:2px;color:var(--muted)" title="These clips were scored before a language model was set up - set one up, then re-score for LLM scoring and descriptions">Scored without a language model</div>`;
+  const errBadge = _videoErrBadgeHtml(v.clips_llm_error || 0, !!(window._prereqs || {}).llm_ok);
   const missingSourceBadge = v.source_exists === false
     ? `<div class="meta" style="margin-top:2px;color:var(--warning)" title="The source recording file is missing from disk - playback and export stay unavailable until it is put back">&#9888; Recording file not found</div>`
     : '';
@@ -487,7 +493,7 @@ async function selectVideo(id) {
 
 // "Imported from" line (roadmap plan 08) - shown only for a recording brought
 // in via Import from URL; a recording added from a local file has no source_url.
-function _renderImportedFromLine(video) {
+export function _renderImportedFromLine(video) {
   if (!video.source_url) return '';
   const parts = [escHtml(video.source_uploader || 'Unknown channel')];
   if (video.source_upload_date) parts.push(escHtml(video.source_upload_date));
