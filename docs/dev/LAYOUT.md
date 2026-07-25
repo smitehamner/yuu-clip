@@ -16,7 +16,10 @@ yuu_clip/
   transcribe/              # transcriber.py (Transcriber ABC + make_transcriber, faster-whisper backend), whisper_runner.py (persistence + progress around the seam), diarization_client.py (DiarizationClient seam), speaker_attach.py (diarization output -> durable Speakers), project_voice.py (cross-recording Person matching core), align.py (forced alignment of edited caption text, for word-highlight captions)
   db/models.py             # SQLAlchemy ORM (SQLite, NullPool) - the ONLY schema source (see the Data model section of ARCHITECTURE.md)
   console.py               # Shared Rich console + BYTES_PER_MB (used by cli/ and the engine; lives outside cli/ so the engine never imports cli)
-  config.py                # Config + profile management (+ resolve_ai_permissions, the AI-privacy choke point)
+  config.py                # Config dataclass + load/save (+ resolve_ai_permissions, the AI-privacy choke point)
+  ffmpeg_tools.py           # find_ffmpeg (bundled/PATH binary discovery) + run_ffmpeg (the ffmpeg/ffprobe choke point)
+  recent_projects.py       # Recently-opened-projects MRU list (project switcher)
+  track_labels.py          # TRACK_LABELS/LABEL_WEIGHTS/LABEL_DESCRIPTIONS + saved track-layout profile CRUD
   contexts.py              # World-context storage + prompt formatting
   sessions.py              # Session auto-grouping suggestions (pure logic; routes/sessions.py drives it)
   reel.py                  # Highlight-reel assembly (select + concatenate top clips into one reel)

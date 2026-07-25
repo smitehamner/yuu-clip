@@ -238,10 +238,10 @@ class TestDetectKeyframes:
         import subprocess
         import types
 
-        from yuu_clip import config as config_mod
+        from yuu_clip import ffmpeg_tools as ffmpeg_mod
         from yuu_clip.scoring import scenes
 
-        monkeypatch.setattr(config_mod, "find_ffmpeg", lambda: ("ffmpeg.exe", "ffprobe.exe"))
+        monkeypatch.setattr(ffmpeg_mod, "find_ffmpeg", lambda: ("ffmpeg.exe", "ffprobe.exe"))
         stdout = "5.000000,K\n5.500000,\n15.000000,K__\n"
         monkeypatch.setattr(
             subprocess, "run",
@@ -255,10 +255,10 @@ class TestDetectKeyframes:
         import subprocess
         import types
 
-        from yuu_clip import config as config_mod
+        from yuu_clip import ffmpeg_tools as ffmpeg_mod
         from yuu_clip.scoring import scenes
 
-        monkeypatch.setattr(config_mod, "find_ffmpeg", lambda: ("ffmpeg.exe", "ffprobe.exe"))
+        monkeypatch.setattr(ffmpeg_mod, "find_ffmpeg", lambda: ("ffmpeg.exe", "ffprobe.exe"))
         captured = {}
 
         def _fake_run(*args, **kwargs):
@@ -274,10 +274,10 @@ class TestDetectKeyframes:
         import subprocess
         import types
 
-        from yuu_clip import config as config_mod
+        from yuu_clip import ffmpeg_tools as ffmpeg_mod
         from yuu_clip.scoring import scenes
 
-        monkeypatch.setattr(config_mod, "find_ffmpeg", lambda: ("ffmpeg.exe", "ffprobe.exe"))
+        monkeypatch.setattr(ffmpeg_mod, "find_ffmpeg", lambda: ("ffmpeg.exe", "ffprobe.exe"))
         monkeypatch.setattr(
             subprocess, "run",
             lambda *a, **kw: types.SimpleNamespace(returncode=1, stdout="", stderr="Invalid data found"),
@@ -290,10 +290,10 @@ class TestDetectKeyframes:
     def test_timeout_expiry_still_degrades_gracefully(self, monkeypatch):
         import subprocess
 
-        from yuu_clip import config as config_mod
+        from yuu_clip import ffmpeg_tools as ffmpeg_mod
         from yuu_clip.scoring import scenes
 
-        monkeypatch.setattr(config_mod, "find_ffmpeg", lambda: ("ffmpeg.exe", "ffprobe.exe"))
+        monkeypatch.setattr(ffmpeg_mod, "find_ffmpeg", lambda: ("ffmpeg.exe", "ffprobe.exe"))
 
         def _timeout(*a, **kw):
             raise subprocess.TimeoutExpired(cmd="ffprobe", timeout=kw.get("timeout"))

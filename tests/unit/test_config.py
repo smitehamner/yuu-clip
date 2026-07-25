@@ -621,12 +621,12 @@ class TestProfiles:
 
     def test_empty_profiles_returns_empty_dict(self, monkeypatch, tmp_path):
         self._patch(monkeypatch, tmp_path)
-        from yuu_clip.config import load_profiles
+        from yuu_clip.track_labels import load_profiles
         assert load_profiles() == {}
 
     def test_save_and_load_profile(self, monkeypatch, tmp_path):
         self._patch(monkeypatch, tmp_path)
-        from yuu_clip.config import load_profiles, save_profile
+        from yuu_clip.track_labels import load_profiles, save_profile
         assignments = [{"stream_position": 0, "label": "player_voice", "transcribe": True}]
         save_profile("2track", assignments)
         profiles = load_profiles()
@@ -636,26 +636,26 @@ class TestProfiles:
 
     def test_save_overwrites_existing_profile(self, monkeypatch, tmp_path):
         self._patch(monkeypatch, tmp_path)
-        from yuu_clip.config import load_profiles, save_profile
+        from yuu_clip.track_labels import load_profiles, save_profile
         save_profile("p", [{"stream_position": 0, "label": "combined", "transcribe": True}])
         save_profile("p", [{"stream_position": 0, "label": "player_voice", "transcribe": True}])
         assert load_profiles()["p"]["assignments"][0]["label"] == "player_voice"
 
     def test_delete_profile(self, monkeypatch, tmp_path):
         self._patch(monkeypatch, tmp_path)
-        from yuu_clip.config import delete_profile, load_profiles, save_profile
+        from yuu_clip.track_labels import delete_profile, load_profiles, save_profile
         save_profile("to_delete", [])
         delete_profile("to_delete")
         assert "to_delete" not in load_profiles()
 
     def test_delete_nonexistent_profile_is_silent(self, monkeypatch, tmp_path):
         self._patch(monkeypatch, tmp_path)
-        from yuu_clip.config import delete_profile
+        from yuu_clip.track_labels import delete_profile
         delete_profile("nonexistent")  # must not raise
 
     def test_multiple_profiles_coexist(self, monkeypatch, tmp_path):
         self._patch(monkeypatch, tmp_path)
-        from yuu_clip.config import load_profiles, save_profile
+        from yuu_clip.track_labels import load_profiles, save_profile
         save_profile("alpha", [])
         save_profile("beta", [])
         profiles = load_profiles()

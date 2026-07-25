@@ -15,11 +15,7 @@ import json
 import logging
 import os
 import re
-import shutil
-import subprocess
-import sys
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Optional
 
@@ -45,68 +41,6 @@ def _global_config_dir() -> Path:
         return Path(override)
     return Path(user_config_dir(APP_NAME))
 
-
-def _profiles_path() -> Path:
-    return _global_config_dir() / "profiles.json"
-
-
-def _known_projects_path() -> Path:
-    return _global_config_dir() / "projects.json"
-
-
-# Cap on the recent-projects list so it never grows without bound.
-_KNOWN_PROJECTS_MAX = 20
-
-
-def load_known_projects() -> list[dict]:
-    """Load the recent-projects list (most-recent first) from the global config dir.
-
-    Each entry is ``{path, last_opened_at}``. Returns [] on a missing or
-    hand-corrupted file rather than raising - the switcher must still open.
-    """
-    p = _known_projects_path()
-    if not p.exists():
-        return []
-    try:
-        data = json.loads(p.read_text(encoding="utf-8"))
-    except (ValueError, OSError):
-        _log.warning("projects.json is unreadable - ignoring recent-projects list")
-        return []
-    if not isinstance(data, list):
-        return []
-    return [e for e in data if isinstance(e, dict) and isinstance(e.get("path"), str)]
-
-
-def record_known_project(project_dir: Path) -> None:
-    """Move *project_dir* to the front of the recent-projects list (dedup by
-    resolved path), stamping ``last_opened_at``."""
-    resolved = str(Path(project_dir).resolve())
-    now = datetime.now(timezone.utc).isoformat()
-    projects = [e for e in load_known_projects() if e.get("path") != resolved]
-    projects.insert(0, {"path": resolved, "last_opened_at": now})
-    del projects[_KNOWN_PROJECTS_MAX:]
-    p = _known_projects_path()
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(projects, indent=2), encoding="utf-8")
-
-
-TRACK_LABELS = ["player_voice", "ingame_voicechat", "game_sounds", "combined", "unlabeled"]
-
-LABEL_WEIGHTS: dict[str, float] = {
-    "player_voice":    2.0,
-    "ingame_voicechat": 1.0,
-    "game_sounds":     0.1,
-    "combined":        1.5,
-    "unlabeled":       1.0,
-}
-
-LABEL_DESCRIPTIONS: dict[str, str] = {
-    "player_voice":    "Your own microphone - highest relevance",
-    "ingame_voicechat": "Other players' in-game voice chat",
-    "game_sounds":     "Game audio / ambient / music (usually skip transcription)",
-    "combined":        "Mixed track - all sources together",
-    "unlabeled":       "Unknown - default weight applied",
-}
 
 # ---------------------------------------------------------------------------
 # Whisper allowlists - prevent unexpected HuggingFace downloads
@@ -572,13 +506,6 @@ def resolve_ai_permissions(config: "Config") -> AiPermissions:
     return AiPermissions(allow_llm=True)
 
 
-# Labels for which we skip transcription by default (user can override)
-DEFAULT_SKIP_TRANSCRIBE = {"game_sounds"}
-
-# Labels excluded from audio energy scoring by default (user can override during labeling)
-DEFAULT_SKIP_SCORE: frozenset[str] = frozenset({"game_sounds"})
-
-
 @dataclass
 class Config:
     # Speech-to-text backend. "faster_whisper" is the only implementation today; the
@@ -969,47 +896,6 @@ class Config:
         _overlay_layer(cfg_dir / "config.json", self, keys)
 
 
-def load_profiles() -> dict:
-    """Load saved track-label profiles from the global config dir.
-
-    Tolerates a corrupt profiles.json (same class as Config.load): a hand-edited
-    file must not crash the track-layout list - fall back to empty.
-    """
-    p = _profiles_path()
-    if p.exists():
-        return _read_config_file(p)
-    return {}
-
-
-def _write_profiles(profiles: dict) -> None:
-    p = _profiles_path()
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(profiles, indent=2), encoding="utf-8")
-
-
-def save_profile(name: str, assignments: list[dict]) -> None:
-    """
-    Save a track-label profile.
-
-    assignments: list of dicts with keys:
-        stream_position (int) - 0-based index among audio streams
-        label (str)
-        transcribe (bool)
-    """
-    profiles = load_profiles()
-    profiles[name] = {
-        "num_tracks": len(assignments),
-        "assignments": assignments,
-    }
-    _write_profiles(profiles)
-
-
-def delete_profile(name: str) -> None:
-    profiles = load_profiles()
-    profiles.pop(name, None)
-    _write_profiles(profiles)
-
-
 def project_audio_dir(project_dir: Path) -> Path:
     d = project_dir / ".yuu-clip" / "audio"
     d.mkdir(parents=True, exist_ok=True)
@@ -1051,79 +937,3 @@ def models_dir() -> Path:
     d = Path(user_data_dir(APP_NAME)) / "models"
     d.mkdir(parents=True, exist_ok=True)
     return d
-
-
-def find_ffmpeg() -> tuple[str, str]:
-    """
-    Return (ffmpeg_exe, ffprobe_exe) paths.
-
-    Packaged (Electron) builds set YUU_CLIP_FFMPEG_DIR to the bundled GPL FFmpeg
-    directory (see docs/dev/THIRD-PARTY-NOTICES-FFMPEG.md) and always use it - a
-    packaging bug that leaves it unset or pointing at an incomplete directory must
-    surface immediately, not silently fall through to whatever happens to be on
-    PATH. When unset (dev mode, non-Windows contributors), falls back to PATH via
-    shutil.which() as before.
-    """
-    bundled_dir = os.environ.get("YUU_CLIP_FFMPEG_DIR")
-    if bundled_dir:
-        ffmpeg = os.path.join(bundled_dir, "ffmpeg.exe")
-        ffprobe = os.path.join(bundled_dir, "ffprobe.exe")
-        missing = [name for name, path in (("ffmpeg.exe", ffmpeg), ("ffprobe.exe", ffprobe)) if not os.path.isfile(path)]
-        if missing:
-            raise RuntimeError(
-                f"YUU_CLIP_FFMPEG_DIR is set to {bundled_dir!r} but missing: {', '.join(missing)}\n\n"
-                "This indicates a broken packaged install, not a missing user dependency - "
-                "reinstalling yuu-clip should fix it."
-            )
-        return ffmpeg, ffprobe
-
-    ffmpeg = shutil.which("ffmpeg")
-    ffprobe = shutil.which("ffprobe")
-
-    missing = []
-    if not ffmpeg:
-        missing.append("ffmpeg")
-    if not ffprobe:
-        missing.append("ffprobe")
-
-    if missing:
-        if sys.platform == "win32":
-            hint = (
-                "Install FFmpeg on Windows via:\n"
-                "  winget install Gyan.FFmpeg\n"
-                "  or: choco install ffmpeg\n"
-                "  or: scoop install ffmpeg\n"
-                "Then restart your terminal so PATH is updated."
-            )
-        else:
-            hint = (
-                "Install FFmpeg via your package manager:\n"
-                "  Ubuntu/Debian: sudo apt install ffmpeg\n"
-                "  Arch:          sudo pacman -S ffmpeg\n"
-                "  macOS:         brew install ffmpeg"
-            )
-        raise RuntimeError(
-            f"Required tools not found in PATH: {', '.join(missing)}\n\n{hint}"
-        )
-
-    return ffmpeg, ffprobe
-
-
-def run_ffmpeg(args: list[str], timeout: Optional[float] = None) -> subprocess.CompletedProcess:
-    """Run an ffmpeg/ffprobe command with actionable failures.
-
-    args[0] must be "ffmpeg" or "ffprobe"; it is replaced with the resolved binary
-    from find_ffmpeg() so a missing install raises the friendly install-instructions
-    error instead of a bare FileNotFoundError. stderr is captured and, on a non-zero
-    exit, surfaced in the raised RuntimeError - callers (and the user) get the reason
-    rather than an opaque "returned non-zero exit status 1".
-    """
-    ffmpeg, ffprobe = find_ffmpeg()
-    tool = args[0]
-    exe = ffprobe if tool == "ffprobe" else ffmpeg
-    result = subprocess.run(
-        [exe, *args[1:]], capture_output=True, encoding="utf-8", errors="replace", timeout=timeout
-    )
-    if result.returncode != 0:
-        raise RuntimeError(f"{tool} failed (exit {result.returncode}):\n{result.stderr.strip()}")
-    return result

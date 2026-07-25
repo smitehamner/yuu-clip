@@ -453,7 +453,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     @router.get("/api/prereqs")
     def prereqs():
         """Return prerequisite availability for the UI to surface wizard links."""
-        from yuu_clip.config import find_ffmpeg
+        from yuu_clip.ffmpeg_tools import find_ffmpeg
         try:
             find_ffmpeg()
             ffmpeg_ok = True
@@ -850,7 +850,7 @@ def _probe_subtitle_streams(p: Path) -> list[dict]:
     import json as _json
     import subprocess as _sp
 
-    from yuu_clip.config import find_ffmpeg
+    from yuu_clip.ffmpeg_tools import find_ffmpeg
     try:
         _, ffprobe = find_ffmpeg()
         raw = _sp.run(

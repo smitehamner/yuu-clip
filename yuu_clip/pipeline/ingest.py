@@ -328,8 +328,8 @@ def _import_subtitles(subtitle_source: str, video_path: Path, track_objs, sessio
     """
     import tempfile
 
-    from yuu_clip.config import find_ffmpeg
     from yuu_clip.db.models import Transcript, TranscriptSegment
+    from yuu_clip.ffmpeg_tools import find_ffmpeg
 
     console.print("  [bold]Importing subtitles...[/bold]")
 

@@ -2502,7 +2502,7 @@ class TestClipPreviewSplitSegmentOffset:
             out_path.write_bytes(b"fake preview")
             return SimpleNamespace(returncode=0)
 
-        monkeypatch.setattr("yuu_clip.config.subprocess.run", fake_run)
+        monkeypatch.setattr("yuu_clip.ffmpeg_tools.subprocess.run", fake_run)
 
         r = client.get(f"/api/clips/{clip_id}/preview")
         assert r.status_code == 200

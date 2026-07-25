@@ -10,7 +10,6 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Query, Request
 from sqlalchemy import case
 
-from yuu_clip.config import run_ffmpeg
 from yuu_clip.db.models import ClipCandidate, Video
 from yuu_clip.export.paths import (
     clip_export_row_files,
@@ -18,6 +17,7 @@ from yuu_clip.export.paths import (
     srt_path,
     srt_sidecar_paths,
 )
+from yuu_clip.ffmpeg_tools import run_ffmpeg
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.media import media_file_response

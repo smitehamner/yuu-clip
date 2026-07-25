@@ -393,20 +393,20 @@ class TestContextWeightFields:
 
 
 # ---------------------------------------------------------------------------
-# config.py - load_profiles / save_profile / delete_profile unit tests
+# track_labels.py - load_profiles / save_profile / delete_profile unit tests
 # ---------------------------------------------------------------------------
 
 class TestProfileFunctions:
     def test_load_profiles_returns_empty_when_no_file(self, monkeypatch, tmp_path):
-        from yuu_clip import config as cfg_mod
-        monkeypatch.setattr(cfg_mod, "_profiles_path", lambda: tmp_path / "profiles.json")
-        from yuu_clip.config import load_profiles
+        from yuu_clip import track_labels as labels_mod
+        monkeypatch.setattr(labels_mod, "_profiles_path", lambda: tmp_path / "profiles.json")
+        from yuu_clip.track_labels import load_profiles
         assert load_profiles() == {}
 
     def test_save_and_load_profile(self, monkeypatch, tmp_path):
-        from yuu_clip import config as cfg_mod
-        monkeypatch.setattr(cfg_mod, "_profiles_path", lambda: tmp_path / "profiles.json")
-        from yuu_clip.config import load_profiles, save_profile
+        from yuu_clip import track_labels as labels_mod
+        monkeypatch.setattr(labels_mod, "_profiles_path", lambda: tmp_path / "profiles.json")
+        from yuu_clip.track_labels import load_profiles, save_profile
         assignments = [{"stream_position": 0, "label": "combined", "do_transcribe": True, "do_score": True}]
         save_profile("my_layout", assignments)
         result = load_profiles()
@@ -415,9 +415,9 @@ class TestProfileFunctions:
         assert result["my_layout"]["num_tracks"] == 1
 
     def test_save_profile_overwrites_existing(self, monkeypatch, tmp_path):
-        from yuu_clip import config as cfg_mod
-        monkeypatch.setattr(cfg_mod, "_profiles_path", lambda: tmp_path / "profiles.json")
-        from yuu_clip.config import load_profiles, save_profile
+        from yuu_clip import track_labels as labels_mod
+        monkeypatch.setattr(labels_mod, "_profiles_path", lambda: tmp_path / "profiles.json")
+        from yuu_clip.track_labels import load_profiles, save_profile
         save_profile("p", [{"stream_position": 0, "label": "old"}])
         save_profile("p", [{"stream_position": 0, "label": "new"}, {"stream_position": 1, "label": "voice"}])
         result = load_profiles()
@@ -425,16 +425,16 @@ class TestProfileFunctions:
         assert result["p"]["assignments"][0]["label"] == "new"
 
     def test_delete_profile_removes_entry(self, monkeypatch, tmp_path):
-        from yuu_clip import config as cfg_mod
-        monkeypatch.setattr(cfg_mod, "_profiles_path", lambda: tmp_path / "profiles.json")
-        from yuu_clip.config import delete_profile, load_profiles, save_profile
+        from yuu_clip import track_labels as labels_mod
+        monkeypatch.setattr(labels_mod, "_profiles_path", lambda: tmp_path / "profiles.json")
+        from yuu_clip.track_labels import delete_profile, load_profiles, save_profile
         save_profile("to_remove", [])
         delete_profile("to_remove")
         assert "to_remove" not in load_profiles()
 
     def test_delete_profile_nonexistent_is_no_op(self, monkeypatch, tmp_path):
-        from yuu_clip import config as cfg_mod
-        monkeypatch.setattr(cfg_mod, "_profiles_path", lambda: tmp_path / "profiles.json")
-        from yuu_clip.config import delete_profile, load_profiles
+        from yuu_clip import track_labels as labels_mod
+        monkeypatch.setattr(labels_mod, "_profiles_path", lambda: tmp_path / "profiles.json")
+        from yuu_clip.track_labels import delete_profile, load_profiles
         delete_profile("ghost")
         assert load_profiles() == {}

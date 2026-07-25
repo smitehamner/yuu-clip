@@ -148,7 +148,7 @@ def create_app(project_dir: Path) -> FastAPI:
 
     ctx = ProjectContext(project_dir)
     prepare_project(ctx)
-    from yuu_clip.config import record_known_project
+    from yuu_clip.recent_projects import record_known_project
     record_known_project(project_dir)
 
     @asynccontextmanager

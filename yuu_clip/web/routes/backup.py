@@ -30,7 +30,6 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from starlette.background import BackgroundTask
 
-from yuu_clip.config import record_known_project
 from yuu_clip.log import get_logger, redirect_logging
 from yuu_clip.project_archive import (
     ProjectExistsError,
@@ -40,6 +39,7 @@ from yuu_clip.project_archive import (
     plan_repoint_from_archive,
     restore_into,
 )
+from yuu_clip.recent_projects import record_known_project
 from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.routes.common import analyze_in_flight
 

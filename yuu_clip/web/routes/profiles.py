@@ -1,6 +1,6 @@
 # Feature-map - Track layout (code: profile; UI term "Track layout")
 #   UI: static/settings/settings.js (Settings → Track layouts + Profile Manager modal)
-#   Siblings: config.py (load/save_profiles) · tests/integration/test_profiles_contexts.py
+#   Siblings: track_labels.py (load/save_profiles) · tests/integration/test_profiles_contexts.py
 """
 Track layout CRUD routes.
 
@@ -29,7 +29,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
     @router.get("/api/profiles")
     def list_profiles():
-        from yuu_clip.config import load_profiles
+        from yuu_clip.track_labels import load_profiles
         user_profiles = load_profiles()
         return [_builtin_default()] + [
             {
@@ -44,7 +44,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
     @router.post("/api/profiles")
     def save_profile(body: ProfileSave):
-        from yuu_clip.config import save_profile as _save
+        from yuu_clip.track_labels import save_profile as _save
         name = body.name.strip()
         if not name or name.startswith("__"):
             raise HTTPException(400, "Invalid track layout name - names beginning with __ are reserved")
@@ -54,7 +54,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
     @router.delete("/api/profiles/{name}")
     def delete_profile(name: str):
-        from yuu_clip.config import delete_profile as _delete
+        from yuu_clip.track_labels import delete_profile as _delete
         if name.startswith("__"):
             raise HTTPException(400, "Built-in track layouts cannot be deleted")
         _delete(name)

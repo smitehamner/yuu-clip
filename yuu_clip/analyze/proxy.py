@@ -23,7 +23,7 @@ from collections import deque
 from pathlib import Path
 from typing import Callable, Optional
 
-from yuu_clip.config import find_ffmpeg
+from yuu_clip.ffmpeg_tools import find_ffmpeg
 from yuu_clip.log import get_logger
 
 _log = get_logger(__name__)

@@ -2593,7 +2593,7 @@ class TestGuessLabelIndex:
 
     def _guess_label(self, title):
         from yuu_clip.analyze.labeler import _guess_label_index
-        from yuu_clip.config import TRACK_LABELS
+        from yuu_clip.track_labels import TRACK_LABELS
         return TRACK_LABELS[_guess_label_index(self._stream(title)) - 1]
 
     def test_mic_keyword_labels_as_player_voice(self):
@@ -2623,13 +2623,13 @@ class TestPrereqs:
     def test_reports_ffmpeg_missing(self, client, monkeypatch):
         def _no_ffmpeg():
             raise FileNotFoundError("ffmpeg not found")
-        monkeypatch.setattr("yuu_clip.config.find_ffmpeg", _no_ffmpeg)
+        monkeypatch.setattr("yuu_clip.ffmpeg_tools.find_ffmpeg", _no_ffmpeg)
         r = client.get("/api/prereqs")
         assert r.status_code == 200
         assert r.json()["ffmpeg_ok"] is False
 
     def test_reports_ffmpeg_present(self, client, monkeypatch):
-        monkeypatch.setattr("yuu_clip.config.find_ffmpeg", lambda: ("ffmpeg", "ffprobe"))
+        monkeypatch.setattr("yuu_clip.ffmpeg_tools.find_ffmpeg", lambda: ("ffmpeg", "ffprobe"))
         assert client.get("/api/prereqs").json()["ffmpeg_ok"] is True
 
     def test_llm_not_ok_without_model_path(self, client):
@@ -3261,7 +3261,7 @@ class TestImportSubtitles:
             1, ["ffmpeg"], output=b"", stderr=b"Stream map '0:5' matches no streams",
         )
         try:
-            with mock.patch("yuu_clip.config.find_ffmpeg", return_value=("ffmpeg", "ffprobe")), \
+            with mock.patch("yuu_clip.ffmpeg_tools.find_ffmpeg", return_value=("ffmpeg", "ffprobe")), \
                  mock.patch.object(_pipeline.subprocess, "run", side_effect=failure):
                 result = _pipeline._import_subtitles(
                     "stream:5", tmp_path / "v.mkv", tracks, session, video,

@@ -11,21 +11,21 @@ import types
 
 import pytest
 
-from yuu_clip import config as config_mod
+from yuu_clip import ffmpeg_tools as ffmpeg_mod
 
 
 def test_missing_binary_raises_install_hint(monkeypatch):
     def _raise_missing():
         raise RuntimeError("Required tools not found in PATH: ffmpeg\n\nInstall FFmpeg...")
 
-    monkeypatch.setattr(config_mod, "find_ffmpeg", lambda: _raise_missing())
+    monkeypatch.setattr(ffmpeg_mod, "find_ffmpeg", lambda: _raise_missing())
 
     with pytest.raises(RuntimeError, match="Required tools not found in PATH"):
-        config_mod.run_ffmpeg(["ffmpeg", "-i", "x.mkv", "out.mp4"])
+        ffmpeg_mod.run_ffmpeg(["ffmpeg", "-i", "x.mkv", "out.mp4"])
 
 
 def test_nonzero_exit_surfaces_stderr(monkeypatch):
-    monkeypatch.setattr(config_mod, "find_ffmpeg", lambda: ("ffmpeg.exe", "ffprobe.exe"))
+    monkeypatch.setattr(ffmpeg_mod, "find_ffmpeg", lambda: ("ffmpeg.exe", "ffprobe.exe"))
 
     def _fake_run(args, **_kwargs):
         return types.SimpleNamespace(returncode=1, stderr="Invalid data found", stdout="")
@@ -33,12 +33,12 @@ def test_nonzero_exit_surfaces_stderr(monkeypatch):
     monkeypatch.setattr(subprocess, "run", _fake_run)
 
     with pytest.raises(RuntimeError, match="Invalid data found"):
-        config_mod.run_ffmpeg(["ffmpeg", "-i", "x.mkv", "out.mp4"])
+        ffmpeg_mod.run_ffmpeg(["ffmpeg", "-i", "x.mkv", "out.mp4"])
 
 
 def test_ffprobe_resolves_probe_binary(monkeypatch):
     used = {}
-    monkeypatch.setattr(config_mod, "find_ffmpeg", lambda: ("ffmpeg.exe", "ffprobe.exe"))
+    monkeypatch.setattr(ffmpeg_mod, "find_ffmpeg", lambda: ("ffmpeg.exe", "ffprobe.exe"))
 
     def _fake_run(args, **_kwargs):
         used["exe"] = args[0]
@@ -46,7 +46,7 @@ def test_ffprobe_resolves_probe_binary(monkeypatch):
 
     monkeypatch.setattr(subprocess, "run", _fake_run)
 
-    result = config_mod.run_ffmpeg(["ffprobe", "-show_entries", "format=duration"])
+    result = ffmpeg_mod.run_ffmpeg(["ffprobe", "-show_entries", "format=duration"])
 
     assert used["exe"] == "ffprobe.exe"
     assert result.stdout == "10.0"
@@ -61,9 +61,9 @@ class TestFindFfmpegBundledDir:
         (tmp_path / "ffmpeg.exe").write_bytes(b"")
         (tmp_path / "ffprobe.exe").write_bytes(b"")
         monkeypatch.setenv("YUU_CLIP_FFMPEG_DIR", str(tmp_path))
-        monkeypatch.setattr(config_mod.shutil, "which", lambda name: None)
+        monkeypatch.setattr(ffmpeg_mod.shutil, "which", lambda name: None)
 
-        ffmpeg, ffprobe = config_mod.find_ffmpeg()
+        ffmpeg, ffprobe = ffmpeg_mod.find_ffmpeg()
 
         assert ffmpeg == str(tmp_path / "ffmpeg.exe")
         assert ffprobe == str(tmp_path / "ffprobe.exe")
@@ -71,16 +71,16 @@ class TestFindFfmpegBundledDir:
     def test_bundled_dir_missing_a_binary_raises_instead_of_falling_back(self, tmp_path, monkeypatch):
         (tmp_path / "ffmpeg.exe").write_bytes(b"")
         monkeypatch.setenv("YUU_CLIP_FFMPEG_DIR", str(tmp_path))
-        monkeypatch.setattr(config_mod.shutil, "which", lambda name: f"C:\\PATH\\{name}.exe")
+        monkeypatch.setattr(ffmpeg_mod.shutil, "which", lambda name: f"C:\\PATH\\{name}.exe")
 
         with pytest.raises(RuntimeError, match="ffprobe.exe"):
-            config_mod.find_ffmpeg()
+            ffmpeg_mod.find_ffmpeg()
 
     def test_unset_env_var_falls_back_to_path(self, monkeypatch):
         monkeypatch.delenv("YUU_CLIP_FFMPEG_DIR", raising=False)
-        monkeypatch.setattr(config_mod.shutil, "which", lambda name: f"C:\\PATH\\{name}.exe")
+        monkeypatch.setattr(ffmpeg_mod.shutil, "which", lambda name: f"C:\\PATH\\{name}.exe")
 
-        ffmpeg, ffprobe = config_mod.find_ffmpeg()
+        ffmpeg, ffprobe = ffmpeg_mod.find_ffmpeg()
 
         assert ffmpeg == "C:\\PATH\\ffmpeg.exe"
         assert ffprobe == "C:\\PATH\\ffprobe.exe"
@@ -98,7 +98,7 @@ class TestRetranscribeResolvesBundledFfmpeg:
         (tmp_path / "ffmpeg.exe").write_bytes(b"")
         (tmp_path / "ffprobe.exe").write_bytes(b"")
         monkeypatch.setenv("YUU_CLIP_FFMPEG_DIR", str(tmp_path))
-        monkeypatch.setattr(config_mod.shutil, "which", lambda name: None)
+        monkeypatch.setattr(ffmpeg_mod.shutil, "which", lambda name: None)
 
         used = {}
 

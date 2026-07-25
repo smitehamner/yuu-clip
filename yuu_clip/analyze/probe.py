@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from yuu_clip.config import find_ffmpeg
+from yuu_clip.ffmpeg_tools import find_ffmpeg
 from yuu_clip.log import get_logger
 
 log = get_logger(__name__)

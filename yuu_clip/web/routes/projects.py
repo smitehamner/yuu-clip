@@ -1,6 +1,6 @@
 # Feature-map - Project switcher (code: project_dir)
 #   UI: static/settings/projects.js (header project dropdown)
-#   Siblings: deps.py (ProjectContext.switch_project) · config.py (recent projects) · tests/integration/test_projects.py, tests/ui/test_ui_projects.py
+#   Siblings: deps.py (ProjectContext.switch_project) · recent_projects.py (recent projects) · tests/integration/test_projects.py, tests/ui/test_ui_projects.py
 """
 Project switcher routes.
 
@@ -17,8 +17,8 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from yuu_clip.config import load_known_projects, record_known_project
 from yuu_clip.log import get_logger, redirect_logging
+from yuu_clip.recent_projects import load_known_projects, record_known_project
 from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.routes.common import analyze_in_flight
 

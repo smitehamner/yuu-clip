@@ -14,7 +14,8 @@ from rich.prompt import Confirm, IntPrompt, Prompt
 from rich.table import Table
 
 from yuu_clip.analyze.probe import VideoInfo
-from yuu_clip.config import (
+from yuu_clip.log import get_logger
+from yuu_clip.track_labels import (
     DEFAULT_SKIP_SCORE,
     DEFAULT_SKIP_TRANSCRIBE,
     LABEL_DESCRIPTIONS,
@@ -23,7 +24,6 @@ from yuu_clip.config import (
     load_profiles,
     save_profile,
 )
-from yuu_clip.log import get_logger
 
 _log = get_logger(__name__)
 console = Console()

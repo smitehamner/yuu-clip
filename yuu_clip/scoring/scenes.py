@@ -82,7 +82,7 @@ _KEYFRAME_TIMEOUT_S = 600
 
 def _detect_keyframes(video_path: str) -> list[int]:
     """Extract I-frame timestamps in ms via ffprobe (no decoding, instant)."""
-    from yuu_clip.config import find_ffmpeg
+    from yuu_clip.ffmpeg_tools import find_ffmpeg
     try:
         _, ffprobe = find_ffmpeg()  # actionable error if FFmpeg is missing (caught below)
         result = subprocess.run(

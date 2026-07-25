@@ -17,13 +17,13 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
-from yuu_clip.config import run_ffmpeg
 from yuu_clip.export.naming import (
     DEFAULT_EXPORT_NAME_TEMPLATE,
     EXPORT_VIDEO_EXTENSIONS,
     candidate_export_paths,
     export_base_stem,
 )
+from yuu_clip.ffmpeg_tools import run_ffmpeg
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session

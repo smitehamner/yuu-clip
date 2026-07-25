@@ -16,7 +16,7 @@ def _stream(stream_index, title=None):
 class TestApplyProfile:
     def _save(self, monkeypatch, tmp_path, name, assignments):
         import yuu_clip.config as cfg_mod
-        from yuu_clip.config import save_profile
+        from yuu_clip.track_labels import save_profile
         monkeypatch.setattr(cfg_mod, "_global_config_dir", lambda: tmp_path / "cfg")
         save_profile(name, assignments)
 
@@ -42,7 +42,7 @@ class TestApplyProfile:
         assert result is None
 
     def test_matching_profile_applies_label_by_position(self, tmp_path, monkeypatch):
-        from yuu_clip.config import LABEL_WEIGHTS
+        from yuu_clip.track_labels import LABEL_WEIGHTS
         self._save(monkeypatch, tmp_path, "2track", [
             {"stream_position": 0, "label": "combined", "do_transcribe": True, "do_score": True},
             {"stream_position": 1, "label": "player_voice", "do_transcribe": True, "do_score": True},
@@ -57,7 +57,7 @@ class TestApplyProfile:
         assert result[1]["label"] == "player_voice"
 
     def test_weight_resolved_from_label_weights_table(self, tmp_path, monkeypatch):
-        from yuu_clip.config import LABEL_WEIGHTS
+        from yuu_clip.track_labels import LABEL_WEIGHTS
         self._save(monkeypatch, tmp_path, "p", [
             {"stream_position": 0, "label": "player_voice", "do_transcribe": True, "do_score": True},
         ])

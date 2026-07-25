@@ -58,7 +58,7 @@ class TestLogRedirect:
 
 class TestKnownProjectsRegistry:
     def test_record_dedups_and_orders_recent_first(self, tmp_path):
-        from yuu_clip.config import load_known_projects, record_known_project
+        from yuu_clip.recent_projects import load_known_projects, record_known_project
         first = tmp_path / "a"
         first.mkdir()
         second = tmp_path / "b"
@@ -70,7 +70,7 @@ class TestKnownProjectsRegistry:
         assert paths == [str(first.resolve()), str(second.resolve())]
 
     def test_corrupt_file_ignored(self, tmp_path):
-        from yuu_clip.config import _known_projects_path, load_known_projects
+        from yuu_clip.recent_projects import _known_projects_path, load_known_projects
         registry = _known_projects_path()
         registry.parent.mkdir(parents=True, exist_ok=True)
         registry.write_text("{ not json", encoding="utf-8")
@@ -87,7 +87,7 @@ class TestProjectList:
     def test_missing_folder_marked_not_existing(self, client, tmp_path):
         # A project can be in the recent list but its folder later deleted. Use a
         # registry entry we never switch to, so no open log handle blocks removal.
-        from yuu_clip.config import record_known_project
+        from yuu_clip.recent_projects import record_known_project
         gone = tmp_path / "gone"
         gone.mkdir()
         record_known_project(gone)

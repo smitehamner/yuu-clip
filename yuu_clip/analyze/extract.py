@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
-from yuu_clip.config import find_ffmpeg
+from yuu_clip.ffmpeg_tools import find_ffmpeg
 from yuu_clip.log import get_logger
 
 if TYPE_CHECKING:

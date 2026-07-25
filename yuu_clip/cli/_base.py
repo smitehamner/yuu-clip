@@ -47,7 +47,7 @@ def _load_project(project: Optional[Path]):
 
 def _require_ffmpeg() -> None:
     """Exit with a friendly error message if ffmpeg is not found on PATH."""
-    from yuu_clip.config import find_ffmpeg
+    from yuu_clip.ffmpeg_tools import find_ffmpeg
     try:
         find_ffmpeg()
     except RuntimeError as e:

@@ -14,10 +14,10 @@ from typing import TYPE_CHECKING, Optional
 
 import typer
 
-from yuu_clip.config import run_ffmpeg
 from yuu_clip.console import BYTES_PER_MB, console
 from yuu_clip.export.naming import DEFAULT_EXPORT_NAME_TEMPLATE, export_base_stem
 from yuu_clip.export.window import EMPTY_WINDOW_MESSAGE, export_window_ms
+from yuu_clip.ffmpeg_tools import run_ffmpeg
 from yuu_clip.log import get_logger
 
 if TYPE_CHECKING:
