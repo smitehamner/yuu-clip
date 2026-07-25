@@ -8,6 +8,7 @@ import {
   computeClipFilterCounts, computeClipStats, _descNeedsModel, _fmtSizeMb, _exportFormatsHtml,
   _hotwordPillsHTML, _clipTagPillsHTML, scoreRow, scoreRowOverride,
   _hotwordDetailHTML, _sensitiveDetailHTML, clipListEmptyStateKind,
+  _clipDescriptionHTML, _basicDescChipHTML,
 } from '../../../yuu_clip/web/static/clips/clips.js';
 
 describe('_parseTimingOffset', () => {
@@ -490,5 +491,44 @@ describe('clipListEmptyStateKind', () => {
 
   it('kind filter combined with another active filter is "filtered", not "kind-only"', () => {
     expect(clipListEmptyStateKind({ ...base, kindFilter: 'scene', clipSearch: 'x' })).toBe('filtered');
+  });
+});
+
+describe('_clipDescriptionHTML / _basicDescChipHTML', () => {
+  afterEach(() => { delete window._prereqs; delete window._aiPrivacyMode; });
+
+  it('shows the needs-model CTA instead of quoting the template description', () => {
+    window._prereqs = { llm_ok: false };
+    window._aiPrivacyMode = 'local_only';
+    const html = _clipDescriptionHTML({ tags: ['desc_basic'], description_is_edited: false, description: 'a b c' });
+    expect(html).toContain('AI descriptions need a local model');
+    expect(html).not.toContain('a b c');
+  });
+
+  it('quotes the description when a model is not needed', () => {
+    window._prereqs = { llm_ok: true };
+    const html = _clipDescriptionHTML({ tags: [], description: 'a great clip' });
+    expect(html).toContain('"a great clip"');
+  });
+
+  it('shows a "not scored yet" hint for no description', () => {
+    window._prereqs = { llm_ok: true };
+    expect(_clipDescriptionHTML({ tags: [], description: '' })).toContain('Re-score to generate');
+  });
+
+  it('basic-desc chip is blank for a non-desc_basic clip', () => {
+    expect(_basicDescChipHTML({ tags: [] })).toBe('');
+  });
+
+  it('basic-desc chip explains AI is off when privacy mode is none', () => {
+    window._aiPrivacyMode = 'none';
+    const html = _basicDescChipHTML({ tags: ['desc_basic'] });
+    expect(html).toContain('generative AI is turned off');
+  });
+
+  it('basic-desc chip nudges to re-analyze when a model is available now', () => {
+    window._aiPrivacyMode = 'local_only';
+    const html = _basicDescChipHTML({ tags: ['desc_basic'] });
+    expect(html).toContain('re-analyze this recording');
   });
 });

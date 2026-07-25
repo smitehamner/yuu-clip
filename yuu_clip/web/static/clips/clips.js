@@ -596,7 +596,7 @@ export function _descNeedsModel(clip) {
 // The clip's one-liner area. In the no-model first-run state a desc_basic clip gets
 // a call-to-action placeholder (see _descNeedsModel); otherwise the description (or
 // an "not scored yet" hint) plus the basic-fallback labelling chip.
-function _clipDescriptionHTML(clip) {
+export function _clipDescriptionHTML(clip) {
   if (_descNeedsModel(clip)) {
     return `<div class="needs-model-cta">
       <div class="needs-model-heading">AI descriptions need a local model</div>
@@ -615,7 +615,7 @@ function _clipDescriptionHTML(clip) {
 // model wrote the description. The no-model case is handled by _descNeedsModel /
 // _clipDescriptionHTML instead, so this only covers "AI deliberately off" (the
 // template is the intended output) and "model set up now, re-analyze to upgrade".
-function _basicDescChipHTML(clip) {
+export function _basicDescChipHTML(clip) {
   if (!clip.tags || !clip.tags.includes('desc_basic')) return '';
   const tip = 'This one-liner was built from the transcript without a language model';
   // Under "No generative AI" the user opted out of language models - show a neutral
