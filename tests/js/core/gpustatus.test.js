@@ -2,7 +2,7 @@
 // turned on but silently not working (missing CUDA libs for transcription, LLM GPU
 // offload falling back to CPU, or LLM scoring enabled with no usable model) - see
 // /api/status's gpu-setup and llm-setup fields.
-import { gpuMismatchReasons, renderGpuWarningChip } from '../../../yuu_clip/web/static/core/gpustatus.js';
+import { gpuMismatchReasons, renderGpuWarningChip, renderSectionWarnings } from '../../../yuu_clip/web/static/core/gpustatus.js';
 
 const baseStatus = {
   nvidia_gpu_present: false,
@@ -25,6 +25,7 @@ describe('gpuMismatchReasons', () => {
     expect(reasons).toHaveLength(1);
     expect(reasons[0].text).toMatch(/Transcription/);
     expect(reasons[0].section).toBe('settings-sec-hardware');
+    expect(reasons[0].anchor).toBe('settings-warn-cuda-libs');
   });
 
   it('does not flag CUDA libs missing when the user explicitly chose CPU', () => {
@@ -39,6 +40,7 @@ describe('gpuMismatchReasons', () => {
     expect(reasons).toHaveLength(1);
     expect(reasons[0].text).toMatch(/LLM scoring/);
     expect(reasons[0].section).toBe('settings-sec-hardware');
+    expect(reasons[0].anchor).toBe('settings-warn-llm-gpu');
   });
 
   it('does not flag LLM GPU offload when the user turned it off', () => {
@@ -65,6 +67,7 @@ describe('gpuMismatchReasons', () => {
     expect(reasons).toHaveLength(1);
     expect(reasons[0].text).toMatch(/LLM scoring/);
     expect(reasons[0].section).toBe('settings-sec-llm');
+    expect(reasons[0].anchor).toBe('settings-warn-llm-ready');
   });
 
   it('does not flag a missing model when the user turned LLM scoring off', () => {
@@ -111,5 +114,43 @@ describe('renderGpuWarningChip', () => {
     chip.style.display = '';
     renderGpuWarningChip(null);
     expect(chip.style.display).toBe('');
+  });
+});
+
+describe('renderSectionWarnings', () => {
+  it('hides every inline warning when there is no mismatch', () => {
+    renderSectionWarnings(baseStatus);
+    expect(document.getElementById('settings-warn-cuda-libs').style.display).toBe('none');
+    expect(document.getElementById('settings-warn-llm-gpu').style.display).toBe('none');
+    expect(document.getElementById('settings-warn-llm-ready').style.display).toBe('none');
+  });
+
+  it('shows only the matching inline warning, with the reason text visible as plain text', () => {
+    renderSectionWarnings({ ...baseStatus, nvidia_gpu_present: true });
+    const warning = document.getElementById('settings-warn-cuda-libs');
+    expect(warning.style.display).toBe('');
+    expect(warning.querySelector('.settings-inline-warning-text').textContent).toMatch(/Transcription/);
+    expect(document.getElementById('settings-warn-llm-gpu').style.display).toBe('none');
+    expect(document.getElementById('settings-warn-llm-ready').style.display).toBe('none');
+  });
+
+  it('shows multiple inline warnings at once when multiple reasons apply', () => {
+    renderSectionWarnings({ ...baseStatus, nvidia_gpu_present: true, llm_gpu_available: false });
+    expect(document.getElementById('settings-warn-cuda-libs').style.display).toBe('');
+    expect(document.getElementById('settings-warn-llm-gpu').style.display).toBe('');
+  });
+
+  it('re-hides a previously shown warning once the mismatch resolves', () => {
+    renderSectionWarnings({ ...baseStatus, llm_ready: false });
+    expect(document.getElementById('settings-warn-llm-ready').style.display).toBe('');
+    renderSectionWarnings(baseStatus);
+    expect(document.getElementById('settings-warn-llm-ready').style.display).toBe('none');
+  });
+
+  it('keeps the last known warning state when status is falsy (failed fetch)', () => {
+    const warning = document.getElementById('settings-warn-cuda-libs');
+    warning.style.display = '';
+    renderSectionWarnings(null);
+    expect(warning.style.display).toBe('');
   });
 });

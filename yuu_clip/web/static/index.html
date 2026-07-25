@@ -182,6 +182,10 @@
         <span id="install-status-cuda-libs" style="font-size:12px"></span>
       </div>
     </div>
+    <div class="long-run-warning settings-inline-warning" id="settings-warn-cuda-libs" style="display:none">
+      <span aria-hidden="true">&#9888;</span>
+      <span class="settings-inline-warning-text"></span>
+    </div>
     <div id="install-log-cuda-libs" class="settings-install-log"></div>
     <div class="settings-row">
       <div class="settings-col">
@@ -297,6 +301,10 @@
         <span style="font-size:13px" aria-hidden="true">On</span>
       </label>
     </div>
+    <div class="long-run-warning settings-inline-warning" id="settings-warn-llm-ready" style="display:none">
+      <span aria-hidden="true">&#9888;</span>
+      <span class="settings-inline-warning-text"></span>
+    </div>
     <div id="s-llm-body">
     <div id="s-llm-current-summary" class="settings-current-model" style="display:none"></div>
     <!-- Local model-file picker: the primary, one-click surface. Cards render into
@@ -371,6 +379,10 @@
             <input type="checkbox" id="s-llm-use-gpu" aria-label="Use GPU when available">
             <span style="font-size:13px" aria-hidden="true">Enable</span>
           </label>
+        </div>
+        <div class="long-run-warning settings-inline-warning" id="settings-warn-llm-gpu" style="display:none">
+          <span aria-hidden="true">&#9888;</span>
+          <span class="settings-inline-warning-text"></span>
         </div>
         <div class="settings-group-title">Text model</div>
         <div class="settings-row">

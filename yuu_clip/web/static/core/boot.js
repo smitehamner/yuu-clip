@@ -25,7 +25,7 @@ import { initModelDownload, initModelPrefetch } from '../settings/modeldownload.
 import { _renderClips, _renderClipFilterCounts, _syncKindChips, initClipsListeners } from '../clips/clips.js';
 import { initClipBulkListeners } from '../clips/clipbulk.js';
 import { initClipExportListeners } from '../clips/clipexport.js';
-import { renderGpuWarningChip } from './gpustatus.js';
+import { renderGpuWarningChip, renderSectionWarnings } from './gpustatus.js';
 import { initUpdateCheckOnLaunch, wireUpdateBanner } from './updatecheck.js';
 import { initSpeakerListeners } from '../people/speakers.js';
 import { initVoicesListeners } from '../people/voices.js';
@@ -119,6 +119,7 @@ fetch('/api/status').then(r => r.json()).then(d => {
   AppState.reelsDir = d.reels_dir || null;
   AppState.canReveal = !!d.can_reveal;
   renderGpuWarningChip(d);
+  renderSectionWarnings(d);
   // Reconnect to an analysis that was already running when this page loaded
   // (e.g. after a refresh) - the subprocess survives independently of the stream.
   if (d.analyze_filename) reattachAnalysis(d.analyze_filename, d.analyze_paused);
@@ -156,6 +157,7 @@ async function refreshServerState() {
   try {
     const status = await fetch('/api/status').then(r => r.json());
     renderGpuWarningChip(status);
+    renderSectionWarnings(status);
   } catch { /* keep the last known chip state */ }
   _renderClips();  // basic-description chip + vision frames
 }
