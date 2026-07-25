@@ -266,7 +266,7 @@ function setClipScoreMin(val) {
 
 // ≤3 distinct phrases show individually; more collapse to a single count pill so
 // a heavily-matched clip doesn't crowd out the rest of the sidebar row.
-function _hotwordPillsHTML(matches) {
+export function _hotwordPillsHTML(matches) {
   if (!matches || !matches.length) return '';
   if (matches.length <= 3) {
     return `<div class="tags" style="margin-top:4px">${matches.map(m =>
@@ -300,23 +300,35 @@ function _handleClipListKeydown(e) {
   selectClip(Number(li.dataset.clipId));
 }
 
+// Which empty-state message the clip sidebar shows when the current filters produce
+// zero clips - four mutually exclusive cases, isolated from the HTML/escaping so the
+// branching is testable without a DOM.
+export function clipListEmptyStateKind({clipFilters, clipSearch, clipScoreMin, kindFilter}) {
+  const hasActiveFilter = clipFilters.size > 0 || !!clipSearch || clipScoreMin > 0;
+  const isFlaggedOnly = clipFilters.size === 1 && clipFilters.has('flagged') &&
+    !clipSearch && clipScoreMin === 0;
+  if (isFlaggedOnly) return 'flagged-only';
+  if (kindFilter !== 'all' && !hasActiveFilter) return 'kind-only';
+  if (hasActiveFilter || kindFilter !== 'all') return 'filtered';
+  return 'none';
+}
+
 function _renderClipItems(clips) {
   const list = document.getElementById('clip-list');
   list.innerHTML = '';
   list.onclick = _handleClipListClick;
   list.onkeydown = _handleClipListKeydown;
   if (!clips.length) {
-    const _statusLabel = {pending: 'Unreviewed', approved: 'Approved', rejected: 'Rejected'};
     const kindFilter = AppState.clipKindFilter || 'all';
-    const hasActiveFilter = AppState.clipFilters.size > 0 || AppState.clipSearch || AppState.clipScoreMin > 0;
-    const isFlaggedOnly = AppState.clipFilters.size === 1 && AppState.clipFilters.has('flagged') &&
-      !AppState.clipSearch && AppState.clipScoreMin === 0;
-    const isKindOnly = kindFilter !== 'all' && !hasActiveFilter;
-    const filterMsg = isFlaggedOnly
+    const emptyKind = clipListEmptyStateKind({
+      clipFilters: AppState.clipFilters, clipSearch: AppState.clipSearch,
+      clipScoreMin: AppState.clipScoreMin, kindFilter,
+    });
+    const filterMsg = emptyKind === 'flagged-only'
       ? `No flagged clips - add Sensitive Terms in <a href="#" style="color:var(--accent);text-decoration:underline" data-act="open-settings">Settings</a>`
-      : isKindOnly
+      : emptyKind === 'kind-only'
       ? `No ${kindFilter === 'scene' ? 'scenes' : 'clips'} in this recording - <a href="#" style="color:var(--accent);text-decoration:underline" data-act="clear-clip-filters">Show all</a>`
-      : (hasActiveFilter || kindFilter !== 'all')
+      : emptyKind === 'filtered'
       ? `No clips match the current filters - <a href="#" style="color:var(--accent);text-decoration:underline" data-act="clear-clip-filters">Clear filters</a>`
       : `No clips found - <a href="#" style="color:var(--accent);text-decoration:underline" data-act="open-new-recording-panel">Analyze another recording</a>`;
     list.innerHTML = `<li style="padding:10px 14px;color:var(--muted)">${filterMsg}</li>`;
@@ -868,7 +880,7 @@ function analyzeFrames(clipId) {
 // ── hot-words ────────────────────────────────────────────────────────────────
 const _HOTWORD_MODE_LABELS = {exact: 'Exact', case_insensitive: 'Ignore case', semantic: 'Meaning'};
 
-function _hotwordDetailHTML(clip) {
+export function _hotwordDetailHTML(clip) {
   const matches = clip.hotword_matches;
   if (!matches || !matches.length) return '';
   const boost = clip.hotword_boost || {};
@@ -894,7 +906,7 @@ function _hotwordDetailHTML(clip) {
 const _SENSITIVE_CATEGORY_LABELS = {privacy: 'Privacy Term', censor: 'Censor Word'};
 const _SENSITIVE_MODE_LABELS = {exact: 'Exact', case_insensitive: 'Ignore case', fuzzy: 'Close spelling'};
 
-function _sensitiveDetailHTML(clip) {
+export function _sensitiveDetailHTML(clip) {
   const matches = clip.sensitive_matches;
   if (!matches || !matches.length) return '';
   return `
@@ -945,7 +957,7 @@ function _generatedTagPillsHTML(tags) {
 // ── user tags ───────────────────────────────────────────────────────────────
 // Tag values can contain quotes/spaces, so the remove buttons use data-* +
 // event delegation (see the #detail listener below), never inline onclick.
-function _clipTagPillsHTML(tags) {
+export function _clipTagPillsHTML(tags) {
   if (!tags || !tags.length) return '<span class="tags-empty">No tags yet</span>';
   return tags.map(t =>
     `<span class="user-tag">${escHtml(t)}<button class="user-tag-x" data-remove-tag="${escHtml(t)}"
@@ -1061,7 +1073,7 @@ function _handleDetailKeydown(e) {
   }
 }
 
-function scoreRow(label, val, cls) {
+export function scoreRow(label, val, cls) {
   const icon = AXIS_ICONS[cls] || '';
   return `
     <span class="score-label">${icon ? icon + ' ' : ''}${label}</span>
@@ -1069,7 +1081,7 @@ function scoreRow(label, val, cls) {
     <span class="score-val" style="color:var(--${cls})">${Math.round(val*100)}%</span>`;
 }
 
-function scoreRowOverride(label, llmVal, userVal, cls) {
+export function scoreRowOverride(label, llmVal, userVal, cls) {
   const icon = AXIS_ICONS[cls] || '';
   return `
     <span class="score-label">${icon ? icon + ' ' : ''}${label} <span class="score-override-badge">override</span></span>

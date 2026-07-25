@@ -6,6 +6,8 @@ import {
   _applyFilters, _parseTimingOffset,
   _duplicatePartners, _mergeNeighbors, _generatedTagPillsHTML,
   computeClipFilterCounts, computeClipStats, _descNeedsModel, _fmtSizeMb, _exportFormatsHtml,
+  _hotwordPillsHTML, _clipTagPillsHTML, scoreRow, scoreRowOverride,
+  _hotwordDetailHTML, _sensitiveDetailHTML, clipListEmptyStateKind,
 } from '../../../yuu_clip/web/static/clips/clips.js';
 
 describe('_parseTimingOffset', () => {
@@ -375,5 +377,118 @@ describe('_exportFormatsHtml', () => {
     expect(html).toContain('Exported');
     expect(html).toContain('MKV');
     expect(html).toContain('Baked in');
+  });
+});
+
+describe('_hotwordPillsHTML', () => {
+  it('is blank for no matches', () => {
+    expect(_hotwordPillsHTML(null)).toBe('');
+    expect(_hotwordPillsHTML([])).toBe('');
+  });
+
+  it('shows each phrase individually at 3 or fewer matches', () => {
+    const html = _hotwordPillsHTML([{ phrase: 'gg', count: 1 }, { phrase: 'clutch', count: 2 }]);
+    expect(html).toContain('gg');
+    expect(html).toContain('clutch');
+    expect(html).not.toContain('matched');
+  });
+
+  it('collapses to a single count pill above 3 matches', () => {
+    const matches = [1, 2, 3, 4].map(n => ({ phrase: `p${n}`, count: 1 }));
+    const html = _hotwordPillsHTML(matches);
+    expect(html).toContain('4');
+    expect(html).not.toContain('p1');
+  });
+});
+
+describe('_clipTagPillsHTML', () => {
+  it('shows an empty-state hint for no tags', () => {
+    expect(_clipTagPillsHTML([])).toContain('No tags yet');
+    expect(_clipTagPillsHTML(null)).toContain('No tags yet');
+  });
+
+  it('renders one pill with a remove button per tag', () => {
+    const html = _clipTagPillsHTML(['funny', 'clip "quoted"']);
+    expect(html).toContain('data-remove-tag="funny"');
+    expect(html).toContain('data-remove-tag="clip &quot;quoted&quot;"');
+  });
+});
+
+describe('scoreRow / scoreRowOverride', () => {
+  it('scoreRow renders the rounded percentage and bar width', () => {
+    const html = scoreRow('Funny', 0.755, 'funny');
+    expect(html).toContain('76%');
+    expect(html).toContain('width:75.5%');
+  });
+
+  it('scoreRowOverride shows the user value plus the original LLM value', () => {
+    const html = scoreRowOverride('Overall', 0.4, 0.9, 'overall');
+    expect(html).toContain('90%');
+    expect(html).toContain('LLM: 40%');
+    expect(html).toContain('override');
+  });
+});
+
+describe('_hotwordDetailHTML', () => {
+  it('is blank with no matches', () => {
+    expect(_hotwordDetailHTML({ hotword_matches: [] })).toBe('');
+  });
+
+  it('shows the mode label and repeat count, plus the boost summary', () => {
+    const html = _hotwordDetailHTML({
+      hotword_matches: [{ phrase: 'gg', mode: 'case_insensitive', count: 3 }],
+      hotword_boost: { funny: 0.1, dramatic: 0 },
+    });
+    expect(html).toContain('gg');
+    expect(html).toContain('Ignore case');
+    expect(html).toContain('3×');
+    expect(html).toContain('funny: +10%');
+    expect(html).not.toContain('dramatic');
+  });
+});
+
+describe('_sensitiveDetailHTML', () => {
+  it('is blank with no matches', () => {
+    expect(_sensitiveDetailHTML({ sensitive_matches: [] })).toBe('');
+  });
+
+  it('shows the category and mode labels', () => {
+    const html = _sensitiveDetailHTML({
+      sensitive_matches: [{ category: 'censor', matched_text: 'darn', mode: 'fuzzy', count: 1 }],
+    });
+    expect(html).toContain('Censor Word');
+    expect(html).toContain('darn');
+    expect(html).toContain('Close spelling');
+  });
+});
+
+describe('clipListEmptyStateKind', () => {
+  const base = { clipFilters: new Set(), clipSearch: '', clipScoreMin: 0, kindFilter: 'all' };
+
+  it('is "none" with no filters active', () => {
+    expect(clipListEmptyStateKind(base)).toBe('none');
+  });
+
+  it('is "flagged-only" when only the flagged filter is active', () => {
+    expect(clipListEmptyStateKind({ ...base, clipFilters: new Set(['flagged']) })).toBe('flagged-only');
+  });
+
+  it('is "kind-only" when only the clip/scene kind filter narrows the view', () => {
+    expect(clipListEmptyStateKind({ ...base, kindFilter: 'scene' })).toBe('kind-only');
+  });
+
+  it('is "filtered" when a status filter or search narrows the view', () => {
+    expect(clipListEmptyStateKind({ ...base, clipFilters: new Set(['approved']) })).toBe('filtered');
+    expect(clipListEmptyStateKind({ ...base, clipSearch: 'gg' })).toBe('filtered');
+    expect(clipListEmptyStateKind({ ...base, clipScoreMin: 0.5 })).toBe('filtered');
+  });
+
+  it('flagged-only requires no other filter, search, or min-score also active', () => {
+    expect(clipListEmptyStateKind({ ...base, clipFilters: new Set(['flagged', 'approved']) })).toBe('filtered');
+    expect(clipListEmptyStateKind({ ...base, clipFilters: new Set(['flagged']), clipSearch: 'x' })).toBe('filtered');
+  });
+
+  it('kind filter combined with another active filter is "filtered", not "kind-only"', () => {
+    expect(clipListEmptyStateKind({ ...base, kindFilter: 'scene', clipSearch: 'x' })).toBe('filtered');
   });
 });
