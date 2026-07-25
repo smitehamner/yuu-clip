@@ -68,7 +68,7 @@ function _applyPanelMode() {
   }
 }
 
-function _reanalyzeWarningHtml(target) {
+export function _reanalyzeWarningHtml(target) {
   const exportedNote = target.exported > 0
     ? ` Files you already exported stay on disk, but the ${plural(target.exported, 'exported clip')} will be regenerated.`
     : '';
@@ -725,20 +725,23 @@ async function _analyzeSegmentsSequentially(
   }).catch(err => showToast(netErrMsg(err), 'error'));
 }
 
+// Which segments never ran, formatted as "segment N" or "segments N-M" - isolated
+// from the toast/reload side effects below so the off-by-one range math is testable.
+export function _segmentChainAbortMessage(totalSegments, failedIndex) {
+  const from = failedIndex + 1;
+  const to = totalSegments;
+  const which = from === to ? `segment ${from}` : `segments ${from}-${to}`;
+  return `Analysis stopped - ${which} of ${totalSegments} were not analyzed. `
+    + `Re-analyze them from each segment's Additional Actions.`;
+}
+
 // A segment in a sequential analyze/re-analyze chain failed to stream: clear the
 // analyzing lock, refresh the UI, and tell the user which segments never ran so
 // they can re-analyze just those from each segment's Additional Actions.
 function _abortSegmentChain(segments, failedIndex) {
   AppState.analyzeFilename = null;
   loadVideos().then(() => _rerenderActiveVideoDetail());
-  const from = failedIndex + 1;
-  const to = segments.length;
-  const which = from === to ? `segment ${from}` : `segments ${from}-${to}`;
-  showToast(
-    `Analysis stopped - ${which} of ${segments.length} were not analyzed. `
-    + `Re-analyze them from each segment's Additional Actions.`,
-    'warning',
-  );
+  showToast(_segmentChainAbortMessage(segments.length, failedIndex), 'warning');
 }
 
 function _showAnalysisToast(video) {
@@ -898,7 +901,7 @@ function _fmtDurationS(seconds) {
   return _msToHms(Math.max(0, seconds || 0) * 1000);
 }
 
-function _fmtBytesHuman(n) {
+export function _fmtBytesHuman(n) {
   if (!n || n <= 0) return 'unknown';
   const units = ['B', 'KB', 'MB', 'GB'];
   let size = n;
@@ -1039,15 +1042,30 @@ const _IMPORT_DONE_RE     = /^\[Imported\] (.+)$/;
 
 let _lastImportedPath = null;
 
-function _onImportUrlLine(line) {
-  const imported = line.match(_IMPORT_DONE_RE);
-  if (imported) { _lastImportedPath = imported[1].trim(); return; }
+// Pure parsing halves of the two log-line formats above - kept separate from the
+// DOM writes in _onImportUrlLine so the regex/formatting logic is testable directly.
+export function parseImportDoneLine(line) {
+  const m = _IMPORT_DONE_RE.exec(line);
+  return m ? m[1].trim() : null;
+}
 
-  const m = line.match(_IMPORT_PROGRESS_RE);
-  if (!m) return;
-  const pct = parseFloat(m[1]);
-  const speedPart = m[3] ? ` at ${m[3]}/s` : '';
-  const etaPart = m[4] ? ` (~${m[4]} left)` : '';
+export function parseImportProgressLine(line) {
+  const m = _IMPORT_PROGRESS_RE.exec(line);
+  if (!m) return null;
+  return {
+    pct: parseFloat(m[1]),
+    speedPart: m[3] ? ` at ${m[3]}/s` : '',
+    etaPart: m[4] ? ` (~${m[4]} left)` : '',
+  };
+}
+
+function _onImportUrlLine(line) {
+  const imported = parseImportDoneLine(line);
+  if (imported) { _lastImportedPath = imported; return; }
+
+  const parsed = parseImportProgressLine(line);
+  if (!parsed) return;
+  const {pct, speedPart, etaPart} = parsed;
 
   const stepEl = document.getElementById('step-0');
   if (stepEl) {
@@ -1172,14 +1190,22 @@ function editProfile(name) {
   renderTrackRows(p.assignments);
 }
 
+// A track row's label/transcribe/score defaults: reuse a saved assignment's values
+// when editing an existing layout, otherwise default track 0 to "combined" and the
+// rest to "unlabeled", with game_sounds tracks starting unchecked for both toggles.
+export function _trackRowDefaults(index, existingAssignment) {
+  const label = existingAssignment ? existingAssignment.label : (index === 0 ? 'combined' : 'unlabeled');
+  const doTranscribe = existingAssignment ? (existingAssignment.do_transcribe !== false) : (label !== 'game_sounds');
+  const doScore = existingAssignment ? (existingAssignment.do_score !== false) : (label !== 'game_sounds');
+  return {label, doTranscribe, doScore};
+}
+
 function renderTrackRows(existingAssignments) {
   const n   = parseInt(document.getElementById('pe-numtracks').value) || 1;
   const rows = [];
   for (let i = 0; i < n; i++) {
-    const a     = existingAssignments?.[i] ?? null;
-    const label = a ? a.label : (i === 0 ? 'combined' : 'unlabeled');
-    const doTx  = a ? (a.do_transcribe !== false) : (label !== 'game_sounds');
-    const doSc  = a ? (a.do_score !== false)      : (label !== 'game_sounds');
+    const a = existingAssignments?.[i] ?? null;
+    const {label, doTranscribe: doTx, doScore: doSc} = _trackRowDefaults(i, a);
     const opts  = TRACK_LABELS.map(l =>
       `<option value="${l}"${l === label ? ' selected' : ''}>${TRACK_LABEL_DISPLAY[l] || l}</option>`
     ).join('');
