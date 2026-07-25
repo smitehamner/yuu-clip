@@ -333,9 +333,23 @@ def restore_into(archive_path: Path, target_dir: Path, overwrite: bool = False) 
             existing_db.with_name(existing_db.name + suffix).unlink(missing_ok=True)
 
     with zipfile.ZipFile(archive_path) as archive:
-        for name in archive.namelist():
-            if name == "manifest.json":
-                continue
-            archive.extract(name, target_dir)
+        _extract_members(archive, target_dir)
     _log.info("Restored project into %s", target_dir)
     return project_db_path(target_dir)
+
+
+def _extract_members(archive: zipfile.ZipFile, target_dir: Path) -> None:
+    """Extract every member except the manifest, refusing any whose path would
+    land outside *target_dir*. ``ZipFile.extract`` already strips ``..`` and drive
+    letters, so this is defense in depth - but a hostile member (zip slip) should
+    fail the whole restore loudly, not be silently rewritten and dropped."""
+    target_root = target_dir.resolve()
+    for name in archive.namelist():
+        if name == "manifest.json":
+            continue
+        dest = (target_dir / name).resolve()
+        if dest != target_root and target_root not in dest.parents:
+            raise RestoreError(
+                "This backup contains an unsafe file path and was not restored."
+            )
+        archive.extract(name, target_dir)

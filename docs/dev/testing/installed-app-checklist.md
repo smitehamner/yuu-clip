@@ -86,6 +86,7 @@ spot-check. If time is short, the P0 rows are the release gate.
 | [UC-G03](../USE_CASES.md#uc-g03---desktop-shell-lifecycle-packaged) | P0 | Re-run Setup Wizard preserves config; Reveal-in-folder opens Explorer; quit leaves NO orphan `python.exe` / `llama-server.exe` (Task Manager); clean relaunch skips the wizard; schema-advancing update opens the wizard in `update` mode. See packaged-app-verification.md sections H and I. | [ ] |
 | [UC-G04](../USE_CASES.md#uc-g04---check-for-available-updates) | P2 | Update banner/status show a newer release with a working link; nothing downloads/installs automatically; turning the toggle off stops the launch check but not the manual button; offline shows a plain failure message. | [ ] |
 | [UC-G05](../USE_CASES.md#uc-g05---library-upgrades-cleanly-on-an-app-update-schema-migration--backup) | P0 | Open a project made by the prior release after updating; library opens with all data intact; a `project.db.pre-migration-<timestamp>.bak` appears in `.yuu-clip/`; a broken upgrade refuses to serve with a clear message and keeps the backup (forward-only, no downgrade). | [ ] |
+| [UC-G06](../USE_CASES.md#uc-g06---loopback-only-by-default-warned-before-exposing-to-the-network) | P1 | Default bind is `127.0.0.1` and works; `yuu-dev serve --host 0.0.0.0` prints a loud "NO password" network-exposure warning; the app rejects cross-site / non-loopback-Host browser requests (403) while the desktop shell and CLI keep working. | [ ] |
 
 ---
 

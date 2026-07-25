@@ -307,13 +307,29 @@ _CONFIG_PATCH_RULES: list[tuple[str, object]] = [
 ]
 
 
+# Secret fields never returned in cleartext by GET /api/config: a browser that
+# reaches the API (e.g. via a DNS-rebinding bypass of the loopback guard) must not
+# be able to read the token back out. The value is replaced with a marker that says
+# "a token is set" without revealing it; PATCH ignores the marker so a client that
+# round-trips the config object cannot clobber the real token with it.
+_REDACTED_FIELDS = frozenset({"huggingface_token"})
+_REDACTED_MARKER = "__redacted__"
+
+
+def _redacted_config(cfg) -> dict:
+    values = {k: getattr(cfg, k) for k in _CONFIG_FIELDS}
+    for field_name in _REDACTED_FIELDS:
+        if values.get(field_name):
+            values[field_name] = _REDACTED_MARKER
+    return values
+
+
 def make_router(ctx: ProjectContext) -> APIRouter:
     router = APIRouter()
 
     @router.get("/api/config")
     def get_config():
-        c = ctx.config
-        return {k: getattr(c, k) for k in _CONFIG_FIELDS}
+        return _redacted_config(ctx.config)
 
     @router.get("/api/config/defaults")
     def config_defaults():
@@ -338,8 +354,13 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         transformed: dict[str, object] = {}
         for field_name, transform in _CONFIG_PATCH_RULES:
             val = getattr(body, field_name)
-            if val is not None:
-                transformed[field_name] = transform(val)
+            if val is None:
+                continue
+            # A client that GET the config sees a redacted marker for secret fields;
+            # echoing it back on save must not overwrite the stored secret.
+            if field_name in _REDACTED_FIELDS and val == _REDACTED_MARKER:
+                continue
+            transformed[field_name] = transform(val)
         new_warn_c = transformed.get("thermal_warn_c", cfg.thermal_warn_c)
         new_pause_c = transformed.get("thermal_pause_c", cfg.thermal_pause_c)
         if new_warn_c >= new_pause_c:
@@ -347,9 +368,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         for field_name, value in transformed.items():
             setattr(cfg, field_name, value)
         cfg.save_project(ctx.project_dir, keys=list(transformed.keys()))
-        _REDACT = {"huggingface_token"}
         _log.info("Config updated: %s", {
-            k: ("***" if k in _REDACT else v)
+            k: ("***" if k in _REDACTED_FIELDS else v)
             for k, v in body.model_dump().items() if v is not None
         })
         return get_config()

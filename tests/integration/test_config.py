@@ -57,6 +57,20 @@ class TestUiConfig:
         assert set(client.get("/api/config/defaults").json()) == set(client.get("/api/config").json())
 
     # AI privacy mode - local-only tool, so only "none" | "local_only"
+    def test_huggingface_token_redacted_in_get(self, client):
+        client.patch("/api/config", json={"huggingface_token": "hf_secret_value"})
+        assert client.get("/api/config").json()["huggingface_token"] == "__redacted__"
+
+    def test_unset_huggingface_token_not_marked(self, client):
+        assert client.get("/api/config").json()["huggingface_token"] in (None, "")
+
+    def test_patch_echoing_redacted_marker_keeps_stored_token(self, client):
+        client.patch("/api/config", json={"huggingface_token": "hf_secret_value"})
+        # A client that GET the redacted config and PATCHes it back must not wipe
+        # the real token with the marker.
+        client.patch("/api/config", json={"huggingface_token": "__redacted__"})
+        assert client.app.state.ctx.config.huggingface_token == "hf_secret_value"
+
     def test_ai_privacy_mode_defaults_to_local_only(self, client):
         assert client.get("/api/config").json()["ai_privacy_mode"] == "local_only"
 

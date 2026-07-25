@@ -25,11 +25,17 @@ def serve(
 
     import uvicorn
 
+    from yuu_clip.web.security import bind_host_policy
+
     proj_dir = _project_dir(project)
     console.print(f"  Project:  [dim]{proj_dir}[/dim]")
     console.print(f"  Serving at [cyan]http://{host}:{port}[/cyan]  (Ctrl+C to stop)")
     if reload:
         console.print("  [yellow]Reload mode on - server restarts when source files change[/yellow]")
+
+    allowed_hosts, host_warning = bind_host_policy(host)
+    if host_warning:
+        console.print(f"  [bold red]WARNING:[/bold red] {host_warning}")
 
     if open_browser:
         def _open_after_delay() -> None:
@@ -40,6 +46,9 @@ def serve(
 
     if reload:
         os.environ["YUU_CLIP_PROJECT"] = str(proj_dir)
+        # The reload factory rebuilds the app in a worker process, so pass the bind
+        # host through the environment for it to re-derive the same Host policy.
+        os.environ["YUU_CLIP_BIND_HOST"] = host
         uvicorn.run(
             "yuu_clip.web.app:_reload_factory",
             host=host, port=port, log_level="info",
@@ -47,4 +56,7 @@ def serve(
         )
     else:
         from yuu_clip.web.app import create_app
-        uvicorn.run(create_app(proj_dir), host=host, port=port, log_level="warning")
+        uvicorn.run(
+            create_app(proj_dir, allowed_hosts=allowed_hosts),
+            host=host, port=port, log_level="warning",
+        )

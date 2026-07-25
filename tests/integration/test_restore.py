@@ -142,6 +142,22 @@ def test_restore_rejects_backup_missing_project_db(tmp_path):
     assert wal.exists()  # WAL not dropped
 
 
+def test_restore_rejects_zip_slip_member(tmp_path):
+    """A backup carrying a path-traversal member must fail the whole restore, and
+    must never write the escaping file outside the target dir (zip slip)."""
+    archive = tmp_path / "malicious.zip"
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("manifest.json", json.dumps({"schema_version": BACKUP_SCHEMA_VERSION}))
+        zf.writestr(".yuu-clip/project.db", b"DB")
+        zf.writestr("../escaped.txt", b"pwned")
+    target = tmp_path / "restore_target"
+
+    with pytest.raises(RestoreError, match="unsafe file path"):
+        restore_into(archive, target, overwrite=True)
+
+    assert not (tmp_path / "escaped.txt").exists()  # never escaped target_dir
+
+
 def test_inspect_rejects_unsupported_schema(tmp_path):
     bad = tmp_path / "bad.zip"
     with zipfile.ZipFile(bad, "w") as archive:

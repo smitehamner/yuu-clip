@@ -18,6 +18,7 @@ const { recommendWhisperModel } = require('./whisper-select');
 const { modelFileDialogOptions } = require('./model-file-dialog');
 const { recommendLocalModel } = require('./recommend-model');
 const { mimeTypeFor, isPathInside, rangeResponseInit } = require('./media-serve');
+const { isExternalUrlAllowed } = require('./open-external');
 const { buildProjectConfigFromWizard, resolveProjectDir } = require('./wizard-config');
 const { decideSetupMode } = require('./startup-mode');
 const { buildRestoreArgs, parseRestoreExit } = require('./restore-backup');
@@ -32,6 +33,16 @@ const {
 const { rotateLogs, logSetup } = require('./logging');
 const { loadElectronConfig, saveElectronConfig, writeProjectConfig } = require('./electron-config');
 const { runCmd, downloadFileWithProgress, cleanupStalePartFiles, pipStatusReporter, WIZARD_INSTALLABLE, checkVenvModule } = require('./install');
+
+// Route every shell.openExternal through the http/https guard so a URL that
+// reached the renderer from untrusted content can only open a web link.
+function openExternalUrl(url) {
+  if (isExternalUrlAllowed(url)) {
+    shell.openExternal(url);
+    return;
+  }
+  logSetup(`Refused to open non-http(s) external URL: ${url}`);
+}
 
 // Roadmap plan 10 - the "yuu-media" scheme must be registered as privileged
 // before app.ready fires (Electron requirement); the actual request handler
@@ -505,7 +516,7 @@ function registerWizardIPC(wizardWin) {
     return result;
   });
 
-  ipcMain.on('setup:open-url', (_, url) => shell.openExternal(url));
+  ipcMain.on('setup:open-url', (_, url) => openExternalUrl(url));
 
   ipcMain.on('setup:copy-text', (_, text) => clipboard.writeText(String(text || '')));
 
@@ -940,7 +951,7 @@ async function promptPythonMissing() {
         '(Make sure to check "Add Python to PATH" during installation.)',
       buttons: ['Open python.org', 'Quit'], defaultId: 0,
     }).then(({ response }) => {
-      if (response === 0) shell.openExternal('https://www.python.org/downloads/');
+      if (response === 0) openExternalUrl('https://www.python.org/downloads/');
     });
   }
   app.quit();
@@ -1264,7 +1275,7 @@ function createWindow(port) {
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    openExternalUrl(url);
     return { action: 'deny' };
   });
 

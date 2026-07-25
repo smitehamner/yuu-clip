@@ -448,6 +448,18 @@ A one-glance "what to walk before public" list is in the final section.
 - **Coverage:** tests/unit/test_migration_drift.py, tests/unit/test_startup_migrate.py, tests/integration/test_migration_startup.py. Automated by tests/unit/test_startup_migrate.py::test_pending_migration_backs_up_then_upgrades and tests/integration/test_migration_startup.py::test_create_app_migrates_seeded_project_to_head. Cross-release upgrade path: HOW-TO-RELEASE.md manual checklist.
 - **Pre-release priority:** P0 - losing or corrupting a user's library across an update is the worst possible failure for a distributed app.
 
+### UC-G06 - Loopback-only by default; warned before exposing to the network
+- **Actor goal:** trust that the local web UI is not silently reachable by other machines or by other web pages the user has open.
+- **Preconditions:** a running app (default loopback bind), and a shell to try `yuu-dev serve --host 0.0.0.0`.
+- **Steps:**
+  1. Run the app normally; confirm it serves on `127.0.0.1` and works.
+  2. Start it with `yuu-dev serve --host 0.0.0.0`; read the startup output.
+  3. (Provenance) Confirm a request carrying a cross-site `Sec-Fetch-Site`, or a non-loopback `Host`, is refused (this is what stops another open web page from driving the API).
+- **Expected:** the default bind is loopback and enforces a strict Host allowlist so a DNS-rebinding page cannot reach it; browser requests that are cross-site or carry a non-loopback Host are rejected with a plain 403; binding to a non-loopback address prints a loud "NO password - anyone on your network can open, edit, and export your projects" warning and relaxes the Host allowlist (the cross-site guard still applies). The desktop shell, the `yuu-dev` CLI, and other non-browser callers are unaffected.
+- **Automation:** automated. The provenance/rebinding guard and the bind-host policy are unit + integration tested; the `--host 0.0.0.0` warning text is exercised through the bind-host policy helper.
+- **Coverage:** tests/unit/test_security.py, tests/integration/test_security_middleware.py. Automated by tests/integration/test_security_middleware.py::TestCrossSiteRejected::test_side_effectful_get_blocked_cross_site and tests/unit/test_security.py::TestBindHostPolicy::test_non_loopback_bind_disables_allowlist_and_warns.
+- **Pre-release priority:** P1 - the loopback boundary is the whole trust model for an unauthenticated single-user app; it must hold and the exposure escape-hatch must be loud.
+
 ---
 
 ## What to walk before flipping the repo public

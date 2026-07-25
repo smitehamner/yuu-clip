@@ -53,6 +53,7 @@ from yuu_clip.web.routes import (
     videos,
     voices,
 )
+from yuu_clip.web.security import LOOPBACK_HOSTS, LoopbackGuardMiddleware
 from yuu_clip.web.sse import terminate_process_tree_async
 
 _HERE = Path(__file__).parent
@@ -81,9 +82,12 @@ _ROUTE_MODULES = (
 
 
 def _reload_factory() -> FastAPI:
-    """App factory for uvicorn --reload mode. Reads project dir from env."""
+    """App factory for uvicorn --reload mode. Reads project dir + bind host from env."""
+    from yuu_clip.web.security import bind_host_policy
+
     proj_dir = Path(os.environ.get("YUU_CLIP_PROJECT", ".")).resolve()
-    return create_app(proj_dir)
+    allowed_hosts, _ = bind_host_policy(os.environ.get("YUU_CLIP_BIND_HOST", "127.0.0.1"))
+    return create_app(proj_dir, allowed_hosts=allowed_hosts)
 
 
 # Statuses a video can rest in with no analyze job running: not-yet-analyzed
@@ -137,11 +141,18 @@ def prepare_project(ctx: ProjectContext) -> None:
     remove_pause_flag(ctx.project_dir)
 
 
-def create_app(project_dir: Path) -> FastAPI:
+def create_app(
+    project_dir: Path,
+    allowed_hosts: frozenset | None = LOOPBACK_HOSTS,
+) -> FastAPI:
     """Create a FastAPI app bound to *project_dir*.
 
     Safe to call multiple times (e.g. in tests) - each call returns an
     independent app with its own ProjectContext.
+
+    *allowed_hosts* is the loopback Host allowlist enforced against browser
+    requests (anti DNS-rebinding). Pass ``None`` to disable it for a deliberate
+    non-loopback ``--host`` bind - see cli/serve.py and web/security.py.
     """
     configure_logging(project_dir)
     _log.info("Starting yuu-clip web server - project: %s", project_dir)
@@ -182,6 +193,8 @@ def create_app(project_dir: Path) -> FastAPI:
 
     app = FastAPI(title="yuu-clip", version="0.1.0", lifespan=lifespan)
     app.state.ctx = ctx  # expose for tests and diagnostics
+    # Reject cross-site / DNS-rebinding browser requests before any route runs.
+    app.add_middleware(LoopbackGuardMiddleware, allowed_hosts=allowed_hosts)
 
     @app.exception_handler(OperationalError)
     async def _db_operational_error(request: Request, exc: OperationalError):
