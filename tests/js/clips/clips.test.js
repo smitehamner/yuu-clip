@@ -9,6 +9,7 @@ import {
   _hotwordPillsHTML, _clipTagPillsHTML, scoreRow, scoreRowOverride,
   _hotwordDetailHTML, _sensitiveDetailHTML, clipListEmptyStateKind,
   _clipDescriptionHTML, _basicDescChipHTML,
+  _transcriptCardHTML, _duplicateNoticeHTML, _visionDetailHTML,
 } from '../../../yuu_clip/web/static/clips/clips.js';
 
 describe('_parseTimingOffset', () => {
@@ -530,5 +531,100 @@ describe('_clipDescriptionHTML / _basicDescChipHTML', () => {
     window._aiPrivacyMode = 'local_only';
     const html = _basicDescChipHTML({ tags: ['desc_basic'] });
     expect(html).toContain('re-analyze this recording');
+  });
+});
+
+describe('_transcriptCardHTML', () => {
+  it('a clip with a transcript excerpt shows it, never the no-dialogue state', () => {
+    const html = _transcriptCardHTML({ id: 1, transcript_excerpt: 'we pulled off the heist', transcript_stale: false });
+    expect(html).toContain('we pulled off the heist');
+    expect(html).not.toContain('No dialogue in this clip');
+  });
+
+  it('a stale transcript offers a Re-score link', () => {
+    const html = _transcriptCardHTML({ id: 1, transcript_excerpt: 'hi', transcript_stale: true });
+    expect(html).toContain('Captions edited since last scoring');
+    expect(html).toContain('data-act="rescore-clip"');
+  });
+
+  it('a textless clip shows the no-dialogue state with its visual score', () => {
+    const html = _transcriptCardHTML({
+      id: 1, transcript_excerpt: '', tags: ['no_speech'], scored_at: '2026-07-13T00:00:00+00:00', score_visual: 0.8,
+    });
+    expect(html).toContain('No dialogue in this clip');
+    expect(html).toContain('Visual 80%');
+    expect(html).toContain('No dialogue');
+  });
+
+  it('a textless clip with a vision summary shows it as a one-liner', () => {
+    const html = _transcriptCardHTML({ id: 1, transcript_excerpt: '', tags: [], vision_summary: 'A player clutches a 1v3 round.' });
+    expect(html).toContain('A player clutches a 1v3 round.');
+  });
+
+  it('an unscored textless clip omits the Visual tag (nothing to show yet)', () => {
+    const html = _transcriptCardHTML({ id: 1, transcript_excerpt: '', tags: [], scored_at: null });
+    expect(html).not.toContain('Visual');
+  });
+});
+
+describe('_duplicateNoticeHTML', () => {
+  const target = { id: 1, start_ms: 0, end_ms: 10_000, status: 'pending', tags: ['possible_duplicate'] };
+
+  it('blank when the clip carries no possible_duplicate tag', () => {
+    AppState.clips = [{ ...target, tags: [] }];
+    expect(_duplicateNoticeHTML({ ...target, tags: [] })).toBe('');
+  });
+
+  it('blank when tagged but no partner clears the overlap threshold', () => {
+    AppState.clips = [target];
+    expect(_duplicateNoticeHTML(target)).toBe('');
+  });
+
+  it('names the overlapping partner and offers a merge button', () => {
+    const partner = { id: 2, start_ms: 2_000, end_ms: 10_000, status: 'pending' };
+    AppState.clips = [target, partner];
+    const html = _duplicateNoticeHTML(target);
+    expect(html).toContain('#2');
+    expect(html).toContain('data-merge-a="1"');
+    expect(html).toContain('data-merge-b="2"');
+  });
+
+  it('merge direction is "prev" when the partner starts earlier', () => {
+    const partner = { id: 2, start_ms: -5_000, end_ms: 8_000, status: 'pending' };
+    AppState.clips = [target, partner];
+    expect(_duplicateNoticeHTML(target)).toContain('data-merge-dir="prev"');
+  });
+});
+
+describe('_visionDetailHTML', () => {
+  afterEach(() => { delete window._visionEnabled; AppState.clipJobs = {}; });
+
+  it('blank when the Image analysis feature is off', () => {
+    window._visionEnabled = false;
+    expect(_visionDetailHTML({ id: 1 })).toBe('');
+  });
+
+  it('offers "Analyze frames" for a clip with no vision summary yet', () => {
+    window._visionEnabled = true;
+    AppState.clipJobs = {};
+    const html = _visionDetailHTML({ id: 1 });
+    expect(html).toContain('Analyze frames');
+    expect(html).not.toContain('Re-analyze frames');
+  });
+
+  it('offers "Re-analyze frames" once a summary exists', () => {
+    window._visionEnabled = true;
+    AppState.clipJobs = {};
+    const html = _visionDetailHTML({ id: 1, vision_summary: 'A tense standoff.', vision_analyzed_at: '2026-07-13T00:00:00+00:00' });
+    expect(html).toContain('Re-analyze frames');
+    expect(html).toContain('A tense standoff.');
+  });
+
+  it('shows the in-flight spinner when this clip has an analyze-frames job running', () => {
+    window._visionEnabled = true;
+    AppState.clipJobs = { 1: { op: 'analyze-frames' } };
+    const html = _visionDetailHTML({ id: 1 });
+    expect(html).toContain('Analyzing frames...');
+    expect(html).not.toContain('data-act="analyze-frames"');
   });
 });

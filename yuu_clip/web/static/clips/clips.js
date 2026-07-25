@@ -763,7 +763,7 @@ function renderDetail(clip) {
 // Transcript card rather than the section disappearing. Shows the Visual score and
 // the no_speech tag inline, plus the vision-LLM one-liner if "Analyze frames" (below)
 // already produced one. A clip WITH a transcript is unaffected - the excerpt always wins.
-function _transcriptCardHTML(clip) {
+export function _transcriptCardHTML(clip) {
   if (clip.transcript_excerpt) {
     return collapsibleCard('clip-transcript',
         `<span class="detail-card-title">Transcript</span>`, `
@@ -790,7 +790,7 @@ function _visionSpinnerButton() {
     + `Analyzing frames...</button>`;
 }
 
-function _visionDetailHTML(clip) {
+export function _visionDetailHTML(clip) {
   // Master switch (Settings → Image analysis). On by default; the button itself is
   // still gated on a vision-capable model being configured (gateOnCapability above).
   // window._visionEnabled is seeded at boot and on settings save.
@@ -1261,7 +1261,7 @@ function _duplicatePartners(clip) {
     .sort((a, b) => b.ratio - a.ratio);
 }
 
-function _duplicateNoticeHTML(clip) {
+export function _duplicateNoticeHTML(clip) {
   if (!(clip.tags || []).includes('possible_duplicate')) return '';
   const partners = _duplicatePartners(clip);
   if (!partners.length) return '';
