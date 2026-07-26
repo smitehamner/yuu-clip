@@ -394,8 +394,8 @@ without building an installer). Run it with `YUU_SMOKE=1 npm test` (ensure
 in regular use. The pre-public high-polish pass shipped 2026-07-17 (docs-truth sweep,
 wizard/Settings dedup, maintainable `index.html`, merged Clips+Scenes view, mypy gate,
 in-app help). What remains before flipping the repo public is owner-only, run against a
-real packaged build: the packaged-app verification checklist
-(`docs/dev/testing/packaged-app-verification.md`), one more friend/VM install, and the
+real packaged build: the installed-app release checklist
+(`docs/dev/testing/installed-app-checklist.md`), one more friend/VM install, and the
 four public-only checks in ROADMAP section 2. After the flip, the `e2e-use-cases` plan
 validates each use case through the app.
 

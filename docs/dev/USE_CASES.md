@@ -3,7 +3,9 @@
 Authoritative catalog of end-to-end use cases: what a user actually does with the app,
 start to finish. Each entry has a stable ID so tests and the manual release checklist
 can reference it. Derived from the retired `manual-regression.md` feature checklist,
-`packaged-app-verification.md`, `FEATURES.md`, and the end-to-end walkthrough.
+the retired `packaged-app-verification.md` (its step tables now live inline in
+[testing/installed-app-checklist.md](testing/installed-app-checklist.md)), `FEATURES.md`,
+and the end-to-end walkthrough.
 
 **IDs are section-scoped:** `UC-<section><nn>` (e.g. `UC-B05`), so new cases append
 within a section without renumbering the rest. IDs are stable once assigned - never
@@ -52,7 +54,7 @@ A one-glance "what to walk before public" list is in the final section.
   3. Launch the app for the first time.
 - **Expected:** installs per-user under `%LOCALAPPDATA%\Programs\yuu-clip` with no admin/UAC prompt; NO desktop shortcut created silently (opt-in checkbox or absent; Start-menu shortcut is fine); window opens with no unhandled-error dialog.
 - **Automation:** manual-only.
-- **Coverage:** packaged-app-verification.md section A.
+- **Coverage:** installed-app-checklist.md, UC-A01 install detail (steps A1-A4).
 - **Pre-release priority:** P0 - first thing every new user hits; zero automated coverage.
 
 ### UC-A02 - Complete the first-run setup wizard
@@ -66,7 +68,7 @@ A one-glance "what to walk before public" list is in the final section.
   5. Click Launch.
 - **Expected:** bring-up completes in about a minute (unpack, not a 20-min pip install); wizard renders in the app palette (shared `tokens.css`) and Oxanium header, not a stock white form; Whisper dropdown labels match Settings exactly (shared catalog); GPU line correctly states LLM scoring runs on any-vendor GPU via Vulkan while Whisper CUDA is NVIDIA-only, matching the actual machine; finishing writes `config.json` (text model only, never `llm_vision_model_path`); if local AI was chosen the model downloads in-app afterward without blocking Launch.
 - **Automation:** manual-only (pre-server Electron surface; pytest cannot drive it). Token pairings are checked headless by `tests/unit/test_wizard_theme.py`; copy by `tests/ui/test_ui_wizard.py`.
-- **Coverage:** packaged-app-verification.md section C; test_wizard_theme; test_ui_wizard.
+- **Coverage:** installed-app-checklist.md, UC-A02 bring-up + wizard detail (steps B1-B4, C1-C8); test_wizard_theme; test_ui_wizard.
 - **Pre-release priority:** P0 - the re-skinned wizard was never eyeballed live; packaged-only.
 
 ### UC-A03 - Create, open, and switch projects
@@ -149,7 +151,7 @@ A one-glance "what to walk before public" list is in the final section.
   3. When it finishes, the player appears in the detail panel; press Space to play.
 - **Expected:** Quick export (no re-encode) finishes in about 1-5 s; a real MKV lands in `.yuu-clip/exports/` with an SRT sidecar alongside; the player plays it (in the packaged app via the `yuu-media://` protocol) and shows captions.
 - **Automation:** automated (export writes a real file + sidecar; assert existence and duration) / golden.
-- **Coverage:** integration export tests; ui export tests; native-protocol playback is packaged-only (packaged-app-verification.md section E); golden real-models path in tests/system/test_golden_path.py::test_golden_path_real_models (opt-in). Automated by tests/system/test_uc_analyze_review_export_play.py::test_approve_then_export_writes_file_and_sidecar.
+- **Coverage:** integration export tests; ui export tests; native-protocol playback is packaged-only (installed-app-checklist.md, UC-B05 media-protocol detail, steps E1-E4); golden real-models path in tests/system/test_golden_path.py::test_golden_path_real_models (opt-in). Automated by tests/system/test_uc_analyze_review_export_play.py::test_approve_then_export_writes_file_and_sidecar.
 - **Pre-release priority:** P0 - core loop; and packaged playback via `yuu-media://` has no headless coverage (seek/Range, path-traversal refusal).
 
 ### UC-B06 - Bulk review and export
@@ -410,7 +412,7 @@ A one-glance "what to walk before public" list is in the final section.
   4. Install a newer build (schema advanced vs same schema).
 - **Expected:** quit confirms/cancels cleanly and leaves NO orphan `python.exe` / `llama-server.exe` (check Task Manager); relaunch after a clean quit opens straight to the main UI (no wizard); a schema-advancing update opens the wizard in `update` mode preserving project/config; a same-schema bump goes straight to the app.
 - **Automation:** manual-only; the Electron smoke test (Stage 5, `electron/test/smoke.test.js`, opt-in `YUU_SMOKE=1`) asserts boot + `/api/status` + the UI document + clean shutdown / no orphan python. It cannot cover the update-mode wizard, Reveal-in-folder, or native playback - those stay a human walk.
-- **Coverage:** packaged-app-verification.md sections H and I; electron smoke test electron/test/smoke.test.js (opt-in boot + no-orphan-python backstop).
+- **Coverage:** installed-app-checklist.md, UC-G03 lifecycle + update detail (steps H1-H6, I1-I2); electron smoke test electron/test/smoke.test.js (opt-in boot + no-orphan-python backstop).
 - **Pre-release priority:** P0 - orphaned processes are the packaging failure mode no pytest suite can catch.
 
 ### UC-G04 - Check for available updates
