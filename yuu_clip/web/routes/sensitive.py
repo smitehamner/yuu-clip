@@ -18,7 +18,11 @@ from yuu_clip.scoring.engine import apply_sensitive_scan
 from yuu_clip.scoring.term_scope import terms_for_video
 from yuu_clip.scoring.textmatch import FUZZY_MIN_TERM_LENGTH
 from yuu_clip.web.deps import ProjectContext
-from yuu_clip.web.routes.common import normalize_context_slug, validate_context_slug
+from yuu_clip.web.routes.common import (
+    normalize_context_slug,
+    validate_context_slug,
+    with_write_retry,
+)
 
 _log = get_logger(__name__)
 
@@ -103,77 +107,90 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
     @router.post("/api/sensitive-terms")
     def create_sensitive_term(body: SensitiveTermBody):
-        db = ctx.get_db()
-        try:
-            term = body.term.strip()
-            context_slug = normalize_context_slug(body.context_slug)
-            _validate_sensitive_term_body(body, term, context_slug, ctx.project_dir)
-            row = SensitiveTerm(
-                term=term, category=body.category, match_mode=body.match_mode,
-                enabled=body.enabled, context_slug=context_slug,
-            )
-            db.add(row)
-            db.commit()
-            db.refresh(row)
-            clips_scanned, clips_flagged = _rescan_all_clips(db)
-            _log.info(
-                "Sensitive term %d created (category=%s mode=%s) - rescanned %d clips, %d flagged",
-                row.id, row.category, row.match_mode, clips_scanned, clips_flagged,
-            )
-            result = _sensitive_term_dict(row)
-            result.update(clips_scanned=clips_scanned, clips_flagged=clips_flagged)
-            return result
-        finally:
-            db.close()
+        # The Sensitive Content list autosaves each add/edit/delete immediately
+        # (like Hot-words - see hotwords.py), so a save can land mid-analysis while
+        # the analyze subprocess holds the SQLite write lock; with_write_retry gives
+        # it a few quick retries before the graceful 503 rather than failing outright.
+        def _op():
+            db = ctx.get_db()
+            try:
+                term = body.term.strip()
+                context_slug = normalize_context_slug(body.context_slug)
+                _validate_sensitive_term_body(body, term, context_slug, ctx.project_dir)
+                row = SensitiveTerm(
+                    term=term, category=body.category, match_mode=body.match_mode,
+                    enabled=body.enabled, context_slug=context_slug,
+                )
+                db.add(row)
+                db.commit()
+                db.refresh(row)
+                clips_scanned, clips_flagged = _rescan_all_clips(db)
+                _log.info(
+                    "Sensitive term %d created (category=%s mode=%s) - rescanned %d clips, %d flagged",
+                    row.id, row.category, row.match_mode, clips_scanned, clips_flagged,
+                )
+                result = _sensitive_term_dict(row)
+                result.update(clips_scanned=clips_scanned, clips_flagged=clips_flagged)
+                return result
+            finally:
+                db.close()
+
+        return with_write_retry(_op)
 
     @router.put("/api/sensitive-terms/{term_id}")
     def update_sensitive_term(term_id: int, body: SensitiveTermBody):
-        db = ctx.get_db()
-        try:
-            row = db.get(SensitiveTerm, term_id)
-            if not row:
-                raise HTTPException(404, "Sensitive term not found")
-            term = body.term.strip()
-            context_slug = normalize_context_slug(body.context_slug)
-            _validate_sensitive_term_body(
-                body, term, context_slug, ctx.project_dir, current_slug=row.context_slug,
-            )
-            row.term = term
-            row.category = body.category
-            row.match_mode = body.match_mode
-            row.enabled = body.enabled
-            row.context_slug = context_slug
-            db.commit()
-            db.refresh(row)
-            clips_scanned, clips_flagged = _rescan_all_clips(db)
-            _log.info(
-                "Sensitive term %d updated (category=%s mode=%s) - rescanned %d clips, %d flagged",
-                row.id, row.category, row.match_mode, clips_scanned, clips_flagged,
-            )
-            result = _sensitive_term_dict(row)
-            result.update(clips_scanned=clips_scanned, clips_flagged=clips_flagged)
-            return result
-        finally:
-            db.close()
+        def _op():
+            db = ctx.get_db()
+            try:
+                row = db.get(SensitiveTerm, term_id)
+                if not row:
+                    raise HTTPException(404, "Sensitive term not found")
+                term = body.term.strip()
+                context_slug = normalize_context_slug(body.context_slug)
+                _validate_sensitive_term_body(
+                    body, term, context_slug, ctx.project_dir, current_slug=row.context_slug,
+                )
+                row.term = term
+                row.category = body.category
+                row.match_mode = body.match_mode
+                row.enabled = body.enabled
+                row.context_slug = context_slug
+                db.commit()
+                db.refresh(row)
+                clips_scanned, clips_flagged = _rescan_all_clips(db)
+                _log.info(
+                    "Sensitive term %d updated (category=%s mode=%s) - rescanned %d clips, %d flagged",
+                    row.id, row.category, row.match_mode, clips_scanned, clips_flagged,
+                )
+                result = _sensitive_term_dict(row)
+                result.update(clips_scanned=clips_scanned, clips_flagged=clips_flagged)
+                return result
+            finally:
+                db.close()
+
+        return with_write_retry(_op)
 
     @router.delete("/api/sensitive-terms/{term_id}")
     def delete_sensitive_term(term_id: int):
-        db = ctx.get_db()
-        try:
-            row = db.get(SensitiveTerm, term_id)
-            if not row:
-                raise HTTPException(404, "Sensitive term not found")
-            category = row.category
-            db.delete(row)
-            db.commit()
-            clips_scanned, clips_flagged = _rescan_all_clips(db)
-            _log.info(
-                "Sensitive term %d deleted (category=%s) - rescanned %d clips, %d flagged",
-                term_id, category, clips_scanned, clips_flagged,
-            )
-            return {"deleted": term_id, "clips_scanned": clips_scanned, "clips_flagged": clips_flagged}
-        finally:
-            db.close()
+        def _op():
+            db = ctx.get_db()
+            try:
+                row = db.get(SensitiveTerm, term_id)
+                if not row:
+                    raise HTTPException(404, "Sensitive term not found")
+                category = row.category
+                db.delete(row)
+                db.commit()
+                clips_scanned, clips_flagged = _rescan_all_clips(db)
+                _log.info(
+                    "Sensitive term %d deleted (category=%s) - rescanned %d clips, %d flagged",
+                    term_id, category, clips_scanned, clips_flagged,
+                )
+                return {"deleted": term_id, "clips_scanned": clips_scanned, "clips_flagged": clips_flagged}
+            finally:
+                db.close()
+
+        return with_write_retry(_op)
 
     @router.post("/api/videos/{video_id}/sensitive-rescan")
     def sensitive_rescan_video(video_id: int):
@@ -194,6 +211,10 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 if clip.sensitive_matches != before:
                     changed += 1
             db.commit()
+            _log.info(
+                "Sensitive-term rescan on video %d: %d clip(s) checked, %d changed",
+                video_id, len(clips), changed,
+            )
             return {"clips_checked": len(clips), "clips_changed": changed}
         finally:
             db.close()

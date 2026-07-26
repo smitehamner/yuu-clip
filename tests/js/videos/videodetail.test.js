@@ -137,6 +137,31 @@ describe('renderVideoDetail card layout', () => {
   });
 });
 
+// Regression: Generate Summary, Generate/Regenerate Timeline, (Re-)score clips with
+// context, and Re-score failed clips all launch a reject_if_busy()-guarded job but
+// weren't tagged data-job-blocked, so they stayed clickable (and 409'd) while another
+// job was already running. Fixed in videos.js's renderVideoDetail / _renderContextSection.
+describe('job-launching buttons carry data-job-blocked', () => {
+  it('tags Generate Summary and Generate Timeline', () => {
+    render({ summary: null, has_timeline: false });
+    expect(detail().querySelector('#btn-summarize-video').hasAttribute('data-job-blocked')).toBe(true);
+    expect(detail().querySelector('#btn-generate-timeline').hasAttribute('data-job-blocked')).toBe(true);
+  });
+
+  it('tags "Score/Re-score clips with context" once a context is assigned', () => {
+    AppState.contexts = [{ context_id: 'camp', display_name: 'Camp' }];
+    render({ context_names: ['camp'], clips_scored_at: '2026-06-01T00:00:00+00:00', clips_scored_context: ['camp'] });
+    expect(detail().querySelector('[data-act="rescore-clips"]').hasAttribute('data-job-blocked')).toBe(true);
+  });
+
+  it('tags "Re-score failed clips" when a model is available and clips failed', () => {
+    window._prereqs = { llm_ok: true };
+    render({ clips_llm_error: 2 });
+    expect(detail().querySelector('[data-act="rescore-failed-clips"]').hasAttribute('data-job-blocked')).toBe(true);
+    delete window._prereqs;
+  });
+});
+
 describe('renderVideoDetail run-timing provenance line', () => {
   it('shows the total and per-stage timing from analyze_run', () => {
     render({ analyze_run: MOCK_ANALYZE_RUN });

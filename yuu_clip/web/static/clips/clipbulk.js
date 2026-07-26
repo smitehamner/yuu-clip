@@ -125,7 +125,7 @@ export function bulkDeleteClips() {
   if (!ids.length) return;
   showConfirm(
     'Delete selected clips?',
-    `${plural(ids.length, 'clip record')} will be removed from the database. ` +
+    `${plural(ids.length, 'clip')} will be permanently deleted. ` +
     `Any exported video files will also be deleted from the exports folder.`,
     'Delete',
     () => _doBulkDeleteClips(ids),

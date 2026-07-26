@@ -10,6 +10,7 @@ import json as json_lib
 import re
 import time
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Callable, Iterable, Optional, TypeVar
 
 from fastapi import HTTPException
@@ -270,6 +271,20 @@ def require_clip(db, clip_id: int) -> ClipCandidate:
     if not clip:
         raise HTTPException(404, "Clip not found")
     return clip
+
+
+def require_clip_with_source(db, clip_id: int) -> tuple[ClipCandidate, Video]:
+    """Load a clip and its parent recording, 404-ing when the clip, the recording
+    row, or the recording's source file on disk is missing. Shared by the routes
+    that re-encode from the original source (clip preview, auto-framing, frame
+    analysis); the caller owns any offset maths off the returned objects."""
+    clip = require_clip(db, clip_id)
+    video = db.get(Video, clip.video_id)
+    if not video:
+        raise HTTPException(404, "Video not found")
+    if not Path(video.path).exists():
+        raise HTTPException(404, "Source video file not found on disk")
+    return clip, video
 
 
 def parse_optional_color(value: Optional[str]) -> Optional[str]:

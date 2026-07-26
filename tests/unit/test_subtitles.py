@@ -5,7 +5,11 @@ for lines with no word data, and multi-speaker distinct highlight tones.
 """
 from __future__ import annotations
 
+import datetime
 import re
+from types import SimpleNamespace
+
+import pytest
 
 from yuu_clip.subtitles import (
     SubLine,
@@ -13,6 +17,7 @@ from yuu_clip.subtitles import (
     _parse_hex,
     lines_to_ass,
     strip_baked_speaker_prefix,
+    video_captions_srt,
 )
 
 
@@ -181,3 +186,44 @@ class TestRefreshExportSidecarsGlobEscape:
              mock.patch.object(subtitles, "export_srt_sidecars", return_value=["should not happen"]):
             result = subtitles.refresh_export_sidecars(object(), tmp_path, "tmpl")
         assert result == []
+
+
+class TestVideoCaptionsSrt:
+    """subtitles.video_captions_srt (pure logic, no DB) - the source the captions route wraps."""
+
+    def _track(self, label, do_transcribe, segments):
+        tx = SimpleNamespace(created_at=datetime.datetime(2024, 1, 1), segments=segments)
+        return SimpleNamespace(id=1, label=label, do_transcribe=do_transcribe, transcripts=[tx])
+
+    def _seg(self, start_ms, end_ms, text):
+        return SimpleNamespace(start_ms=start_ms, end_ms=end_ms, text=text)
+
+    def test_no_transcribed_tracks_raises(self):
+        video = SimpleNamespace(audio_tracks=[], segment_start_s=None)
+        with pytest.raises(ValueError):
+            video_captions_srt(video)
+
+    def test_tracks_with_no_transcript_yet_raises(self):
+        track = SimpleNamespace(id=1, label="combined", do_transcribe=True, transcripts=[])
+        video = SimpleNamespace(audio_tracks=[track], segment_start_s=None)
+        with pytest.raises(ValueError):
+            video_captions_srt(video)
+
+    def test_no_segment_start_leaves_times_unshifted(self):
+        seg = self._seg(1_000, 2_000, "hello")
+        video = SimpleNamespace(audio_tracks=[self._track("combined", True, [seg])], segment_start_s=None)
+        srt = video_captions_srt(video)
+        assert "00:00:01,000 --> 00:00:02,000" in srt
+
+    def test_zero_segment_start_leaves_times_unshifted(self):
+        seg = self._seg(1_000, 2_000, "hello")
+        video = SimpleNamespace(audio_tracks=[self._track("combined", True, [seg])], segment_start_s=0.0)
+        srt = video_captions_srt(video)
+        assert "00:00:01,000 --> 00:00:02,000" in srt
+
+    def test_segment_start_shifts_cue_times_onto_parent_timeline(self):
+        seg = self._seg(1_000, 2_000, "hello")
+        video = SimpleNamespace(audio_tracks=[self._track("combined", True, [seg])], segment_start_s=30.0)
+        srt = video_captions_srt(video)
+        assert "00:00:31,000 --> 00:00:32,000" in srt
+        assert "00:00:01,000 --> 00:00:02,000" not in srt

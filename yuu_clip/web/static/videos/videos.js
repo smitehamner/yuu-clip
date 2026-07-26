@@ -9,7 +9,7 @@ import { showConfirm, openFieldEditModal, openDiffModal, showKebab, openActionsM
 import { setupRecordingPreview, deferPlayerRebuildForPip } from '../core/preview.js';
 import {
   streamSSE, setJobCancel, cancelJob, _blockedByAnalyze, _stepPillLabel,
-  _jobStepDefs, _activeStepIdx, _jobStartTime,
+  _jobStepDefs, _activeStepIdx, _jobStartTime, applyJobBlockedState,
 } from '../core/jobs.js';
 import { openGettingStartedModal } from '../core/helpmodals.js';
 import {
@@ -582,7 +582,7 @@ function renderVideoDetail(video, savedTimeline) {
         : `<div style="color:var(--muted);font-size:12px">No summary yet - generate a title and summary from the transcript.</div>`}</div>`,
       { actions: `${video.summary
           ? `<button class="kebab-btn" title="Edit or regenerate summary" aria-label="Edit or regenerate summary" data-act="video-summary-kebab" data-video-id="${video.id}">&#8942;</button>`
-          : `<button class="btn ghost" id="btn-summarize-video" data-act="summarize-video" data-video-id="${video.id}">Generate Summary</button>`}` })}
+          : `<button class="btn ghost" id="btn-summarize-video" data-act="summarize-video" data-job-blocked data-video-id="${video.id}">Generate Summary</button>`}` })}
 
     ${_isVideoBeingAnalyzed(video) ? _analysisLivePanelHTML() : ''}
     ${_renderRunMetaCard(video)}
@@ -613,11 +613,15 @@ function renderVideoDetail(video, savedTimeline) {
       <div id="timeline-section">
         ${timelineSectionBody}
       </div>`,
-      { actions: `<button class="btn ghost" id="btn-generate-timeline" data-act="generate-timeline" data-video-id="${video.id}">${video.has_timeline ? 'Regenerate Timeline' : 'Generate Timeline'}</button>` }) : ''}`;
+      { actions: `<button class="btn ghost" id="btn-generate-timeline" data-act="generate-timeline" data-job-blocked data-video-id="${video.id}">${video.has_timeline ? 'Regenerate Timeline' : 'Generate Timeline'}</button>` }) : ''}`;
 
   loadSpeakers(video.id);
   reloadVideoTranscriptIfOpen(video.id);
   _syncAnalysisLivePanel();
+  // A background SSE completion can re-render the detail mid-job; re-disable the
+  // job-launching buttons (summarize / timeline / rescore) so they don't offer a
+  // click that the backend's reject_if_busy would just 409.
+  applyJobBlockedState();
 
   if (!savedTimeline && video.has_timeline) {
     fetch(`/api/videos/${video.id}`)
@@ -710,7 +714,7 @@ function deleteVideo(id) {
   showConfirm(
     'Remove recording?',
     `Remove <strong>${escHtml(name)}</strong> from YuuClip?<br><br>` +
-    `All clips, transcripts, and extracted audio are removed from the database. ` +
+    `All clips, transcripts, and extracted audio are permanently removed from YuuClip. ` +
     `Your source recording file is <strong>not</strong> deleted.`,
     'Remove',
     () => _doDeleteVideo(id, name),
@@ -829,9 +833,9 @@ function _renderContextSection(video) {
     : (!assigned.length ? `<span style="color:var(--muted);font-size:12px">None assigned</span>` : '');
 
   const rescoreBtn = (assigned.length && video.clips_scored_at)
-    ? `<button class="btn" style="font-size:12px;padding:4px 12px" data-act="rescore-clips" data-video-id="${video.id}">Re-score clips with context</button>`
+    ? `<button class="btn" style="font-size:12px;padding:4px 12px" data-act="rescore-clips" data-job-blocked data-video-id="${video.id}">Re-score clips with context</button>`
     : assigned.length
-    ? `<button class="btn" style="font-size:12px;padding:4px 12px" data-act="rescore-clips" data-video-id="${video.id}">Score clips with context</button>`
+    ? `<button class="btn" style="font-size:12px;padding:4px 12px" data-act="rescore-clips" data-job-blocked data-video-id="${video.id}">Score clips with context</button>`
     : '';
 
   const errCount = video.clips_llm_error || 0;
@@ -839,7 +843,7 @@ function _renderContextSection(video) {
   // "failed" clips just fails again. With no model these aren't failures, they're
   // clips awaiting a first-run model (surfaced by the description prompt instead).
   const failedBtn = (errCount > 0 && !!(window._prereqs || {}).llm_ok)
-    ? `<button class="btn" style="font-size:12px;padding:4px 12px;border-color:var(--warning);color:var(--warning)" data-act="rescore-failed-clips" data-video-id="${video.id}" title="Re-run LLM scoring only for the ${plural(errCount, 'clip')} that failed last time">&#9888; Re-score ${plural(errCount, 'failed clip')}</button>`
+    ? `<button class="btn" style="font-size:12px;padding:4px 12px;border-color:var(--warning);color:var(--warning)" data-act="rescore-failed-clips" data-job-blocked data-video-id="${video.id}" title="Re-run LLM scoring only for the ${plural(errCount, 'clip')} that failed last time">&#9888; Re-score ${plural(errCount, 'failed clip')}</button>`
     : '';
 
   return collapsibleCard('video-contexts',

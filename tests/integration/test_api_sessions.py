@@ -228,6 +228,24 @@ class TestReelPoolVideoIds:
         returned_video_ids = {c["video_id"] for c in clips}
         assert returned_video_ids == {a, b}
 
+    def test_video_ids_supersedes_video_id_when_both_are_present(self, client, two_recordings, project_dir):
+        """Route docstring: `video_ids` supersedes `video_id` when both are given -
+        video_id must be ignored outright, not unioned in."""
+        a, b = two_recordings
+        session = _db(project_dir)
+        try:
+            for vid in (a, b):
+                session.add(ClipCandidate(
+                    video_id=vid, start_ms=0, end_ms=10_000,
+                    score_overall=0.7, description="c", status="approved",
+                ))
+            session.commit()
+        finally:
+            session.close()
+        clips = client.get(f"/api/demo/approved-clips?video_id={b}&video_ids={a}").json()
+        returned_video_ids = {c["video_id"] for c in clips}
+        assert returned_video_ids == {a}
+
     def test_video_ids_non_integer_400(self, client):
         r = client.get("/api/demo/approved-clips?video_ids=abc")
         assert r.status_code == 400

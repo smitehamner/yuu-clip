@@ -1002,10 +1002,23 @@ def _migrate_transcript_to_segments(
                 channels=track.channels,
                 channel_layout=track.channel_layout,
                 stream_title_tag=track.stream_title_tag,
-                extracted_path=track.extracted_path,
+                # Deliberately NOT copying extracted_path: the parent's WAV holds the
+                # FULL recording (parent time-0), but a segment's transcript/clip times
+                # are 0-based within the segment. Pointing a segment track at the
+                # untrimmed parent audio makes anything that re-reads it by segment-
+                # relative offset (run_retranscribe, and a non-force reanalyze that
+                # would skip re-extraction on an existing path) transcribe the wrong
+                # window, off by segment_start_s. Left None so retranscribe safely
+                # skips and a reanalyze re-extracts the trimmed segment-local audio.
+                extracted_path=None,
             )
             db.add(new_track)
             db.flush()
+            _log.debug(
+                "Split migrate: parent track %d (%s) -> segment video %d as new track %d, "
+                "%d transcript line(s), extracted_path=None (segment-local audio not yet extracted)",
+                track.id, track.label, segment_ids[seg_idx], new_track.id, len(segs),
+            )
 
             new_transcript = Transcript(
                 audio_track_id=new_track.id,

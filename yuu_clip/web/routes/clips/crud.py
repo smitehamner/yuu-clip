@@ -28,7 +28,7 @@ from yuu_clip.web.routes.clips.schemas import (
     TagsBody,
 )
 from yuu_clip.web.routes.clips.serialize import _clip_dict, _normalize_tags
-from yuu_clip.web.routes.common import require_clip, with_write_retry
+from yuu_clip.web.routes.common import require_clip, require_clip_with_source, with_write_retry
 
 _log = get_logger(__name__)
 
@@ -248,17 +248,11 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
 
         db = ctx.get_db()
         try:
-            clip = require_clip(db, clip_id)
-            video = db.get(Video, clip.video_id)
+            clip, video = require_clip_with_source(db, clip_id)
         finally:
             db.close()
 
-        if not video:
-            raise HTTPException(404, "Video not found")
         src = Path(video.path)
-        if not src.exists():
-            raise HTTPException(404, "Source video file not found on disk")
-
         # Prefer the 720p proxy when one is available: it shares the source's full
         # timeline (so the offset maths below are unchanged) and cuts reliably to a
         # seekable MP4, where a raw-MKV stream-copy can fail on odd codecs.

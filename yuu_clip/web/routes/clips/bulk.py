@@ -51,8 +51,9 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
                 db.commit()
                 missing = missing_ids(body.clip_ids, found_ids)
                 _log.info(
-                    "Bulk status update: %d clip(s) set to %s, %d missing",
+                    "Bulk status update: %d clip(s) set to %s, %d missing%s",
                     len(clips), body.status, len(missing),
+                    f" (ids={missing})" if missing else "",
                 )
                 return {
                     "updated": sorted(found_ids), "status": body.status, "missing": missing,
@@ -84,8 +85,12 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
                     clip.status = by_id[clip.id]
                 db.commit()
                 found_ids = {c.id for c in clips}
-                _log.info("Bulk status restore (undo): %d clip(s) reverted", len(clips))
-                return {"restored": sorted(found_ids), "missing": missing_ids(list(by_id), found_ids)}
+                missing = missing_ids(list(by_id), found_ids)
+                _log.info(
+                    "Bulk status restore (undo): %d clip(s) reverted%s",
+                    len(clips), f", {len(missing)} missing (ids={missing})" if missing else "",
+                )
+                return {"restored": sorted(found_ids), "missing": missing}
             finally:
                 db.close()
         return with_write_retry(_op)
@@ -119,8 +124,10 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
             db.commit()
             missing = missing_ids(body.clip_ids, found_ids)
             _log.info(
-                "Bulk delete: %d clip(s) deleted, %d locked, %d missing",
-                len(deleted), len(locked_ids), len(missing),
+                "Bulk delete: %d clip(s) deleted, %d locked%s, %d missing%s",
+                len(deleted), len(locked_ids),
+                f" (ids={locked_ids})" if locked_ids else "",
+                len(missing), f" (ids={missing})" if missing else "",
             )
             return {"deleted": deleted, "missing": missing, "locked": locked_ids}
         finally:

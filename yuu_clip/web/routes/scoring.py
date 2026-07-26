@@ -211,6 +211,10 @@ def _register_hotword_rescan_route(router: APIRouter, ctx: ProjectContext) -> No
                 if before != after:
                     changed += 1
             db.commit()
+            _log.info(
+                "Hot-word rescan on video %d: %d clip(s) checked, %d changed",
+                video_id, len(clips), changed,
+            )
             return {"clips_checked": len(clips), "clips_changed": changed}
         finally:
             db.close()

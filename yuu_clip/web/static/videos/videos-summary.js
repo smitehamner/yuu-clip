@@ -1,7 +1,7 @@
 // Feature-map - Recording detail: session title + summary generation (code:
 // video / Video). Extracted out of videos.js (which grew into a catch-all) -
 // the list/filter/detail-render/re-analysis core stays there.
-//   API: routes/videos.py (summarize, regenerate-summary, fields) · Tests: tests/ui/test_ui_video.py
+//   API: routes/scoring.py (summarize, regenerate-summary) · routes/videos.py (fields) · Tests: tests/ui/test_ui_video.py
 import { AppState } from '../core/state.js';
 import { formatApiError } from '../core/format.js';
 import { openDiffModal, showConfirm } from '../core/ui.js';

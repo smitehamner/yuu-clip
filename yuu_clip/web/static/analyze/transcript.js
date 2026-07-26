@@ -1,5 +1,5 @@
 // Feature-map - Transcript views + click-to-edit captions (code: TranscriptSegment).
-//   API: routes/videos.py, routes/scoring.py · Tests: tests/ui/test_ui_transcript.py, tests/integration/test_transcript_edit.py
+//   API: routes/videos.py (transcript) · routes/clips/captions.py (clip transcript, caption edit) · routes/speakers.py (speaker CRUD/reassign) · Tests: tests/ui/test_ui_transcript.py, tests/integration/test_transcript_edit.py
 import { AppState } from '../core/state.js';
 import { escHtml, plural, formatApiError, fmtClock } from '../core/format.js';
 import { showToast } from '../core/utils.js';

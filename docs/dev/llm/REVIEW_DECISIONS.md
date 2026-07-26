@@ -11,6 +11,441 @@ same thing without the context. Most recent first.
 
 ---
 
+## Phase 7 UX/UI - full-app review section 8, web UI content & analysis (2026-07-26)
+
+UX/UI walk over the Section 8 scope: `static/videos/{sessions,videos-runmeta,videos-summary,
+videos-timeline,videos}.js`, `static/clips/{clipbulk,clipcreate,clipexport,clips}.js`,
+`static/analyze/{analyze,reel,split,transcript}.js`, `static/library/{hotwords,sensitive}.js`
+(reading the template strings they render, not just route logic). Anchored against the
+2026-07-23/24 full-surface UX review (below) - most core UX was already walked and settled
+there, so this pass looked for Section-8-specific drift and gaps that pass didn't cover. One
+clear-cut copy fix applied; three Low findings surfaced (two deferred, reasons below). This
+scope is exceptionally polished - state coverage (loading/empty/error/success + stale) is
+complete on every async surface, focus is captured/restored on every static modal, every
+long op has a job pill + typed-outcome-aware `onDone`, every confirm names its specific
+action, and error copy is plain-English throughout. `yuu-dev test-js` 642 passed, `test-unit`
+2023 passed (bundle + index drift guards green), `test-ui --changed` 205 passed, lint clean.
+
+### Applied: "database"/"record" implementation jargon removed from three delete confirmations
+`clips.js::deleteClip` ("The clip record will be removed from the database."),
+`clipbulk.js::bulkDeleteClips` ("N clip records will be removed from the database."), and
+`videos.js::deleteVideo` ("...are removed from the database.") all leaked implementation
+terms into user-facing confirm copy, against the plain-English-for-non-developers convention
+(global + project CLAUDE.md: user-facing text uses plain language, not code/impl names).
+`deleteVideo` was also internally inconsistent - its dialog title and success toast both say
+"YuuClip" while the body said "the database." Reworded to: "This clip will be permanently
+deleted.", "N clips will be permanently deleted." (also dropping the `plural(..., 'clip
+record')` -> `'clip'`), and "...are permanently removed from YuuClip." No test pinned the old
+strings (grepped `tests/` first). Rebuilt the committed `bundle.esm.js` (`yuu-dev bundle`);
+drift guard + `test-ui --changed` (delete flows) green.
+
+### Deferred (Low): dynamically-built session modals lack a focus trap / focus-return
+`sessions.js::_promptText` (create/rename session) and `_showSuggestionModal` (suggest
+sessions) build their `.modal-bg` at runtime and `document.body.appendChild` it, so they sit
+OUTSIDE the boot-time modal-a11y stamping + single document-level focus trap (`boot.js`/
+`ui.js`) that the 2026-07-24 review confirmed covers the static index.html modals. Consequence:
+Tab can move to background controls while these two runtime modals are open, and closing them
+doesn't restore focus to the opener. They DO have `role="dialog" aria-modal="true"`, a labelled
+input, autofocus, and Enter/Escape handling, so they're usable. Deferred as Low: this is a
+mouse-first single-user Windows desktop tool (same rationale the review's Low 29 accepted for
+pointer-only split/resize), and a proper fix wants a shared "trap a runtime-built modal" helper
+rather than a per-modal patch - out of proportion for this pass. Trigger to revisit: a
+keyboard-only/AT user actually needs to create or rename a session, or a shared runtime-modal
+helper lands for another reason.
+
+### Deferred (Low): split re-analyze clip-clear error names a raw internal segment id
+`split.js::_doSplitAndReanalyze`'s per-segment clip-clear loop shows `Failed to clear clips on
+segment ${segId}` on failure - `segId` is the raw DB row id, which a user can't map to any
+visible label (the segments aren't shown numbered at that moment). Edge error path (a DB
+write failing mid-split, rare). Deferred as Low: the loop is `for (const segId of activeIds)`
+with no position handy, so a clean fix wants the segment's 1-based index/name threaded through;
+low value for a rarely-hit path. The sibling `_abortReanalyzeChain` / `_segmentChainAbortMessage`
+already do this right ("segments N-M"), so the pattern to copy exists if it's ever worth it.
+
+### Confirmed-intentional - do NOT re-flag (verified good during this walk, scope-specific)
+- Clip review/approval flow (`clips.js`): Approve/Reject/Unreviewed with A/R/U shortcuts +
+  tooltips, active-state styling, review buttons disabled during a slow DB-lock retry so the
+  wait reads as "working", and an undo toast on every status change (single + bulk arbitrated
+  through one `undoLastStatus`). Low-friction and discoverable - the primary surface is solid.
+- Bulk partial-failure surfacing (`clipbulk.js::_doBulkDeleteClips`): "Deleted N clips - M
+  could not be deleted (file in use)" gives count + reason; the failed clips remain visible in
+  the list (only the deleted ones vanish, selection cleared), so "which" is discoverable by
+  inspection. Adequate for the audience; Phase 5 added the server-side which-ids log for the
+  maintainer. Not a gap.
+- Split feature clarity (`split.js`): confirm copy states exact consequences ("This deletes N
+  unexported clips (keeping M exported) and runs analysis fresh on K segments"), the confirm
+  button carries a disabled-reason title ("Place at least one split point first"), danger vs
+  primary styling tracks the destructive vs partition action, and Undo Split exists with clear
+  reversal copy. The Section-8-Phase-2 correctness fix is invisible to the user by design.
+- Hot-words vs Sensitive Terms distinction (`hotwords.js`/`sensitive.js`): carried by the
+  Settings section headers (Section 9/10 HTML scope); the JS row labels, empty states, and the
+  `_sensitiveFuzzyGuardTripped` inline "Close spelling needs >=4 chars" warning are all clear
+  and actionable. The client-side fuzzy guard pre-empts the server 400 with the same wording
+  as the mode dropdown - exemplary error prevention.
+- `reel.js` status-chip trap guard (`_toggleReelPoolStatus` never leaves zero statuses) and
+  `mergeReelPool` (newly-entering non-approved clips default to excluded so toggling a status
+  can't silently stuff clips into a reel) - both deliberate anti-foot-gun choices.
+- `analyze.js` estimate/first-run copy (CPU-slower note, long-run split suggestion, measured-
+  vs-rough source line) and the drag-and-drop Electron-only affordance with a browser-drop
+  toast fallback - correct capability-gating, not a gap.
+
+---
+
+## Phase 6 docs and comments - full-app review section 8, web UI content & analysis (2026-07-26)
+
+Docs-and-comments phase over `web/routes/{videos,analyze,scoring,dedup,hotwords,sensitive}.py`,
+`routes/clips/{crud,edit,delete,bulk,approval,captions,export,schemas,serialize}.py`, and the
+`static/{videos,clips,analyze,library}/*.js` set (per this phase's brief file list). Grepped
+every `#`/`//` comment, docstring, and 3-line Feature-map header across the scope (~460 hits)
+before reading; zero TODO/FIXME/XXX/HACK markers anywhere in scope. Every comment body earns
+its place (WHY-focused, no restatement, no obsolete/reactive/apology text) - the one real
+category of finding this phase surfaced was Feature-map header drift/gaps, not comment quality.
+`yuu-dev test-api` 3486 passed (unchanged from Phase 5's baseline - comment/header-only edits),
+`yuu-dev test-js` 642 passed, lint clean, 0 new mypy errors.
+
+### Applied: three Feature-map headers corrected (drifted API-ownership references)
+- `static/videos/videos-summary.js` and `static/videos/videos-timeline.js` both claimed
+  `API: routes/videos.py` for summarize/regenerate-summary/timeline - those three routes
+  actually live in `routes/scoring.py` (moved there by the pre-existing `400f926` module split,
+  long before this section's Phase 1-5 work; the drift was already stale coming in, not
+  introduced by this section). Corrected both to cite `routes/scoring.py`; `videos-summary.js`
+  keeps `routes/videos.py (fields)` since the video-fields endpoint it also calls is genuinely
+  there.
+- `static/analyze/transcript.js` claimed `API: routes/videos.py, routes/scoring.py` - grepped
+  every `fetch()` call in the file and found zero hits on any `routes/scoring.py` endpoint;
+  the real surface is `routes/videos.py` (whole-recording transcript),
+  `routes/clips/captions.py` (clip transcript, caption-segment edit), and `routes/speakers.py`
+  (speaker CRUD/reassign, the majority of the file's fetch calls). Corrected to name all three.
+
+### Applied: `static/clips/clips.js` had no Feature-map header at all
+The largest, most central file in scope (1699 lines: clip list/filter/sort, the detail pane,
+score override, merge, duplicate-scan, per-clip rescore/frame-analysis) - and the file every
+sibling module's own header points back to as "the clip list" (`clipbulk.js`, `clipexport.js`,
+`clipcreate.js` all reference it by name in their body comments) - carried no Feature-map header
+of its own, unlike every other file this size in scope (`videos.js`, `analyze.js`, `split.js`).
+Added one naming its code concept, which concerns live here vs. its three split-out siblings,
+its route surface (`routes/clips/{crud,edit,delete}.py`, `routes/dedup.py`,
+`routes/scoring.py` for rescore), and its two UI test files.
+
+### Applied: `routes/analyze.py`'s header claimed "+ Import from URL" without listing its routes
+The header's own title names Import-from-URL as part of this file's feature scope (the New
+Recording panel handles both, and `analyze.py` cross-references import-job state in its busy
+checks), but grepped and confirmed zero `/api/import-url/*` routes are actually defined in this
+file - they live entirely in `routes/imports.py` (out of this section's scope list, but a real
+sibling the header should name). Added it to the Siblings line.
+
+### Verified: `videos.py`'s `_migrate_transcript_to_segments` `extracted_path=None` comment - accurate and load-bearing, no edit
+Re-read the comment block (videos.py:1005-1013) against Phase 2's fix and Phase 5's added debug
+log. It explicitly says "Deliberately NOT copying extracted_path", names both consumers that
+would misbehave if it were copied (`run_retranscribe`, a non-force reanalyze's skip-on-existing-
+path check), and states the resulting invariant in the same breath ("the ONLY non-None
+extracted_path a segment ever has is the segment-local one" - actually stated at the call site
+in `REVIEW_DECISIONS.md`'s own Phase 2 entry, and consistent with the code comment here). This
+is exactly the shape of comment that should prevent a future maintainer from "fixing" it back to
+inheriting the parent's path. Phase 5's debug log line matches what it describes
+(`extracted_path=None (segment-local audio not yet extracted)`). No edit needed.
+
+### Verified: `routes/common.py`'s `require_clip_with_source` (Phase 4 extraction) - docstring is appropriately sized, no edit
+The one-paragraph docstring explains what a bare read of the three-check body (`require_clip`,
+then a `Video` 404, then an on-disk-existence 404) would not make obvious on its own - which
+three routes share it and why (they all re-encode from the clip's original source) - without
+restating the checks themselves. `require_clip` right above it (a single check) correctly has no
+docstring, consistent with "internal helpers don't need ceremony" and the rest of this same
+file's pattern (`json_list`, `sse_response` are similarly undocumented one-liners; only the
+multi-step/non-obvious helpers carry a docstring). Not over-documented, nothing missing.
+
+### Terminology sweep - clean
+Grepped `clip candidate|demo reel|\bingest\b|\bprobe\b|\bpending\b|RP context|\bslug\b|\bsubtitle\b|\bprofile\b|AI scoring|context id` across every `.py` and `.js` file in scope. Every hit was
+either a code-level identifier/log line (module name `probe_video`, CLI flag `--subtitle-source`,
+the unrelated package-install `slug` in `analyze.py`'s `/api/install/{slug}`, `req.profile` ->
+`--track-layout`) or an internal docstring describing the `ClipCandidate`/status data model
+(`dedup.py`'s module docstring, `approval.py`'s route docstrings using the literal
+`status == "pending"` value) - never user-facing text. Every genuinely user-facing string found
+(`analyze.js`'s `<label>Captions</label>`, all six "Track layout" toasts/labels in
+`videos.js`/`analyze.js`/`videos-runmeta.js`) already uses the correct glossary term. No drift.
+
+### Confirmed clean, no findings: everything else in scope
+`routes/{videos,analyze,scoring,dedup}.py`, `routes/clips/{crud,edit,delete,approval,captions,
+export,schemas,serialize}.py`, and the JS files not called out above (`sessions.js`,
+`videos-runmeta.js`, `clipbulk.js`, `clipcreate.js`, `clipexport.js`, `reel.js`, `split.js`,
+`hotwords.js`, `sensitive.js`) - every comment explains a non-obvious WHY (SQLite-lock retry
+timing, the segment-offset math the Section-8-Phase-2 bug hunt fixed, PII-never-log rules, the
+Windows share-delete file-handle release sequencing, the live-ESM-binding cross-module state
+pattern, the `init*Listeners()`/no-module-scope-side-effects wiring convention) or documents a
+real external/product constraint (RFC-shaped size-cap math mirroring `export/presets.py`,
+`test_ui_terminology.py`'s five-list guard). No restatement, no obsolete text, no reactive/
+apology comments, no orphaned TODOs.
+
+---
+
+## Phase 5 logging coverage - full-app review section 8, web UI content & analysis (2026-07-26)
+
+Grep-first survey (`logger.`/`log.`/`_log.` calls, then bare `except` blocks) over
+`web/routes/{videos,analyze,scoring,dedup,hotwords,sensitive}.py`, `routes/clips/*`,
+and the `static/{videos,clips,analyze,library}/*.js` set. Five real gaps fixed, all
+Python-side; the JS half of the scope was confirmed already covered by the
+project-wide `errorreporter.js` uncaught-error surface plus per-route server-side
+logging (see below), so no JS changes were needed. `yuu-dev test-api` 3486 passed
+(unchanged - no tests added, only log lines), lint clean, 0 new mypy errors.
+
+### Applied: `hotwords.py` CRUD routes now log create/update/delete
+The file had **zero** `logger`/`log` calls anywhere - every create/update/delete of a
+hot-word left no trace, unlike its structural sibling `sensitive.py`, which already logs
+every CRUD op (id + safe fields). Unlike `sensitive.py`'s `term` (explicitly documented
+"user PII by definition - never log"), a hot-word's `phrase` carries no such
+restriction, so it's logged directly. Added `_log.info` on create/update (id, phrase,
+match_mode, target, boost) and delete (id, phrase). No behavior change.
+
+### Applied: `hotword_rescan` (scoring.py) / `sensitive_rescan_video` (sensitive.py) now log a summary
+Both video-scoped rescan routes computed `clips_checked`/`clips_changed` and returned it
+to the client but logged nothing, unlike every sibling aggregate route in this scope
+(`auto_approve`, `reset_approvals`, `scan_duplicates`, the bulk-status routes, and the
+project-wide sensitive-term rescan already triggered from `create/update/delete_sensitive_term`).
+A "why did my clip's hot-word boost/sensitive flag change" report had no server-side
+trail for these two specific triggers. Added a matching `_log.info` summary to each
+(video id, clips checked, clips changed). No behavior change.
+
+### Applied: `clips/bulk.py`'s three bulk routes now log which IDs, not just how many
+`bulk_set_clip_status`, `bulk_restore_clip_status`, and `bulk_delete_clips` all logged
+only counts (`%d missing`, `%d locked`) - diagnosing "8 of 10 succeeded" required
+cross-referencing the client's JSON response (not persisted) since the log alone
+couldn't say *which* 2 failed. Extended each summary log to include the actual
+missing/locked id lists when non-empty (omitted when empty, so the common
+all-succeeded case stays a short line). Bounded by the user's own selection size in
+the UI, not a per-item loop - not a spam risk. No behavior change.
+
+### Applied: `videos.py::_migrate_transcript_to_segments` now logs per-track/segment migration detail
+Phase 2 (bug hunt) fixed a real, reachable bug in this exact function - a migrated
+segment's `AudioTrack.extracted_path` was wrongly copied from the parent, corrupting a
+later retranscribe. The fix (`extracted_path=None`) is a one-line, easy-to-silently-
+regress decision with no way to see it exercised from the log - `split_video`'s existing
+summary log only reports aggregate counts (`migrated_clips=N, migrated_transcript_lines=N`),
+not which track went where or what path decision was made. Added a `_log.debug` line per
+migrated (parent track -> new segment track) pair naming both track ids, the segment
+video id, the transcript-line count, and the `extracted_path=None` decision explicitly -
+so a future regression of this exact invariant is diagnosable from the log without a
+repro. Debug level: this only fires on a user-initiated split with migrate_clips=True
+(rare, not a hot loop), bounded by track-count x segment-count (typically <15 lines).
+
+### Checked, no gap: JS scope (`static/{videos,clips,analyze,library}/*.js`)
+Grepped `console\.(error|warn|log|debug)` across all 15 in-scope JS files: zero hits,
+matching the project-wide convention (only `core/errorreporter.js`, `core/jobs.js`,
+`core/utils.js` call `console.*` anywhere under `static/`). Confirmed this is
+deliberate, not a gap: `initGlobalErrorReporter()` (wired once from `boot.js`) catches
+every uncaught error and unhandled promise rejection app-wide and surfaces it three
+ways (devtools console, the in-app log panel via `appendLog`, and a toast) - individual
+modules don't need their own `console.*` calls. Explicit `try/catch` blocks in this
+scope's fetch-driven code consistently `showToast` the failure for the user; the
+underlying cause is already captured server-side by the corresponding route's own log
+line (verified during the Python survey above), so the client-side catch is UX
+feedback, not the diagnostic trail. Consistent with every other reviewed section's JS
+scope. No changes.
+
+### Checked, no gap: everything else in scope
+`videos.py`'s non-split routes (compute_waveform, proxy generation, delete_video),
+`analyze.py` (already thoroughly logged - every `except Exception` around a subprocess/
+LLM/probe call pairs with `_log.error`/`_log.warning` carrying `exc_info=True`),
+`clips/{crud,edit,approval,captions,export}.py` (every real failure path - preview
+ffmpeg failure, auto-framing, vision-model start, frame analysis, per-clip export
+failure in the SSE loop - already logs with `exc_info=True` and clip/video id context),
+and `dedup.py` (single summary log, no failure path to miss - `find_duplicate_candidates`
+is pure DB read/compute, no I/O that can fail independently of the route's own
+try/finally). No changes.
+
+## Phase 4 refactor - full-app review section 8, web UI content & analysis (2026-07-26)
+
+Refactor pass over `web/routes/{videos,analyze,scoring,dedup,hotwords,sensitive}.py` +
+`routes/clips/*` and the `static/{videos,clips,analyze,library}/*.js` set. Resolved the
+three test-tier/duplication items `REVIEW_OPEN_ITEMS.md` carried against this section,
+extracted one genuine route-level duplication, and left several borderline candidates
+as-is with reasons. `yuu-dev test-api` 3486 passed (down 6 from 3492: 8 duplicate
+integration tests removed, 2 added, 5 moved net-zero), lint clean, 0 new mypy errors.
+
+### Applied: three flagged test-tier / duplication items resolved
+- `TestVideoInfoProperties` - the integration-tier copy in `test_videos.py` was a
+  near-literal duplicate of `tests/unit/test_probe.py::TestVideoInfoProperties`, testing
+  the same pure `VideoInfo` properties with no DB/fixture. Deleted the integration copy;
+  its one unique case (`duration_hms` of a zero-duration video) was folded into the
+  canonical unit-tier class as `test_duration_hms_zero`.
+- `TestVideoCaptionsSrt` - a pure-logic class (SimpleNamespace fixtures, no `client`/
+  `project_dir`) testing `subtitles.video_captions_srt` directly, misplaced in the
+  integration tier. Moved verbatim to `tests/unit/test_subtitles.py` (its natural home,
+  which already covers sibling `subtitles.py` logic); dropped the per-method inline
+  `from yuu_clip.subtitles import ...` in favour of a module-level import.
+- `TestVideoSourceFile` + `TestVideoSource` - two classes for `/api/videos/{id}/source`
+  with a duplicate missing-file-404 test and overlapping serve assertions. Folded
+  `TestVideoSourceFile` into `TestVideoSource`: preserved its unique unknown-video-404
+  case, dropped the duplicate missing-file-404 (kept `test_missing_file_is_404`) and the
+  redundant serve test (kept the more complete `test_serves_full_file_with_range_support`).
+
+### Applied: `require_clip_with_source` extraction (clip -> parent recording -> on-disk source, or 404)
+The three routes that re-encode from a clip's original source - `crud.py::clip_preview`,
+`edit.py::suggest_framing`, `edit.py::analyze_frames` - each repeated the same
+load-and-validate triple verbatim (`require_clip`, then `db.get(Video)` + "Video not
+found" 404, then `Path(video.path).exists()` + "Source video file not found on disk"
+404). Rule-of-three met, one unambiguous concept, all sites in-scope. Extracted
+`require_clip_with_source(db, clip_id) -> (clip, video)` into `routes/common.py` beside
+the existing `require_clip`. `clip_preview` keeps its deliberate structure (validate
+inside the `try`, run ffmpeg after `db.close()`); the returned `video`'s columns are
+already loaded so they stay readable on the detached instance. Covered by the existing
+`test_videos.py` route suites (preview/framing/frames 404 paths).
+
+### Keep as-is: clip-window offset math (`segment_start_s + start_ms/1000 + start_offset`) NOT extracted
+Two route sites (`crud.py::clip_preview`, `edit.py::suggest_framing`) compute the clip's
+start/end seconds on the parent timeline identically, and a helper was tempting. Left as
+duplicated on purpose: a grep of the wider codebase shows this math is deliberately
+*divergent*, not a single reusable rule - `export/window.py` and `subtitles.py` work in
+ms and clamp to 0, `export/render.py` omits the segment offset entirely (its source is
+already segment-local), `analyze/frames.py` and these two routes work in seconds off the
+untrimmed parent. A shared `clip_window_seconds` would become a wrong-abstraction
+attractor that a future segment-local-source caller reaches for and silently double- or
+un-shifts the offset - exactly the class of bug Section 8 Phase 2 fixed. The two
+identical sites are only 3 lines each and each carries its own "add segment_start_s
+because the source is the untrimmed parent" comment where it applies. Duplication is the
+safer call here.
+
+### Keep as-is: `hotwords.py` / `sensitive.py` CRUD structural similarity NOT merged into a generic base
+The two config-CRUD route modules share a shape (list/create/update/delete, a
+`_*_dict` serializer, a `_validate_*_body` helper, `with_write_retry` wrapping) but
+encode different domain rules: different fields (phrase/boost/target vs
+term/category), different validation (boost range + hotword dup-check vs
+fuzzy-min-length + PII-never-log), and a side-effect only `sensitive.py` has
+(`_rescan_all_clips` on every edit). Coincidental structural similarity, not duplicated
+knowledge - a generic base would couple two entities that evolve independently and bury
+the sensitive-term PII/rescan specifics. Phase 2 already brought the one genuine
+behavioural gap (`with_write_retry` parity) into line. No merge.
+
+### Keep as-is: `_compute_time_estimate` (analyze.py) and `_migrate_transcript_to_segments` (videos.py) kept whole
+Both are longer than the ~30-line guideline but are single-concern and cohesive.
+`_compute_time_estimate` is a cost-model calculator whose repeated "measured rate
+overrides the static formula, and flag the estimate as measured-derived" block cannot
+cleanly extract - the fallback formulas differ per stage and the `used_measured` flag's
+consumed-key set is conditional (speakers only when `diarize`), so a helper would thread
+a boolean without reducing complexity. `_migrate_transcript_to_segments` is a data-copy
+routine whose length is field-count (a 12-field `AudioTrack` copy), not branching; its
+two load-bearing Phase-2 comments (`extracted_path=None`, the per-word offset shift) must
+stay co-located with the segment-grouping context that makes them make sense. Splitting
+either would scatter shared state and load-bearing comments for no legibility gain.
+
+### Keep as-is: long JS renderers / init-wiring functions NOT decomposed
+`clips.js::renderDetail`, `videos.js::renderVideoDetail`, `clipexport.js::confirmExport`,
+`analyze.js::initAnalyzeListeners`/`_doStartAnalyze` and their siblings are long
+(50-135 lines) but each is a single HTML-template builder or the one-`addEventListener`-
+per-control init function the codebase's "no DOM side-effects at module scope; wire in
+`init*Listeners()`" hard rule mandates. No duplicated knowledge across siblings (the
+`URLSearchParams` builders were already anchored separate, jobs.js `parseProgress`
+mirroring already decided). Churning these template/wiring functions carries real UI
+behaviour-change risk (bundle rebuild + full `test-ui`) for marginal readability, with no
+concrete defect driving it. Left untouched.
+
+## Phase 3 test coverage - full-app review section 8, web UI content & analysis (2026-07-26)
+
+Closed the coverage gaps `REVIEW_OPEN_ITEMS.md` had recorded against Section 8 (Phase 1)
+plus a mechanism gap noticed while checking Phase 2's job-blocked fix for a locking test:
+
+- **`videos-timeline.js` zero `tests/js` coverage** - added
+  `tests/js/videos/videostimeline.test.js` (11 tests) covering `_renderTimelineHTML`,
+  `_timelineEmptyNoteHTML`, `generateTimeline` (config load, modal open, hint scaling),
+  `closeTimelineIntervalModal` (focus restore), and `initVideosTimelineListeners`'s
+  cancel/background-click wiring. No production behavior changed.
+- **`clipcreate.js`'s pure helpers untested and unexported** - exported
+  `_ccParseTimeToMs`, `_ccFmt`, `_ccPickLine` (behavior-neutral - they were already
+  pure/module-private) and added `tests/js/clips/clipcreate.test.js` (15 tests). Ran
+  `yuu-dev bundle` to regenerate the committed ESM bundle after the export change.
+- **`TestReelPoolVideoIds` precedence gap** - the existing test only proved `video_ids`
+  filtering worked, never that it supersedes a simultaneously-present `video_id` (the
+  route's own documented contract, `reel.py:157`). Added
+  `test_video_ids_supersedes_video_id_when_both_are_present` in
+  `tests/integration/test_api_sessions.py`, which passes both params pointing at
+  different recordings and asserts only the `video_ids` scope's clips come back.
+- **`applyJobBlockedState`/`data-job-blocked` had zero test coverage anywhere** -
+  noticed while checking Phase 2's videos.js job-blocked-button fix for a locking
+  test; found the underlying jobs.js mechanism itself (disable-while-active,
+  why-tooltip, the 2s post-job hide-delay, and the mid-job re-render re-disable path)
+  had never been tested at any tier. Added a `data-job-blocked buttons` describe block
+  to `tests/js/core/jobs.test.js` (4 tests) plus a `job-launching buttons carry
+  data-job-blocked` describe block to `tests/js/videos/videodetail.test.js` (3 tests)
+  pinning that the 4 fixed buttons (Generate Summary, Generate/Regenerate Timeline,
+  (Re-)score clips with context, Re-score failed clips) actually carry the tag.
+
+Left alone (already explicitly deferred to a different pass, not coverage gaps):
+`clipbulk.js::_doBulkExportClips`'s outcome-blind `onDone` (currently unreachable dead
+path per Phase 2), the `test_ui_clipcreate.py` sleep-based timing assertion, and the
+three test-tier-placement/duplication notes (`TestVideoInfoProperties`,
+`TestVideoCaptionsSrt`, `TestVideoSourceFile`/`TestVideoSource`) - all still recorded
+in `REVIEW_OPEN_ITEMS.md`.
+
+## Phase 2 bug hunt - full-app review section 8, web UI content & analysis (2026-07-26)
+
+Bug hunt over `web/routes/{videos,analyze,scoring,dedup,hotwords,sensitive}.py` +
+`routes/clips/*` and the `static/{videos,clips,analyze,library}/*.js` set. Four fixes
+applied (each with a locking test), several items deferred (recorded in
+`REVIEW_OPEN_ITEMS.md`).
+
+### Applied (cross-section, resolves Section 5's carried-forward question): post-split segment audio path
+Section 5 flagged a possible `run_retranscribe` offset bug that hinged on the post-split
+audio lifecycle in `videos.py` (Section 8's scope). Investigation confirmed it WAS a real,
+reachable bug - but the fix belongs on the split side, not in `render.py`:
+
+- `_migrate_transcript_to_segments` (the `migrate_clips=True` split path, the "keep my
+  clips/transcript, don't re-analyze" flow) created each segment's `AudioTrack` with
+  `extracted_path` **copied verbatim from the parent's track**. The parent's WAV holds the
+  FULL recording (parent time-0), but a segment's migrated transcript/clip times are 0-based
+  within the segment. So `run_retranscribe` (which reads `track.extracted_path` at
+  segment-relative offsets, with no `segment_start_s` added) would transcribe a window off by
+  `segment_start_s` - and a non-`force` reanalyze would `skip` re-extraction on the
+  existing-but-wrong path (`ingest.py::_extract_audio_and_check_rms_overlap` line 563),
+  keeping the full-audio file for a segment.
+- Fix: `_migrate_transcript_to_segments` now sets `extracted_path=None` on the migrated
+  segment track. Consequences are strictly better: `run_retranscribe`'s existing guard skips
+  the track (keeping the already-correct migrated transcript) instead of transcribing the
+  wrong window, and a reanalyze re-extracts the trimmed segment-local audio. This preserves
+  the invariant the offset-free retranscribe math relies on: the ONLY non-None
+  `extracted_path` a segment ever has is the segment-local (re-analyzed) one.
+- `run_retranscribe` itself needs NO change - its offset-free math is correct for a properly
+  trimmed segment-local audio file. Note it could not simply "add `segment_start_s` like
+  `crud.py::clip_preview` does" because retranscribe's source is the track's own WAV (which is
+  segment-local when present), whereas `clip_preview`/`suggest_framing` always read the
+  untrimmed parent source and so always add the offset.
+- Locking test: `tests/integration/test_videos.py::TestSplitVideoTranscriptMigration::test_migrated_segment_track_does_not_inherit_parent_extracted_path`.
+
+### Applied: sensitive.py CRUD routes wrapped in `with_write_retry` (parity with hotwords.py)
+`create/update/delete_sensitive_term` did a synchronous DB write + full-project
+`_rescan_all_clips` commit with no retry, while the sibling `hotwords.py` CRUD routes wrap the
+identical autosave-per-edit pattern in `with_write_retry` (added 2026-07-25 because Settings'
+Hot-words/Sensitive lists autosave each edit immediately and can land mid-analysis while the
+analyze subprocess holds the single SQLite write lock). Confirmed `static/library/sensitive.js`
+POSTs/PUTs/DELETEs each row individually (same autosave shape). Wrapped all three routes;
+`with_write_retry` re-raises `HTTPException` so the 404 guards still propagate. The
+video-scoped `sensitive_rescan_video` route was deliberately LEFT un-wrapped to match its
+sibling `scoring.py::hotword_rescan`, which is also un-wrapped (both are explicit user
+rescans, not autosaves). Regression covered by the existing `test_sensitive.py` suite (still
+green).
+
+### Applied: videos.js video-detail job buttons carry `data-job-blocked`
+`renderVideoDetail`'s Generate Summary, Generate/Regenerate Timeline, (Re)score-clips, and
+Re-score-failed-clips buttons launch SSE jobs the backend guards with `reject_if_busy`, but
+none carried `data-job-blocked` and `renderVideoDetail` never called `applyJobBlockedState()`
+(unlike `clips.js`/`reel.js`). Their only guard was `_blockedByAnalyze()`, which checks for an
+ANALYZE job only - so while any NON-analyze SSE job ran (export, another recording's rescore/
+timeline), clicking one tore down the live job's progress UI via `_supersedeActiveStream()` and
+got a 409. Exactly the foot-gun `data-job-blocked` exists to prevent (CLAUDE.md). Tagged the
+four buttons + wired `applyJobBlockedState()` into `renderVideoDetail` so a mid-job background
+re-render re-disables them. `open-batch-export` was NOT tagged - it only opens a panel; the
+export confirm button inside is already tagged. Covered by the full `test-ui` regression run.
+
+### Applied: analyze.py `_measured_rates` shape-parsing guard
+`/api/estimate`'s `_measured_rates` only wrapped `json.loads` + top-level key lookups in its
+`try/except`; the type-sensitive follow-on accesses (`device.get`, `settings.get`, iterating
+`stages`, `stage.get`) ran outside the guard, so a valid-JSON-but-wrong-shape
+`analyze_run_json` (exactly the "legacy run_json" the comment claims to skip) raised
+`AttributeError`/`TypeError` and 500'd the endpoint the UI calls on every analyze-config
+change. Moved the shape-dependent processing inside the `try` and added `AttributeError` to
+the caught tuple, honoring the documented "skip malformed, never raise" contract. Locking
+test: `tests/integration/test_analyze.py::TestMeasuredRates::test_wrong_shape_run_json_skipped_not_raised`.
+
+---
+
 ## Phase 6 docs and comments - full-app review section 7, web plumbing + cross-cutting utilities (2026-07-26)
 
 Docs-and-comments phase over `web/{app,deps,sse,analyze_job,media,file_deletion}.py`,

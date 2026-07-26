@@ -1,3 +1,9 @@
+// Feature-map - Clip list + detail (code: ClipCandidate). List/filter/sort, the
+// detail pane (player, tags, score override, merge, duplicate-scan, per-clip
+// rescore/frame-analysis) live here; bulk status/delete/export lives in clipbulk.js,
+// the Export dialog in clipexport.js, manual clip creation in clipcreate.js (see each
+// for its own API surface).
+//   API: routes/clips/{crud,edit,delete}.py · routes/dedup.py · routes/scoring.py (rescore) · Tests: tests/ui/test_ui_clips.py, tests/ui/test_ui_clips2.py
 import { AppState } from '../core/state.js';
 import {
   AXIS_ICONS, escHtml, _scoreIcon, _scoreBorderColor, _sortScore, fmtDuration, plural, truncate,
@@ -1480,7 +1486,7 @@ function deleteExport(id) {
 function deleteClip(id) {
   showConfirm(
     'Delete clip?',
-    `The clip record will be removed from the database. ` +
+    `This clip will be permanently deleted. ` +
     `Its exported video file (if any) will also be deleted from the exports folder.`,
     'Delete',
     () => _doDeleteClip(id),

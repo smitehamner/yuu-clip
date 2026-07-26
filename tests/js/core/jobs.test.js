@@ -26,7 +26,7 @@ import {
   _setActiveStream, _clearActiveStream, _supersedeActiveStream, _blockedByAnalyze,
   RESCORE_JOB_STEPS, REDESCRIBE_JOB_STEPS, HOTWORD_SCAN_STEPS, SUMMARY_JOB_STEPS,
   SPEAKER_NAMES_STEPS, FIND_SIMILAR_STEPS, TIMELINE_JOB_STEPS, BATCH_EXPORT_STEPS, setJobProgress,
-  setJobCancel, cancelJob, streamSSE,
+  setJobCancel, cancelJob, streamSSE, applyJobBlockedState,
 } from '../../../yuu_clip/web/static/core/jobs.js';
 import { registerRefreshHooks, _resetRefreshHooks } from '../../../yuu_clip/web/static/core/refreshhooks.js';
 
@@ -399,5 +399,56 @@ describe('streamSSE outcome passthrough', () => {
       streamSSE('/api/whatever', outcome => { outcomes.push(outcome); resolve(); }, null, null);
     });
     expect(outcomes).toEqual(['ok']);
+  });
+});
+
+// Per-item buttons tagged data-job-blocked (Generate Summary/Timeline/(Re)score in
+// videos.js, among others) must be disabled - with a why-tooltip, so a click reads
+// as "busy" rather than silently doing nothing or 409ing - for the whole time a job
+// is active, including a button rendered fresh mid-job (a panel re-render from an
+// unrelated SSE completion). Regression coverage for the videos.js job-blocked fix.
+describe('data-job-blocked buttons', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    document.body.insertAdjacentHTML('afterbegin', '<button id="job-blocked-btn" data-job-blocked>Do the thing</button>');
+  });
+  afterEach(() => { endJobUI(); vi.runOnlyPendingTimers(); vi.useRealTimers(); });
+
+  const btn = () => document.getElementById('job-blocked-btn');
+
+  it('is enabled with no tooltip while no job is running', () => {
+    expect(btn().disabled).toBe(false);
+    expect(btn().title).toBe('');
+  });
+
+  it('is disabled with a why-tooltip once a job starts', () => {
+    startJobUI(SCORE_STEPS, 'Scoring');
+    expect(btn().disabled).toBe(true);
+    expect(btn().title).toContain('Another job is running');
+  });
+
+  it('stays disabled through the post-job hide delay, then re-enables and clears the tooltip', () => {
+    startJobUI(SCORE_STEPS, 'Scoring');
+    endJobUI();
+    expect(btn().disabled).toBe(true);
+    vi.advanceTimersByTime(1999);
+    expect(btn().disabled).toBe(true);
+    vi.advanceTimersByTime(1);
+    expect(btn().disabled).toBe(false);
+    expect(btn().title).toBe('');
+  });
+
+  it('applyJobBlockedState re-disables a button rendered fresh mid-job', () => {
+    startJobUI(SCORE_STEPS, 'Scoring');
+    // A panel re-render (e.g. renderVideoDetail after an unrelated SSE completion)
+    // builds brand-new nodes that never went through startJobUI's own disable pass.
+    const fresh = document.createElement('button');
+    fresh.setAttribute('data-job-blocked', '');
+    document.body.appendChild(fresh);
+    expect(fresh.disabled).toBe(false);
+
+    applyJobBlockedState();
+
+    expect(fresh.disabled).toBe(true);
   });
 });

@@ -29,6 +29,7 @@ from yuu_clip.web.routes.clips.serialize import _clip_dict
 from yuu_clip.web.routes.common import (
     reject_if_busy,
     require_clip,
+    require_clip_with_source,
 )
 from yuu_clip.web.sse import subprocess_sse, terminate_process_tree_async
 
@@ -221,13 +222,8 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
             )
         db = ctx.get_db()
         try:
-            clip = require_clip(db, clip_id)
-            video = db.get(Video, clip.video_id)
-            if not video:
-                raise HTTPException(404, "Video not found")
+            clip, video = require_clip_with_source(db, clip_id)
             src = Path(video.path)
-            if not src.exists():
-                raise HTTPException(404, "Source video file not found on disk")
             from yuu_clip.analyze.proxy import proxy_file_for, proxy_is_fresh
             proxy_file = proxy_file_for(src, ctx.proxy_dir)
             encode_src = proxy_file if proxy_is_fresh(video, proxy_file) else src
@@ -291,12 +287,7 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
 
         db = ctx.get_db()
         try:
-            clip = require_clip(db, clip_id)
-            video = db.get(Video, clip.video_id)
-            if not video:
-                raise HTTPException(404, "Video not found")
-            if not Path(video.path).exists():
-                raise HTTPException(404, "Source video file not found on disk")
+            require_clip_with_source(db, clip_id)
         finally:
             db.close()
 

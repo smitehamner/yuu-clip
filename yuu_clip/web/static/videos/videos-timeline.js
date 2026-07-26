@@ -2,7 +2,7 @@
 // Extracted out of videos.js (which grew into a catch-all) - the list/filter/
 // detail-render/re-analysis core stays there; _needsModelCtaHTML is shared with
 // the summary feature and stays in videos.js core too.
-//   API: routes/videos.py (timeline SSE) · Tests: tests/ui/test_ui_video.py, tests/integration/test_scoring_routes.py
+//   API: routes/scoring.py (timeline SSE) · Tests: tests/ui/test_ui_video.py, tests/integration/test_scoring_routes.py
 
 import { AppState } from '../core/state.js';
 import { escHtml, plural, _parseIntervalS } from '../core/format.js';

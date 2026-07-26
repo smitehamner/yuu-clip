@@ -10,9 +10,12 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from yuu_clip.db.models import HotWord
+from yuu_clip.log import get_logger
 from yuu_clip.scoring.engine import HOTWORD_BOOST_MAX, HOTWORD_BOOST_MIN
 from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.routes.common import normalize_context_slug, validate_context_slug, with_write_retry
+
+_log = get_logger(__name__)
 
 _VALID_MODES = ("exact", "case_insensitive", "semantic")
 _VALID_TARGETS = ("overall", "funny", "dramatic", "action")
@@ -104,6 +107,10 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 db.add(hw)
                 db.commit()
                 db.refresh(hw)
+                _log.info(
+                    "Hot-word %d created: %r (mode=%s target=%s boost=%s)",
+                    hw.id, hw.phrase, hw.match_mode, hw.target, hw.boost,
+                )
                 return _hotword_dict(hw)
             finally:
                 db.close()
@@ -132,6 +139,10 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 hw.context_slug = context_slug
                 db.commit()
                 db.refresh(hw)
+                _log.info(
+                    "Hot-word %d updated: %r (mode=%s target=%s boost=%s)",
+                    hw.id, hw.phrase, hw.match_mode, hw.target, hw.boost,
+                )
                 return _hotword_dict(hw)
             finally:
                 db.close()
@@ -148,6 +159,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                     raise HTTPException(404, "Hot-word not found")
                 db.delete(hw)
                 db.commit()
+                _log.info("Hot-word %d deleted: %r", hotword_id, hw.phrase)
                 return {"deleted": hotword_id}
             finally:
                 db.close()

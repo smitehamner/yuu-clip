@@ -912,44 +912,6 @@ class TestResetApprovals:
         assert r.status_code == 404
 
 
-class TestVideoInfoProperties:
-    def _make_info(self, duration_ms, n_audio=1):
-        from pathlib import Path
-
-        from yuu_clip.analyze.probe import AudioStreamInfo, VideoInfo
-        streams = [
-            AudioStreamInfo(
-                stream_index=i, codec_name="aac", sample_rate=48000,
-                channels=2, channel_layout="stereo", duration_ms=None, title_tag=None,
-            )
-            for i in range(n_audio)
-        ]
-        return VideoInfo(
-            path=Path("fake.mkv"), duration_ms=duration_ms,
-            fps=60.0, width=1920, height=1080, audio_streams=streams,
-        )
-
-    def test_has_multiple_audio_tracks_false_for_one(self):
-        assert self._make_info(1000, n_audio=1).has_multiple_audio_tracks is False
-
-    def test_has_multiple_audio_tracks_true_for_two(self):
-        assert self._make_info(1000, n_audio=2).has_multiple_audio_tracks is True
-
-    def test_duration_hms_minutes_only(self):
-        # 5m 30s = 330 000 ms
-        info = self._make_info(330_000)
-        assert info.duration_hms == "5m 30s"
-
-    def test_duration_hms_with_hours(self):
-        # 1h 2m 3s = 3723000 ms
-        info = self._make_info(3_723_000)
-        assert info.duration_hms == "1h 02m 03s"
-
-    def test_duration_hms_zero(self):
-        info = self._make_info(0)
-        assert info.duration_hms == "0m 00s"
-
-
 class TestRelatedClips:
     """Tests for the related-clips endpoint and related_clips fields in clip dict."""
 
@@ -1409,6 +1371,46 @@ class TestSplitVideoTranscriptMigration:
         finally:
             db.close()
         assert len(parent_tracks) == 1
+
+    def test_migrated_segment_track_does_not_inherit_parent_extracted_path(self, client, project_dir):
+        # Section 5 carried-forward: the parent WAV is the FULL recording (parent
+        # time-0), but a segment's transcript/clip times are 0-based within the
+        # segment. Copying extracted_path would make run_retranscribe transcribe the
+        # wrong window (off by segment_start_s). The migrated segment track must keep
+        # extracted_path=None so retranscribe safely skips and a reanalyze re-extracts
+        # the trimmed segment-local audio.
+        from yuu_clip.db.models import AudioTrack, Transcript, TranscriptSegment, make_session
+
+        vid_id = self._video_id(client)
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            track = db.query(AudioTrack).filter_by(video_id=vid_id).one()
+            track.extracted_path = str(project_dir / "parent_full_audio.wav")
+            transcript = Transcript(audio_track_id=track.id, model_name="test-model")
+            db.add(transcript)
+            db.flush()
+            db.add(TranscriptSegment(
+                transcript_id=transcript.id, start_ms=100_000, end_ms=110_000, text="after the split",
+            ))
+            db.commit()
+        finally:
+            db.close()
+
+        seg_ids = client.post(
+            f"/api/videos/{vid_id}/split",
+            json={"split_points": [90.0], "migrate_clips": True},
+        ).json()["segment_ids"]
+
+        db2 = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            seg_tracks = db2.query(AudioTrack).filter(AudioTrack.video_id.in_(seg_ids)).all()
+            parent_track = db2.query(AudioTrack).filter_by(video_id=vid_id).one()
+        finally:
+            db2.close()
+        assert seg_tracks, "expected a migrated segment track"
+        assert all(t.extracted_path is None for t in seg_tracks)
+        # parent's own path stays intact
+        assert parent_track.extracted_path == str(project_dir / "parent_full_audio.wav")
 
     def test_unsplit_deletes_segment_transcript_copies(self, client, project_dir):
         from yuu_clip.db.models import AudioTrack, make_session
@@ -2358,53 +2360,6 @@ class TestVideoCaptionsVtt:
         assert "00:00:11.000 --> 00:00:12.000" in r.text
 
 
-class TestVideoCaptionsSrt:
-    """subtitles.video_captions_srt (pure logic, no DB) - the source the route above wraps."""
-
-    def _track(self, label, do_transcribe, segments):
-        import datetime
-        tx = SimpleNamespace(created_at=datetime.datetime(2024, 1, 1), segments=segments)
-        return SimpleNamespace(id=1, label=label, do_transcribe=do_transcribe, transcripts=[tx])
-
-    def _seg(self, start_ms, end_ms, text):
-        return SimpleNamespace(start_ms=start_ms, end_ms=end_ms, text=text)
-
-    def test_no_transcribed_tracks_raises(self):
-        from yuu_clip.subtitles import video_captions_srt
-        video = SimpleNamespace(audio_tracks=[], segment_start_s=None)
-        with pytest.raises(ValueError):
-            video_captions_srt(video)
-
-    def test_tracks_with_no_transcript_yet_raises(self):
-        from yuu_clip.subtitles import video_captions_srt
-        track = SimpleNamespace(id=1, label="combined", do_transcribe=True, transcripts=[])
-        video = SimpleNamespace(audio_tracks=[track], segment_start_s=None)
-        with pytest.raises(ValueError):
-            video_captions_srt(video)
-
-    def test_no_segment_start_leaves_times_unshifted(self):
-        from yuu_clip.subtitles import video_captions_srt
-        seg = self._seg(1_000, 2_000, "hello")
-        video = SimpleNamespace(audio_tracks=[self._track("combined", True, [seg])], segment_start_s=None)
-        srt = video_captions_srt(video)
-        assert "00:00:01,000 --> 00:00:02,000" in srt
-
-    def test_zero_segment_start_leaves_times_unshifted(self):
-        from yuu_clip.subtitles import video_captions_srt
-        seg = self._seg(1_000, 2_000, "hello")
-        video = SimpleNamespace(audio_tracks=[self._track("combined", True, [seg])], segment_start_s=0.0)
-        srt = video_captions_srt(video)
-        assert "00:00:01,000 --> 00:00:02,000" in srt
-
-    def test_segment_start_shifts_cue_times_onto_parent_timeline(self):
-        from yuu_clip.subtitles import video_captions_srt
-        seg = self._seg(1_000, 2_000, "hello")
-        video = SimpleNamespace(audio_tracks=[self._track("combined", True, [seg])], segment_start_s=30.0)
-        srt = video_captions_srt(video)
-        assert "00:00:31,000 --> 00:00:32,000" in srt
-        assert "00:00:01,000 --> 00:00:02,000" not in srt
-
-
 class TestDeleteClipExport:
     def _first_clip(self, client):
         vid_id = client.get("/api/videos").json()[0]["id"]
@@ -2883,26 +2838,6 @@ class TestBulkExportClips:
 # Video source file streaming
 # ---------------------------------------------------------------------------
 
-class TestVideoSourceFile:
-    def test_unknown_video_404(self, client):
-        r = client.get("/api/videos/99999/source")
-        assert r.status_code == 404
-
-    def test_missing_file_on_disk_404(self, client):
-        vid_id = client.get("/api/videos").json()[0]["id"]
-        r = client.get(f"/api/videos/{vid_id}/source")
-        assert r.status_code == 404
-        assert r.json()["detail"] == "Source video file not found on disk"
-
-    def test_serves_source_with_mkv_media_type(self, client, project_dir):
-        (project_dir / "session.mkv").write_bytes(b"fake mkv bytes")
-        vid_id = client.get("/api/videos").json()[0]["id"]
-        r = client.get(f"/api/videos/{vid_id}/source")
-        assert r.status_code == 200
-        assert r.headers["content-type"] == "video/x-matroska"
-        assert r.content == b"fake mkv bytes"
-
-
 # ---------------------------------------------------------------------------
 # Compute-waveform guards (SSE happy path needs real ffmpeg - not exercised here)
 # ---------------------------------------------------------------------------
@@ -2981,6 +2916,10 @@ class TestVideoSource:
         payload = b"0123456789abcdef" * 64
         (project_dir / "session.mkv").write_bytes(payload)
         return payload
+
+    def test_unknown_video_404(self, client):
+        resp = client.get("/api/videos/99999/source")
+        assert resp.status_code == 404
 
     def test_serves_full_file_with_range_support(self, client, project_dir):
         payload = self._write_source(project_dir)

@@ -3235,6 +3235,33 @@ class TestMeasuredRates:
         finally:
             db.close()
 
+    def test_wrong_shape_run_json_skipped_not_raised(self, project_dir):
+        """Valid JSON but a legacy/foreign SHAPE (non-dict device/settings, non-list
+        stages, non-dict stage entries) must be skipped, not raise - the estimate
+        endpoint runs this on every UI config change and must never 500 on old data."""
+        import json as _json
+
+        from yuu_clip.db.models import Video
+        from yuu_clip.web.routes.analyze import _measured_rates
+        db = self._db(project_dir)
+        try:
+            bad_shapes = [
+                {"settings": "nope", "device": {"has_gpu": True}, "stages": []},
+                {"settings": {"model": "medium"}, "device": None, "stages": []},
+                {"settings": {"model": "medium"}, "device": {"has_gpu": True}, "stages": {}},
+                {"settings": {"model": "medium"}, "device": {"has_gpu": True},
+                 "stages": ["Extract", "Score"]},
+            ]
+            for i, shape in enumerate(bad_shapes):
+                db.add(Video(
+                    path=f"/tmp/wrongshape-{i}.mkv", filename=f"wrongshape-{i}.mkv",
+                    status="done", duration_ms=60_000, analyze_run_json=_json.dumps(shape),
+                ))
+            db.commit()
+            assert _measured_rates(db, "medium", True) == {}  # must not raise
+        finally:
+            db.close()
+
     def test_missing_stage_excluded_not_zero(self, project_dir):
         """A --no-score run has no 'Score' stage - it must be excluded from that
         stage's sample set, not counted as a zero-second sample (which would

@@ -144,7 +144,7 @@ function _ccOnTranscriptClick(e) {
 // First click (or a click before the current start) sets the start and clears
 // any end; a click at or after the current start sets the end - clicking the
 // same line twice yields a 1-line clip.
-function _ccPickLine(lineStartMs, lineEndMs) {
+export function _ccPickLine(lineStartMs, lineEndMs) {
   if (_ccStartMs == null || lineStartMs < _ccStartMs) {
     _ccStartMs = lineStartMs;
     _ccEndMs   = null;
@@ -170,7 +170,7 @@ function _ccApplyTimeInput(which, raw) {
   _ccRenderHeader();
 }
 
-function _ccParseTimeToMs(str) {
+export function _ccParseTimeToMs(str) {
   const parts = (str || '').trim().split(':').map(Number);
   if (!parts.length || parts.some(isNaN)) return null;
   let sec;
@@ -181,7 +181,7 @@ function _ccParseTimeToMs(str) {
   return Math.round(sec * 1000);
 }
 
-function _ccFmt(ms) {
+export function _ccFmt(ms) {
   const s  = Math.round((ms || 0) / 1000);
   const h  = Math.floor(s / 3600);
   const m  = Math.floor((s % 3600) / 60);

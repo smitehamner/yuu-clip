@@ -1,6 +1,6 @@
 # Feature-map - Analyze (code: ingest / run_ingest) + Import from URL
 #   UI: static/analyze/analyze.js (New Recording panel) · export/retranscribe from clips.js
-#   Siblings: pipeline/ingest.py (engine) · web/analyze_job.py · tests/integration/test_analyze.py, tests/ui/test_ui_analyze.py
+#   Siblings: pipeline/ingest.py (engine) · web/analyze_job.py · routes/imports.py (Import-from-URL's own routes) · tests/integration/test_analyze.py, tests/ui/test_ui_analyze.py
 """
 Analysis-pipeline routes.
 
@@ -157,20 +157,20 @@ def _measured_rates(db, model: str, has_gpu: bool) -> dict[str, float]:
             settings = run["settings"]
             device = run["device"]
             stages = run["stages"]
-        except (TypeError, ValueError, KeyError):
-            continue  # malformed/legacy run_json - skip, never raise
-        if bool(device.get("has_gpu")) != has_gpu:
-            continue
-        model_matches = settings.get("model") == model
-        duration_s = duration_ms / 1000
-        for stage in stages:
-            key = _STAGE_NAME_TO_KEY.get(stage.get("name"))
-            seconds = stage.get("seconds")
-            if key is None or not isinstance(seconds, (int, float)) or seconds < 0:
+            if bool(device.get("has_gpu")) != has_gpu:
                 continue
-            if key in _MODEL_DEPENDENT_KEYS and not model_matches:
-                continue  # transcription speed is Whisper-model-specific
-            samples.setdefault(key, []).append(seconds / duration_s)
+            model_matches = settings.get("model") == model
+            duration_s = duration_ms / 1000
+            for stage in stages:
+                key = _STAGE_NAME_TO_KEY.get(stage.get("name"))
+                seconds = stage.get("seconds")
+                if key is None or not isinstance(seconds, (int, float)) or seconds < 0:
+                    continue
+                if key in _MODEL_DEPENDENT_KEYS and not model_matches:
+                    continue  # transcription speed is Whisper-model-specific
+                samples.setdefault(key, []).append(seconds / duration_s)
+        except (TypeError, ValueError, KeyError, AttributeError):
+            continue  # malformed/legacy run_json (wrong types/shape) - skip, never raise
 
     return {
         key: statistics.median(rates)

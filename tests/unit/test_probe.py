@@ -81,6 +81,9 @@ class TestVideoInfoProperties:
     def test_duration_hms_omits_hours_when_under_an_hour(self):
         assert self._info([], duration_ms=65_000).duration_hms == "1m 05s"
 
+    def test_duration_hms_zero(self):
+        assert self._info([], duration_ms=0).duration_hms == "0m 00s"
+
 
 class TestProbeVideo:
     def test_missing_file_raises_file_not_found(self, tmp_path):
