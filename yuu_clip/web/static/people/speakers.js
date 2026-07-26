@@ -1,5 +1,5 @@
 // Feature-map - Speaker naming (code: Speaker; UI "Speakers" card).
-//   API: routes/speakers.py · Tests: tests/ui/test_ui_speakers.py
+//   API: routes/speakers.py · Tests: tests/ui/test_ui_speakers.py, tests/js/people/speakers.test.js
 // ── speaker naming ────────────────────────────────────────────────────────────
 // Renders the "Speakers" card in the recording detail view and saves names.
 // The card only appears when the recording has diarized speakers.

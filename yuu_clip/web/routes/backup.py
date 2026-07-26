@@ -1,5 +1,5 @@
 # Feature-map - Project backup / restore (code: backup)
-#   UI: static/settings/settings-backup.js (Stage 3, not yet built)
+#   UI: static/settings/settings-backup.js
 #   Siblings: project_archive.py (archive + re-point core) · routes/projects.py (switch, restore reuses it)
 #   Tests: tests/integration/test_backup.py, tests/integration/test_restore.py
 """Project backup / restore routes.
@@ -106,6 +106,11 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         try:
             manifest, groups = plan_repoint_from_archive(staged)
         except RestoreError as exc:
+            # Not every RestoreError is logged at its raise site (e.g. a schema-
+            # version mismatch isn't) - log here too so every rejected restore has
+            # a trace regardless of which check inside plan_repoint_from_archive
+            # fired, without double-logging the ones that already do.
+            _log.warning("Restore inspect rejected %s: %s", staged, exc)
             if is_temp:
                 _cleanup_temp(staged)
             raise HTTPException(400, str(exc))
@@ -130,10 +135,14 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         try:
             db_path = restore_into(archive, target, overwrite=body.overwrite)
         except ProjectExistsError as exc:
+            # Routine, expected flow (the user will likely retry with overwrite),
+            # not a failure - info level, not warning.
+            _log.info("Restore apply into %s needs overwrite confirmation: %s", target, exc)
             # Structured 409 so the UI can offer "replace it?" rather than parsing
             # the message (analysis-in-flight is also 409 but with a plain string).
             raise HTTPException(409, detail={"code": "project_exists", "message": str(exc)})
         except RestoreError as exc:
+            _log.warning("Restore apply into %s rejected: %s", target, exc)
             raise HTTPException(400, str(exc))
 
         repoint = apply_repoint(db_path, body.mapping)

@@ -1,6 +1,6 @@
 # Feature-map - People / project-wide speaker identity (code: ProjectVoice, global_voice_id; UI "Person"/"People")
 #   UI: static/people/voices.js (People view) · Siblings: transcribe/project_voice.py · routes/speakers.py
-#   Tests: tests/integration/test_voices.py, tests/ui/test_ui_voices.py
+#   Tests: tests/integration/test_voices.py, tests/ui/test_ui_voices.py, tests/js/people/voices.test.js
 """People-view routes - promote per-recording Speakers into project-wide Persons.
 
 A ``ProjectVoice`` (user-facing "Person") ties one name across recordings. Naming a

@@ -5,7 +5,7 @@ import { showConfirm } from '../core/ui.js';
 // Feature-map - Settings > Backup & Restore (code: backup)
 //   API: routes/backup.py (/api/backup, /api/restore/inspect, /api/restore/apply)
 //   Siblings: project_archive.py (archive + re-point core) · projects.js (switchProject reload pattern)
-//   Tests: tests/ui/test_ui_backup.py
+//   Tests: tests/ui/test_ui_backup.py, tests/js/settings/settings-backup.test.js
 
 // Backup: ask the server to build the archive, then download the returned zip.
 // Uses the browser download (an <a download>) rather than an Electron save dialog:

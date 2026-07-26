@@ -1,5 +1,5 @@
 // Feature-map - Settings > Export live previews (filename template + title card).
-//   API: routes/config.py · Tests: tests/ui/test_ui_settings.py
+//   API: routes/config.py · Tests: tests/ui/test_ui_settings.py, tests/js/settings/settings-previews.test.js
 // ── export section (filename template preview) ───────────────────────────────
 // Sample values for the export-filename-template live preview - a plausible
 // clip, not real data. Mirrors export_naming.export_base_stem's placeholder

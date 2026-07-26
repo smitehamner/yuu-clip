@@ -3,7 +3,9 @@
 // get more"). Extracted out of settings.js (which grew into a catch-all) -
 // these read backend/model config to decide what to render, but the save/dirty
 // engine that persists config stays in settings.js.
-//   API: routes/llm.py, routes/config.py (capabilities/tiers) · Tests: tests/ui/test_ui_model_catalog.py, tests/ui/test_ui_settings.py
+//   API: routes/llm.py (incl. capabilities/tiers), routes/models.py (prefetch) ·
+//   Tests: tests/ui/test_ui_model_catalog.py, tests/ui/test_ui_settings.py,
+//   tests/js/settings/modelcatalog.test.js
 import { escHtml } from '../core/format.js';
 import { showToast } from '../core/utils.js';
 import { decodeEvent } from '../core/jobevents.js';

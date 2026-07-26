@@ -11,6 +11,515 @@ same thing without the context. Most recent first.
 
 ---
 
+## Phase 7 UX/UI - full-app review section 9, people/settings/project ops (2026-07-26)
+
+UX/UI walk over the Section 9 static JS (reading the rendered template strings, not just
+route logic): `people/{namecorrections,speakers,voices}.js`, `settings/{modelcatalog,
+modeldownload,projects,settings-backup,settings-installs,settings-previews,settings}.js`,
+`library/{contexts,exporteditor,exportpresets,sounds}.js`. Anchored against Section 8's
+Phase 7 and the 2026-07-23/24 full-surface UX review (both found this codebase's UX quality
+high - state coverage, focus management, confirm dialogs, typed-outcome `onDone` all solid),
+so this pass looked for Section-9-specific gaps rather than re-deriving general principles.
+**No code changes** - no clear-cut defect surfaced; the few findings are Low and either
+anchored or deferred (below). No tests re-run (doc-only edit to this file).
+
+### Verified good, do NOT re-flag - the Phase 2 path-leak message reads clearly to a non-dev
+The brief asked to re-check the model-download-unavailable copy after Phase 2 made
+`available()`'s binary-resolution reason generic. Traced the surface: `modelcatalog.js`'s
+`_updateLlmCapabilities` renders `cap.detail` from `/api/llm/capabilities`, which is served
+by `llm.py::_llamacpp_capabilities` - and per Phase 2 that endpoint does its own path-existence
+checks and never calls `resolve_server_binary`, so it never carried the leak. Its detail
+strings are plain-English ("No local model is set up yet", "the set-up local model file is
+missing"). The generic reason only surfaces via `check_llm_available` in the scoring/speakers
+routes, where it reads "The local AI engine (llama-server) could not be started - reinstall
+yuu-clip, or set its path under Settings -> LLM scoring" (the one parenthetical jargon term
+is bracketed and the actionable half is plain). Both read fine for a non-developer. No change.
+
+### Verified good, do NOT re-flag - Settings information architecture is discoverable
+Phase 6 found `settings.js`'s *code/comment* scope claims had drifted (fixed there), which
+raised the question of whether the *UI* IA had accumulated awkwardly. It has not: the panel
+opens on a Capabilities overview, carries a jump-nav (`.settings-jump-link[data-section]`),
+per-section "Reset to defaults", a whole-panel reset with a reassuring "nothing saves until
+you click Save" confirm, a live dirty-state Save gate, and a "discard changes?" guard on
+close. Sections are chunked (STT / LLM / Speakers / Weights / Analysis / Hardware / UI /
+Export / Updates + Backup + Presets + Sounds + Installs). Sub-panels are separate JS modules
+but present as one coherent sectioned panel. Good IA - not a finding.
+
+### Verified good, do NOT re-flag - contexts.js dual scope is well-separated in the UI
+Phase 6 flagged that `contexts.js` owns World Context CRUD *and* Characters CRUD *and* the
+re-score/retranscribe/auto-approve flows in one file. In the actual UI these are cleanly
+separated surfaces: Characters render as a nested sub-section *inside* the context editor
+(`#ce-characters-section`, gated behind "save the context first"); the re-score / retranscribe
+/ auto-approve flows are detail-panel actions invoked elsewhere, never shown in the context
+modal. The shared code file is not a shared UI - no user confusion. Confirms Phase 6's call.
+
+### Verified good, do NOT re-flag - People merge/detach reversibility reads honestly
+Merge/detach/promote/character-link all confirm proportionally and describe consequences in
+plain language: detach says "you can link it again later from the voice match suggestions";
+merge says "their recordings move over and the other person is removed" (an honest statement
+that a merge is not one-click-undoable, gated behind a confirm); character-link is unconfirmed
+because it is trivially reversible ("No character" unlinks). Speaker-side mirrors this. Empty
+states double as onboarding ("No people yet. Open a recording's Speakers panel and choose
+Promote to Person..."). This is the reversibility-proportionate pattern done right.
+
+### Verified good, do NOT re-flag - model-download & backup/restore feedback is exemplary
+Exactly the "long-running, can-fail-scary" flows the brief called out. `modeldownload.js`
+gives per-kind progress / failure / offline ("No internet - will download when you're back
+online") / cancel states with stacking banners; `modelcatalog.js` survives a Settings
+re-render mid-download (progress reattaches to the rebuilt card) and reconnects to a download
+another window owns, and confirms success only after verifying the file actually landed;
+`settings-backup.js` restore is a review-before-commit flow that previews contents + missing
+media folders, offers re-point, and its replace-existing confirm states the safety copy is
+kept ("project.db.pre-restore"). Nothing to add.
+
+### Deferred (Low) - project-switcher / backup / restore controls aren't tagged `data-job-blocked`
+`/api/projects/switch` and `/api/restore/apply` are backend-guarded (409 "Analysis is
+running - wait or cancel before switching/restoring"), and the JS surfaces that detail as an
+error toast, so the busy case IS handled gracefully. But per the project's own convention
+(CLAUDE.md: a control that launches a `reject_if_busy`-guarded action should carry
+`data-job-blocked` so the user sees a *disabled* control with a why-tooltip instead of a
+click-then-409), the switcher menu items and the Backup/Restore buttons could be tagged to
+pre-empt the 409. Deferred as Low: these use a manual busy-check (not the `reject_if_busy`
+job machinery the attribute keys off), they are rare deliberate actions, the reactive toast
+is clear, and tagging the switcher (a runtime-built `<button>` menu) + the Settings buttons
+is partly Section-10 HTML scope. Trigger to revisit: if a user reports confusion switching
+projects mid-analysis, wire `applyJobBlockedState` coverage to these controls.
+
+### Deferred (Low, WCAG 3.2.2 nuance, anchored) - the "Merge in..."/"Merge into..." select triggers an action on change
+The per-Person / per-speaker merge picker is a `<select>` whose `change` opens a merge confirm
+(a context change), which WCAG 3.2.2 (On Input) prefers be advised beforehand. It is advised
+in practice - the placeholder ("Merge in...") and aria-label ("Merge another person into X")
+name the action, and it opens a *confirm* rather than acting immediately, and the list reloads
+to reset the select either way. Anchored: this is an established, settled app-wide pattern
+(identical in `speakers.js`), pointer-first single-user desktop tool, with a confirm gate.
+Not worth reworking into a button+picker. Note-only.
+
+### Low, note-only - first-run banner copy says "the AI model" where Settings says "local model"
+`modeldownload.js`'s first-run/handoff banners use friendlier "the AI model" / "AI model will
+download", while `modelcatalog.js`/`settings.js` consistently say "local model" / "LLM
+scoring". Not a glossary violation (the forbidden phrase is "AI scoring", which appears
+nowhere - the success toast correctly says "LLM scoring is now available"), and the friendlier
+"AI model" on the first-run surface is a defensible non-developer-onboarding choice. Left as-is;
+recorded so a future terminology sweep doesn't treat it as drift.
+
+### Confirmed clean - no hardcoded-color / theme violations in scope
+`test_static_theme_colors.py` passes; the only literals in scope are `exporteditor.js`'s
+over-video `#000` letterboxing + `rgba(0,0,0,.x)` scrims (documented theme-independent
+exception) and the caption-text `l.color || '#fff'` data-encoded speaker colour (same class
+as the score-gradient exception). Every UI-chrome colour is a `var(--token)` /
+`color-mix(... var(--token) ...)`. No finding.
+
+---
+
+## Phase 6 docs and comments - full-app review section 9, people/settings/project ops (2026-07-26)
+
+Grep-first survey (every `#`/`//` comment, docstring, and Feature-map header) over the 20
+route files + 14 static JS files in Section 9 plus `appversion.py`/`pathsafety.py`. Zero
+TODO/FIXME/XXX/HACK markers anywhere in scope. As Phases 1-5 already found, comment
+*quality* in this section is exceptionally clean - every comment body earns its place
+(WHY-focused, no restatement, no obsolete/reactive/apology text); the real category of
+finding this phase surfaced, same as Section 8's Phase 6, was Feature-map header drift -
+several headers named a UI/API owner that had since moved in a prior extraction (settings.js
+-> modelcatalog.js, settings.js -> analyze.js) and one cited a UI file as "not yet built"
+that has long since shipped. `yuu-dev bundle` (14 static JS files touched, comment-only),
+`yuu-dev lint` clean, `yuu-dev test-api` 3510 passed (unchanged - doc-only edits), `yuu-dev
+test-js` 698 passed (unchanged), typecheck `new: 0`.
+
+### Applied: `routes/backup.py`'s header called its own shipped UI "Stage 3, not yet built"
+Line 2 read `UI: static/settings/settings-backup.js (Stage 3, not yet built)` - but
+`settings-backup.js` is a fully-built, tested feature (backup download + the
+review-before-commit restore flow, `tests/ui/test_ui_backup.py`), not a stub. Actively
+misleading (the exact "obsolete comment" failure mode the docs-review skill calls out as
+always a finding regardless of prior sign-off). Dropped the stale parenthetical.
+
+### Applied: `routes/llm.py` and `static/settings/modelcatalog.js` headers both named the wrong owner for `/api/capabilities/tiers`
+`modelcatalog.js`'s header claimed `routes/config.py (capabilities/tiers)`; grepped every
+`@router.get`/`.post` in `llm.py` vs `config.py` and every `fetch()` in `modelcatalog.js` -
+`/api/capabilities/tiers` (and every other endpoint the file calls) is defined in `llm.py`,
+never `config.py`. Also added `routes/models.py` (the file's `/api/models/prefetch` call,
+previously uncited). Corrected both headers' API lines.
+
+### Applied: `routes/llm.py`'s own header claimed the setup wizard as a live UI consumer of this route file
+Line 2 listed `· setup wizard` alongside `modelcatalog.js` as a "UI:" consumer, and the
+`GET /api/llm/catalog` docstring said "so Settings and the setup wizard render the same
+... list" in a way that reads as the wizard calling this HTTP route. Grepped `electron/`
+for `api/llm/catalog` - zero hits. Per the project's own locked wizard/Settings
+architecture note (CLAUDE.md), the wizard runs before the Python server exists and reads
+the generated `catalog-data.json` instead, never a live route. Removed the wizard from the
+"UI:" line and reworded the docstring to state the real relationship (same source-of-truth
+module, two different consumption paths) instead of implying a shared HTTP call.
+
+### Applied: `routes/profiles.py`'s header pointed at the wrong UI file entirely
+Claimed `UI: static/settings/settings.js (Settings → Track layouts + Profile Manager
+modal)`. Grepped every `api/profiles` fetch call and every `Profile Manager`/`Track
+layout` string across the JS tree - the Profile Manager modal, its open/close/save/delete
+handlers, and every `/api/profiles*` fetch all live in `static/analyze/analyze.js` (New
+Recording panel); `settings.js` has zero references to either. Corrected the UI line.
+
+### Applied: `static/settings/settings.js`'s own header cited two routes it doesn't call
+Claimed `API: routes/config.py, llm.py, profiles.py, content_presets.py, export_presets.py`.
+Grepped every `fetch()` call and every `import` in the file: `llm.py` and `profiles.py` are
+absent from both (the LLM-catalog surface was extracted to `modelcatalog.js` - which
+`settings.js` does not import - and the Profile Manager was always `analyze.js`, see above).
+Corrected to the file's real surface: `config.py`, `content_presets.py`, `export_presets.py`
+(reached via its `exportpresets.js` import), and `routes/analyze.py` (`/api/status`,
+`/api/install/speechbrain`, both directly fetched).
+
+### Applied: `static/library/contexts.js`'s header undercounted its own scope by a wide margin
+Claimed `API: routes/contexts.py` only, matching its "World context" title - but the file's
+own section banners (grepped first) show it also owns Characters CRUD, the batch/individual
+re-score flows, reset-approvals, auto-approve, and retranscribe. Traced every `fetch`/
+`_openSSE`/`streamSSE` call to its owning route file: `routes/characters.py`,
+`routes/scoring.py` (rescore-clips, rescore, redescribe-clips), `routes/analyze.py`
+(retranscribe, cancel), `routes/videos.py` (auto-approve, reset-approvals) - none of which
+the header named. Same shape of drift Section 8 Phase 6 fixed for `transcript.js`
+undercounting its API surface. Rewrote the header to name the real scope and every route
+file it touches; left the file's actual content untouched (a possible future split of
+re-score/retranscribe out of "contexts.js" is a Phase-4-style refactor call, not this
+phase's job - noted here so a later refactor pass sees the pointer).
+
+### Applied: `routes/name_corrections.py` and its JS counterpart both cited a nonexistent test file
+Both headers claimed `tests/ui/test_ui_namecorrections.py` - grepped `tests/ui/` and found
+no such file; the real UI-layer coverage is `tests/js/people/namecorrections.test.js`
+(Phase 3 of this section added it, mirrored from the same pattern that later covered
+`speakers.js`/`voices.js`). Corrected both citations. While auditing this, found and closed
+the same completeness gap (existing citation not wrong, just missing the newer `tests/js/`
+counterpart) across every other file in scope that has one: `voices.py`/`voices.js`,
+`speakers.js`, `logs.py` (had no Tests line at all despite Phase 3 adding
+`tests/integration/test_logs.py` - added it), `modeldownload.js`, `settings-backup.js`,
+`settings-previews.js`, `modelcatalog.js`, `exporteditor.js`, `exportpresets.js`,
+`sounds.js`, `projects.js`, `settings.js`. `settings-installs.js` has no `tests/js/`
+counterpart (verified) - left as-is.
+
+### Verified, no change: `routes/sounds.py::_safe_name`'s drive-colon rejection comment
+Re-read against the Phase 2 security fix it documents. It already states the WHY, not just
+the what: `":" is rejected too: on Windows "C:foo.wav" has no slash but is drive-relative,
+so \`sounds_dir / "C:foo.wav"\` resolves outside the sounds dir entirely` - names the
+mechanism (Windows drive-relative paths) and shows the concrete escape it prevents. Exactly
+the shape of comment the governing rule asks for. No edit.
+
+### Verified, no change: `appversion.py` / `pathsafety.py` docstrings
+Both re-read against "internal helpers don't need ceremony, but explain genuinely
+non-obvious behavior." `pathsafety.py::is_within`'s docstring already states its exact
+semantics - "Both paths should already be resolved by the caller" (symlink-resolution
+policy is the caller's, not this predicate's) and "case-insensitive on Windows" - without
+restating the trivial `relative_to` call. `appversion.py::app_version`'s docstring explains
+the parameterized-default design (why callers pass different defaults) rather than
+restating the try/except. Both already covered by Phase 4's structural review
+(`Verified clean, no change: appversion.py / pathsafety.py placement + call sites`); this
+pass adds the comment-content confirmation Phase 4 didn't need to make.
+
+### Terminology sweep - clean
+Grepped `clip candidate|demo reel|\bingest\b|\bprobe\b|\bpending\b|RP context|\bslug\b|
+\bsubtitle\b|\bprofile\b|AI scoring|context id` (case-insensitive) across every file in
+scope. Every hit was a code-level identifier (`slug` as a URL path param / JS variable,
+`status == "pending"` as the literal DB value, `profile` as the documented code-name for
+Track layout, `ingest` in an internal "same start->events pattern as ingest" comparison)
+or an accurate internal docstring - never user-facing text reading the wrong glossary term.
+No drift, consistent with every prior section's terminology sweep.
+
+### Confirmed clean, no findings: everything else in scope
+`routes/{characters,voices,contexts,content_presets,export_presets,models,imports,updates,
+projects,sessions,reveal,reel,config}.py` and the JS files not called out above
+(`settings-installs.js`) - every comment explains a non-obvious WHY (the SQLite
+`switch_project`-mutates-ctx-in-place gotcha, the session-timeline offset math, the
+speechbrain/transformers import-order landmine referenced from `speakers.py`, the
+event-delegation-over-per-row-listener pattern, the `init*Listeners()`/no-module-scope-
+side-effect convention) or documents a real external/product constraint (the Windows
+`%SystemRoot%\Media` sound-folder path, the 25 MB upload cap, the raw-body-not-multipart
+choice to avoid a `python-multipart` dependency). No restatement, no obsolete text, no
+reactive/apology comments, no orphaned TODOs.
+
+---
+
+## Phase 5 logging coverage - full-app review section 9, people/settings/project ops (2026-07-26)
+
+Grep-first survey (`logger.`/`_log.` calls, then bare `except` blocks, then an
+imported-but-unused-logger sweep) over the 20 route files + 14 static JS files in
+Section 9 plus `appversion.py`/`pathsafety.py`. Two real gaps fixed, both in
+Python route layers; several apparent gaps were checked against their upstream
+callee and confirmed already covered (below), and the JS half needed no changes -
+confirmed covered by the project-wide `errorreporter.js` uncaught-error surface,
+same as Section 8 Phase 5 found. `yuu-dev test-api` 3510 passed (unchanged - log
+lines only, no behavior change), lint clean, typecheck `new: 0`.
+
+### Applied: `routes/backup.py`'s restore-rejection catches now log before converting to HTTPException
+`restore_inspect`'s `except RestoreError` and `restore_apply`'s `except
+ProjectExistsError` / `except RestoreError` blocks returned the real reason to the
+UI (never a generic 500) but logged nothing server-side. `project_archive.py`
+logs at ERROR for the security-relevant raises (zip-slip, CRC failure) but NOT for
+every `RestoreError` (a schema-version mismatch and a missing-database-member
+backup raise with no log at their site), so whether a botched restore left a log
+trace depended on which internal check fired - not visible from the route. Added
+`_log.warning` in both `RestoreError` catches (target/staged path + the exception)
+and `_log.info` in the `ProjectExistsError` catch (routine "needs overwrite
+confirmation" flow, not a failure - info, not warning). No behavior change to the
+returned HTTP responses.
+
+### Applied: `routes/reveal.py` had a `_log = get_logger(__name__)` that was never called
+Grepped every file in scope for `get_logger` imported vs. `_log.` actually used -
+`reveal.py` was the only file where the logger was imported and assigned but had
+zero call sites, so a rejected "Show in Folder" (`_path_allowed` returning False -
+the security boundary that keeps Explorer from opening an arbitrary path) or a
+missing target file left no trace at all. Its sibling security-boundary rejection,
+`project_archive.py::_reject_unsafe_member`, already logs at ERROR when it rejects
+a path outside the target dir - `reveal.py`'s guard is the same shape of check and
+was the odd one out. Added `_log.warning` on both the `_path_allowed` rejection and
+the missing-file 404.
+
+### Confirmed already covered, no changes needed: model/whisper download failures (`models.py`, `llm.py`)
+`routes/models.py::prefetch` and `routes/llm.py::gguf_download`/`whisper_prefetch`
+have zero `logger`/`log` calls, but they delegate to `web/sse.py::subprocess_sse`,
+which logs **every** stdout/stderr line of the child CLI process at DEBUG
+(`_log.debug("[subprocess] %s", text)`) and the exit code failure at ERROR - and
+the root logger is DEBUG (`log.py`), so the file always captures it. Traced the
+actual failure text: `cli/models.py`'s `download_gguf_cmd`/`prefetch_model_cmd`/
+`prefetch_whisper_cmd` all do `console.print(f"[red]Download failed: {exc}[/red]")`
+on the real exception before exiting 1 - that line is stdout, so it lands in the
+log at DEBUG via the same per-line capture. A failed HTTP fetch (bad URL, network
+drop, incomplete download) is diagnosable from the log without a code re-read.
+Route-level logging here would only duplicate what the subprocess layer already
+captures.
+
+### Confirmed already covered, no changes needed: `routes/speakers.py::infer_names` passing through `check_llm_available`'s reason
+Flagged by this phase's brief (mirrors Phase 2's llm_client.py path-leak fix
+pattern) - checked whether `infer_names` needed its own log before returning
+`check_llm_available`'s `(ok, reason)` as a 400. Traced `check_llm_available`
+(scoring/llm.py, docstring literally says "without logging") through to
+`LlamaCppServerClient.available()` (scoring/llm_client.py, fixed in this section's
+Phase 2): every branch's returned reason is either fully self-explanatory ("No
+local model is set up yet", "the set-up local model file is missing" - the message
+IS the diagnosis) or, for the one branch that redacts detail (the llama-server
+binary-resolution failure, which can embed an absolute path), the full unredacted
+detail is already logged at WARNING inside `available()` itself before the generic
+reason is returned. No route-level log needed on top - would just repeat one of
+the two things already true.
+
+### Confirmed already covered, no changes needed: config-save and project-switch unhandled failures (`config.py`, `projects.py`)
+Neither `patch_config`'s `cfg.save_project(...)` call nor `switch_project`'s
+`ctx.switch_project`/`prepare_project`/`new_dir.mkdir()` calls are wrapped in a
+try/except - an OSError (disk full, permission denied, AV lock) would propagate
+unhandled. Checked `web/app.py`'s `@app.exception_handler(Exception)`
+(`_unhandled_error`): it logs every otherwise-unhandled exception at ERROR with
+the request method + path and the full traceback (`exc_info=exc`) before
+returning a JSON 500 that also names the exception type to the UI. That's the
+same "route + traceback" pair a dedicated per-route catch would add - a config
+save or project switch failing mid-write is diagnosable from the log via this
+global backstop without a code re-read. Confirmed the same for `restore_apply`'s
+target directory operations before the newly-added catches take over for the
+already-typed failure modes.
+
+### Confirmed already covered, no changes needed: validation-rejection 400s across the section
+Swept every plain `raise HTTPException(400, ...)` in the section's config/sounds/
+reel/sessions/content-preset/export-preset routes for whether an unlogged
+rejection would be undiagnosable. Every one returns a message that already states
+the reason in full (`"Invalid file name"`, `"Unsupported audio type '{ext}'"`,
+`"video_ids must be integers: got '{exc}'"`, `"Unknown transition '{x}'..."`) - the
+response body itself is the diagnosis, so logging it server-side would be a
+duplicate, not new information. This matches the section's existing pattern
+(config.py's `_CONFIG_PATCH_RULES` validators, none of which log) and is left as-is.
+
+---
+
+## Phase 4 refactor - full-app review section 9, people/settings/project ops (2026-07-26)
+
+Refactor pass over the 20 route files + 14 static JS files in Section 9 plus the two new
+Phase 2 modules (`appversion.py`, `pathsafety.py`). Structural survey (function-length +
+duplication heat map) then targeted reads. One genuine extraction applied; everything else
+reviewed and deliberately left as-is (reasons below). `yuu-dev test-api` 3510 passed
+(unchanged from Phase 3 baseline - pure structural change, no test added/removed), lint
+clean, typecheck `new: 0`. No static JS touched (no bundle/test-js needed).
+
+### Applied: `llm.py` disk-preflight payload shape extracted to `_disk_preflight(needed_gb, target)`
+`_preflight_gguf_download` and `_preflight_whisper_prefetch` each computed
+`free_gb = round(disk_usage(target).free / 1e9, 1)` and built the identical 4-key
+`{sufficient, free_gb, needed_gb, target}` dict - a contract both then read verbatim in
+their route handlers to raise the 507 "not enough disk space" error. The duplicated
+*knowledge* is the payload shape + the free-vs-needed comparison; the domain-specific bits
+(size source, headroom constant, target dir) stay in each caller. Extracted the shared
+kernel; each preflight now computes its own `needed_gb`/`target` and delegates. Rule-of-two,
+but the shape is exact and consumed identically twice, so the extraction removes a real
+drift risk (a future change to the dict keys or the GB rounding would otherwise have to
+touch both). Covered end-to-end by `test_gguf_download.py` / `test_whisper_prefetch.py`
+(the 507 branch) - both still green, dict shape unchanged.
+
+### Confirmed necessary - do NOT re-flag: the two ESM import cycles are genuine domain coupling
+Phase 3 flagged `voices.js <-> speakers.js <-> transcript.js` and
+`modeldownload.js -> modelcatalog.js -> settings.js -> analyze.js -> modeldownload.js` as a
+testing gotcha and asked whether the cycles could be restructured away. Traced every edge:
+each is a real cross-module call inside a handler body, not an accident. `speakers.js` needs
+`openPeopleView` (the "manage People" action) from `voices.js`; `voices.js` needs
+`loadSpeakers` (refresh the Speakers card after a People change) from `speakers.js`;
+`transcript.js` needs `loadSpeakers` (refresh after a speaker reassign) and both People
+modules need `reloadVideoTranscriptIfOpen`. The three views cross-navigate and
+cross-refresh by nature - the cycle mirrors the domain. Same for the settings/model cluster:
+`modeldownload.js` renders capability tiers owned by `modelcatalog.js`, which drives
+settings-dirty/scroll state owned by `settings.js`. Breaking either would require an
+event-bus/mediator indirection the project explicitly rejects (CLAUDE.md: "Do NOT defer a
+cross-module import because it looks like a cycle" - esbuild bundles the graph into one
+scope and hoists declarations, so function-body-only cross-references are safe). No refactor;
+the testing gotcha is inherent and already documented (seed the real DOM instead of mocking
+a cyclic module).
+
+### Keep as-is: config-CRUD route modules (characters/content_presets/export_presets/contexts) NOT merged
+These four (and the sibling voices/name_corrections/speakers) share a visible shape -
+`make_router(ctx)`, `db = ctx.get_db(); try/finally: db.close()`, a `_*_dict` serializer,
+per-field `model_fields_set` update, `_log.info` on mutate - but encode different domain
+knowledge: Character has `context_slug` + `_clamp_boost` + a Person-unlink delete cascade;
+content-presets copy weight fields into config and insert starter hot-words; export-presets
+carry a `_slugify`/`_unique_name` immutable-id rule + `validate_preset_dict`. The shared
+shape is the codebase's mandated route pattern (the `try/finally: db.close()` convention and
+the one-serializer-per-entity habit), not duplicated *rules*. A generic CRUD base would
+couple entities that evolve independently and bury each one's specifics - the exact call
+Section 8 made for `hotwords.py`/`sensitive.py`. No merge.
+
+### Keep as-is: `voices.py` `_members_of`/`_members_by_voice` and `_suggestions_of`/`_suggestions_by_voice` pairs
+Each pair is a single-voice query and an all-voices grouped query over the same join. They
+look mergeable but exist for a real reason: the grouped `_by_voice` variants (with
+`joinedload(Speaker.global_voice)`) feed `list_voices` in one shot to avoid an N+1 across
+every Person, while the single-voice variants serve the mutation routes that return one
+Person. Collapsing them behind a "filter or group" flag would reintroduce boolean-blindness
+and obscure the N+1-avoidance intent. Left as two small focused helpers.
+
+### Verified clean, no change: `appversion.py` / `pathsafety.py` placement + call sites
+Both new Phase 2 modules sit at the package root (correct - each is a cross-cutting kernel
+used by both `yuu_clip/` core and `web/`, so neither belongs under `web/`). Docstrings state
+the single-source-of-truth rationale; predicates are pure (callers own resolve + error
+type). Grepped every call site: `app_version` (3 sites - project_archive/app/updates) and
+`is_within` (3 sites - project_archive/media/reveal) each import and delegate with no
+leftover inline copy of the old block. `dev/notices.py`'s own version copy is deliberately
+out of scope (Section 6, noted in Phase 2). Nothing to refactor.
+
+## Phase 3 test coverage - full-app review section 9, people/settings/project ops (2026-07-26)
+
+Closed the five coverage gaps Phase 1 recorded in `REVIEW_OPEN_ITEMS.md`. `yuu-dev
+test-api` 3510 passed (3497 baseline + 13 new), `yuu-dev test-js` 698 passed (54 files,
++4 new), lint clean, typecheck `new: 0`.
+
+### Fixed: `people/voices.js` had zero `tests/js/` coverage (~46 top-level functions)
+Added `tests/js/people/voices.test.js` (21 tests) driving the real `openPeopleView` ->
+`PanelNav.open` -> fetch -> render chain, mirroring the `namecorrections.test.js`
+pattern: render/gating (empty state, merge-control visibility, character-picker
+grouping and the orphaned-link display case), every card action's request shape
+(rename/recolor/merge/detach/character-link/suggestion-resolve/backfill), and error
+toasts. While writing these, found and fixed a real (if minor) bug: `_backfillPeople`'s
+success toast called `plural(data.created, 'person')` with no plural form, so
+`plural`'s default (`singular + 's'`) produced "Found 3 persons to review" instead of
+"people" - added the third argument. Caught mid-test by an assertion that expected the
+correct grammar and failed against the actual code.
+
+**Gotcha for a future test in this cluster:** `voices.js` <-> `speakers.js` <->
+`transcript.js` form a real ESM import cycle (`speakers.js` imports `openPeopleView`
+from `voices.js`; `transcript.js` imports `loadSpeakers` from `speakers.js`).
+`vi.mock(...) ` + `importActual` on a module that sits inside a live cycle does not
+reliably intercept the binding the cyclic importer sees - the mocked function's
+`.mock.calls` stayed empty while the REAL function silently ran (and no-opped, since
+its target DOM section wasn't seeded), with no exception anywhere to signal the mock
+never took. This is the same class of limitation `core/jobs.js`'s CLAUDE.md note
+documents for its 9 `window.*` reads. The fix used here: don't mock the cyclic module at
+all - seed the real DOM section (`#speakers-section`) and let the real function run, then
+assert on the resulting DOM. Confirmed via `console.log` instrumentation, not guesswork,
+per the "stop reasoning, run an experiment" convention. The same issue reappeared testing
+`modeldownload.js` (`modeldownload.js -> modelcatalog.js -> settings.js -> analyze.js ->
+modeldownload.js` is a 4-node cycle) - same fix: don't mock `modelcatalog.js`, route its
+real `/api/llm/capabilities` and `/api/capabilities/tiers` fetches, and assert on the
+real DOM update (`#s-llm-capabilities` text) as proof it ran.
+
+### Fixed: `name_corrections.py::_apply_spans`'s multi-correction-per-segment path was untested
+Added `tests/unit/test_name_corrections_apply_spans.py` (8 tests, pure function - no
+DB/TestClient) covering the rightmost-first replacement order (so an earlier span's
+offsets are never shifted by a later, different-length replacement), the
+reverse-back-to-ascending-order result contract (independent of the order items arrive
+in the request), and a drifted item in the same segment not blocking its siblings.
+
+### Fixed: `routes/logs.py` had no dedicated test file anywhere
+Added `tests/integration/test_logs.py` (5 tests): `/api/logs/export`'s two branches (a
+real per-project log file vs. the in-memory buffer fallback when none exists yet), the
+dated filename, and `/api/glossary`'s 200/404 paths.
+
+### Fixed: `settings/{modeldownload,settings-backup,settings-previews}.js` had zero `tests/js/` coverage
+Added three files (26 tests total): `settings-previews.test.js` (12, pure DOM-in/DOM-out
+- the export-filename and title-card live previews, including the contrast-warning
+threshold and unknown-placeholder handling), `settings-backup.test.js` (9, the backup
+download and the restore review-before-commit flow: quoted-path stripping, the repoint
+mapping, and the 409 `project_exists` replace-confirmation branch), and
+`modeldownload.test.js` (13, the boot-time LLM-handoff and analysis-model-prefetch
+banners: per-kind gating, SSE progress/failure/offline/cancel, and
+`getWhisperDownloadPct`'s reset-on-completion).
+
+### Not a gap (already covered, review's list was stale): `contexts.py::_delete_context_characters` cascade
+`REVIEW_OPEN_ITEMS.md` listed this as untested, but
+`tests/integration/test_characters.py::TestContextDeleteCascade::test_deleting_context_deletes_characters_and_unlinks`
+(added in commit `578b84a`, well before this review pass) already deletes a context via
+the route and asserts both halves of the cascade directly against the DB: the linked
+`Character` row is gone and the `ProjectVoice.character_id` that pointed at it is nulled.
+No test change made; the Phase 1 gap listing was simply incorrect for this item.
+
+---
+
+## Phase 2 bug hunt - full-app review section 9, people/settings/project ops (2026-07-26)
+
+Bug hunt over the Section 9 scope (20 route files + 14 static JS). The section was as
+clean as Phase 1 predicted; four items were fixed (three carried-forward from Sections 4
+and 7, plus one new bug found here). `yuu-dev test-api` 3497 passed (3486 baseline + 11
+new), lint clean, typecheck `new: 0`.
+
+### Fixed (carried from Section 4): `LlamaCppServerClient.available()` no longer leaks the binary path
+`scoring/llm_client.py::available()` returned `str(exc)` verbatim on a `LlamaServerError`
+from `resolve_server_binary`. Two of that function's three raises embed an absolute path
+(the configured `llamacpp_server_binary`, or the `YUU_CLIP_LLAMA_SERVER_DIR` bundle base).
+That reason flows unredacted through `check_llm_available` into UI-facing surfaces
+(`routes/scoring.py`, `routes/speakers.py` `infer-speaker-names`, `routes/analyze.py`
+analyze warnings), so a screenshot could leak the user's home dir - the exact leak the
+sibling "missing model file" branch three lines up deliberately avoids with an explicit
+comment. Matched that precedent: catch `LlamaServerError`, log the full detail at WARNING
+(the log file is redacted by `_SanitizingFormatter`; the extra log keeps diagnosability),
+and return a fixed generic UI reason. Confirmed via grep that no test pinned the old
+leaky behavior. Pinned by
+`test_scoring_llm.py::TestClientAvailableReasonNoPathLeak::test_binary_resolution_failure_reason_has_no_path`.
+Note: `routes/llm.py::_llamacpp_capabilities` was already safe - it does its own
+path-existence checks and never calls `resolve_server_binary`, so the capabilities
+endpoint never carried the leak.
+
+### Fixed (carried from Section 7): app-version lookup extracted to `yuu_clip/appversion.py`
+The `_pkg_version("yuu-clip")` -> fallback try/except was duplicated across four sites.
+Extracted `app_version(default="unknown")` (a parameterized default, because the update
+check needs a parseable semver fallback `"0.0.0"` while the others want `"unknown"`).
+Converted the three in-scope/already-fixed sites: `project_archive.py` (dropped its local
+`_app_version`), `web/app.py` (module-level `_PKG_VERSION`), and `web/routes/updates.py`
+(`app_version("0.0.0")`). `dev/notices.py` (Section 6, out of scope, closed) still has its
+own copy - a low-value follow-up to adopt the helper later, left untouched deliberately.
+Pinned by `tests/unit/test_appversion.py`.
+
+### Fixed (carried from Section 7): path-containment predicate extracted to `yuu_clip/pathsafety.py`
+The "does target resolve inside base?" check existed as three subtly-worded copies
+(`media.py::resolve_within` and `project_archive.py::_reject_unsafe_member` used
+`base not in target.parents`; `reveal.py::_is_within` used `relative_to`). Verified they
+are semantically equivalent (both treat `target == base` as within, both case-insensitive
+on Windows) and all callers already resolve their paths before checking. Extracted a pure
+`is_within(target, base) -> bool` (the `relative_to` form) used by all three; each caller
+keeps its own resolve step and its own error type (HTTPException / RestoreError / boolean
+gate). Pinned by `tests/unit/test_pathsafety.py` (plus the existing
+`test_resolve_within_rejects_traversal`, unchanged). `routes/backup.py` and
+`routes/projects.py` (listed as candidates in the Section 7 note) turned out NOT to have
+their own guard - backup delegates to `project_archive`, and the project switcher
+intentionally resolves to an arbitrary user-chosen folder (no base to contain within), so
+neither needs the predicate.
+
+### Fixed (new, found here): `routes/sounds.py::_safe_name` allowed a Windows drive-relative escape
+`_safe_name` rejected `/`, `\`, `.`, `..` and empty, but NOT a name like `C:evil.wav` -
+which has no slash but is drive-relative on Windows, so `sounds_dir / "C:evil.wav"`
+resolves to C:'s cwd, escaping the sounds dir. Reachable from three endpoints
+(`/api/sounds/upload` writes bytes there, `/api/sounds/file` serves, `/api/sounds/custom`
+DELETE unlinks). Low severity in a single-user loopback app, but the codebase already
+treats DNS-rebinding-bypass as in-scope (see the `config.py` token-redaction comment), and
+the fix is a one-line hardening: also reject `":"` (never legitimate in an audio filename
+on any platform). Verified the escape empirically (`Path("sounds")/"C:x.wav"` -> `C:x.wav`)
+before fixing. Pinned by `test_sounds.py::test_upload_rejects_drive_relative_name` +
+`test_file_rejects_drive_relative_name`.
+
+---
+
 ## Phase 7 UX/UI - full-app review section 8, web UI content & analysis (2026-07-26)
 
 UX/UI walk over the Section 8 scope: `static/videos/{sessions,videos-runmeta,videos-summary,

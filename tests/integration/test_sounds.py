@@ -66,6 +66,16 @@ class TestSounds:
         r = client.post("/api/sounds/upload?name=..%5cescape.wav", content=b"data")
         assert r.status_code == 400
 
+    def test_upload_rejects_drive_relative_name(self, client):
+        # "C:evil.wav" has no slash but is drive-relative on Windows, so joining it
+        # under the sounds dir escapes to C:'s cwd. The ":" guard must reject it.
+        r = client.post("/api/sounds/upload?name=C:evil.wav", content=b"data")
+        assert r.status_code == 400
+
+    def test_file_rejects_drive_relative_name(self, client):
+        r = client.get("/api/sounds/file?kind=custom&name=C:evil.wav")
+        assert r.status_code == 400
+
     def test_upload_rejects_oversized_body(self, client):
         r = client.post("/api/sounds/upload?name=big.wav", content=b"x" * (25 * 1024 * 1024 + 1))
         assert r.status_code == 413

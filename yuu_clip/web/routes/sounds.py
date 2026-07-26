@@ -57,7 +57,9 @@ def _media_dir() -> Path:
 
 def _safe_name(name: str) -> str:
     # Only a bare filename is allowed - reject anything that could escape the dir.
-    if not name or name in (".", "..") or "/" in name or "\\" in name:
+    # ":" is rejected too: on Windows "C:foo.wav" has no slash but is drive-relative,
+    # so `sounds_dir / "C:foo.wav"` resolves outside the sounds dir entirely.
+    if not name or name in (".", "..") or "/" in name or "\\" in name or ":" in name:
         raise HTTPException(400, "Invalid file name")
     return name
 

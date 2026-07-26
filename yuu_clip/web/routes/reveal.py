@@ -19,6 +19,7 @@ from pydantic import BaseModel
 
 from yuu_clip.db.models import Video
 from yuu_clip.log import get_logger
+from yuu_clip.pathsafety import is_within
 from yuu_clip.web.deps import ProjectContext
 
 _log = get_logger(__name__)
@@ -28,24 +29,16 @@ class RevealRequest(BaseModel):
     path: str
 
 
-def _is_within(target: Path, base: Path) -> bool:
-    try:
-        target.relative_to(base)
-        return True
-    except ValueError:
-        return False
-
-
 def _path_allowed(target: Path, ctx: ProjectContext) -> bool:
     """*target* must resolve inside the exports/reels/proxies dirs or the
     directory of a recording tracked in this project - never an arbitrary path."""
     for base in (ctx.export_dir, ctx.reels_dir, ctx.proxy_dir):
-        if _is_within(target, base.resolve()):
+        if is_within(target, base.resolve()):
             return True
     db = ctx.get_db()
     try:
         for (video_path,) in db.query(Video.path).all():
-            if _is_within(target, Path(video_path).resolve().parent):
+            if is_within(target, Path(video_path).resolve().parent):
                 return True
     finally:
         db.close()
@@ -61,8 +54,10 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             raise HTTPException(501, "Only available on Windows")
         target = Path(req.path).resolve()
         if not _path_allowed(target, ctx):
+            _log.warning("Reveal rejected - %s is outside every managed directory", target)
             raise HTTPException(400, "Path is outside the project's managed directories")
         if not target.exists():
+            _log.warning("Reveal target does not exist: %s", target)
             raise HTTPException(404, "File not found")
         subprocess.Popen(["explorer", f"/select,{target}"])
         return {"status": "ok"}

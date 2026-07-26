@@ -1,5 +1,5 @@
 # Feature-map - Model readiness + Recommended models (code: model_catalog, capabilities/tiers)
-#   UI: static/settings/settings.js (Settings → LLM scoring readiness + catalog) · setup wizard
+#   UI: static/settings/modelcatalog.js (Settings → LLM scoring readiness + catalog)
 #   Siblings: model_catalog.py · scoring/llm_client.py · tests/integration/test_llm.py, tests/ui/test_ui_model_catalog.py
 """LLM capability + model-catalog routes.
 
@@ -9,8 +9,11 @@ GET /api/llm/capabilities - what the active backend/model can do right now
     UI features gate on this (a control that needs vision links here rather than
     silently disabling itself).
 
-GET /api/llm/catalog - the curated recommended-model catalog, so Settings and
-    the setup wizard render the same vetted list from one source of truth.
+GET /api/llm/catalog - the curated recommended-model catalog, for Settings.
+    The setup wizard renders the same vetted list from the same source
+    (model_catalog.py) but never calls this route - it runs before the Python
+    server exists, so it reads the generated catalog-data.json instead
+    (yuu-dev shared-data; see CLAUDE.md's wizard/Settings architecture note).
 """
 from __future__ import annotations
 
@@ -64,13 +67,9 @@ def _existing_ancestor(path: Path) -> Path:
     return Path(path.anchor) if path.anchor else Path.cwd()
 
 
-def _preflight_gguf_download(entry) -> dict:
-    """Free vs needed space for downloading *entry*'s .gguf. Non-raising."""
-    from yuu_clip.config import models_dir
-
-    size_gb = float(entry.size_gb) if entry.size_gb else 0.0
-    needed_gb = round(size_gb + _PULL_DISK_HEADROOM_GB, 1)
-    target = _existing_ancestor(models_dir())
+def _disk_preflight(needed_gb: float, target: Path) -> dict:
+    """Free-vs-needed space report for a download into *target*. The dict shape is
+    the contract both download routes read to raise their 507 (needed/free/target)."""
     free_gb = round(shutil.disk_usage(target).free / 1e9, 1)
     return {
         "sufficient": free_gb >= needed_gb,
@@ -78,6 +77,15 @@ def _preflight_gguf_download(entry) -> dict:
         "needed_gb": needed_gb,
         "target": str(target),
     }
+
+
+def _preflight_gguf_download(entry) -> dict:
+    """Free vs needed space for downloading *entry*'s .gguf. Non-raising."""
+    from yuu_clip.config import models_dir
+
+    size_gb = float(entry.size_gb) if entry.size_gb else 0.0
+    needed_gb = round(size_gb + _PULL_DISK_HEADROOM_GB, 1)
+    return _disk_preflight(needed_gb, _existing_ancestor(models_dir()))
 
 
 # Approximate on-disk sizes (GB) of the allowed whisper models, for the prefetch
@@ -107,14 +115,7 @@ def _preflight_whisper_prefetch(model: str) -> dict:
     """Free vs needed space for prefetching the *model* whisper weights. Non-raising."""
     size_gb = _WHISPER_SIZE_GB.get(model, 3.0)
     needed_gb = round(size_gb + _WHISPER_DISK_HEADROOM_GB, 1)
-    target = _hf_cache_root()
-    free_gb = round(shutil.disk_usage(target).free / 1e9, 1)
-    return {
-        "sufficient": free_gb >= needed_gb,
-        "free_gb": free_gb,
-        "needed_gb": needed_gb,
-        "target": str(target),
-    }
+    return _disk_preflight(needed_gb, _hf_cache_root())
 
 
 def _llamacpp_capabilities(cfg, backend: str) -> dict:

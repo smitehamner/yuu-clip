@@ -1,5 +1,7 @@
 // Feature-map - Settings panel (all sections; see the per-section banners below).
-//   API: routes/config.py, llm.py, profiles.py, content_presets.py, export_presets.py · Tests: tests/ui/test_ui_settings.py
+//   API: routes/config.py, content_presets.py, export_presets.py (via its exportpresets.js
+//        import), routes/analyze.py (/api/status, /api/install/speechbrain)
+//   Tests: tests/ui/test_ui_settings.py, tests/js/settings/settings.test.js
 import { ColorPicker } from '../library/colorpicker.js';
 import {
   _ensureModelCatalog, refreshModelCatalog, _updateLlmCapabilities, _renderCapabilityTiers,

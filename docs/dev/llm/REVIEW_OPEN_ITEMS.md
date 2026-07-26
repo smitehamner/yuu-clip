@@ -78,15 +78,10 @@ noting the file/location, what was found, why it wasn't fixed, and severity.
   top-level list) raises `AttributeError` instead of a clean `ValueError`.
   Gracefully handled upstream; only degrades the error message, not
   correctness. Pinned by regression tests, not fixed.
-- **`yuu_clip/scoring/llm_client.py::LlamaCppServerClient.available()`** - on
-  a binary-resolution failure, returns `str(exc)` verbatim as the UI-facing
-  reason, which embeds the full configured/bundle path - unlike the sibling
-  "missing model file" branch 3 lines above, which deliberately omits the path
-  with an explicit "never surface the absolute path" comment. The log FILE
-  itself is safe (redacted by `_SanitizingFormatter`), but this same string
-  also flows unredacted into UI rendering owned by a route (`web/routes/llm.py`
-  or wherever it's displayed - **Section 9's scope**, check there). Needs a
-  human call: sacrifice some diagnosability (generic reason) vs. path privacy.
+- ~~`yuu_clip/scoring/llm_client.py::LlamaCppServerClient.available()` binary-
+  resolution path leak~~ - RESOLVED & FIXED by Section 9's Phase 2. Matched the
+  sibling "missing model file" branch: logs the full detail, returns a generic
+  UI-safe reason. See the moved entry in `REVIEW_DECISIONS.md`.
 
 ## Section 5 - Clip generation + export/reel (committed 8c47dd5)
 
@@ -132,22 +127,17 @@ noting the file/location, what was found, why it wasn't fixed, and severity.
   `yuu_clip/project_archive.py::build_backup` itself writes non-atomically to
   the destination path (an interrupted save can leave a partial zip) - lower
   priority now that the restore side rejects corrupt archives cleanly.
-- **App-version-lookup duplication** - the `_pkg_version("yuu-clip")` ->
-  `"unknown"` try/except block is duplicated verbatim across 4 sites:
-  `project_archive.py::_app_version` + `web/app.py` (both Section 7, in
-  scope), and `web/routes/updates.py` + `dev/notices.py` (out of scope at the
-  time). A 2-of-4 conversion was judged not worth doing half-migrated -
-  deferred to whichever section can see all 4 call sites and do a wholesale
-  `app_version()` extraction. **Check `web/routes/updates.py` in Section 9.**
-- **Path-traversal-guard duplication** - the "resolve within a base dir,
-  reject traversal" check is duplicated across `media.py::resolve_within`,
-  `project_archive.py::_reject_unsafe_member` (both Section 7), plus
-  out-of-scope `routes/reveal.py`, `routes/backup.py`, `routes/projects.py`.
-  Each raises a domain-specific error, so a shared `is_within()` predicate is
-  probably the right shape, but the majority of call sites are in routes files
-  reviewed later. **Check `routes/reveal.py`, `routes/backup.py`,
-  `routes/projects.py` in Section 9** and decide whether a shared helper is
-  warranted across all of them.
+- ~~App-version-lookup duplication~~ - RESOLVED & FIXED by Section 9's Phase 2:
+  extracted `yuu_clip/appversion.py::app_version(default=...)`, adopted by
+  `project_archive.py`, `web/app.py`, and `web/routes/updates.py`.
+  `dev/notices.py` (out of scope) keeps its own copy as a low-value follow-up.
+  See `REVIEW_DECISIONS.md`.
+- ~~Path-traversal-guard duplication~~ - RESOLVED & FIXED by Section 9's Phase 2:
+  extracted `yuu_clip/pathsafety.py::is_within`, adopted by
+  `media.py::resolve_within`, `project_archive.py::_reject_unsafe_member`, and
+  `routes/reveal.py`. `routes/backup.py` (delegates to `project_archive`) and
+  `routes/projects.py` (intentionally resolves an arbitrary user folder) have no
+  own guard and don't need it. See `REVIEW_DECISIONS.md`.
 
 ## Section 8 - Web UI: content & analysis (Phase 2 committed)
 
@@ -219,3 +209,59 @@ noting the file/location, what was found, why it wasn't fixed, and severity.
   class of allowed exception as `format.js`'s score-gradient stops; not caught by
   `test_static_theme_colors.py` (which scans `tokens.css`). Left as-is - a
   defensive fallback, changing it risks nothing meaningful.
+
+## Section 9 - Web UI: people/settings/project ops (Phase 1 + Phase 3 committed)
+
+Phase 1 (test integrity) found the whole section's test suite already clean - no
+fragile assertions, vague names, tautologies, or hidden coupling across any of
+the 20 route files / 14 static JS files in scope. No test changes were needed.
+Phase 3 (test coverage) closed all five gaps Phase 1 flagged - see
+`REVIEW_DECISIONS.md`'s "Phase 3 test coverage - full-app review section 9" entry for
+what was added (including the one real bug it turned up, a `plural()` grammar miss in
+`voices.js`, and a documented import-cycle gotcha for testing this module cluster).
+
+Not a gap (checked, ruled out): the DOM-heavy `library/*.js` modules
+(`contexts.js`, `exporteditor.js`, `sounds.js`) look thin in `tests/js/` but their
+behavior is deliberately covered in `tests/ui/test_ui_{contexts,exporteditor,sounds}.py`
+instead, per those modules' own file-header comments - working as intended, not
+a coverage hole.
+
+Also resolved as non-issues while reading this section's tests (no code or test
+change needed):
+- `tests/integration/test_reveal.py` patches `routes.analyze.sys.platform`, not
+  `routes.reveal.sys.platform` - looks surprising but is correct: the
+  `can_reveal` capability flag is actually computed in `routes/analyze.py`, not
+  `routes/reveal.py`.
+- `tests/integration/test_llm.py` (catalog/capabilities/download-status/
+  gguf-download/capability-tiers via `TestClient`) and `tests/unit/test_scoring_llm.py`
+  (Section 4, already reviewed) cover genuinely different surfaces of
+  `routes/llm.py` vs `scoring/llm.py` - not redundant.
+
+**RESOLVED (Phase 2):** the Section 4 leaky-path item
+(`LlamaCppServerClient.available()`'s raw exception string reaching the UI) -
+fixed in this section's Phase 2. Full write-up moved to `REVIEW_DECISIONS.md`.
+
+Phase 2 (bug hunt) also resolved the other 2 carried-forward Section 7 items
+(app-version-lookup duplication -> new `yuu_clip/appversion.py`; path-traversal-
+guard duplication -> new `yuu_clip/pathsafety.py`) and found+fixed a real
+Windows drive-relative path-escape bug in `sounds.py::_safe_name`. Phase 4
+(refactor) extracted `_disk_preflight()` in `routes/llm.py`. Phase 5 (logging)
+added logging to `backup.py`'s restore-error catches and `reveal.py`'s
+previously-silent security-boundary rejection. Phase 6 (docs) fixed extensive
+Feature-map header drift across ~14 files. See `REVIEW_DECISIONS.md` for full
+details on all of the above.
+
+### Phase 7 (UX/UI) - deferred Low findings
+- **Project-switcher menu / Backup / Restore buttons** - not tagged
+  `data-job-blocked`. The busy case IS handled (backend 409 + clear error
+  toast), but the project's convention prefers a disabled control with a
+  why-tooltip over a click-then-409. Deferred: rare deliberate actions, uses a
+  manual busy-check rather than the `reject_if_busy` machinery the attribute
+  keys off, and partly overlaps Section 10's HTML scope. Revisit trigger: a
+  user reports mid-analysis switch confusion.
+- **`<select>`-triggered merge confirm** (voices/speakers "Merge in.../Merge
+  into..." dropdowns) - selecting a value immediately triggers a merge confirm
+  dialog (a WCAG 3.2.2 "change of context on select" nuance). Mitigated by a
+  placeholder + aria-label and gated behind a confirm dialog; this is a
+  settled app-wide pattern on a pointer-first single-user desktop tool.
+  Note-only, not a real defect.

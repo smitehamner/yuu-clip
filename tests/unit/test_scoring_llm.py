@@ -29,6 +29,28 @@ class TestClientAvailableReasonNoPathLeak:
         assert ok is False
         assert reason
 
+    def test_binary_resolution_failure_reason_has_no_path(self, tmp_path):
+        # The model file exists (first two branches pass), but the server binary
+        # can't be resolved. The LlamaServerError message embeds an absolute path;
+        # available() must not surface it (it flows unredacted into UI warnings).
+        from unittest import mock
+
+        from yuu_clip.scoring.llamacpp_server import LlamaServerError
+        from yuu_clip.scoring.llm_client import LlamaCppServerClient
+
+        model = tmp_path / "model.gguf"
+        model.write_bytes(b"x")
+        leaked = str(tmp_path / "bundle" / "llama-server.exe")
+        with mock.patch(
+            "yuu_clip.scoring.llamacpp_server.resolve_server_binary",
+            side_effect=LlamaServerError(f"is set to {leaked} but no llama-server was found"),
+        ):
+            ok, reason = LlamaCppServerClient(self._config(llm_model_path=str(model))).available()
+        assert ok is False
+        assert reason
+        assert leaked not in reason
+        assert str(tmp_path) not in reason
+
 
 # ---------------------------------------------------------------------------
 # LLMScorer - is_available() branches

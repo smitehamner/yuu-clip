@@ -10,8 +10,6 @@ import asyncio
 import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from importlib.metadata import PackageNotFoundError
-from importlib.metadata import version as _pkg_version
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -20,6 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.exc import OperationalError
 
 from yuu_clip._build_info import BUILD_DATE as _BUILD_DATE
+from yuu_clip.appversion import app_version
 from yuu_clip.contexts import seed_builtin_contexts
 from yuu_clip.log import configure_logging, get_logger
 from yuu_clip.web.deps import ProjectContext
@@ -61,10 +60,7 @@ _log  = get_logger(__name__)
 
 _SERVER_START = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
-try:
-    _PKG_VERSION = _pkg_version("yuu-clip")
-except PackageNotFoundError:
-    _PKG_VERSION = "unknown"
+_PKG_VERSION = app_version()
 
 # ASCII separators only - this string is surfaced via /api/status and gets
 # pasted into terminals, where a "·" mojibakes under PowerShell 5.1 / cp1252.

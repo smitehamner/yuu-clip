@@ -9,7 +9,8 @@
 //   _activeES, which the single job header owns).
 //   API: routes/llm.py (/api/llm/download-status[/clear], /api/llm/gguf/download,
 //        /api/whisper/prefetch), /api/config
-//   Tests: tests/ui/test_ui_modeldownload.py, tests/ui/test_ui_whisper_prefetch.py
+//   Tests: tests/ui/test_ui_modeldownload.py, tests/ui/test_ui_whisper_prefetch.py,
+//        tests/js/settings/modeldownload.test.js
 import { escHtml } from '../core/format.js';
 import { showToast } from '../core/utils.js';
 import { _openSSE } from '../core/jobs.js';

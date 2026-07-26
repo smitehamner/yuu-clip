@@ -1,5 +1,5 @@
 // Feature-map - People / project-wide speaker identity (code: ProjectVoice; UI "Person"/"People").
-//   API: routes/voices.py Tests: tests/ui/test_ui_voices.py
+//   API: routes/voices.py · Tests: tests/ui/test_ui_voices.py, tests/js/people/voices.test.js
 // ── People view (PanelNav takeover) ────────────────────────────────────────────
 // A project-level view listing every Person (a voice named once, applied across all
 // recordings). Lists each Person's member recordings, pending cross-recording
@@ -319,7 +319,7 @@ async function _backfillPeople(btn) {
     if (!res.ok) throw new Error(formatApiError(await res.json().catch(() => ({}))));
     const data = await res.json();
     showToast(data.created
-      ? `Found ${plural(data.created, 'person')} to review`
+      ? `Found ${plural(data.created, 'person', 'people')} to review`
       : 'No new people found across your recordings');
     await _loadPeople();
     _syncOpenRecording();

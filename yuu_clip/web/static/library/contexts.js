@@ -1,5 +1,11 @@
-// Feature-map - World context (code: rp_context / Context; UI term "Contexts").
-//   API: routes/contexts.py · Tests: tests/ui/test_ui_contexts.py
+// Feature-map - World context (code: rp_context / Context; UI term "Contexts"), plus the
+// per-recording Characters section and the re-score/reset-approvals/auto-approve/
+// retranscribe actions that live in the same detail-panel area (see the section banners
+// below).
+//   API: routes/contexts.py, routes/characters.py, routes/scoring.py (rescore/
+//        redescribe-clips), routes/analyze.py (retranscribe), routes/videos.py
+//        (auto-approve/reset-approvals)
+//   Tests: tests/ui/test_ui_contexts.py, tests/js/library/contexts.test.js
 import { AppState } from '../core/state.js';
 import { escHtml, formatApiError, plural } from '../core/format.js';
 import { showConfirm, openDiffModal } from '../core/ui.js';

@@ -1,7 +1,7 @@
 import { escHtml } from '../core/format.js';
 
 // Feature-map - Notification sounds (Settings → Notification sounds; state in localStorage).
-//   API: routes/sounds.py · Tests: tests/ui/test_ui_sounds.py
+//   API: routes/sounds.py · Tests: tests/ui/test_ui_sounds.py, tests/js/library/sounds.test.js
 // ── notification sounds ───────────────────────────────────────────────────────
 // Plays a short audio cue when a long-running action finishes. All state lives
 // in localStorage; the backend only lists/serves audio bytes. Every event is

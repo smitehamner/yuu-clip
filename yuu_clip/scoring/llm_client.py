@@ -76,7 +76,12 @@ class LlamaCppServerClient(LLMClient):
         try:
             resolve_server_binary(self._config)
         except LlamaServerError as exc:
-            return False, str(exc)
+            # Match the missing-model branch above: never surface the raw exception
+            # here - it can embed the configured/bundle absolute path (see
+            # resolve_server_binary), and this reason renders unredacted in the UI
+            # (analyze warnings, clip descriptions). The full detail is logged.
+            log.warning("llama-server binary could not be resolved: %s", exc)
+            return False, "The local AI engine (llama-server) could not be started - reinstall yuu-clip, or set its path under Settings -> LLM scoring."
         return True, ""
 
     def chat(

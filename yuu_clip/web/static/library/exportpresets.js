@@ -1,5 +1,7 @@
 // Feature-map - Export preset (code: ExportPreset; Settings -> Export editor).
-//   API: routes/export_presets.py . Tests: tests/integration/test_export_presets.py, tests/ui/test_ui_settings.py
+//   API: routes/export_presets.py
+//   Tests: tests/integration/test_export_presets.py, tests/ui/test_ui_settings.py,
+//   tests/js/library/exportpresets.test.js
 // Export presets (Plan 07)
 // Custom presets are a global-config preference (Config.export_presets), not
 // per-project DB rows like hot-words - but the Settings editor follows the

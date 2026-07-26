@@ -19,6 +19,7 @@ from fastapi import HTTPException, Request
 from starlette.responses import Response, StreamingResponse
 
 from yuu_clip.log import get_logger
+from yuu_clip.pathsafety import is_within
 
 _log = get_logger(__name__)
 
@@ -119,7 +120,6 @@ def media_file_response(path: Path, request: Request, media_type: Optional[str] 
 def resolve_within(base_dir: Path, filename: str) -> Path:
     """Resolve *filename* under *base_dir*, rejecting path traversal."""
     target = (base_dir / filename).resolve()
-    base = base_dir.resolve()
-    if base != target and base not in target.parents:
+    if not is_within(target, base_dir.resolve()):
         raise HTTPException(404, "File not found")
     return target

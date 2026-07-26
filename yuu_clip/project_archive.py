@@ -31,16 +31,16 @@ import zipfile
 import zlib
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from importlib.metadata import PackageNotFoundError
-from importlib.metadata import version as _pkg_version
 from pathlib import Path
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from yuu_clip.appversion import app_version
 from yuu_clip.config import project_db_path
 from yuu_clip.db.models import Video, make_engine, make_session
 from yuu_clip.log import get_logger
+from yuu_clip.pathsafety import is_within
 
 _log = get_logger(__name__)
 
@@ -76,13 +76,6 @@ INCLUDED_SUBDIRS = frozenset({"sounds"})
 # (so project.db is self-contained), then skip these - they are regenerated on the
 # target and a stale copy alongside a checkpointed DB is only noise.
 _SQLITE_SIDECAR_SUFFIXES = ("-wal", "-shm", "-journal")
-
-
-def _app_version() -> str:
-    try:
-        return _pkg_version("yuu-clip")
-    except PackageNotFoundError:
-        return "unknown"
 
 
 def _checkpoint_wal(db_path: Path) -> None:
@@ -162,7 +155,7 @@ def build_backup(project_dir: Path, dest_path: Path | None = None) -> Path:
 
     manifest = {
         "schema_version": BACKUP_SCHEMA_VERSION,
-        "app_version": _app_version(),
+        "app_version": app_version(),
         "created_at": datetime.now(timezone.utc).isoformat(),
         "project_name": project_dir.name,
         "source_paths": _distinct_source_dirs(db_path),
@@ -351,7 +344,7 @@ def _reject_unsafe_member(name: str, target_dir: Path, target_root: Path) -> Non
     already strips ``..`` and drive letters, so this is defense in depth - but a hostile
     member should fail the whole restore loudly, not be silently rewritten and dropped."""
     dest = (target_dir / name).resolve()
-    if dest != target_root and target_root not in dest.parents:
+    if not is_within(dest, target_root):
         _log.error(
             "Backup restore rejected unsafe member %r - resolves to %s, outside target %s",
             name, dest, target_root,
