@@ -733,9 +733,9 @@ class LLMScorer:
         from yuu_clip.config import resolve_ai_permissions
 
         if not self._config.llm_enabled:
-            return False
+            return self._mark_off_once("LLM scoring is off this run: disabled in Settings -> LLM scoring")
         if not resolve_ai_permissions(self._config).allow_llm:
-            return False
+            return self._mark_off_once(f"LLM scoring is off this run: {_GENERATIVE_OFF_REASON}")
         if self._available is not None:
             return self._available
         ok, reason = self._client.available()
@@ -743,6 +743,15 @@ class LLMScorer:
             log.warning("LLM scoring disabled: %s", reason)
         self._available = ok
         return ok
+
+    def _mark_off_once(self, message: str) -> bool:
+        # INFO, not WARNING, and worded distinctly from the backend-failure branch
+        # above: a deliberate config/privacy choice is not a failure, but a silent
+        # "no LLM scores" in the log is indistinguishable from one without this line.
+        if self._available is None:
+            log.info(message)
+            self._available = False
+        return False
 
     def score(self, clip: "ClipCandidate", session: "Session") -> ScoreResult:
         vision_summary = clip.vision_summary or ""

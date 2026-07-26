@@ -106,6 +106,87 @@ class TestLLMScorerIsAvailable:
             scorer.is_available()
         assert call_count == 1
 
+    def test_privacy_mode_turned_off_after_construction_is_reflected_live(self, tmp_path):
+        """is_available() re-reads ai_privacy_mode on every call (unlike the cached
+        backend probe below it), so flipping the setting mid-session takes effect on
+        the very next call - even though a prior call already cached _available=True."""
+        import unittest.mock as mock
+        gguf = tmp_path / "model.gguf"
+        gguf.write_bytes(b"fake")
+        scorer = self._scorer(
+            llm_backend="llamacpp", llm_model_path=str(gguf), ai_privacy_mode="local_only",
+        )
+        with mock.patch(
+            "yuu_clip.scoring.llamacpp_server.resolve_server_binary",
+            return_value="llama-server",
+        ):
+            assert scorer.is_available() is True
+        scorer._config.ai_privacy_mode = "none"
+        assert scorer.is_available() is False
+
+
+class TestLLMScorerAvailabilityLogging:
+    """The privacy/disabled-off branches must be distinguishable in the log from a
+    genuine backend failure - INFO wording naming the deliberate cause vs the
+    existing WARNING for a real unavailability reason."""
+
+    def _make_config(self, **overrides):
+        from yuu_clip.config import Config
+        cfg = Config()
+        for k, v in overrides.items():
+            setattr(cfg, k, v)
+        return cfg
+
+    def test_llm_disabled_logs_info_not_warning(self, caplog):
+        import logging
+
+        from yuu_clip.scoring.llm import LLMScorer
+        scorer = LLMScorer(self._make_config(llm_enabled=False))
+        with caplog.at_level(logging.INFO, logger="yuu_clip.scoring.llm"):
+            scorer.is_available()
+        records = [r for r in caplog.records if r.name == "yuu_clip.scoring.llm"]
+        assert len(records) == 1
+        assert records[0].levelno == logging.INFO
+        assert "disabled in Settings" in records[0].getMessage()
+
+    def test_privacy_mode_off_logs_info_naming_privacy(self, caplog):
+        import logging
+
+        from yuu_clip.scoring.llm import LLMScorer
+        scorer = LLMScorer(self._make_config(llm_backend="llamacpp", ai_privacy_mode="none"))
+        with caplog.at_level(logging.INFO, logger="yuu_clip.scoring.llm"):
+            scorer.is_available()
+        records = [r for r in caplog.records if r.name == "yuu_clip.scoring.llm"]
+        assert len(records) == 1
+        assert records[0].levelno == logging.INFO
+        assert "Generative AI is turned off" in records[0].getMessage()
+
+    def test_off_reason_logged_only_once_across_repeated_calls(self, caplog):
+        import logging
+
+        from yuu_clip.scoring.llm import LLMScorer
+        scorer = LLMScorer(self._make_config(llm_enabled=False))
+        with caplog.at_level(logging.INFO, logger="yuu_clip.scoring.llm"):
+            scorer.is_available()
+            scorer.is_available()
+            scorer.is_available()
+        records = [r for r in caplog.records if r.name == "yuu_clip.scoring.llm"]
+        assert len(records) == 1
+
+    def test_backend_failure_still_logs_warning_not_info(self, caplog, tmp_path):
+        import logging
+
+        from yuu_clip.scoring.llm import LLMScorer
+        scorer = LLMScorer(self._make_config(
+            llm_backend="llamacpp", llm_model_path=str(tmp_path / "nonexistent.gguf"),
+        ))
+        with caplog.at_level(logging.INFO, logger="yuu_clip.scoring.llm"):
+            scorer.is_available()
+        records = [r for r in caplog.records if r.name == "yuu_clip.scoring.llm"]
+        assert len(records) == 1
+        assert records[0].levelno == logging.WARNING
+        assert "LLM scoring disabled:" in records[0].getMessage()
+
 # ---------------------------------------------------------------------------
 # LLMScorer - _parse() score clamping
 # ---------------------------------------------------------------------------
@@ -286,6 +367,40 @@ class TestLLMScorerScore:
         clip = self._make_clip(excerpt="text")
         result = scorer.score(clip, None)
         assert result.notes.get("model") == "/models/qwen2.5.gguf"
+
+
+class TestLLMScorerScoreUnderDisabledClient:
+    """Defense-in-depth chain: when make_client() hands the scorer a real
+    NullLLMClient (llm_enabled False, or generative AI off), score() must catch the
+    client's RuntimeError and degrade to llm_error - not raise, and not rely on a
+    mocked _call_llm the way TestLLMScorerScore's error-path tests do."""
+
+    def _clip(self, excerpt="some transcript text"):
+        import unittest.mock as mock
+        clip = mock.MagicMock()
+        clip.id = 1
+        clip.transcript_excerpt = excerpt
+        clip.vision_summary = ""
+        return clip
+
+    def test_llm_disabled_scorer_gets_a_null_client_and_degrades_gracefully(self):
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.llm import LLMScorer
+        from yuu_clip.scoring.llm_client import NullLLMClient
+        scorer = LLMScorer(Config(llm_enabled=False))
+        assert isinstance(scorer._client, NullLLMClient)
+        result = scorer.score(self._clip(), None)
+        assert result.tags == ["llm_error"]
+        assert result.score_funny is None
+
+    def test_generative_ai_off_scorer_gets_a_null_client_and_degrades_gracefully(self):
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.llm import LLMScorer
+        from yuu_clip.scoring.llm_client import NullLLMClient
+        scorer = LLMScorer(Config(llm_enabled=True, ai_privacy_mode="none"))
+        assert isinstance(scorer._client, NullLLMClient)
+        result = scorer.score(self._clip(), None)
+        assert result.tags == ["llm_error"]
 
 # ---------------------------------------------------------------------------
 # Coverage gaps - pure-function and edge-case paths
@@ -563,6 +678,99 @@ class TestSummarizeTranscript:
         assert title == ""
         assert summary == ""
 
+    def test_non_dict_response_raises_attribute_error(self):
+        """Pins a known gap (unlike find_related_clips/request_scene_boundaries,
+        which validate isinstance(..., list) before use): summarize_transcript
+        calls .get() on the parsed reply with no isinstance(dict) guard, so a model
+        that replies with a JSON array degrades to a raw AttributeError instead of
+        a clean, actionable error."""
+        import json
+        import unittest.mock as mock
+
+        import pytest
+
+        from yuu_clip.scoring.llm import summarize_transcript
+        with mock.patch("yuu_clip.scoring.llm._call_client", return_value=json.dumps([1, 2])):
+            with pytest.raises(AttributeError):
+                summarize_transcript("text", self._cfg())
+
+
+class TestSummarizeSession:
+    def _cfg(self):
+        from yuu_clip.config import Config
+        return Config()
+
+    def test_returns_title_and_summary(self):
+        import json
+        import unittest.mock as mock
+
+        from yuu_clip.scoring.llm import summarize_session
+        payload = json.dumps({"title": "Epic run", "summary": "Stuff happened."})
+        with mock.patch("yuu_clip.scoring.llm._call_client", return_value=payload):
+            title, summary = summarize_session(
+                [("Rec 1", "First summary"), ("Rec 2", "Second summary")], self._cfg(),
+            )
+        assert title == "Epic run"
+        assert summary == "Stuff happened."
+
+    def test_members_with_no_title_and_no_summary_are_skipped(self):
+        import json
+        import unittest.mock as mock
+
+        from yuu_clip.scoring.llm import summarize_session
+        captured = {}
+
+        def fake_call(messages, config, temperature=0.1, max_tokens=None):
+            captured["messages"] = messages
+            return json.dumps({"title": "T", "summary": "S"})
+        with mock.patch("yuu_clip.scoring.llm._call_client", side_effect=fake_call):
+            summarize_session([("Rec 1", "kept"), ("", "")], self._cfg())
+        user_content = captured["messages"][1]["content"]
+        assert "kept" in user_content
+        assert "Recording 2" not in user_content
+
+    def test_context_prepended_to_system(self):
+        import json
+        import unittest.mock as mock
+
+        from yuu_clip.scoring.llm import summarize_session
+        captured = {}
+
+        def fake_call(messages, config, temperature=0.1, max_tokens=None):
+            captured["messages"] = messages
+            return json.dumps({"title": "T", "summary": "S"})
+        with mock.patch("yuu_clip.scoring.llm._call_client", side_effect=fake_call):
+            summarize_session([("Rec", "s")], self._cfg(), context_text="WORLD CONTEXT")
+        assert captured["messages"][0]["content"].startswith("WORLD CONTEXT")
+
+    def test_truncates_blocks_to_12000_chars(self):
+        import json
+        import unittest.mock as mock
+
+        from yuu_clip.scoring.llm import summarize_session
+        long_summary = "x" * 20_000
+        captured = {}
+
+        def fake_call(messages, config, temperature=0.1, max_tokens=None):
+            captured["messages"] = messages
+            return json.dumps({"title": "T", "summary": "S"})
+        with mock.patch("yuu_clip.scoring.llm._call_client", side_effect=fake_call):
+            summarize_session([("Rec", long_summary)], self._cfg())
+        user_content = captured["messages"][1]["content"]
+        assert len(user_content) < 14_000
+
+    def test_non_dict_response_raises_attribute_error(self):
+        """Same known gap as summarize_transcript - no isinstance(dict) guard."""
+        import json
+        import unittest.mock as mock
+
+        import pytest
+
+        from yuu_clip.scoring.llm import summarize_session
+        with mock.patch("yuu_clip.scoring.llm._call_client", return_value=json.dumps([1, 2])):
+            with pytest.raises(AttributeError):
+                summarize_session([("Rec", "s")], self._cfg())
+
 # ---------------------------------------------------------------------------
 # _sample_transcript_for_speaker_names() - B13: a flat head-only [:12000] cut
 # never saw introductions later in a long recording (e.g. a press conference).
@@ -778,6 +986,22 @@ class TestFindRelatedClips:
         with mock.patch("yuu_clip.scoring.llm._call_client", return_value=json.dumps([])):
             result = find_related_clips("ref", [], self._cfg())
         assert result == []
+
+    def test_one_malformed_item_raises_instead_of_being_skipped(self):
+        """Pins current behavior: unlike request_scene_boundaries (which skips a
+        malformed item via try/except continue), find_related_clips has no such
+        guard - a single item missing "id" aborts the whole call with a raw
+        KeyError rather than returning the other, well-formed items."""
+        import json
+        import unittest.mock as mock
+
+        import pytest
+
+        from yuu_clip.scoring.llm import find_related_clips
+        payload = json.dumps([{"id": 7, "reason": "ok"}, {"reason": "missing id"}])
+        with mock.patch("yuu_clip.scoring.llm._call_client", return_value=payload):
+            with pytest.raises(KeyError):
+                find_related_clips("ref", [{"id": 7, "description": "d"}], self._cfg())
 
 
 class TestNullLLMClientVision:

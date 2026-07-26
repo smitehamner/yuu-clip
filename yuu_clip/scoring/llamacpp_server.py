@@ -359,7 +359,9 @@ class LlamaServerPool:
         url = f"{handle.base_url}/health"
         while time.time() < deadline:
             if not handle.is_alive():
-                self._raise_startup_error(handle, "exited during startup")
+                self._raise_startup_error(
+                    handle, f"exited during startup (exit code {handle.proc.poll()})"
+                )
             try:
                 with urllib.request.urlopen(url, timeout=3) as resp:
                     if json.load(resp).get("status") == "ok":
@@ -371,12 +373,13 @@ class LlamaServerPool:
             except (urllib.error.URLError, ConnectionError, OSError, json.JSONDecodeError):
                 time.sleep(_HEALTH_POLL_S)
         self._stop(handle)
-        self._raise_startup_error(handle, "did not become healthy in time")
+        self._raise_startup_error(handle, f"did not become healthy within {_HEALTH_TIMEOUT_S:.0f}s")
 
     def _raise_startup_error(self, handle: ServerHandle, reason: str) -> None:
         tail = "\n".join(list(handle.log_tail)[-15:])
         raise LlamaServerError(
-            f"The local AI engine (llama-server) {reason}. Last output:\n{tail}"
+            f"The local AI engine (llama-server) {reason} "
+            f"(model: {Path(handle.model_path).name}). Last output:\n{tail}"
         )
 
     def _post(self, handle: ServerHandle, payload: dict) -> dict:
@@ -385,7 +388,10 @@ class LlamaServerPool:
     def _stop(self, handle: ServerHandle) -> None:
         if not handle.is_alive():
             return
-        _log.info("Stopping llama-server (pid %s, port %d)", handle.proc.pid, handle.port)
+        _log.info(
+            "Stopping llama-server (pid %s, port %d, model=%s)",
+            handle.proc.pid, handle.port, Path(handle.model_path).name,
+        )
         handle.proc.terminate()
         try:
             handle.proc.wait(timeout=10)

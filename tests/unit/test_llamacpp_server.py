@@ -338,6 +338,32 @@ class TestWaitHealthy:
         assert "exited during startup" in message
         assert "failed to load model 'm.gguf'" in message  # the tail is surfaced
 
+    def test_process_exit_during_startup_includes_exit_code_and_model(self):
+        # A crash's exit code (e.g. distinguishing a clean config-error exit from an
+        # OOM-kill/segfault) and which model was attempted must be in the raised
+        # message - this IS the diagnostic a support request needs, not just the tail.
+        proc = FakeProc([])
+        proc.kill()  # sets a distinct returncode (-9) from terminate()'s 0
+        handle = _handle(proc)
+        with pytest.raises(LlamaServerError, match=r"exit code -9"):
+            LlamaServerPool()._wait_healthy(handle)
+
+    def test_timeout_message_includes_the_timeout_duration(self, monkeypatch):
+        ticks = {"n": 0}
+
+        def _fake_time():
+            ticks["n"] += 1
+            return 1000.0 if ticks["n"] == 1 else 1_000_000.0
+
+        monkeypatch.setattr(srv.time, "time", _fake_time)
+        monkeypatch.setattr(srv.time, "sleep", lambda _s: None)
+        monkeypatch.setattr(
+            srv.urllib.request, "urlopen",
+            lambda _url, timeout=3: (_ for _ in ()).throw(srv.urllib.error.URLError("refused")),
+        )
+        with pytest.raises(LlamaServerError, match=rf"within {int(srv._HEALTH_TIMEOUT_S)}s"):
+            LlamaServerPool()._wait_healthy(_handle(FakeProc([])))
+
     def test_timeout_stops_the_server_and_raises(self, monkeypatch):
         # First read establishes the deadline; every read after jumps past it so the
         # poll loop exits on its next check. A plain callable (not an exhausting
@@ -476,6 +502,22 @@ class TestPool:
         assert first.poll() is not None  # the text server was terminated
         assert ("text.gguf", "") not in pool._servers
         assert len(fake_spawn) == 2
+        pool.shutdown_all()
+
+    def test_new_key_stop_logs_which_model_was_evicted(self, fake_spawn, caplog):
+        # Model swaps (text <-> vision) evict the other server every call - the log
+        # must say which model got stopped, not just a bare pid/port, so "why did my
+        # vision model reload" is diagnosable without re-reading the source.
+        import logging
+
+        pool = LlamaServerPool()
+        pool.chat_completion(_cfg(), model_path="text.gguf", mmproj_path="",
+                             messages=[], temperature=0.1)
+        with caplog.at_level(logging.INFO, logger="yuu_clip.scoring.llamacpp_server"):
+            pool.chat_completion(_cfg(), model_path="vision.gguf", mmproj_path="mm.gguf",
+                                 messages=[], temperature=0.1)
+        stop_messages = [r.getMessage() for r in caplog.records if "Stopping llama-server" in r.getMessage()]
+        assert any("model=text.gguf" in message for message in stop_messages)
         pool.shutdown_all()
 
     def test_shutdown_terminates_all(self, fake_spawn):

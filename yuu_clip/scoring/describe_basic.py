@@ -97,8 +97,9 @@ def build_basic_description(clip: "ClipCandidate") -> tuple[str, str]:
     """Build a template ``(description, description_long)`` for *clip*.
 
     ``description_long`` is always empty - a paragraph is what an LLM adds. Returns
-    ``("", "")`` when the excerpt has no usable content and the clip isn't a
-    textless visual candidate (nothing worth showing)."""
+    ``("", "")`` when there is nothing to show: no transcript excerpt and the clip
+    isn't a textless visual candidate, or an excerpt that yields no speaker names,
+    keywords, or dimension strong enough to clear ``_DIMENSION_FLOOR``."""
     excerpt = (clip.transcript_excerpt or "").strip()
     if not excerpt:
         if "visual" in (clip.tags or []):

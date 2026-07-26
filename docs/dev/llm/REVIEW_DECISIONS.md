@@ -11,6 +11,271 @@ same thing without the context. Most recent first.
 
 ---
 
+## Phase 6 docs and comments - full-app review section 4, scoring - LLM backend (2026-07-26)
+
+Docs-and-comments phase over `scoring/{llm,llm_client,llamacpp_server,describe_basic}.py`.
+Grepped every `#` comment and docstring across the four files (~120 hits) before reading;
+the scope came in exemplary per Phases 1/4/5, and this pass agrees - one small accuracy
+fix, nothing to delete. Verified the three CLAUDE.md-flagged load-bearing comments below.
+
+### The `build_basic_description` docstring understated its own contract - fixed
+Was: "Returns `("", "")` when the excerpt has no usable content and the clip isn't a
+textless visual candidate." That describes only the first early-return
+(`describe_basic.py`, the `if not excerpt` branch). A second path falls through to the
+same `return "", ""` at the end of the function when the excerpt IS non-empty but yields
+no speaker names, no keywords, and no dimension clearing `_DIMENSION_FLOOR` - a real,
+reachable case (e.g. a short exchange between only anonymous "Speaker N" lines with
+sub-threshold scores). Reworded to cover both paths. Pure docstring accuracy fix, no
+behavior touched.
+
+### The three CLAUDE.md-flagged load-bearing comments - verified accurate, left untouched
+1. `llm_client.py`'s "Never surface the absolute path here" comment (on
+   `LlamaCppServerClient.available()`'s missing-model-file branch) - re-read against the
+   sibling `resolve_server_binary` branch three lines below it (which Phase 5 flagged as
+   NOT following the same path-redaction discipline, `str(exc)` verbatim). The comment
+   only describes the branch it sits on and makes no claim about the sibling - it is
+   still fully accurate as written. Per this phase's brief, left as-is rather than
+   strengthened to call out the gap: the gap itself is the open human-decision item from
+   Phase 5 (see that entry), and editing this comment to reference it would be
+   documenting a known bug into permanence rather than fixing it. Do not touch this
+   comment again until that finding is resolved one way or the other.
+2. `llamacpp_server.py:423-424`'s gpu-layers auto-fit comment ("gpu_layers == -1 means
+   auto-fit: omit the flag... forcing all layers can OOM a small card") - re-checked
+   against the guard it documents (`if gpu_layers >= 0: args += ["--n-gpu-layers", ...]`)
+   - still exactly matches the code. Untouched.
+3. Local-only/no-remote-backend architecture comments (`llm.py` module docstring: "All
+   inference is on-device - nothing the user records leaves their machine";
+   `llm_client.py` module docstring: "All inference runs locally - yuu-clip never sends
+   transcript data to any external service") - both still accurate; the `_BACKEND_CLIENTS`
+   registry has exactly one entry (`llamacpp`). Untouched.
+
+### `find_related_clips`'s docstring is NOT this phase's concern - deliberately left imprecise
+Noticed but did not touch: the docstring says only "Raises on LLM failure," while the
+function also raises (`KeyError`/`ValueError`) on a malformed candidate item (missing or
+non-integer `"id"`), unlike `request_scene_boundaries`'s sibling skip-bad-items loop.
+Sharpening the docstring to spell out that asymmetry was considered, but this is exactly
+the raise-vs-skip parse-robustness gap Phase 4 pinned as an open human-decision item
+(see that entry) - the brief for this section explicitly excludes it from every phase's
+scope, docs included, until the owner decides which behavior is correct. Do not fix the
+docstring as a shortcut around fixing (or explicitly keeping) the behavior.
+
+### `completion_text`'s one-line docstring is a literal restatement - kept anyway
+`llamacpp_server.py`'s `completion_text` docstring ("Pull the assistant message text out
+of a chat-completions response body.") says nothing the function name and its one-line
+body (`data["choices"][0]["message"]["content"]`) don't already say - a textbook Delete
+candidate under the governing rule. Left in place: it is a small, harmless outlier in a
+file where every other public (non-`_`-prefixed) function carries a docstring, and
+churning it for zero information gain is not worth a diff in a section this clean. Do
+not re-flag; a future pass may delete it in passing if editing this function anyway, but
+it does not warrant its own change.
+
+### Terminology sweep - clean
+Checked every UI-facing string this scope returns (`"Settings -> LLM scoring"` x8,
+`"Settings -> AI privacy"` x1 in `_GENERATIVE_OFF_REASON`) against `GLOSSARY.md` and the
+live `index.html`/`routes/llm.py` strings. "LLM scoring" matches the glossary term
+exactly. The lone `"Settings -> AI privacy"` (no "LLM scoring" prefix, no "mode" suffix)
+looked like a one-off drift at first read, but it exactly matches the literal
+`<label class="settings-label">AI privacy</label>` UI text (the AI-privacy radio group
+lives inside the LLM-scoring settings section, but is rendered as its own labeled
+control) and is used identically in `routes/llm.py:169` (out of scope, but confirms this
+is a deliberate app-wide phrase, not scope-local drift). Not a finding.
+
+---
+
+## Phase 5 logging - full-app review section 4, scoring - LLM backend (2026-07-26)
+
+Logging-coverage phase over `scoring/{llm,llm_client,llamacpp_server,describe_basic}.py`.
+Fixed a real gap (privacy-off vs genuine backend failure were indistinguishable in the
+log - see git history for `LLMScorer._mark_off_once` and the `_wait_healthy`/`_stop`
+exit-code, timeout-duration, and evicted-model additions in `llamacpp_server.py`). The
+items below are the deliberate-silence calls to anchor for a future pass.
+
+### `describe_basic.py` has zero logging - deliberate, not a gap
+Decision: keep this module log-free.
+Rationale: it is pure in-memory template assembly over data already on the `ClipCandidate`
+row (regex/dict lookups, no I/O, no external call, no exception path that isn't a
+programmer error). There is no failure mode a log line would make diagnosable that a
+stack trace from an uncaught `AttributeError` wouldn't already show. Do not re-flag
+"no logging" here as a gap.
+
+### `check_llm_available` / `check_vision_available` stay silent by design
+Decision: keep these two read-only pre-check functions (llm.py) logging nothing, per
+`check_llm_available`'s own docstring ("Return (available, reason) without logging").
+Rationale: they are called from routes (out of scope for this section) on cheap,
+frequent read paths (status polls, capability checks) purely to gate UI state - logging
+every call would be exactly the "info-level logs inside a poll loop" spam pattern this
+phase's own checklist warns against. The one-time-per-run WARNING (backend failure) /
+INFO (privacy/disabled) logging lives one layer down, in `LLMScorer.is_available()` and
+`LlamaCppServerClient.available()`'s callers, which run once per analyze/rescore rather
+than once per poll. Do not add logging to the two check_* functions themselves.
+
+### The GPU health-poll loop (`_wait_healthy`) is deliberately silent per-tick
+Decision: keep `_wait_healthy`'s `while` loop (llamacpp_server.py) logging nothing per
+poll iteration (every `_HEALTH_POLL_S` = 0.5s, for up to `_HEALTH_TIMEOUT_S` = 240s).
+Rationale: a per-tick log would be up to ~480 lines of pure noise for one model load;
+the loop already logs once on entry ("Starting llama-server: ...") and once on exit
+(success -> "ready (model loaded in %.1fs)"; failure -> the exit-code/timeout-duration
+error this phase added). That is the right altitude - do not add a per-poll log line.
+
+### Needs a human decision (not fixed this phase): `LlamaCppServerClient.available()`'s
+### binary-resolution failure reasons still leak the configured path into UI text
+Finding (not applied): `available()` catches `LlamaServerError` from
+`resolve_server_binary`/`_binary_in_bundle` and returns `str(exc)` verbatim as the UI-facing
+`reason` (llm_client.py `available()`, around the `resolve_server_binary` call). Those two
+exception messages interpolate the full configured/bundle path
+(`config.llamacpp_server_binary` or the `YUU_CLIP_LLAMA_SERVER_DIR` base), unlike the
+sibling branch three lines above it (missing model file) which deliberately keeps the path
+out of the UI-facing reason with an explicit "never surface the absolute path" comment. The
+log FILE itself is not at risk (the `_SanitizingFormatter` redacts the `\Users\<name>\`
+segment before any sink), but the same string is also returned straight through to routes
+(out of scope for this section) that render it in the UI, unredacted. Left as a flagged
+finding rather than fixed: the right fix (generic UI reason vs. keep the specific path for
+diagnosability) is a UX/privacy trade-off call, not a mechanical logging fix, and touches
+route-owned rendering this section's brief excludes. Promote-to-fix trigger: either genuinely
+fix, at whichever point routes/`llm_client.py` next get reviewed together.
+
+---
+
+## Phase 4 refactor - full-app review section 4, scoring - LLM backend (2026-07-26)
+
+Refactor-for-quality phase over `scoring/{llm,llm_client,llamacpp_server,
+describe_basic}.py` - the highest-scrutiny hard AI-backend seam (`LLMClient` ABC +
+`make_client` factory, keyed on `llm_backend`). Structural survey (function-length
+heat map, repeated-literal grep, a targeted concrete-backend-import grep) then full
+reads of all four files. **No code changes were warranted** - this scope is genuinely
+clean coming in (Phase 1 called it "exemplary, no bugs found"; Phase 2 traced the
+privacy trust boundary intact with 3 defense-in-depth layers; Phase 3 added 12 tests).
+Recorded per the close-out convention:
+
+### Seam integrity re-verified at the highest scrutiny level - no violation
+Decision: the `LLMClient` seam needs no structural change.
+Rationale: grepped `LlamaCppServerClient|NullLLMClient|LlamaServerPool(` in `llm.py`
+- zero hits; every client construction in `llm.py` (`_call_client`, `describe_frames`,
+`check_llm_available`, `LLMScorer.__init__`) goes through `make_client(config)`. No
+caller-side `if backend == ...` dispatch exists anywhere in scope - `_client_class_for`
++ `make_client` own the `_BACKEND_CLIENTS` lookup and the unknown-backend warn+fallback,
+and `make_client` is the single AI-privacy enforcement point. `available() -> (ok,
+reason)` is called through the interface (`make_client(config).available()` at
+`llm.py:682`, `self._client.available()` at `:741`), never duck-typed. This section
+does NOT reproduce the Section-2 DiarizationClient finding; the seam is exemplary.
+
+### The three read-side generative-AI pre-checks are deliberate defense-in-depth - NOT DRYed
+Decision: keep the `llm_enabled` + `allow_llm` gate duplicated across
+`check_llm_available` (llm.py:617-620), `check_vision_available` (:677-680, via the
+shared preamble), and `LLMScorer.is_available` (:735-737), each re-checking before it
+delegates to the seam's `available()`.
+Rationale: this is a privacy trust boundary (`resolve_ai_permissions`). The real
+enforcement point is `make_client` (returns `NullLLMClient` when generative AI is off);
+these three are independent read-side pre-checks that gate the UI/routes before a call,
+and each re-asserting the gate is the intentional layering Phase 2 verified as "3
+independent defense-in-depth layers". Extracting them into one shared helper would
+collapse independent checks on a trust boundary into a single point of failure - a case
+where the duplication is correct (duplicated *check*, not duplicated *knowledge* that
+can drift). Also explicitly out of bounds for a routine refactor per this section's
+brief ("do NOT touch the privacy-gate logic itself... flag as needs-human-decision").
+Do not re-flag as DRY.
+
+### The vision-availability pre-check inlines llamacpp path checks - kept, single-backend
+Decision: keep `check_vision_available` (llm.py:611-637) probing
+`llm_vision_model_path`/`llm_mmproj_path` existence inline (with its honest "Local
+llamacpp backend (the only backend)" comment) rather than delegating to a new
+`vision_available()` seam method, even though the sibling `check_llm_available`
+delegates its final probe to `make_client(config).available()`.
+Rationale: there is exactly one backend, and the vision-availability knowledge already
+lives behind the seam as the hard backstop (`LlamaCppServerClient.chat_vision` raises
+`VisionNotSupportedError` with the same model/mmproj checks; the "cheap pre-check + hard
+backstop" split is documented on `VisionNotSupportedError`). Adding a
+`vision_available() -> (bool, reason)` method to the `LLMClient` ABC + both
+implementations to remove the asymmetry would be an interface change to a hard seam
+serving one backend - speculative generality today ("an interface with one
+implementation is usually noise"), and a seam change the brief says to defer rather than
+guess on. Promote-to-seam trigger: a second LLM backend whose vision-availability
+semantics differ from llamacpp's two-file (model + mmproj) check. Until then, the
+inline single-backend pre-check is the right altitude. Do not re-flag as a seam leak.
+
+### `_DEFAULT_MAX_TOKENS = 1024` duplicated across llm_client.py and llamacpp_server.py - kept
+Decision: keep the completion-cap default defined in both `llm_client.py:21` (the ABC
+signature default) and `llamacpp_server.py:44` (the pool `chat_completion` default),
+each carrying a "matches the other" cross-reference comment.
+Rationale: both are live defaults on different layers (the client interface vs the
+server pool), and unifying them would force either a module-level
+`llm_client -> llamacpp_server` import (defeating llm_client's deliberate lazy import of
+the pool machinery) or the reverse coupling, to share a single int. The documented
+cross-reference is the lighter-weight choice; the value is a tunable both layers
+self-document, not a business rule that silently drifts. Below the rule-of-three (two
+occurrences). Do not re-flag as a magic-constant duplication without a third occurrence
+or a concrete drift bug.
+
+### The two known parse-robustness gaps remain human-decision items - not touched here
+Decision: `find_related_clips` (llm.py:441) raising on a malformed item (vs
+`request_scene_boundaries`'s skip-bad-items loop), and `summarize_transcript`/
+`describe_clip` lacking an `isinstance(dict)` guard on parsed JSON, are left as-is this
+phase.
+Rationale: these are behavior-contract questions (fail-loud vs skip-and-continue on a
+partially-bad model reply) flagged and pinned by Phase 3 tests as deliberate
+human-decision items on a correctness-adjacent module, not pure quality cleanups. A
+refactor pass must not silently change which inputs raise vs degrade. Applying
+`request_scene_boundaries`'s skip pattern to `find_related_clips` is defensible but
+changes the failure contract, so it stays a human call. Left for the owner to decide;
+do not "fix" under a refactor lens.
+
+---
+
+## Phase 1 test integrity - full-app review section 4, scoring - LLM backend (2026-07-26)
+
+Test-integrity phase over `scoring/{llm,llm_client,llamacpp_server,describe_basic}.py`
+and their tests (`tests/unit/test_{scoring_llm,llamacpp_server,privacy_modes,
+preflight_llm,describe_basic}.py`, `tests/integration/test_{llm,vision}.py`, plus the
+LLM-touching classes `TestScanHotwordsSemantic` in `test_hotwords.py` and
+`TestSceneScorerPromptSelection`/`TestSceneScorerSparseTranscript`/
+`TestSceneScorerJsonRobustness` in `test_scene_scoring.py`). Baseline was green
+(3370 passed) before and after - **no code or test changes were warranted**.
+
+Structural survey (grepped every class/function name across ~4867 lines of test code)
+then full reads of the two highest-risk files per the phase brief - `llm_client.py`
+(the privacy-mode enforcement choke-point) and `llamacpp_server.py` (the process pool,
+site of the documented `--n-gpu-layers` OOM landmine) - plus every test file in scope.
+
+### Privacy-mode enforcement tests are exemplary - the spy pattern is the right shape
+`test_privacy_modes.py::TestMakeClientEnforcement::test_none_never_constructs_any_client`
+patches `LlamaCppServerClient.__init__` with a spy that records construction, then
+asserts the spy list is empty under `ai_privacy_mode="none"` - this proves the untrusted
+path never even *instantiates* the real client, not just that some Null-typed object came
+back. This is the correct test shape for a trust boundary (construction-time proof, not a
+type-check that a mock could satisfy accidentally) and should be the template for any
+future privacy-gate test in this codebase.
+
+### The gpu-layers OOM landmine is directly and correctly pinned, not encoded as "correct"
+`test_llamacpp_server.py::TestBuildArgs::test_autofit_omits_gpu_layers_flag` asserts
+`gpu_layers=-1` (autofit) omits `--n-gpu-layers` entirely (with an inline comment naming
+"The critical spike lesson"); `test_cpu_passes_zero_layers_and_no_device` pins `0` for
+CPU; `test_forced_layer_count_is_passed` uses an arbitrary `20`, never `99`. Cross-checked
+`llamacpp_server.py:313-320` directly (not just via the tests) - no hardcoded `99` or
+forced-max-layers path exists in the source either. Nothing to fix; recorded so a future
+pass doesn't need to re-derive this from scratch.
+
+### Concurrency tests use real threads + `Event.wait(timeout)`, not sleep-based polling - correct pattern
+`TestPool::test_shutdown_not_blocked_during_health_wait` and
+`test_inflight_request_not_killed_by_concurrent_new_key` spin real `threading.Thread`s
+against a monkeypatched blocking call and synchronize via `threading.Event` with a
+generous (2-3s) timeout, never a bare `sleep()` race. This is the durable-synchronization
+pattern the test-integrity checklist asks for, already in place - not a finding.
+
+### No vestigial remote/hosted-backend references anywhere in scope
+Grepped `anthropic|Claude|remote_ai|remote_ok` (case-insensitive) across
+`llm.py`/`llm_client.py`/`test_scoring_llm.py`/`test_privacy_modes.py`: zero hits. The
+Claude/Anthropic backend removal (2026-07-15) left no dead code or stale test fixture in
+this section for a future pass to trip over.
+
+### Minor stylistic nit, not fixed (below the bar for a code change)
+`test_scoring_llm.py::TestCallLlmJson::test_max_tokens_threaded_to_client` asserts
+`call.call_args.args[3] == 2048` (positional-index into `_call_client`'s 4th arg) rather
+than a kwarg-based assertion. It tests real behavior (max_tokens actually reaches the
+client call), not a tautology, so it was left as-is - flagged here only so a future pass
+doesn't need to re-derive that it was considered and intentionally left alone.
+
+---
+
 ## Phase 6 docs and comments - full-app review section 3, scoring (2026-07-26)
 
 Docs-and-comments phase over the same 17 files as the Phase 4 refactor entry below
