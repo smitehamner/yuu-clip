@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from yuu_clip.dev import (  # noqa: E402,F401  (registers commands)
     bundle,
+    chaos,
     deps,
     fixture,
     helpdocs,
