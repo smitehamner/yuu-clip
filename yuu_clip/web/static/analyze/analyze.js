@@ -434,7 +434,8 @@ async function runEstimate() {
         model:             document.getElementById('analyze-model').value,
         audio_tracks:      extractTracks,
         transcribe_tracks: usingExternalCaptions ? 0 : transcribeTracks,
-        has_gpu:           true,
+        // has_gpu omitted: the server resolves the effective device (GPU present +
+        // CUDA libs + not pinned to CPU). Hardcoding true mislabeled CPU-only runs.
         scene_mode:        document.getElementById('analyze-scene-mode').value,
         energy_mode:       document.getElementById('analyze-energy-mode').value,
         diarize:           !!document.getElementById('analyze-diarize')?.checked,
@@ -475,6 +476,11 @@ export function _estimateBodyHTML(data) {
   const sourceLine = `<div class="estimate-source">${
     data.source === 'measured' ? 'Based on your last runs on this model/device' : 'Rough estimate - no matching past runs yet'
   }</div>`;
+  // Set expectations up front on a CPU-only machine: transcription there is far
+  // slower than with a GPU, and the first run has no measured rate to lean on.
+  const cpuNote = data.transcribe_on_cpu
+    ? `<div class="estimate-cpu-note">Transcription runs on CPU (no GPU acceleration) - much slower than with a GPU.</div>`
+    : '';
   const longRunWarning = data.long_run_warning ? `
     <div class="long-run-warning">
       <span aria-hidden="true">&#9888;</span>
@@ -495,6 +501,7 @@ export function _estimateBodyHTML(data) {
       </div>
       ${pctLine}
       ${sourceLine}
+      ${cpuNote}
       ${longRunWarning}`;
 }
 

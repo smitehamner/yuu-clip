@@ -10,7 +10,7 @@ vi.mock('../../../yuu_clip/web/static/core/jobs.js', () => ({ _openSSE: vi.fn() 
 import { _openSSE } from '../../../yuu_clip/web/static/core/jobs.js';
 import {
   _isPipElement, releaseVideoRespectingPip, deferPlayerRebuildForPip, _buildMediaUrl,
-  _buildRecordingProxy,
+  _buildRecordingProxy, setupRecordingPreview,
 } from '../../../yuu_clip/web/static/core/preview.js';
 
 afterEach(() => { delete window.electronAPI; });
@@ -190,5 +190,42 @@ describe('_buildRecordingProxy', () => {
     await onDone();
 
     expect(badge.classList.contains('preview-badge-proxy')).toBe(true);
+  });
+});
+
+// chaos-test finding 2026-07-26: attaching a captions <track> unconditionally
+// made the player fetch /captions.vtt (and log a console 404) for any recording
+// with no transcribed dialogue - has_transcript gates it, matching how clip
+// players already gate on media.has_captions.
+describe('setupRecordingPreview captions track', () => {
+  const stubProxyStatusFetch = () => vi.stubGlobal('fetch', vi.fn(() =>
+    Promise.resolve({ ok: true, json: async () => ({ available: false }) })));
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('attaches no captions track when the recording has no transcript', () => {
+    stubProxyStatusFetch();
+    const vid = document.createElement('video');
+    setupRecordingPreview(vid, document.createElement('div'), 7, { hasTranscript: false });
+    expect(vid.querySelector('track[data-captions-track]')).toBeNull();
+  });
+
+  it('attaches a captions track pointed at the video when it has a transcript', () => {
+    stubProxyStatusFetch();
+    const vid = document.createElement('video');
+    setupRecordingPreview(vid, document.createElement('div'), 7, { hasTranscript: true });
+    const track = vid.querySelector('track[data-captions-track]');
+    expect(track).not.toBeNull();
+    expect(track.src).toContain('/api/videos/7/captions.vtt');
+  });
+
+  it('clears a stale track from a previous recording when the new one has no transcript', () => {
+    stubProxyStatusFetch();
+    const vid = document.createElement('video');
+    setupRecordingPreview(vid, document.createElement('div'), 7, { hasTranscript: true });
+    expect(vid.querySelector('track[data-captions-track]')).not.toBeNull();
+
+    setupRecordingPreview(vid, document.createElement('div'), 9, { hasTranscript: false });
+    expect(vid.querySelector('track[data-captions-track]')).toBeNull();
   });
 });

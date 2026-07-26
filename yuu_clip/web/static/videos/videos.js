@@ -549,6 +549,7 @@ function renderVideoDetail(video, savedTimeline) {
           startS: video.segment_start_s,
           endS: video.segment_end_s,
           sourcePath: video.source_path,
+          hasTranscript: video.has_transcript,
         },
       );
     }
@@ -607,12 +608,12 @@ function renderVideoDetail(video, savedTimeline) {
                   data-act="open-clip-create-picker" data-video-id="${video.id}">Create clip</button>
         </span>` }) : ''}
 
-    ${collapsibleCard('video-timeline',
+    ${(video.clip_count > 0 || video.status === 'done') ? collapsibleCard('video-timeline',
         `<span class="detail-card-title">Session Timeline</span>`, `
       <div id="timeline-section">
         ${timelineSectionBody}
       </div>`,
-      { actions: `<button class="btn ghost" id="btn-generate-timeline" data-act="generate-timeline" data-video-id="${video.id}">${video.has_timeline ? 'Regenerate Timeline' : 'Generate Timeline'}</button>` })}`;
+      { actions: `<button class="btn ghost" id="btn-generate-timeline" data-act="generate-timeline" data-video-id="${video.id}">${video.has_timeline ? 'Regenerate Timeline' : 'Generate Timeline'}</button>` }) : ''}`;
 
   loadSpeakers(video.id);
   reloadVideoTranscriptIfOpen(video.id);
@@ -622,8 +623,9 @@ function renderVideoDetail(video, savedTimeline) {
     fetch(`/api/videos/${video.id}`)
       .then(r => r.json())
       .then(v => {
-        if (v.timeline && v.timeline.length) {
-          document.getElementById('timeline-section').innerHTML = _renderTimelineHTML(v.timeline);
+        const section = document.getElementById('timeline-section');
+        if (section && v.timeline && v.timeline.length) {
+          section.innerHTML = _renderTimelineHTML(v.timeline);
         }
       })
       .catch(() => {});

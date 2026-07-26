@@ -25,7 +25,7 @@ import {
   parseProgress, _driveStepFromMarker,
   _setActiveStream, _clearActiveStream, _supersedeActiveStream, _blockedByAnalyze,
   RESCORE_JOB_STEPS, REDESCRIBE_JOB_STEPS, HOTWORD_SCAN_STEPS, SUMMARY_JOB_STEPS,
-  SPEAKER_NAMES_STEPS, FIND_SIMILAR_STEPS, TIMELINE_JOB_STEPS, setJobProgress,
+  SPEAKER_NAMES_STEPS, FIND_SIMILAR_STEPS, TIMELINE_JOB_STEPS, BATCH_EXPORT_STEPS, setJobProgress,
   setJobCancel, cancelJob, streamSSE,
 } from '../../../yuu_clip/web/static/core/jobs.js';
 import { registerRefreshHooks, _resetRefreshHooks } from '../../../yuu_clip/web/static/core/refreshhooks.js';
@@ -220,6 +220,31 @@ describe('in-process job step defs', () => {
     startJobUI(FIND_SIMILAR_STEPS, 'Finding similar clips');
     updateJobUI('[Searching 12 clips for similar moments…]');
     expect(stepClass(0)).toContain('active');
+  });
+
+  it('BATCH_EXPORT_STEPS parses "[i/total]" from the real server per-clip lines', () => {
+    startJobUI(BATCH_EXPORT_STEPS, 'Batch Export');
+    // Mirrors export.py's exact log line formats.
+    updateJobUI('Exporting clip 42 [3/12]...');
+    expect(stepClass(0)).toContain('active');
+    expect(document.getElementById('step-0').textContent).toContain('3/12 (25%)');
+    updateJobUI('Skipping clip 43 (already exported) [4/12]');
+    expect(document.getElementById('step-0').textContent).toContain('4/12 (33%)');
+  });
+
+  it('Score step shows the model-load wait message until the first count lands', () => {
+    startJobUI(INGEST_STEPS, 'Analyze');
+    // Advance to the Score stage, then the backend's "Preparing the scoring model" line.
+    updateJobUI('  Scoring clips...');
+    updateJobUI('  Preparing the scoring model...');
+    const scoreIdx = INGEST_STEPS.findIndex(s => s.stage === 'score');
+    expect(document.getElementById(`step-${scoreIdx}`).textContent)
+      .toContain('loading the scoring model into memory');
+    // The first real count clears the wait.
+    updateJobUI('  Scoring 1/5...');
+    const label = document.getElementById(`step-${scoreIdx}`).textContent;
+    expect(label).toContain('1/5 (20%)');
+    expect(label).not.toContain('loading the scoring model');
   });
 
   it('setJobProgress drives the timeline pill from a client-computed count', () => {

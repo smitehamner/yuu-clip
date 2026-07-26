@@ -83,8 +83,9 @@ export function _buildMediaUrl(videoId, kind, absPath) {
 // videoEl may be a persistent element reused across recordings (Split Editor,
 // Export preset editor), so a stale track from a previous recording must be
 // cleared before adding the current one's.
-function _setRecordingCaptionsTrack(videoEl, videoId) {
+function _setRecordingCaptionsTrack(videoEl, videoId, hasTranscript) {
   videoEl.querySelectorAll('track[data-captions-track]').forEach(t => t.remove());
+  if (!hasTranscript) return;
   const track = document.createElement('track');
   track.kind = 'captions';
   track.label = 'Captions';
@@ -94,9 +95,9 @@ function _setRecordingCaptionsTrack(videoEl, videoId) {
   videoEl.appendChild(track);
 }
 
-export function setupRecordingPreview(videoEl, badgeEl, videoId, { autoBuild = false, isCurrent = () => true, startS = null, endS = null, sourcePath = null } = {}) {
+export function setupRecordingPreview(videoEl, badgeEl, videoId, { autoBuild = false, isCurrent = () => true, startS = null, endS = null, sourcePath = null, hasTranscript = false } = {}) {
   videoEl.src = _buildMediaUrl(videoId, 'source', sourcePath);
-  _setRecordingCaptionsTrack(videoEl, videoId);
+  _setRecordingCaptionsTrack(videoEl, videoId, hasTranscript);
   if (startS != null) {
     videoEl.addEventListener('loadedmetadata', () => { try { videoEl.currentTime = startS; } catch (_) {} }, { once: true });
   }

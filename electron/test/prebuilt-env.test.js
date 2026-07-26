@@ -2,7 +2,7 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { rewritePyvenvCfg, decidePrebuiltEnvAction } = require('../prebuilt-env');
+const { rewritePyvenvCfg, decidePrebuiltEnvAction, extrasToRestoreAfterExtract } = require('../prebuilt-env');
 
 // A real pyvenv.cfg captured from `build\python-runtime\python.exe -m venv` (the
 // bundled python-build-standalone 3.12.13 runtime), 2026-07-10. The runtime writes
@@ -84,4 +84,12 @@ test('no archive (dev/unpackaged) -> pip fallback', () => {
   assert.equal(decidePrebuiltEnvAction({
     envArchivePresent: false, installedVersion: null, bundledVersion: null, venvExists: false,
   }), 'pip-fallback');
+});
+
+test('cuda-libs present before an upgrade wipe -> reinstall it after extract', () => {
+  assert.deepEqual(extrasToRestoreAfterExtract({ hadCudaLibs: true }), ['cuda-libs']);
+});
+
+test('no cuda-libs before the wipe -> nothing to restore', () => {
+  assert.deepEqual(extrasToRestoreAfterExtract({ hadCudaLibs: false }), []);
 });

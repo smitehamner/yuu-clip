@@ -10,7 +10,7 @@ const { Readable } = require('stream');
 const { parseNvidiaVramMB, selectGPU } = require('./gpu-detect');
 const { resolveBundledFfmpegDir } = require('./ffmpeg-detect');
 const { buildWheelInstallArgs, buildOpencvDedupeArgs } = require('./venv-setup');
-const { rewritePyvenvCfg, decidePrebuiltEnvAction } = require('./prebuilt-env');
+const { rewritePyvenvCfg, decidePrebuiltEnvAction, extrasToRestoreAfterExtract } = require('./prebuilt-env');
 const { parsePipRawProgress } = require('./pip-progress');
 const { describeInstallFailure, describeDownloadFailure } = require('./install-error');
 const diskSpace = require('./disk-space');
@@ -891,7 +891,8 @@ async function runPrebuiltEnvSetup(envArchive, bundledVersion) {
     "Unpacking the analysis engine - just a moment. The first time can take a little longer while your antivirus scans the new files. Please don't close this window.");
   const progress = (id, state) => { try { setupWin.webContents.send('venv:progress', { id, state }); } catch (_) {} };
   try {
-    await extractPrebuiltEnv(envArchive, bundledVersion, progress);
+    const extractResult = await extractPrebuiltEnv(envArchive, bundledVersion, progress);
+    await restoreVenvExtrasAfterExtract(setupWin, extractResult);
   } catch (err) {
     const detail = [err.stderr, err.stdout].filter(Boolean).join('\n');
     logSetup(`Prebuilt env setup failed: ${err.message}${detail ? '\n' + detail : ''}`);
@@ -912,6 +913,13 @@ async function runPrebuiltEnvSetup(envArchive, bundledVersion) {
 async function extractPrebuiltEnv(envArchive, bundledVersion, progress) {
   progress('s0', 'active');
   logSetup(`Unpacking prebuilt env from ${envArchive}`);
+  // The re-extract below wipes the whole venv, including opt-in extras the user
+  // pip-installed into it (cuda-libs for GPU-accelerated Whisper). Probe them here,
+  // while the OLD venv still exists, so the caller can reinstall them into the fresh
+  // one - otherwise every upgrade silently drops GPU acceleration (found 2026-07-25).
+  const hadCudaLibs = fs.existsSync(VENV_PYTHON)
+    ? await checkVenvModule(WIZARD_INSTALLABLE['cuda-libs'].importName)
+    : false;
   const incoming = VENV_DIR + '.incoming';
   if (fs.existsSync(VENV_DIR)) fs.rmSync(VENV_DIR, { recursive: true, force: true });
   if (fs.existsSync(incoming)) fs.rmSync(incoming, { recursive: true, force: true });
@@ -923,7 +931,37 @@ async function extractPrebuiltEnv(envArchive, bundledVersion, progress) {
   fs.rmSync(incoming, { recursive: true, force: true });
   if (bundledVersion) fs.writeFileSync(WHEEL_MARKER, bundledVersion);
   progress('s0', 'done');
-  logSetup('Prebuilt env unpacked and relocated');
+  logSetup(`Prebuilt env unpacked and relocated (cuda-libs present before wipe: ${hadCudaLibs})`);
+  return { hadCudaLibs };
+}
+
+// After the upgrade re-extract wipes the venv, restore the user's opt-in GPU
+// acceleration (cuda-libs) so they don't silently drop to CPU transcription. Failure
+// is non-fatal: the Settings/Analyze "Setup Warnings" chip already detects a missing
+// cuda-libs and offers a one-click reinstall, so a network error just falls back to
+// today's behavior rather than blocking launch - consistent with the offline handling
+// the packaged-app verification checklist expects.
+async function restoreVenvExtrasAfterExtract(setupWin, { hadCudaLibs }) {
+  const slugs = extrasToRestoreAfterExtract({ hadCudaLibs });
+  if (slugs.length === 0) return;
+  const sendStatus = (text) => {
+    try { setupWin.webContents.send('venv:status', { text }); } catch (_) {}
+  };
+  const lineHandler = makePipLineHandler(setupWin);
+  for (const slug of slugs) {
+    const spec = WIZARD_INSTALLABLE[slug];
+    if (!spec) continue;
+    sendStatus('Restoring GPU acceleration for transcription...');
+    logSetup(`Restoring opt-in venv extra after upgrade: ${slug}`);
+    try {
+      await runCmd(VENV_PIP, ['install', '--progress-bar', 'raw', ...spec.packages], lineHandler);
+      logSetup(`Restored venv extra after upgrade: ${slug}`);
+    } catch (err) {
+      const detail = [err.stderr, err.stdout].filter(Boolean).join('\n');
+      const tail = detail.split(/\r?\n/).filter(Boolean).slice(-3).join('\n');
+      logSetup(`Restore of ${slug} failed (non-fatal - Setup Warnings chip will catch it): ${err.message}${tail ? '\n' + tail : ''}`);
+    }
+  }
 }
 
 function relocateExtractedVenv(venvPath) {
@@ -1371,6 +1409,28 @@ function buildMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
+// Windows' `pyProc.kill()` is a bare TerminateProcess on the python PID only - it does
+// NOT reap python's own children (an ffmpeg mid-encode, e.g. during "Preparing preview"),
+// which then orphan and keep running after the app quits (VM finding 2026-07-25). Kill the
+// whole tree by PID with `taskkill /T`, mirroring sse.py's `_run_taskkill`. Synchronous
+// (execFileSync) so it is safe to call from the process 'exit' handler, which cannot await.
+// On non-Windows the child was spawned with start_new_session, so a normal kill suffices.
+function killBackendTree() {
+  if (!pyProc) return;
+  const pid = pyProc.pid;
+  try {
+    if (process.platform === 'win32' && pid) {
+      execFileSync('taskkill', ['/F', '/T', '/PID', String(pid)], { stdio: 'ignore' });
+    } else {
+      pyProc.kill();
+    }
+  } catch (_) {
+    // taskkill exits non-zero if the tree is already gone - fall back to a plain kill.
+    try { pyProc.kill(); } catch (_) {}
+  }
+  pyProc = null;
+}
+
 async function handleClose() {
   let anyRunning = false;
   try {
@@ -1399,7 +1459,7 @@ async function handleClose() {
 
   logSetup(`Main window closed - shutting down (analysis was running: ${anyRunning})`);
   isQuitting = true;
-  if (pyProc) { pyProc.kill(); pyProc = null; }
+  killBackendTree();
   mainWindow = null;
   app.quit();
 }
@@ -1477,21 +1537,21 @@ app.on('window-all-closed', () => {
   if (!startupComplete) return;
   logSetup('All windows closed - shutting down');
   isQuitting = true;  // keep the backend exit handler from racing a "stopped unexpectedly" dialog
-  if (pyProc) { pyProc.kill(); pyProc = null; }
+  killBackendTree();
   app.quit();
 });
 
 // Kill the backend on any process exit - covers crashes, SIGTERM, and
 // Task Manager kills that bypass the normal close flow.
 process.on('exit', () => {
-  if (pyProc) try { pyProc.kill(); } catch (_) {}
+  killBackendTree();
 });
 
 // Log uncaught main-process exceptions and shut down cleanly instead of
 // leaving the Python backend orphaned.
 process.on('uncaughtException', err => {
   logSetup(`Uncaught exception: ${err.stack || err.message}`);
-  if (pyProc) try { pyProc.kill(); } catch (_) {}
+  killBackendTree();
   app.quit();
 });
 

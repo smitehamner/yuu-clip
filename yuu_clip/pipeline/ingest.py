@@ -393,6 +393,13 @@ def _import_subtitles(subtitle_source: str, video_path: Path, track_objs, sessio
     if target_track is None:
         return []
 
+    # A re-imported yuu-clip SRT carries a baked-in [Speaker]/track-label prefix that a
+    # fresh diarization render would double. Strip the generic "Speaker N" and this
+    # track's label prefixes here (both known without diarization); a re-attributed
+    # NAMED speaker's prefix is stripped later in speaker_attach once its name is known.
+    from yuu_clip.subtitles import strip_baked_speaker_prefix, track_label_display
+    track_display = track_label_display(target_track.label)
+
     # completed_at: an imported SRT is whole the moment it parses. Without it the next
     # analyze run would read this as an unfinished transcript and re-transcribe over it.
     tr = Transcript(
@@ -403,7 +410,8 @@ def _import_subtitles(subtitle_source: str, video_path: Path, track_objs, sessio
     session.flush()
     for start_ms, end_ms, text in parsed:
         seg = TranscriptSegment(
-            transcript_id=tr.id, start_ms=start_ms, end_ms=end_ms, text=text,
+            transcript_id=tr.id, start_ms=start_ms, end_ms=end_ms,
+            text=strip_baked_speaker_prefix(text, [track_display]),
         )
         session.add(seg)
     video.status = "transcribing"
@@ -646,24 +654,34 @@ def _transcribe_and_check_overlap(
         console.print("Waiting for the speech-to-text model to finish downloading...")
     transcripts = []
     total_tracks = len(track_objs)
+    # Progress counts the tracks actually routed to transcription (per the track
+    # layout), not the physical track count - a 6-track recording that transcribes
+    # only 1 must read "1/1", never a misleading "1/6". The "Track N/N" form is kept
+    # ONLY on the transcribed-track lines (so the pill's prose fallback matches the
+    # marker); skip lines use "Track N of M" so they don't feed the "N/M" progress
+    # regex with physical counts.
+    transcribe_total = sum(1 for track in track_objs if track.do_transcribe)
+    transcribe_done = 0
     for idx, track in enumerate(track_objs, 1):
         if not track.do_transcribe:
             console.print(
-                f"  [dim]  Track {idx}/{total_tracks} [{track.label}] - skipped (not marked for transcription)[/dim]"
+                f"  [dim]  Track {idx} of {total_tracks} [{track.label}] - skipped (not marked for transcription)[/dim]"
             )
             continue
         if not track.extracted_path:
-            console.print(f"  [yellow]  Track {idx}/{total_tracks} - no extracted audio, skipping[/yellow]")
+            console.print(f"  [yellow]  Track {idx} of {total_tracks} - no extracted audio, skipping[/yellow]")
             continue
 
+        transcribe_done += 1
         reusable = _reusable_track_transcript(session, track, force)
         if reusable is not None:
-            console.print(f"  [dim]  Track {idx}/{total_tracks} already transcribed[/dim]")
+            console.print(f"  [dim]  Track {transcribe_done}/{transcribe_total} already transcribed[/dim]")
+            emit_progress(Stage.TRANSCRIBE, done=transcribe_done, total=transcribe_total)
             transcripts.append(reusable)
             continue
 
-        console.print(f"  [dim]  Track {idx}/{total_tracks} [{track.label}]...[/dim]")
-        emit_progress(Stage.TRANSCRIBE, done=idx, total=total_tracks)
+        console.print(f"  [dim]  Track {transcribe_done}/{transcribe_total} [{track.label}]...[/dim]")
+        emit_progress(Stage.TRANSCRIBE, done=transcribe_done, total=transcribe_total)
         try:
             transcript = transcribe_track(
                 track, config, session, language=language, pause_gate=pause_gate,
@@ -983,6 +1001,7 @@ def _summarize_video(video, transcripts, config, session, context_text: str = ""
     if not text:
         return
 
+    emit_progress(Stage.SUMMARIZE)
     console.print("  [bold]Generating video summary...[/bold]")
     try:
         title, summary = summarize_transcript(text, config, context_text=context_text)
@@ -1177,6 +1196,12 @@ def _run_scoring(
             "  [yellow]No scoring signals are available - clips were created but left "
             "unscored. Check Settings (LLM / laughter), then use Rescore.[/yellow]"
         )
+    elif config.llm_enabled:
+        # The LLM model loads into memory lazily on the first clip - which can be many
+        # seconds with no output, reading as a hung "Score" pill. Announce it so the
+        # pill can show a "loading the scoring model" wait until the first count lands.
+        console.print("  [dim]Preparing the scoring model...[/dim]")
+
     def _score_progress(i, total):
         console.print(f"  Scoring {i}/{total}...")
         emit_progress(Stage.SCORE, done=i, total=total)

@@ -74,6 +74,38 @@ def _assign_speakers(
     session.flush()
 
 
+def _strip_reimported_speaker_prefixes(
+    session: "Session", transcript_id: int, track_label: str
+) -> None:
+    """Drop a leading ``[Speaker]`` prefix a re-imported yuu-clip SRT baked into a cue,
+    now that this run's diarization has re-assigned each segment's speaker, so the fresh
+    render prefix doesn't double it. Generic and track-label prefixes are already stripped
+    at import (``_import_subtitles``); this pass adds the re-attributed NAMED speaker's
+    own display. A no-op for normally-transcribed cues, whose text never starts with a tag.
+    """
+    from yuu_clip.subtitles import strip_baked_speaker_prefix, track_label_display
+
+    track_display = track_label_display(track_label)
+    segs = (
+        session.query(TranscriptSegment)
+        .filter_by(transcript_id=transcript_id)
+        .all()
+    )
+    changed = False
+    for seg in segs:
+        extra = [track_display]
+        if seg.speaker_id is not None and seg.speaker is not None:
+            extra.append(seg.speaker.display_name)
+        elif seg.speaker_label:
+            extra.append(track_label_display(seg.speaker_label))
+        cleaned = strip_baked_speaker_prefix(seg.text, extra)
+        if cleaned != seg.text:
+            seg.text = cleaned
+            changed = True
+    if changed:
+        session.flush()
+
+
 # Default cosine similarity above which a new diarization cluster is treated as the
 # same voice as an existing named Speaker and re-attached to it. Deliberately high:
 # the user's requirement is to never mis-remap a name, so when unsure we would rather
@@ -391,6 +423,7 @@ def diarize_track(
             threshold=config.speaker_match_threshold,
             active_backend=config.diarization_backend,
         )
+        _strip_reimported_speaker_prefixes(session, transcript.id, track.label)
         _log.info(
             "Diarization complete: %d turns, %d voiceprint(s) for track %d",
             len(turns), len(embeddings), track.id,

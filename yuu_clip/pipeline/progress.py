@@ -28,6 +28,7 @@ class Stage(str, Enum):
     TRANSCRIBE = "transcribe"
     SPEAKERS = "speakers"
     GENERATE_CLIPS = "generate_clips"
+    SUMMARIZE = "summarize"
     ENERGY = "energy"
     SCENES = "scenes"
     SCORE = "score"

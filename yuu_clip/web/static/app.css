@@ -548,6 +548,7 @@ details.settings-advanced .settings-row:last-child { padding-bottom: 12px; }
 .estimate-threshold input { width: 48px; padding: 2px 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-size: 11px; text-align: center; }
 .probing-spinner { color: var(--muted); font-size: 12px; }
 .estimate-source { color: var(--muted); font-size: 11px; margin-top: 4px; }
+.estimate-cpu-note { color: var(--warning); font-size: 11px; margin-top: 4px; }
 .long-run-warning, .reanalyze-warning, .settings-inline-warning { display: flex; align-items: flex-start; gap: 6px; margin-top: 8px; padding: 8px 10px; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--warning) 12%, transparent); border: 1px solid var(--warning); color: var(--text); font-size: 12px; line-height: 1.4; }
 kbd { background: var(--surface); border: 1px solid var(--border); border-radius: 3px; padding: 1px 5px; font-size: 11px; font-family: monospace; color: var(--text); }
 
@@ -772,6 +773,10 @@ kbd { background: var(--surface); border: 1px solid var(--border); border-radius
 .settings-section-title.has-action { display: flex; align-items: baseline; gap: 8px; }
 .settings-reset-btn { font-size: 11px; padding: 3px 8px; text-transform: none; letter-spacing: normal; font-weight: 400; }
 .settings-section-title.has-action .settings-reset-btn { margin-left: auto; }
+/* Marks the CRUD-list sections that persist each change immediately (no Save button),
+   so the split from the batched-Save sections is discoverable at a glance. */
+.settings-autosave-badge { margin-left: auto; font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: normal; color: var(--muted); background: color-mix(in srgb, var(--muted) 14%, transparent); border-radius: var(--radius-sm); padding: 2px 8px; white-space: nowrap; }
+.settings-label .settings-autosave-badge { margin-left: 6px; }
 .settings-group-title { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin: 16px 0 8px; }
 .settings-group-title:first-child { margin-top: 0; }
 .settings-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }

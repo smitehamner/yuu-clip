@@ -188,7 +188,10 @@ class EstimateRequest(BaseModel):
     model: str = "large-v3"
     audio_tracks: int = 2
     transcribe_tracks: Optional[int] = None
-    has_gpu: bool = True
+    # None = resolve the effective device server-side (the correct default; the old
+    # hardcoded client `true` made a CPU-only machine read "on GPU" with GPU-speed
+    # figures). Tests pass an explicit bool to model each device directly.
+    has_gpu: Optional[bool] = None
     scene_mode: str = "fast"
     energy_mode: str = "fast"
     diarize: bool = False
@@ -306,6 +309,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     @router.post("/api/estimate")
     def estimate_processing_time(req: EstimateRequest):
         """Return per-step wall-clock time estimates for analyzing a video of the given length."""
+        if req.has_gpu is None:
+            req.has_gpu = _whisper_runs_on_gpu(ctx)
         db = ctx.get_db()
         try:
             return _compute_time_estimate(req, db, ctx.config.analyze_warn_hours)
@@ -888,12 +893,15 @@ def _compute_time_estimate(req: EstimateRequest, db=None, warn_hours: float = 2.
     duration_s = req.duration_s
     n_tracks = max(1, req.audio_tracks)
     transcribe_tracks = req.transcribe_tracks if req.transcribe_tracks is not None else max(1, n_tracks // 2)
+    # The route resolves has_gpu server-side; a direct caller may leave it None, which
+    # this treats as CPU (the conservative default) so the rest of the math sees a bool.
+    has_gpu = bool(req.has_gpu)
 
     # Medians from the creator's own past runs on this device. Transcription speed is
     # keyed to the exact model; the model-independent stages (extract/summarize/score)
     # pool across models. None of the individual step formulas below are touched unless
     # a matching measured rate exists for them.
-    measured = _measured_rates(db, req.model, req.has_gpu) if db is not None else {}
+    measured = _measured_rates(db, req.model, has_gpu) if db is not None else {}
     used_measured = False
 
     scene_seconds = max(
@@ -907,7 +915,7 @@ def _compute_time_estimate(req: EstimateRequest, db=None, warn_hours: float = 2.
         extract_seconds = measured["extract"] * duration_s
         used_measured = True
 
-    transcribe_step = _whisper_step(req.model, req.has_gpu, duration_s, transcribe_tracks)
+    transcribe_step = _whisper_step(req.model, has_gpu, duration_s, transcribe_tracks)
     if transcribe_tracks > 0 and "transcribe" in measured:
         transcribe_step["seconds"] = measured["transcribe"] * duration_s
         used_measured = True
@@ -958,7 +966,7 @@ def _compute_time_estimate(req: EstimateRequest, db=None, warn_hours: float = 2.
         steps[5]["seconds"] = max(0.0, measured_score_total - energy_seconds - scene_detect_seconds)
         used_measured = True
     if req.diarize and transcribe_tracks > 0:
-        diar_speed = _DIARIZATION_RT_SPEED["gpu" if req.has_gpu else "cpu"]
+        diar_speed = _DIARIZATION_RT_SPEED["gpu" if has_gpu else "cpu"]
         speaker_seconds = duration_s * transcribe_tracks / diar_speed
         if "speakers" in measured:
             speaker_seconds = measured["speakers"] * duration_s
@@ -980,7 +988,22 @@ def _compute_time_estimate(req: EstimateRequest, db=None, warn_hours: float = 2.
         "source": "measured" if used_measured else "estimated",
         "warn_hours": warn_hours,
         "long_run_warning": total >= warn_hours * 3600,
+        # Drives the "runs on CPU - much slower than a GPU" advisory next to the
+        # estimate: true only when Whisper will actually transcribe on CPU.
+        "transcribe_on_cpu": transcribe_tracks > 0 and not has_gpu,
     }
+
+
+def _whisper_runs_on_gpu(ctx) -> bool:
+    """Whether transcription will actually run on GPU: an NVIDIA GPU is present, the
+    CUDA support libs are installed, and Whisper isn't pinned to CPU. Mirrors the
+    gpustatus.js predicate so the estimate's device label and speed match reality
+    (the old hardcoded client `has_gpu: true` mislabeled CPU-only machines as GPU)."""
+    return (
+        ctx.thermal_monitor.available()
+        and _import_names_present("cuda-libs")
+        and ctx.config.whisper_device != "cpu"
+    )
 
 
 def _whisper_step(model: str, has_gpu: bool, duration_s: float, transcribe_tracks: int) -> dict:

@@ -5,7 +5,7 @@ import { AppState } from '../core/state.js';
 import { escHtml, plural, formatApiError } from '../core/format.js';
 import { showConfirm } from '../core/ui.js';
 import { appendLog, showToast, revealInFolder, _exportRetranscribeDefault } from '../core/utils.js';
-import { streamSSE, setJobCancel, _blockedByAnalyze } from '../core/jobs.js';
+import { streamSSE, setJobCancel, _blockedByAnalyze, BATCH_EXPORT_STEPS } from '../core/jobs.js';
 import { loadVideos } from '../videos/videos.js';
 import { _renderExportModeSummary } from '../clips/clipexport.js';
 import { releaseVideoRespectingPip } from '../core/preview.js';
@@ -658,10 +658,28 @@ async function confirmBatchExport() {
 
   streamSSE(
     `/api/videos/${id}/batch-export?${params}`,
-    () => { loadVideos(); showToast('Batch export complete'); SoundFx.play('export'); },
-    [{label: 'Exporting', patterns: ['Exporting clip', 'OK clip', 'Skipping']}],
+    outcome => {
+      loadVideos();
+      if (outcome === 'cancelled') return;
+      showToast('Batch export complete');
+      SoundFx.play('export');
+    },
+    BATCH_EXPORT_STEPS,
     'Batch Export',
+    true,  // cancellable - the batch export SSE has a client-only soft-cancel (below)
   );
+  // Batch export runs in-process with no server cancel endpoint: aborting the SSE
+  // fetch makes uvicorn cancel the response task, which unwinds `active_job` and
+  // tree-kills the in-flight clip subprocess at the next item boundary. Clips that
+  // already finished are kept on disk.
+  setJobCancel({
+    title:      'Stop batch export?',
+    body:       'Clips already exported are kept; the remaining clips won\'t be exported. You can run the batch again anytime.',
+    confirm:    'Stop Export',
+    logMsg:     '[Batch export cancelled]',
+    clientOnly: true,
+    onCancel:   () => loadVideos(),
+  });
 }
 
 function _playReel(reel, itemEl) {

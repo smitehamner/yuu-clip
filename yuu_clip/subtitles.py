@@ -7,6 +7,7 @@ with [Speaker] prefixes for multi-track clips.
 from __future__ import annotations
 
 import glob
+import re
 from pathlib import Path
 from typing import Iterable, NamedTuple
 
@@ -53,6 +54,41 @@ def _ms_to_srt_time(ms: int) -> str:
 
 def _label_display(label: str) -> str:
     return _LABEL_DISPLAY.get(label, label.replace("_", " ").title())
+
+
+# Public alias: callers outside this module resolve a raw track/speaker label to the
+# same display string ``lines_to_srt`` bakes into a ``[Speaker]`` prefix.
+track_label_display = _label_display
+
+
+# A single leading bracketed tag plus its trailing whitespace: "[Foo] rest" -> "Foo".
+_LEADING_BRACKET_TAG = re.compile(r"^\[([^\]]+)\]\s+")
+# yuu-clip's generic un-named speaker display: "Speaker 5", "Speaker 12".
+_GENERIC_SPEAKER = re.compile(r"^Speaker\s+\S+$")
+_KNOWN_TRACK_LABEL_DISPLAYS = frozenset(_LABEL_DISPLAY.values())
+
+
+def strip_baked_speaker_prefix(text: str, extra_labels: Iterable[str] = ()) -> str:
+    """Drop one leading ``[Speaker]``-style prefix a re-imported yuu-clip SRT baked
+    into a cue, so a fresh diarization render doesn't double it (found 2026-07-25).
+
+    Only strips when the bracketed label *looks like a speaker tag* - it matches the
+    generic "Speaker N" shape, a known track-label display, or one of *extra_labels*
+    (the segment's re-assigned speaker display + this recording's track label).
+    Accessibility annotations like ``[music]``/``[laughs]`` match none of these, so
+    they survive import untouched - the reason this can't be a blind ``^\\[...\\]`` strip.
+    """
+    match = _LEADING_BRACKET_TAG.match(text)
+    if not match:
+        return text
+    inner = match.group(1).strip()
+    if (
+        inner in _KNOWN_TRACK_LABEL_DISPLAYS
+        or inner in set(extra_labels)
+        or _GENERIC_SPEAKER.match(inner)
+    ):
+        return text[match.end():]
+    return text
 
 
 def _segment_speaker(seg) -> str:

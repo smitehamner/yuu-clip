@@ -97,8 +97,10 @@ def _register_video_read_routes(router: APIRouter, ctx: ProjectContext) -> None:
                 .order_by(Video.created_at.desc())
                 .all()
             )
-            stats = _bulk_clip_stats(db, [v.id for v in videos])
-            return [_video_dict(v, stats.get(v.id, _EMPTY_STATS)) for v in videos]
+            video_ids = [v.id for v in videos]
+            stats = _bulk_clip_stats(db, video_ids)
+            transcribed = _bulk_has_transcript(db, video_ids)
+            return [_video_dict(v, stats.get(v.id, _EMPTY_STATS), v.id in transcribed) for v in videos]
         finally:
             db.close()
 
@@ -110,7 +112,8 @@ def _register_video_read_routes(router: APIRouter, ctx: ProjectContext) -> None:
             if not video:
                 raise HTTPException(404, "Video not found")
             stats = _bulk_clip_stats(db, [video_id])
-            result = _video_dict(video, stats.get(video_id, _EMPTY_STATS))
+            has_transcript = video_id in _bulk_has_transcript(db, [video_id])
+            result = _video_dict(video, stats.get(video_id, _EMPTY_STATS), has_transcript)
             result["timeline"] = json_lib.loads(video.timeline_json) if video.timeline_json else None
             return result
         finally:
@@ -354,7 +357,8 @@ def _register_split_and_edit_routes(router: APIRouter, ctx: ProjectContext) -> N
 
             db.commit()
             stats = _bulk_clip_stats(db, [video_id]).get(video_id, _EMPTY_STATS)
-            return _video_dict(video, stats)
+            has_transcript = video_id in _bulk_has_transcript(db, [video_id])
+            return _video_dict(video, stats, has_transcript)
         finally:
             db.close()
 
@@ -1130,7 +1134,31 @@ def _transcript_srt_stale(video: Video) -> bool:
     return edited_ts > srt.stat().st_mtime
 
 
-def _video_dict(video: Video, stats: dict) -> dict:
+def _bulk_has_transcript(db, video_ids: list[int]) -> set[int]:
+    """Video IDs with at least one segment on a track-level (non-clip) transcript.
+
+    Matches the emptiness check _video_transcript_groups (subtitles.py) uses to
+    decide whether /captions.vtt has anything to serve - lets callers skip
+    attaching a captions <track> that would just 404 (e.g. a recording with no
+    transcribed dialogue).
+    """
+    if not video_ids:
+        return set()
+    rows = (
+        db.query(AudioTrack.video_id)
+        .join(Transcript, Transcript.audio_track_id == AudioTrack.id)
+        .join(TranscriptSegment, TranscriptSegment.transcript_id == Transcript.id)
+        .filter(AudioTrack.video_id.in_(video_ids))
+        .filter(Transcript.clip_id.is_(None))
+        .filter(AudioTrack.do_transcribe.is_(True))
+        .filter(AudioTrack.label != "game_sounds")
+        .distinct()
+        .all()
+    )
+    return {row.video_id for row in rows}
+
+
+def _video_dict(video: Video, stats: dict, has_transcript: bool = False) -> dict:
     return {
         "id": video.id,
         "filename": video.filename,
@@ -1152,6 +1180,7 @@ def _video_dict(video: Video, stats: dict) -> dict:
         "summary_original": video.summary or "",
         "summary_is_edited": video.summary_user is not None,
         "has_timeline": bool(video.timeline_json),
+        "has_transcript": has_transcript,
         "transcript_edited_at": video.transcript_edited_at.isoformat() if video.transcript_edited_at else None,
         "transcript_srt_stale": _transcript_srt_stale(video),
         "context_names": json_list(video.context_names_json),

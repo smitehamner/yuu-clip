@@ -38,17 +38,18 @@ let _stepRateAnchor = {}; // stepIdx -> {t, current} at first observed count, cl
 // tests/unit/test_progress_stage_coupling.py.
 const INGEST_STEPS = [
   {label: 'Extract',        stage: 'extract',        patterns: ['Extracting audio'],      estMatch: ['extract audio'],  progressPattern: /Track (\d+)\/(\d+)/},
-  {label: 'Transcribe',     stage: 'transcribe',     patterns: ['Transcribing'],          estMatch: ['transcribe', 'load captions'], progressPattern: /Track (\d+)\/(\d+)/, waitPattern: /Waiting for the speech-to-text model/},
+  {label: 'Transcribe',     stage: 'transcribe',     patterns: ['Transcribing'],          estMatch: ['transcribe', 'load captions'], progressPattern: /Track (\d+)\/(\d+)/, waitPattern: /Waiting for the speech-to-text model/, waitMsg: 'waiting for the speech model to finish downloading'},
   {label: 'Speakers',       stage: 'speakers',       patterns: ['Detecting speakers'],    estMatch: ['speaker labels']},
   {label: 'Generate Clips', stage: 'generate_clips', patterns: ['Generating clip']},
+  {label: 'Summarize',      stage: 'summarize',      patterns: ['Generating video summary'], estMatch: ['summarize']},
   {label: 'Energy',         stage: 'energy',         patterns: ['Computing audio energy'], estMatch: ['audio energy']},
   {label: 'Scene cuts',     stage: 'scenes',         patterns: ['Detecting scene'],       estMatch: ['scene detection']},
-  {label: 'Score',          stage: 'score',          patterns: ['Scoring clips'],         estMatch: ['llm scoring'], progressPattern: /Scoring (\d+)\/(\d+)/},
+  {label: 'Score',          stage: 'score',          patterns: ['Scoring clips'],         estMatch: ['llm scoring'], progressPattern: /Scoring (\d+)\/(\d+)/, waitPattern: /Preparing the scoring model/, waitMsg: 'loading the scoring model into memory'},
 ];
 const SCORE_STEPS = [
   {label: 'Energy',  stage: 'energy', patterns: ['Computing audio energy']},
   {label: 'Scene cuts', stage: 'scenes', patterns: ['Detecting scene']},
-  {label: 'Scoring', stage: 'score',  patterns: ['Scoring clips'], progressPattern: /Scoring (\d+)\/(\d+)/},
+  {label: 'Scoring', stage: 'score',  patterns: ['Scoring clips'], progressPattern: /Scoring (\d+)\/(\d+)/, waitPattern: /Preparing the scoring model/, waitMsg: 'loading the scoring model into memory'},
 ];
 // Marker-driven only (the analyze-frames SSE emits no prose stage lines), so these
 // carry no patterns - just the two @@PROGRESS stages the vision route emits.
@@ -70,6 +71,9 @@ const HOTWORD_SCAN_STEPS   = [{label: 'Scanning',       patterns: ['Scanning'], 
 const SUMMARY_JOB_STEPS    = [{label: 'Summarizing',    patterns: ['Generating summary', 'Generating session summary']}];
 const SPEAKER_NAMES_STEPS  = [{label: 'Suggesting names', patterns: ['Suggesting speaker names']}];
 const FIND_SIMILAR_STEPS   = [{label: 'Searching',      patterns: ['Searching']}];
+// Sequential per-clip batch export: the server tags every line with "[i/total]", so
+// the single pill shows a live count + ETA. Client-only soft-cancel (see reel.js).
+const BATCH_EXPORT_STEPS   = [{label: 'Exporting',      patterns: ['Exporting clip', 'OK clip', 'Skipping'], progressPattern: /\[(\d+)\/(\d+)\]/}];
 const TIMELINE_JOB_STEPS   = [{label: 'Timeline',       patterns: []}];  // driven client-side via setJobProgress
 
 // The full set of known @@PROGRESS stage ids - the JS mirror of progress.py's
@@ -78,7 +82,7 @@ const TIMELINE_JOB_STEPS   = [{label: 'Timeline',       patterns: []}];  // driv
 // anchor even for stages whose step def lives elsewhere.
 const _PROGRESS_PREFIX = '@@PROGRESS ';
 const JOB_STAGES = new Set([
-  'extract', 'transcribe', 'speakers', 'generate_clips',
+  'extract', 'transcribe', 'speakers', 'generate_clips', 'summarize',
   'energy', 'scenes', 'score', 'frames_sample', 'frames_describe',
 ]);
 
@@ -298,7 +302,7 @@ function updateJobUI(line) {
   });
   const activeDef = _jobStepDefs[_activeStepIdx];
   if (activeDef && activeDef.waitPattern && activeDef.waitPattern.test(line)) {
-    _stepWaitingMsg[_activeStepIdx] = 'waiting for the speech model to finish downloading';
+    _stepWaitingMsg[_activeStepIdx] = activeDef.waitMsg || 'waiting for the speech model to finish downloading';
     _renderStepPill(_activeStepIdx);
   }
   if (activeDef && activeDef.progressPattern) {
@@ -683,7 +687,7 @@ export {
   initJobsListeners,
   INGEST_STEPS, SCORE_STEPS, FRAMES_STEPS, JOB_STAGES, parseProgress, _driveStepFromMarker,
   RESCORE_JOB_STEPS, REDESCRIBE_JOB_STEPS, HOTWORD_SCAN_STEPS, SUMMARY_JOB_STEPS,
-  SPEAKER_NAMES_STEPS, FIND_SIMILAR_STEPS, TIMELINE_JOB_STEPS, setJobProgress,
+  SPEAKER_NAMES_STEPS, FIND_SIMILAR_STEPS, TIMELINE_JOB_STEPS, BATCH_EXPORT_STEPS, setJobProgress,
   startJobUI, updateJobUI, endJobUI, applyJobBlockedState, _stepPillLabel, _renderStepPill, _tickJobTimer,
   _setPausedUIFromStatus, togglePauseJob, _pollThermalStatus,
   _openSSE, streamSSE, _setActiveStream, _clearActiveStream, _supersedeActiveStream, _abortActiveStream,

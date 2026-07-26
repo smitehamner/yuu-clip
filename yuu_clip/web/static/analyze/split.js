@@ -103,7 +103,7 @@ function _mountSplitEditorPanel(container, videoId) {
     document.getElementById('split-preview-video'),
     document.getElementById('split-preview-badge'),
     videoId,
-    { autoBuild: true, isCurrent: () => _splitVideoId === videoId, sourcePath: video?.source_path },
+    { autoBuild: true, isCurrent: () => _splitVideoId === videoId, sourcePath: video?.source_path, hasTranscript: video?.has_transcript },
   );
 
   document.getElementById('split-waveform-notice').style.display = 'none';

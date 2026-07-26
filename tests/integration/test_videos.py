@@ -482,6 +482,45 @@ class TestVideoDetailFields:
         videos = client.get("/api/videos").json()
         assert videos[0]["has_timeline"] is False
 
+    def test_video_list_has_transcript_false_without_one(self, client):
+        videos = client.get("/api/videos").json()
+        assert videos[0]["has_transcript"] is False
+
+    def test_video_has_transcript_true_once_segments_exist(self, client, project_dir):
+        from yuu_clip.db.models import AudioTrack, Transcript, TranscriptSegment, make_session
+
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            track = db.query(AudioTrack).filter_by(video_id=vid_id).one()
+            transcript = Transcript(audio_track_id=track.id, model_name="test-model")
+            db.add(transcript)
+            db.flush()
+            db.add(TranscriptSegment(transcript_id=transcript.id, start_ms=0, end_ms=1000, text="hi"))
+            db.commit()
+        finally:
+            db.close()
+
+        assert client.get("/api/videos").json()[0]["has_transcript"] is True
+        assert client.get(f"/api/videos/{vid_id}").json()["has_transcript"] is True
+
+    def test_video_has_transcript_false_when_transcript_row_has_no_segments(self, client, project_dir):
+        # A transcription run that finds no dialogue still writes a Transcript row
+        # (0 segments) - has_transcript must stay False so the player doesn't
+        # attach a captions <track> that would just 404.
+        from yuu_clip.db.models import AudioTrack, Transcript, make_session
+
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            track = db.query(AudioTrack).filter_by(video_id=vid_id).one()
+            db.add(Transcript(audio_track_id=track.id, model_name="test-model"))
+            db.commit()
+        finally:
+            db.close()
+
+        assert client.get("/api/videos").json()[0]["has_transcript"] is False
+
     def test_video_detail_includes_absolute_source_path(self, client, project_dir):
         # Roadmap plan 10 - the Electron shell needs the absolute source path to
         # build a native "yuu-media://" URL instead of proxying bytes over HTTP.

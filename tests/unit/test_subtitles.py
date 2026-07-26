@@ -12,6 +12,7 @@ from yuu_clip.subtitles import (
     _highlight_shade,
     _parse_hex,
     lines_to_ass,
+    strip_baked_speaker_prefix,
 )
 
 
@@ -43,6 +44,37 @@ class TestHighlightShade:
 class TestParseHex:
     def test_parses_rrggbb(self):
         assert _parse_hex("#4fc3f7") == (0x4f, 0xc3, 0xf7)
+
+
+class TestStripBakedSpeakerPrefix:
+    def test_strips_generic_speaker_number_shape(self):
+        # The confirmed 2026-07-25 repro: a re-imported yuu-clip export.
+        assert strip_baked_speaker_prefix("[Speaker 5] hey what's up") == "hey what's up"
+
+    def test_strips_known_track_label(self):
+        assert strip_baked_speaker_prefix("[Combined] hello") == "hello"
+        assert strip_baked_speaker_prefix("[Player] hello") == "hello"
+
+    def test_strips_extra_label_named_speaker(self):
+        assert strip_baked_speaker_prefix("[Alice] hi there", ["Alice"]) == "hi there"
+
+    def test_keeps_named_speaker_when_not_in_allowed(self):
+        # "Alice" is not generic, not a track label, not passed in -> untouched.
+        assert strip_baked_speaker_prefix("[Alice] hi there") == "[Alice] hi there"
+
+    def test_never_strips_accessibility_annotations(self):
+        for text in ("[music] la la", "[laughs] ha", "[applause]  wow", "[Music] tune"):
+            assert strip_baked_speaker_prefix(text) == text
+
+    def test_only_strips_one_leading_tag(self):
+        # Render adds exactly one prefix back, so we strip exactly one.
+        assert strip_baked_speaker_prefix("[Speaker 5] [Speaker 5] hi") == "[Speaker 5] hi"
+
+    def test_no_leading_tag_is_unchanged(self):
+        assert strip_baked_speaker_prefix("plain caption text") == "plain caption text"
+
+    def test_tag_not_at_start_is_untouched(self):
+        assert strip_baked_speaker_prefix("hey [Speaker 5] there") == "hey [Speaker 5] there"
 
 
 class TestLinesToAss:

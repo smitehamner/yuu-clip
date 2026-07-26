@@ -64,6 +64,38 @@ class TestEstimate:
         cpu = client.post("/api/estimate", json={**payload, "has_gpu": False}).json()
         assert gpu["total_seconds"] < cpu["total_seconds"]
 
+    def test_estimate_cpu_labels_transcribe_on_cpu(self, client):
+        # The VM finding: a CPU run must not read "on GPU" with GPU-speed figures.
+        d = client.post("/api/estimate", json={**self._BASE, "has_gpu": False}).json()
+        transcribe = next(s for s in d["steps"] if s["name"].startswith("Transcribe"))
+        assert "on CPU" in transcribe["note"]
+        assert d["transcribe_on_cpu"] is True
+
+    def test_estimate_gpu_not_flagged_as_cpu(self, client):
+        d = client.post("/api/estimate", json={**self._BASE, "has_gpu": True}).json()
+        transcribe = next(s for s in d["steps"] if s["name"].startswith("Transcribe"))
+        assert "on GPU" in transcribe["note"]
+        assert d["transcribe_on_cpu"] is False
+
+    def test_estimate_no_transcribe_tracks_not_cpu_flagged(self, client):
+        d = client.post("/api/estimate", json={**self._BASE, "transcribe_tracks": 0, "has_gpu": False}).json()
+        assert d["transcribe_on_cpu"] is False
+
+    def test_whisper_runs_on_gpu_requires_all_three_signals(self, monkeypatch):
+        from yuu_clip.web.routes import analyze as _analyze
+
+        class _Ctx:
+            def __init__(self, gpu_present, device):
+                self.thermal_monitor = type("_TM", (), {"available": lambda self: gpu_present})()
+                self.config = type("_Cfg", (), {"whisper_device": device})()
+
+        monkeypatch.setattr(_analyze, "_import_names_present", lambda slug: True)
+        assert _analyze._whisper_runs_on_gpu(_Ctx(True, "auto")) is True
+        assert _analyze._whisper_runs_on_gpu(_Ctx(False, "auto")) is False   # no GPU
+        assert _analyze._whisper_runs_on_gpu(_Ctx(True, "cpu")) is False     # pinned to CPU
+        monkeypatch.setattr(_analyze, "_import_names_present", lambda slug: False)
+        assert _analyze._whisper_runs_on_gpu(_Ctx(True, "auto")) is False    # cuda libs missing
+
     def test_estimate_returns_pct_of_video(self, client):
         d = client.post("/api/estimate", json=self._BASE).json()
         assert "pct_of_video" in d
@@ -824,6 +856,45 @@ class TestPipelineTrackProgressLogging:
         out = capsys.readouterr().out
         assert "Track 1/2" in out
         assert "Track 2/2" in out
+
+    def test_transcribe_progress_denominator_counts_only_transcribed_tracks(self, tmp_path, capsys):
+        # VM finding: a 6-track recording that routes only 1 track to transcription
+        # showed a misleading "1/6". The transcribed-track line and the progress
+        # marker must both read "1/1"; skip lines use "of" so they don't feed the
+        # "N/M" progress regex with physical counts.
+        import unittest.mock as mock
+
+        from yuu_clip.config import Config
+        from yuu_clip.pipeline import ingest as _pipeline
+
+        session, video, tracks = self._make_video_and_tracks(tmp_path, 3)
+        for i, track in enumerate(tracks):
+            track.extracted_path = str(tmp_path / f"t{i}.wav")
+            track.do_transcribe = (i == 0)  # only the first track is transcribed
+        session.flush()
+
+        fake_transcript = mock.MagicMock()
+        fake_transcript.segments = []
+        fake_transcript.language = "en"
+
+        progress_calls = []
+        try:
+            with mock.patch("yuu_clip.transcribe.whisper_runner.transcribe_track", return_value=fake_transcript), \
+                 mock.patch("yuu_clip.analyze.overlap.detect_transcript_overlap", return_value=False), \
+                 mock.patch.object(_pipeline, "emit_progress",
+                                   side_effect=lambda *a, **k: progress_calls.append((a, k))):
+                _pipeline._transcribe_and_check_overlap(tracks, Config(), session, video, language=None)
+        finally:
+            session.close()
+
+        out = capsys.readouterr().out
+        assert "Track 1/1" in out          # the transcribed track, transcribe-relative
+        assert "Track 1/3" not in out      # never the misleading physical count
+        assert "Track 2 of 3" in out       # skip lines use "of", not "N/M"
+        # The Stage.TRANSCRIBE marker carrying counts uses total=1, done=1.
+        counted = [k for _a, k in progress_calls if "total" in k]
+        assert counted and all(k["total"] == 1 for k in counted)
+        assert any(k["done"] == 1 for k in counted)
 
 
 # ---------------------------------------------------------------------------
@@ -3270,6 +3341,77 @@ class TestImportSubtitles:
             assert [(s.start_ms, s.end_ms, s.text) for s in segs] == [
                 (0, 2000, "Inside segment"),
             ]
+        finally:
+            session.close()
+
+    def test_reimported_export_strips_generic_and_track_label_prefixes(self, tmp_path):
+        # A re-imported yuu-clip SRT bakes in a [Speaker N]/[track-label] prefix that a
+        # fresh render would double. The generic + track-label shapes are stripped at
+        # import (before diarization); legitimate [music]-style annotations are kept.
+        from yuu_clip.db.models import TranscriptSegment
+        from yuu_clip.pipeline import ingest as _pipeline
+
+        srt = tmp_path / "caps.srt"
+        srt.write_text(
+            "1\n00:00:00,000 --> 00:00:02,000\n[Speaker 5] hey what's up\n\n"
+            "2\n00:00:02,000 --> 00:00:04,000\n[Combined] over here\n\n"
+            "3\n00:00:04,000 --> 00:00:06,000\n[music] outro plays",
+            encoding="utf-8",
+        )
+        session, video, tracks = self._seed(tmp_path)
+        try:
+            transcripts = _pipeline._import_subtitles(
+                str(srt), tmp_path / "v.mkv", tracks, session, video,
+            )
+            session.flush()
+            segs = (
+                session.query(TranscriptSegment)
+                .filter_by(transcript_id=transcripts[0].id)
+                .order_by(TranscriptSegment.start_ms)
+                .all()
+            )
+            assert [s.text for s in segs] == [
+                "hey what's up", "over here", "[music] outro plays",
+            ]
+        finally:
+            session.close()
+
+    def test_post_diarization_strips_reattributed_named_speaker(self, tmp_path):
+        # A named-speaker prefix ("[Alice]") isn't a generic/track-label shape, so it
+        # survives import; the post-diarization pass strips it once the segment is
+        # re-attributed to a Speaker whose display name matches.
+        from yuu_clip.db.models import Speaker, TranscriptSegment
+        from yuu_clip.transcribe.speaker_attach import (
+            _strip_reimported_speaker_prefixes,
+        )
+
+        session, video, tracks = self._seed(tmp_path)
+        try:
+            from yuu_clip.db.models import Transcript
+
+            tr = Transcript(audio_track_id=tracks[0].id, model_name="srt-import")
+            session.add(tr)
+            session.flush()
+            speaker = Speaker(
+                video_id=video.id, display_index=1, name="Alice", confirmed=True,
+            )
+            session.add(speaker)
+            session.flush()
+            kept = TranscriptSegment(
+                transcript_id=tr.id, start_ms=0, end_ms=2000, text="[music] tune",
+            )
+            named = TranscriptSegment(
+                transcript_id=tr.id, start_ms=2000, end_ms=4000,
+                text="[Alice] hi there", speaker_id=speaker.id, speaker_label="A",
+            )
+            session.add_all([kept, named])
+            session.flush()
+
+            _strip_reimported_speaker_prefixes(session, tr.id, tracks[0].label)
+            session.refresh(kept)
+            session.refresh(named)
+            assert named.text == "hi there"
+            assert kept.text == "[music] tune"
         finally:
             session.close()
 

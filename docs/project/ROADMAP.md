@@ -131,30 +131,27 @@ except the two items below).
 
 Wanted before distributing beyond friends/trusted users.
 
-- [ ] **Verify FFmpeg source-hosting URLs resolve once the repo is public** - the
+- [x] **Verify FFmpeg source-hosting URLs resolve once the repo is public** - the
   GPL-compliance story ships the FFmpeg + libx264 source archives *side-by-side* with each
   installer, and the matching archives are also attached to the `third-party-source_0.1.0`
-  GitHub Release as a durable public mirror. That release already exists but its asset URLs
-  404 for third parties while the repo is private, so `docs/dev/THIRD-PARTY-NOTICES-FFMPEG.md`
-  already cites them as live. After flipping the repo to public, confirm both URLs actually
-  resolve for a logged-out visitor (and keep shipping the side-by-side archives - the mirror
-  is additional, not a replacement). Do not distribute an installer publicly before the flip,
-  or those cited URLs are dead links. See `docs/dev/THIRD-PARTY-NOTICES-FFMPEG.md` and
-  `HOW-TO-RELEASE.md § Bundled FFmpeg`.
+  GitHub Release as a durable public mirror. **Verified 2026-07-26**: repo flipped to public,
+  URLs confirmed to resolve for a logged-out visitor (checked in a private/incognito window).
+  See `docs/dev/THIRD-PARTY-NOTICES-FFMPEG.md` and `HOW-TO-RELEASE.md § Bundled FFmpeg`.
 
-- [ ] **Enable private vulnerability reporting** (Settings -> Security). `SECURITY.md`
-  already points reporters at the "Report a vulnerability" flow, which needs this turned
-  on. Verify it is available/enabled once the repo is public.
+- [x] **Enable private vulnerability reporting** (Settings -> Security). `SECURITY.md`
+  already points reporters at the "Report a vulnerability" flow. **Enabled 2026-07-26**
+  after the public flip.
 
-- [ ] **Confirm branch protection on `main` takes effect once public** - the rule is
+- [x] **Confirm branch protection on `main` takes effect once public** - the rule is
   configured but GitHub does not enforce protected-branch rules on a private repo on the
-  Free plan; it should start enforcing when the repo goes public. Re-check after flipping.
+  Free plan. **Confirmed 2026-07-26**: a direct push to `main` was rejected post-flip,
+  confirming enforcement is active.
 
-- [ ] **Verify the in-app Help & Guides links resolve for a logged-out visitor after the
-  public flip** - the Help & Guides modal links user docs on GitHub that 404 for anyone but
-  the author while the repo is private. The pre-public polish pass (WS-C) bundles those docs
-  in-app so help works offline, but the per-doc "View online" GitHub fallback links remain -
-  confirm they resolve for a logged-out visitor once the repo is public.
+- [x] **Verify the in-app Help & Guides links resolve for a logged-out visitor after the
+  public flip** - the Help & Guides modal links user docs on GitHub; the pre-public polish
+  pass (WS-C) bundles those docs in-app so help works offline, but the per-doc "View online"
+  GitHub fallback links remain. **Verified 2026-07-26**: links resolve for a logged-out
+  visitor.
 
 - [ ] **Opportunistic: extract remaining inline styles in the partials into `app.css`
   classes.** The `index.html` build-time stitch (`static/index.src.html` + `partials/*`
@@ -163,13 +160,9 @@ Wanted before distributing beyond friends/trusted users.
   styles, and the color-literal guard already globs the partials, so there is no safety
   gap). Do it when a region is being edited anyway, not as a blind sweep.
 
-- [ ] **Retire the "wipe the DB freely" schema convention and add real migrations.** So far
-  every schema change (new column/table) has been handled by telling the sole dev user to
-  delete/rebuild `project.db` - fine pre-release when the only affected DB is the author's
-  own, but once real users have their own analyzed libraries a schema change must not
-  silently 500 (`no such column: ...`) or require them to lose their work. Add a migration
-  mechanism (Alembic, or a minimal hand-rolled versioned-migrations table) before the public
-  flip, and convert past ad hoc column additions into the first migration set.
+- [x] **Retire the "wipe the DB freely" schema convention and add real migrations.**
+  **Shipped** (`bfe0fc4`) - Alembic + startup auto-migrate with a timestamped
+  pre-migration backup. See UC-G05 in `docs/dev/USE_CASES.md`.
 
 ---
 

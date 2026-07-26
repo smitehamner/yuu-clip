@@ -49,4 +49,17 @@ function decidePrebuiltEnvAction({ envArchivePresent, installedVersion, bundledV
   return 'extract';
 }
 
-module.exports = { rewritePyvenvCfg, decidePrebuiltEnvAction };
+// Opt-in extras a user pip-installs INTO the venv (GPU cuda-libs today) are destroyed
+// by the wholesale re-extract on every upgrade, with no path that reinstalls them -
+// so a user who enabled GPU acceleration silently drops to CPU transcription and faces
+// a ~1GB re-download each release (found 2026-07-25; mirrors the .gguf model-persistence
+// fix). Given what was present in the OLD venv before the wipe, this returns the slugs
+// to reinstall into the fresh venv so the choice survives the upgrade. Extend the checks
+// here when a new opt-in venv extra is added.
+function extrasToRestoreAfterExtract({ hadCudaLibs }) {
+  const slugs = [];
+  if (hadCudaLibs) slugs.push('cuda-libs');
+  return slugs;
+}
+
+module.exports = { rewritePyvenvCfg, decidePrebuiltEnvAction, extrasToRestoreAfterExtract };
