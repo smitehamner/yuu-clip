@@ -136,20 +136,24 @@ class TestWizardLayout:
 
 @skip_no_server
 class TestWizardOsTheme:
-    # UX-M8: the wizard has no server-side theme setting of its own (Dark/Light/High
-    # contrast lives in the web app's browser localStorage, a different origin the
-    # wizard's file:// window can't read) - so a re-run instead honors the OS-level
-    # preference via setup:get-status's osThemeIsLight/osThemeIsHighContrast, rather than
-    # always forcing the dark palette.
+    # The wizard has no server-side theme setting of its own (Dark/Light/High contrast
+    # lives in the web app's browser localStorage, a different origin the wizard's
+    # file:// window can't read) - but the app itself always defaults to dark regardless
+    # of the OS light/dark preference (index.src.html's inline pre-paint script only ever
+    # deviates from dark when the user explicitly picked a theme in Settings), so the
+    # wizard matches that instead of following OS light/dark - found 2026-07-25 that
+    # following it caused a light-wizard-into-dark-app flip on a light-OS machine. OS
+    # high-contrast is still honored, since that's an accessibility need, not a color
+    # preference.
     def test_defaults_to_dark_when_status_omits_os_theme(self, page: Page):
         _open_wizard(page)
         assert page.locator("html").get_attribute("data-theme") is None
 
-    def test_os_light_preference_sets_light_theme(self, page: Page):
+    def test_os_light_preference_does_not_override_the_default_dark_theme(self, page: Page):
         _open_wizard(page, "{ osThemeIsLight: true }")
-        expect(page.locator("html")).to_have_attribute("data-theme", "light")
+        assert page.locator("html").get_attribute("data-theme") is None
 
-    def test_os_high_contrast_preference_wins_over_light(self, page: Page):
+    def test_os_high_contrast_preference_is_still_honored(self, page: Page):
         _open_wizard(page, "{ osThemeIsLight: true, osThemeIsHighContrast: true }")
         expect(page.locator("html")).to_have_attribute("data-theme", "high-contrast")
 

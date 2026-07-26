@@ -99,7 +99,11 @@ async function switchProject(path) {
     }
     const data = await res.json();
     if (window.electronAPI?.projectChanged) window.electronAPI.projectChanged(data.current);
-    showToast('Switching project…');
+    // A path that didn't exist yet (e.g. a moved/deleted project folder someone
+    // meant to reopen) silently starts a brand-new empty project there - say so
+    // explicitly instead of the generic message, which reads the same as
+    // reopening real existing data (found 2026-07-25).
+    showToast(data.created ? 'Created a new project here - folder was empty' : 'Switching project…');
     setTimeout(() => location.reload(), 300);
     return true;
   } catch (e) {

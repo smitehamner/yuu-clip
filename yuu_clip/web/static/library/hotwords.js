@@ -8,7 +8,7 @@
 // detail's Scan button can gate on it without an extra fetch) and refreshed here.
 import { AppState } from '../core/state.js';
 import { plural, escHtml, formatApiError } from '../core/format.js';
-import { showToast, openLog, appendLog } from '../core/utils.js';
+import { showToast, appendLog } from '../core/utils.js';
 import { showConfirm, showUndoToast } from '../core/ui.js';
 import {
   _openSSE, _setActiveStream, _clearActiveStream, _supersedeActiveStream,
@@ -157,7 +157,6 @@ async function _refreshActiveVideoClips(videoId) {
 function scanHotwordsForVideo(videoId, btn) {
   const orig = btn?.textContent;
   if (btn) { btn.disabled = true; btn.textContent = 'Scanning…'; }
-  openLog();
   _supersedeActiveStream();
   startJobUI(HOTWORD_SCAN_STEPS, 'Scanning hot-words', true);
   const resetBtn = () => { if (btn) { btn.disabled = false; btn.textContent = orig; } };

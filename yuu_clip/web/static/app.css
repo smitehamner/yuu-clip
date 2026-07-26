@@ -40,10 +40,6 @@ header h1 { font-size: 18px; font-weight: 700; letter-spacing: .5px; color: var(
 .job-status { display: none; align-items: center; flex-wrap: wrap; gap: 8px; background: var(--surface-raised); border-bottom: 1px solid var(--border); padding: 6px 16px; font-size: 12px; color: var(--text); flex-shrink: 0; min-width: 0; }
 .job-status.visible { display: flex; }
 
-/* Minimal status strip for the silent preview-proxy warm-up (B4 fix) - see the
-   markup comment in index.src.html for why this stays separate from .job-status. */
-.preview-warm-status { display: none; align-items: center; gap: 8px; background: var(--surface-raised); border-bottom: 1px solid var(--border); padding: 6px 16px; font-size: 12px; color: var(--muted); flex-shrink: 0; }
-.preview-warm-status.visible { display: flex; }
 .spinner { width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; flex-shrink: 0; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .job-steps { display: flex; gap: 6px; align-items: center; min-width: 0; white-space: nowrap; }

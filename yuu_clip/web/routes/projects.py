@@ -57,11 +57,15 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 "switching projects.",
             )
         new_dir = Path(body.path).expanduser()
-        if not new_dir.is_dir():
+        created = not new_dir.is_dir()
+        if created:
             # "A new folder becomes a fresh, empty project" (open-project.html) - honor
             # that promise when the parent exists (a plausible new-project path), but
             # still 400 when the parent is also missing (that's a typo, not a request
-            # to create an entire directory tree).
+            # to create an entire directory tree). Also covers a *previously known*
+            # project path whose folder has since been moved/deleted - reported
+            # 2026-07-25 as silently starting a blank project with no indication the
+            # old one wasn't found; `created` in the response lets the frontend say so.
             if new_dir.exists() or not new_dir.parent.is_dir():
                 raise HTTPException(400, f"Not a folder: {body.path}")
             new_dir.mkdir()
@@ -76,6 +80,6 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         prepare_project(ctx)
         record_known_project(new_dir)
         _log.info("Switched project to %s (generation %d)", new_dir, ctx.project_generation)
-        return {"current": str(new_dir), "project_generation": ctx.project_generation}
+        return {"current": str(new_dir), "project_generation": ctx.project_generation, "created": created}
 
     return router

@@ -13,6 +13,7 @@
 // otherwise it goes with the container and getElementById can't find it on
 // the next open. See split.js's _teardownSplitEditor for the pattern.
 import { showConfirm } from './ui.js';
+import { closeSettings } from '../settings/settings.js';
 
 const _stack = [];  // [{id, title, isDirty, onClose, container}]
 
@@ -44,7 +45,16 @@ function _updateVisibility() {
   });
 }
 
+// A panel takeover and the Settings overlay both cover the main view - opening
+// one while the other is up left Settings visibly layered on top (found
+// 2026-07-25: clicking People while Settings was open). Settings' own dirty-gate
+// confirm (closeSettings' onClosed callback) still runs first, so unsaved
+// settings changes aren't silently discarded.
 function panelNavOpen({ id, title, render, isDirty, onClose }) {
+  closeSettings(() => _doPanelNavOpen({ id, title, render, isDirty, onClose }));
+}
+
+function _doPanelNavOpen({ id, title, render, isDirty, onClose }) {
   const container = document.createElement('div');
   container.dataset.panelId = id;
   container.style.cssText = 'display:flex;flex-direction:column;gap:16px';

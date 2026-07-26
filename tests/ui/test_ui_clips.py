@@ -617,7 +617,7 @@ class TestExportRetranscribeSmartDefault:
 
     def _mock_status(self, page: Page, *, needs_retranscribe: bool, model: str = "large-v3"):
         page.route(
-            "**/api/videos/*/retranscribe-status",
+            "**/api/videos/*/retranscribe-status**",
             lambda route: route.fulfill(
                 status=200,
                 content_type="application/json",

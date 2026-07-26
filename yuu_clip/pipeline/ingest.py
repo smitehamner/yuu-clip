@@ -304,9 +304,9 @@ def _analyze_one(
         session.commit()
 
     # The 720p preview proxy is NOT built here - it used to run inline and blocked
-    # "Analysis complete" while the whole recording re-encoded. It's now warmed in
-    # the background after completion (web UI, _warmPreviewProxy) and built lazily on
-    # first preview otherwise (see routes/videos.py proxy/generate).
+    # "Analysis complete" while the whole recording re-encoded. It's built lazily,
+    # on demand, from the player's "Build 720p preview" badge instead (not
+    # automatically after analysis - see routes/videos.py proxy/generate).
     video.processed_at = datetime.now(timezone.utc)
     # Run metadata is informational only - never let recording it abort the run.
     try:

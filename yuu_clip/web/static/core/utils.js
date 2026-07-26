@@ -73,9 +73,16 @@ export function _wireDiarizationSettingsLink(note, onGoToSettings) {
 // answer - it keeps its own simple default.) Falls back to "nothing to gain"
 // (unchecked) on any error so a bad response never surprises the user with an
 // unwanted retranscribe.
-export async function _exportRetranscribeDefault(videoId) {
+// clipId (optional): pass for a single-clip export so a clip already
+// retranscribed with the export model on a prior export reports "nothing to
+// gain" instead of the recording-level transcript's model, which a clip-scoped
+// retranscription never changes.
+export async function _exportRetranscribeDefault(videoId, clipId) {
   try {
-    const status = await fetch(`/api/videos/${videoId}/retranscribe-status`).then(r => r.json());
+    const url = clipId
+      ? `/api/videos/${videoId}/retranscribe-status?clip_id=${clipId}`
+      : `/api/videos/${videoId}/retranscribe-status`;
+    const status = await fetch(url).then(r => r.json());
     return {
       model: status.export_retranscribe_model || 'large-v3',
       needsRetranscribe: !!status.needs_retranscribe,
@@ -142,8 +149,10 @@ export function appendLog(raw) {
 
 // ── toast notifications ───────────────────────────────────────────────────────
 // Types: success | info | warning (guard/guidance) | error (actual failures).
-// Error toasts persist until dismissed - durationMs is ignored for them.
-// opts: { durationMs, action: {label, onClick} }
+// Error toasts persist until dismissed - durationMs is ignored for them. Pass
+// opts.persist to keep any other toast type open until manually dismissed too
+// (e.g. a background job's result the user may not be watching when it lands).
+// opts: { durationMs, persist, action: {label, onClick} }
 const TOAST_STACK_MAX = 4;
 
 export function showToast(message, type = 'success', opts = {}) {
@@ -175,7 +184,7 @@ export function showToast(message, type = 'success', opts = {}) {
   buttons.appendChild(close);
   toast.appendChild(buttons);
   container.appendChild(toast);
-  if (type === 'error') return;
+  if (type === 'error' || opts.persist) return;
   const ms = opts.durationMs ?? (type === 'warning' ? 6000 : 4000);
   setTimeout(() => {
     toast.style.transition = 'opacity .3s';

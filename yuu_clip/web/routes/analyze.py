@@ -534,32 +534,43 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             # it can never leak into the next job. Discarded by subprocess_sse.
             ctx.cancelled_procs.add(proc)
             await terminate_process_tree_async(proc)
-        if proc is not None:
-            # Release the killed subprocess's job accounting NOW. Its SSE generator's
-            # finally would otherwise do this, but the frontend closes its stream the
-            # instant it POSTs cancel (jobs.js _supersedeActiveStream), so Starlette
-            # never aclose()s the abandoned async generator - the cleanup would then
-            # wait on non-deterministic GC finalization and the busy flags latch
-            # (analyze_running / active_jobs stuck on with no subprocess alive).
-            # release_counted_job is idempotent, so the generator's own later finally
-            # can still run without double-counting.
-            from yuu_clip.web.sse import release_counted_job
-            release_counted_job(ctx, proc)
-            ctx.subprocess_procs.discard(proc)
-            if ctx.analyze_proc is proc:
-                ctx.analyze_proc = None
-        ctx.analyze_cmd = None
-        ctx.analyze_pending_filename = None
-        ctx.analyze_pending_video_id = None
-        # Cancel always wins over a pending pause - leaving the flag would start
-        # the next run already paused.
-        from yuu_clip.analyze.pause import remove_pause_flag
-        remove_pause_flag(ctx.project_dir)
-        # Flip the killed run's row out of the transient 'extracting' state (the
-        # long extract+transcribe phase) so the sidebar stops showing an eternal
-        # spinner - same cleanup the server runs on startup for crashed runs.
-        from yuu_clip.web.app import _fail_interrupted_analyses
-        _fail_interrupted_analyses(ctx)
+        # The kill above is the part of this endpoint's contract that must succeed;
+        # everything below is best-effort bookkeeping. An exception here must not
+        # turn an already-successful kill into a 500 - the client would show "Could
+        # not cancel" and leave its SSE stream attached to a process that in fact
+        # already died, which then surfaces the job's own done{cancelled} event as
+        # a plain success toast once it arrives (the "cancel raised an error AND a
+        # success toast" bug, 2026-07-25 manual check).
+        try:
+            if proc is not None:
+                # Release the killed subprocess's job accounting NOW. Its SSE
+                # generator's finally would otherwise do this, but the frontend
+                # closes its stream the instant it POSTs cancel (jobs.js
+                # _supersedeActiveStream), so Starlette never aclose()s the
+                # abandoned async generator - the cleanup would then wait on
+                # non-deterministic GC finalization and the busy flags latch
+                # (analyze_running / active_jobs stuck on with no subprocess
+                # alive). release_counted_job is idempotent, so the generator's
+                # own later finally can still run without double-counting.
+                from yuu_clip.web.sse import release_counted_job
+                release_counted_job(ctx, proc)
+                ctx.subprocess_procs.discard(proc)
+                if ctx.analyze_proc is proc:
+                    ctx.analyze_proc = None
+            ctx.analyze_cmd = None
+            ctx.analyze_pending_filename = None
+            ctx.analyze_pending_video_id = None
+            # Cancel always wins over a pending pause - leaving the flag would start
+            # the next run already paused.
+            from yuu_clip.analyze.pause import remove_pause_flag
+            remove_pause_flag(ctx.project_dir)
+            # Flip the killed run's row out of the transient 'extracting' state (the
+            # long extract+transcribe phase) so the sidebar stops showing an eternal
+            # spinner - same cleanup the server runs on startup for crashed runs.
+            from yuu_clip.web.app import _fail_interrupted_analyses
+            _fail_interrupted_analyses(ctx)
+        except Exception:
+            _log.exception("Cancel bookkeeping failed after a successful kill")
         return {"status": "cancelled"}
 
     @router.post("/api/score")

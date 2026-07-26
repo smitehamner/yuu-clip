@@ -284,8 +284,36 @@ class TestConfirmRejectVoice(_Fixtures):
             reloaded = db.get(Speaker, speaker_id)
             assert reloaded.global_voice_id == voice_id
             assert reloaded.suggested_voice_id is None
+            # A previously-unnamed speaker's own name column now syncs to the confirmed
+            # Person's name - display_name already resolved through global_voice, but the
+            # Speakers-card editable input reads the raw column, which stayed blank before.
+            assert reloaded.name == "Alex"
+            assert reloaded.confirmed is True
             # Drift accumulation: the confirmed speaker's print becomes a new exemplar.
             assert db.query(VoiceExemplar).filter_by(project_voice_id=voice_id).count() == 2
+        finally:
+            db.close()
+
+    def test_confirm_keeps_existing_name_when_already_named(self, client, project_dir):
+        db = self._db(project_dir)
+        vb = self._add_video(db, "c.mkv")
+        voice = self._mint_person(db, [1.0, 0.0], name="Alex")
+        # An already-named speaker (e.g. from its own diarization) with a pending
+        # cross-recording Person suggestion for a DIFFERENT name.
+        speaker = self._add_speaker(
+            db, vb.id, [0.99, 0.01], suggested_voice_id=voice.id, name="Riley")
+        db.commit()
+        voice_id, speaker_id = voice.id, speaker.id
+        db.close()
+
+        assert client.post(f"/api/speakers/{speaker_id}/confirm-voice").status_code == 200
+
+        db = self._db(project_dir)
+        try:
+            reloaded = db.get(Speaker, speaker_id)
+            assert reloaded.global_voice_id == voice_id
+            # Confirming a Person link must not overwrite a name the speaker already had.
+            assert reloaded.name == "Riley"
         finally:
             db.close()
 

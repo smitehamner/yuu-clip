@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from yuu_clip.db.models import HotWord
 from yuu_clip.scoring.engine import HOTWORD_BOOST_MAX, HOTWORD_BOOST_MIN
 from yuu_clip.web.deps import ProjectContext
-from yuu_clip.web.routes.common import normalize_context_slug, validate_context_slug
+from yuu_clip.web.routes.common import normalize_context_slug, validate_context_slug, with_write_retry
 
 _VALID_MODES = ("exact", "case_insensitive", "semantic")
 _VALID_TARGETS = ("overall", "funny", "dramatic", "action")
@@ -86,58 +86,72 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
     @router.post("/api/hotwords")
     def create_hotword(body: HotWordBody):
-        db = ctx.get_db()
-        try:
-            phrase = body.phrase.strip()
-            context_slug = normalize_context_slug(body.context_slug)
-            _validate_hotword_body(body, phrase, context_slug, db, ctx.project_dir)
-            hw = HotWord(
-                phrase=phrase, match_mode=body.match_mode, boost=body.boost,
-                target=body.target, enabled=body.enabled, context_slug=context_slug,
-            )
-            db.add(hw)
-            db.commit()
-            db.refresh(hw)
-            return _hotword_dict(hw)
-        finally:
-            db.close()
+        # Settings' Hot-words list autosaves each add/edit/delete immediately (unlike
+        # the rest of Settings' batched Save button), so it can land mid-analysis
+        # while the analyze subprocess holds the SQLite write lock - with_write_retry
+        # gives it a few quick retries before falling back to the graceful 503
+        # (found 2026-07-25: adding a hot-word during an analysis failed outright).
+        def _op():
+            db = ctx.get_db()
+            try:
+                phrase = body.phrase.strip()
+                context_slug = normalize_context_slug(body.context_slug)
+                _validate_hotword_body(body, phrase, context_slug, db, ctx.project_dir)
+                hw = HotWord(
+                    phrase=phrase, match_mode=body.match_mode, boost=body.boost,
+                    target=body.target, enabled=body.enabled, context_slug=context_slug,
+                )
+                db.add(hw)
+                db.commit()
+                db.refresh(hw)
+                return _hotword_dict(hw)
+            finally:
+                db.close()
+
+        return with_write_retry(_op)
 
     @router.put("/api/hotwords/{hotword_id}")
     def update_hotword(hotword_id: int, body: HotWordBody):
-        db = ctx.get_db()
-        try:
-            hw = db.get(HotWord, hotword_id)
-            if not hw:
-                raise HTTPException(404, "Hot-word not found")
-            phrase = body.phrase.strip()
-            context_slug = normalize_context_slug(body.context_slug)
-            _validate_hotword_body(
-                body, phrase, context_slug, db, ctx.project_dir,
-                current_slug=hw.context_slug, exclude_id=hotword_id,
-            )
-            hw.phrase = phrase
-            hw.match_mode = body.match_mode
-            hw.boost = body.boost
-            hw.target = body.target
-            hw.enabled = body.enabled
-            hw.context_slug = context_slug
-            db.commit()
-            db.refresh(hw)
-            return _hotword_dict(hw)
-        finally:
-            db.close()
+        def _op():
+            db = ctx.get_db()
+            try:
+                hw = db.get(HotWord, hotword_id)
+                if not hw:
+                    raise HTTPException(404, "Hot-word not found")
+                phrase = body.phrase.strip()
+                context_slug = normalize_context_slug(body.context_slug)
+                _validate_hotword_body(
+                    body, phrase, context_slug, db, ctx.project_dir,
+                    current_slug=hw.context_slug, exclude_id=hotword_id,
+                )
+                hw.phrase = phrase
+                hw.match_mode = body.match_mode
+                hw.boost = body.boost
+                hw.target = body.target
+                hw.enabled = body.enabled
+                hw.context_slug = context_slug
+                db.commit()
+                db.refresh(hw)
+                return _hotword_dict(hw)
+            finally:
+                db.close()
+
+        return with_write_retry(_op)
 
     @router.delete("/api/hotwords/{hotword_id}")
     def delete_hotword(hotword_id: int):
-        db = ctx.get_db()
-        try:
-            hw = db.get(HotWord, hotword_id)
-            if not hw:
-                raise HTTPException(404, "Hot-word not found")
-            db.delete(hw)
-            db.commit()
-            return {"deleted": hotword_id}
-        finally:
-            db.close()
+        def _op():
+            db = ctx.get_db()
+            try:
+                hw = db.get(HotWord, hotword_id)
+                if not hw:
+                    raise HTTPException(404, "Hot-word not found")
+                db.delete(hw)
+                db.commit()
+                return {"deleted": hotword_id}
+            finally:
+                db.close()
+
+        return with_write_retry(_op)
 
     return router

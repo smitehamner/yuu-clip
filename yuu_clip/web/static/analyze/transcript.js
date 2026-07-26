@@ -5,6 +5,8 @@ import { escHtml, plural, formatApiError, fmtClock } from '../core/format.js';
 import { showToast } from '../core/utils.js';
 import { loadSpeakers } from '../people/speakers.js';
 import { refreshClipDetail } from '../clips/clips.js';
+import { loadVideos } from '../videos/videos.js';
+import { _rerenderActiveVideoDetail } from './analyze.js';
 
 // ── timed transcript views ────────────────────────────────────────────────────
 // Per-line transcript for a clip (clip-relative time) and for a whole recording
@@ -652,6 +654,10 @@ function _onCaptionEdited(data) {
   // Refresh the open clip's detail so its excerpt and the re-score notice update.
   const openId = AppState.activeClipId;
   if (openId && affected.includes(openId)) refreshClipDetail(openId);
+  // A caption edit also stamps the video's transcript_srt_stale flag server-side
+  // (touch_video_transcript_edited) - reload so the "Save Captions to SRT" staleness
+  // note appears without needing to navigate away and back.
+  loadVideos().then(() => _rerenderActiveVideoDetail());
 }
 
 // Called once from boot.js at first paint (see initHotwordListeners in hotwords.js

@@ -6,7 +6,7 @@
 // prompt, and the session detail view (rollup summary + unified timeline).
 import { AppState } from '../core/state.js';
 import { escHtml, plural, _msToHms } from '../core/format.js';
-import { showToast, collapsibleCard, openLog } from '../core/utils.js';
+import { showToast, collapsibleCard } from '../core/utils.js';
 import { showKebab, showConfirm } from '../core/ui.js';
 import { streamSSE } from '../core/jobs.js';
 import { loadVideos, selectVideo, _renderVideoList } from './videos.js';
@@ -467,7 +467,6 @@ function _summarizeSession(sessionId) {
   const originalLabel = btn ? btn.textContent : '';
   if (btn) { btn.disabled = true; btn.textContent = 'Summarizing…'; }
   const resetBtn = () => { if (btn) { btn.disabled = false; btn.textContent = originalLabel; } };
-  openLog();
   streamSSE(
     `/api/sessions/${sessionId}/summarize`,
     () => {

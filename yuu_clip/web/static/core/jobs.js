@@ -571,10 +571,10 @@ function streamSSE(url, onDone, stepDefs, jobLabel, cancellable = false, onLine 
       if (marker) { _driveStepFromMarker(marker); return; }
       appendLog(text); if (onLine) onLine(text); if (stepDefs) updateJobUI(text);
     },
-    () => {
+    outcome => {
       _clearActiveStream(handle);
       if (stepDefs) endJobUI();
-      if (onDone) onDone();
+      if (onDone) onDone(outcome);
     },
     errMsg => {
       _clearActiveStream(handle);

@@ -2,14 +2,15 @@
 //   API: routes/analyze.py, routes/imports.py · Tests: tests/ui/test_ui_analyze.py
 import { AppState } from '../core/state.js';
 import { PanelNav } from '../core/panelnav.js';
-import { escHtml, plural, formatApiError, _msToHms, _fmtElapsed } from '../core/format.js';
+import { escHtml, plural, formatApiError, _msToHms } from '../core/format.js';
 import { showConfirm } from '../core/ui.js';
 import {
-  showToast, openLog, appendLog, netErrMsg,
+  showToast, appendLog, netErrMsg,
   _diarizationReadiness, _diarizationNoteHtml, _wireDiarizationSettingsLink,
 } from '../core/utils.js';
 import {
   streamSSE, INGEST_STEPS, setJobCancel, _waitWhileAnalyzePaused, _setPausedUIFromStatus,
+  applyJobBlockedState,
 } from '../core/jobs.js';
 import {
   loadVideos, selectVideo, renderVideoDetail, _updateStartIngestButton, _reanalyzeParams,
@@ -561,7 +562,6 @@ async function _doStartAnalyze() {
       .filter(s => !s.ignored);
     _panelDirty = false;
     _doCloseNewRecordingPanel();
-    openLog();
     // Held for the whole chain (cleared when the last segment finishes, in
     // _analyzeSegmentsSequentially's terminal branch) so _blockedByAnalyze
     // protects every segment's run, not just the one currently streaming -
@@ -615,7 +615,6 @@ async function _doStartAnalyze() {
   _panelDirty = false;
   _doCloseNewRecordingPanel();
   loadVideos();  // surface the recording in the sidebar immediately (placeholder until its row exists)
-  openLog();
   appendLog(`${target ? 'Re-analyzing' : 'Analyzing'}: ${filename}`);
   _streamAnalyzeEvents(filename);
 }
@@ -633,7 +632,6 @@ function _streamAnalyzeEvents(filename) {
       _rerenderActiveVideoDetail();
       _showAnalysisToast(v);
       _surfaceAnalyzeWarnings(v);
-      if (v) _warmPreviewProxy(v.id);
       SoundFx.play('analysis');
     },
     INGEST_STEPS,
@@ -659,7 +657,6 @@ function _streamAnalyzeEvents(filename) {
 async function reattachAnalysis(filename, paused = false) {
   if (!filename || AppState.analyzeFilename === filename) return;
   AppState.analyzeFilename = filename;
-  openLog();
   appendLog(`Reconnected to analysis in progress: ${filename}`);
   await loadVideos();
   _rerenderActiveVideoDetail();
@@ -751,65 +748,6 @@ function _showAnalysisToast(video) {
     durationMs: 8000,
     ...(canJump ? {action: {label: 'Review', onClick: () => selectVideo(video.id)}} : {}),
   });
-}
-
-// Warm the 720p preview proxy in the background after analysis finishes. The
-// proxy build used to run inline in the analyze subprocess and blocked "Analysis
-// complete" while the whole recording re-encoded; now completion is instant and
-// this drains the existing encode SSE quietly (no job pill). Non-fatal - if it's
-// skipped or the page closes, the proxy still builds lazily on first preview.
-//
-// It still counts toward the backend's job_in_flight busy gate (ctx.active_jobs,
-// via active_job() in routes/videos.py) for the whole encode, so a heavy action
-// attempted during the warm-up gets the normal 409. #preview-warm-status is shown
-// only while actually encoding (not for the already-fresh/already-generating
-// no-op paths) so that rejection has something visible to point at - see B4 in
-// the 2026-07-19 UX bug hunt.
-async function _warmPreviewProxy(videoId) {
-  const statusEl = document.getElementById('preview-warm-status');
-  const labelEl = statusEl ? statusEl.querySelector('span') : null;
-  const startedAt = Date.now();
-  let pct = null;
-  let ticker = null;
-  // Always show elapsed time (a bare spinner reads as hung on a long encode); layer
-  // the encode percentage on top once the ffmpeg proxy job starts reporting it.
-  const render = () => {
-    if (!labelEl) return;
-    const pctText = pct != null ? ` ${pct}%` : '';
-    labelEl.textContent = `Preparing preview...${pctText} (${_fmtElapsed(Date.now() - startedAt)})`;
-  };
-  try {
-    const status = await fetch(`/api/videos/${videoId}/proxy-status`).then(r => r.ok ? r.json() : null);
-    if (!status || status.available || status.generating) return;
-    if (statusEl) statusEl.classList.add('visible');
-    render();
-    ticker = setInterval(render, 1000);
-    const response = await fetch(`/api/videos/${videoId}/proxy/generate`);
-    if (!response.ok || !response.body) return;
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    while (true) {
-      const {done, value} = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, {stream: true});
-      const lines = buffer.split('\n');
-      buffer = lines.pop();
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        let msg;
-        try { msg = JSON.parse(line.slice(6)); } catch { continue; }
-        const match = typeof msg === 'string' ? /(\d+)%/.exec(msg) : null;
-        if (match) { pct = parseInt(match[1], 10); render(); }
-      }
-    }
-  } catch (_) {
-    // Preview is a convenience; a failed warm must never surface as an error.
-  } finally {
-    if (ticker) clearInterval(ticker);
-    if (labelEl) labelEl.textContent = 'Preparing preview...';
-    if (statusEl) statusEl.classList.remove('visible');
-  }
 }
 
 // A run can finish "successfully" while a signal was skipped (most often the LLM,
@@ -934,9 +872,10 @@ function renderImportUrlInspect(info) {
       ${alreadyNote}
     </div>
     <div class="new-recording-actions" style="padding-top:10px">
-      <button class="btn primary" id="btn-start-import">Download</button>
+      <button class="btn primary" id="btn-start-import" data-job-blocked>Download</button>
     </div>`;
   document.getElementById('btn-start-import').addEventListener('click', startImportUrlDownload);
+  applyJobBlockedState();
   _renderImportUrlEstimate(info.duration_s);
 }
 
@@ -1031,8 +970,9 @@ function _renderImportUrlDownloadProgress() {
 function _resetImportUrlActionsButton() {
   const actions = document.querySelector('#import-url-inspect-area .new-recording-actions');
   if (!actions) return;
-  actions.innerHTML = `<button class="btn primary" id="btn-start-import">Download</button>`;
+  actions.innerHTML = `<button class="btn primary" id="btn-start-import" data-job-blocked>Download</button>`;
   document.getElementById('btn-start-import').addEventListener('click', startImportUrlDownload);
+  applyJobBlockedState();
 }
 
 // Mirrors url_import.py's format_progress_line/parse_progress_line - keep the
@@ -1427,6 +1367,6 @@ export {
   _doCloseNewRecordingPanel,
   _renderSubtitleSourcePicker,
   renderEstimate, startAnalyze, reattachAnalysis,
-  _showAnalysisToast, _warmPreviewProxy, _analyzeSegmentsSequentially,
-  closeProfileManager,
+  _showAnalysisToast, _analyzeSegmentsSequentially,
+  closeProfileManager, _rerenderActiveVideoDetail,
 };

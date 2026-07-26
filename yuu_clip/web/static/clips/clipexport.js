@@ -9,7 +9,7 @@ import { escHtml, formatApiError, _fmtOffset } from '../core/format.js';
 import { PanelNav } from '../core/panelnav.js';
 import { streamSSE, setJobCancel } from '../core/jobs.js';
 import {
-  openLog, showToast, revealInFolder, copyText,
+  showToast, revealInFolder, copyText,
   _diarizationNoteHtml, _diarizationReadiness, _exportRetranscribeDefault,
   _wireDiarizationSettingsLink,
 } from '../core/utils.js';
@@ -114,14 +114,14 @@ function _regenerateExportFormat(clipId, data) {
   if (data.titleCard) params.set('title_card', 'true');
   const qs = params.toString() ? `?${params}` : '';
 
-  openLog();
   streamSSE(
     `/api/clips/${clipId}/export${qs}`,
-    async () => {
+    async outcome => {
       const clip = await fetch(`/api/clips/${clipId}`).then(r => r.json());
       AppState.activeClipData = clip;
       if (!PanelNav.isOpen()) renderDetail(clip);
       await _reloadClipList(AppState.activeVideoId);
+      if (outcome === 'cancelled') return;
       showToast('Format regenerated');
       SoundFx.play('export');
     },
@@ -368,7 +368,7 @@ export async function exportClip(id) {
   document.getElementById('export-trim-end').value   = _fmtOffset(AppState.activeClipData?.end_offset);
   const retx      = document.getElementById('export-retranscribe');
   const retxModel = document.getElementById('export-retranscribe-model');
-  const { model, needsRetranscribe } = await _exportRetranscribeDefault(AppState.activeClipData?.video_id);
+  const { model, needsRetranscribe } = await _exportRetranscribeDefault(AppState.activeClipData?.video_id, id);
   retxModel.value = model;
   retx.checked = needsRetranscribe;
   _onExportRetranscribeChange(needsRetranscribe);
@@ -488,10 +488,9 @@ export async function confirmExport() {
   const steps = [{label: 'Export', patterns: ['Exporting', 'OK Saved']}];
   if (retx) steps.unshift({label: 'Transcribe', patterns: ['Retranscribing', 'OK']});
 
-  openLog();
   streamSSE(
     `/api/clips/${id}/export${qs}`,
-    async () => {
+    async outcome => {
       const [clip, media] = await Promise.all([
         fetch(`/api/clips/${id}`).then(r => r.json()),
         fetch(`/api/clips/${id}/media_url`).then(r => r.json()),
@@ -507,6 +506,7 @@ export async function confirmExport() {
       }
       await _reloadClipList(AppState.activeVideoId);
       loadVideos();
+      if (outcome === 'cancelled') return;
       showToast('Clip exported successfully');
       SoundFx.play('export');
     },

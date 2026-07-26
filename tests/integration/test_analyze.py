@@ -1989,6 +1989,29 @@ class TestAnalyzeCancelSideEffects:
                 # cancel must kill the whole tree, not orphan the ffmpeg grandchild
                 assert any(c.args[0][0] == "taskkill" for c in run.call_args_list)
 
+    def test_cancel_reports_success_even_if_trailing_bookkeeping_raises(self, project_dir):
+        """A successful kill must not be reported as a failure just because some
+        best-effort cleanup after it throws - otherwise the client shows "Could not
+        cancel" and leaves its SSE stream attached to a process that already died,
+        which then surfaces the job's own done{cancelled} event as a plain success
+        toast once it arrives (found 2026-07-25 manual check: re-detect-speakers
+        cancel produced both an error toast and a success toast)."""
+        from unittest.mock import patch
+
+        from fastapi.testclient import TestClient
+
+        from yuu_clip.web.app import create_app
+
+        app = create_app(project_dir)
+        with TestClient(app) as tc:
+            with patch(
+                "yuu_clip.web.app._fail_interrupted_analyses",
+                side_effect=RuntimeError("boom"),
+            ):
+                r = tc.post("/api/analyze/cancel")
+        assert r.status_code == 200
+        assert r.json()["status"] == "cancelled"
+
     def test_cancel_releases_subprocess_job_state_without_waiting_on_generator(self, project_dir):
         """B3/W1: cancel must deterministically release a subprocess_sse job's busy
         state. The frontend closes its SSE stream the instant it POSTs cancel, so the

@@ -5,7 +5,7 @@
 import { AppState } from '../core/state.js';
 import { formatApiError } from '../core/format.js';
 import { openDiffModal, showConfirm } from '../core/ui.js';
-import { showToast, openLog, appendLog } from '../core/utils.js';
+import { showToast, appendLog } from '../core/utils.js';
 import {
   _openSSE, _setActiveStream, _clearActiveStream, _supersedeActiveStream, _blockedByAnalyze,
   startJobUI, updateJobUI, endJobUI, setJobProgress, SUMMARY_JOB_STEPS,
@@ -71,7 +71,6 @@ function _doRegenSummaryAuto(id, btn) {
   const actionBtn = document.getElementById('btn-regen-summary') || btn;
   if (actionBtn && actionBtn.disabled) return;
   if (actionBtn) { actionBtn.disabled = true; actionBtn.textContent = 'Regenerating…'; }
-  openLog();
   _supersedeActiveStream();
   startJobUI(SUMMARY_JOB_STEPS, 'Regenerating summary');
   const resetBtn = () => { if (actionBtn) { actionBtn.disabled = false; actionBtn.textContent = 'Regenerate (auto-save)'; } };

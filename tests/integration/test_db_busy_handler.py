@@ -204,6 +204,20 @@ def test_speaker_rename_route_survives_a_transient_lock(client, project_dir, mon
     assert state["failed_once"] is True
 
 
+def test_hotword_create_route_survives_a_transient_lock(client, monkeypatch):
+    # Hot-words autosave immediately (unlike the rest of Settings' batched Save
+    # button), so it can land mid-analysis while the analyze subprocess holds the
+    # write lock - found 2026-07-25 as an outright failure to add a hot-word
+    # during an analysis.
+    state = _fail_first_commit(monkeypatch)
+    r = client.post("/api/hotwords", json={
+        "phrase": "clutch", "match_mode": "case_insensitive", "boost": 0.3, "target": "overall",
+    })
+
+    assert r.status_code == 200
+    assert state["failed_once"] is True
+
+
 def test_segment_speaker_reassign_route_survives_a_transient_lock(client, project_dir, monkeypatch):
     from yuu_clip.db.models import (
         AudioTrack,

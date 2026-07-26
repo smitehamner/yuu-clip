@@ -15,7 +15,8 @@ const seedDom = () => {
     <div id="panelnav-root" style="display:none">
       <div id="panelnav-breadcrumb"></div>
       <div id="panelnav-content"></div>
-    </div>`;
+    </div>
+    <div id="settings-panel"></div>`;
 };
 
 const openPanel = (over = {}) => PanelNav.open({

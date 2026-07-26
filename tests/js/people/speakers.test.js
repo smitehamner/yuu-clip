@@ -67,6 +67,21 @@ describe('Speakers card actions', () => {
     });
   });
 
+  it('_saveSpeakerName removes a stale suggestion chip so its Dismiss button can no longer wipe the just-saved name', async () => {
+    document.getElementById('detail').innerHTML = '<div id="speakers-section"></div>';
+    globalThis.fetch = vi.fn(() => okJson([
+      { id: 1, display_index: 1, color: '#4fc3f7', name: 'Alex', source: 'inferred', confirmed: false },
+    ]));
+    await loadSpeakers(7);
+    expect(document.querySelector('.speaker-suggestion')).not.toBe(null);
+
+    globalThis.fetch = vi.fn(() => okJson({ is_named: true, display_name: 'Yuu', confirmed: true }));
+    await _saveSpeakerName(1, 'Yuu');
+
+    expect(document.querySelector('.speaker-suggestion')).toBe(null);
+    expect(document.querySelector('.speaker-dismiss')).toBe(null);
+  });
+
   it('_saveSpeakerColor PUTs the hex value', async () => {
     await seedCurrentVideo();
     globalThis.fetch = vi.fn(() => okJson({ color: '#abcdef' }));

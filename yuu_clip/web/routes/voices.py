@@ -255,6 +255,13 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             _seed_exemplar(db, voice, speaker)  # drift accumulation
             speaker.suggested_voice_id = None
             speaker.suggested_voice_score = None
+            # Speaker.display_name already resolves through global_voice, so captions/
+            # exports were always correct - but the Speakers-card name input reads the
+            # raw column, which stayed blank for a previously-unnamed speaker. Sync it
+            # so the editable box reflects the same name as the confirmed Person.
+            if not speaker.name:
+                speaker.name = voice.name
+                speaker.confirmed = True
             voice.confirmed = True
             db.flush()
             _propagate_name_change(db, ctx, [speaker.video_id])

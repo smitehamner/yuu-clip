@@ -60,7 +60,18 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
     @router.post("/api/import-url/start")
     def start(req: ImportUrlRequest):
-        """Validate the link and queue the download command for the SSE stream."""
+        """Validate the link and queue the download command for the SSE stream.
+
+        Rejects while another job (including an already-running URL import) is in
+        flight - without this, a second start silently overwrote ctx.import_cmd
+        while the first download was still active, and the frontend's own
+        streamSSE() would then unconditionally supersede/abort the first job's
+        still-open SSE connection to open the second, actually killing the first
+        download's subprocess rather than leaving it running untouched (found
+        2026-07-25: pasting a second URL mid-download broke and orphaned the
+        first).
+        """
+        reject_if_busy(ctx, "Importing from a URL")
         url = normalize_import_url(req.url)
         try:
             validate_import_url(url)

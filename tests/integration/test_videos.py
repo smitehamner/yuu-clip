@@ -1526,6 +1526,91 @@ class TestVideoRetranscribeStatus:
         r = client.get("/api/videos/999999/retranscribe-status")
         assert r.status_code == 404
 
+    def _add_clip(self, project_dir, video_id: int) -> int:
+        from yuu_clip.db.models import ClipCandidate, make_session
+
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            clip = ClipCandidate(video_id=video_id, start_ms=0, end_ms=5_000, status="pending")
+            db.add(clip)
+            db.commit()
+            return clip.id
+        finally:
+            db.close()
+
+    def _add_clip_transcript(self, project_dir, track_id: int, clip_id: int, model_name: str) -> None:
+        from yuu_clip.db.models import Transcript, make_session
+
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            db.add(Transcript(audio_track_id=track_id, clip_id=clip_id, model_name=model_name))
+            db.commit()
+        finally:
+            db.close()
+
+    def test_clip_already_retranscribed_with_export_model_reports_no_gain(self, client, project_dir):
+        # Reproduces 2026-07-25: a clip export with retranscribe checked writes a
+        # clip-scoped Transcript row; the recording-level transcript (still "base"
+        # from the original analyze) never changes. Passing clip_id must consult
+        # the clip-scoped row so re-exporting the SAME clip doesn't show
+        # Retranscribe checked forever.
+        from yuu_clip.db.models import AudioTrack, make_session
+
+        vid_id = self._video_id(client)
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            track_id = db.query(AudioTrack).filter_by(video_id=vid_id).one().id
+        finally:
+            db.close()
+        self._add_transcript(project_dir, track_id, "base")
+        clip_id = self._add_clip(project_dir, vid_id)
+        self._add_clip_transcript(project_dir, track_id, clip_id, "large-v3")
+
+        r = client.get(f"/api/videos/{vid_id}/retranscribe-status?clip_id={clip_id}")
+        assert r.json()["needs_retranscribe"] is False
+
+    def test_clip_id_omitted_still_uses_recording_level_transcript(self, client, project_dir):
+        from yuu_clip.db.models import AudioTrack, make_session
+
+        vid_id = self._video_id(client)
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            track_id = db.query(AudioTrack).filter_by(video_id=vid_id).one().id
+        finally:
+            db.close()
+        self._add_transcript(project_dir, track_id, "base")
+        clip_id = self._add_clip(project_dir, vid_id)
+        self._add_clip_transcript(project_dir, track_id, clip_id, "large-v3")
+
+        r = client.get(f"/api/videos/{vid_id}/retranscribe-status")
+        assert r.json()["needs_retranscribe"] is True
+
+    def test_different_clips_own_status_independently(self, client, project_dir):
+        # A clip-scoped retranscription must only satisfy the clip it belongs to -
+        # a sibling clip on the same video/track that was never retranscribed
+        # still needs it.
+        from yuu_clip.db.models import AudioTrack, make_session
+
+        vid_id = self._video_id(client)
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            track_id = db.query(AudioTrack).filter_by(video_id=vid_id).one().id
+        finally:
+            db.close()
+        self._add_transcript(project_dir, track_id, "base")
+        retranscribed_clip_id = self._add_clip(project_dir, vid_id)
+        self._add_clip_transcript(project_dir, track_id, retranscribed_clip_id, "large-v3")
+        other_clip_id = self._add_clip(project_dir, vid_id)
+
+        r = client.get(f"/api/videos/{vid_id}/retranscribe-status?clip_id={other_clip_id}")
+        assert r.json()["needs_retranscribe"] is True
+
+    def test_clip_id_for_wrong_video_returns_404(self, client, project_dir):
+        vid_id = self._video_id(client)
+        clip_id = self._add_clip(project_dir, vid_id)
+        r = client.get(f"/api/videos/999999/retranscribe-status?clip_id={clip_id}")
+        assert r.status_code == 404
+
 
 class TestSplitExportFileMigration:
     """Export/sidecar filenames embed the clip's start time, so migrating a clip's

@@ -117,36 +117,58 @@ def _register_video_read_routes(router: APIRouter, ctx: ProjectContext) -> None:
             db.close()
 
     @router.get("/api/videos/{video_id}/retranscribe-status")
-    def video_retranscribe_status(video_id: int):
+    def video_retranscribe_status(video_id: int, clip_id: Optional[int] = Query(None)):
         """Whether this video's "Retranscribe before export" checkbox should
-        default on - single-clip export and batch export are both scoped to
-        exactly one video, so "does the export-time model beat what's already
-        transcribed" has one well-defined answer here (unlike the reel, which
-        can span videos transcribed with different models - out of scope).
+        default on. Batch export is video-scoped, so "does the export-time model
+        beat what's already transcribed" is checked against each track's
+        recording-level transcript there (unlike the reel, which can span videos
+        transcribed with different models - out of scope). A single-clip export
+        passes clip_id so a clip already retranscribed with the export model on a
+        prior export - which writes a clip-scoped Transcript row, not a
+        recording-level one - correctly reports "nothing to gain" instead of
+        defaulting checked forever (found 2026-07-25: re-export always showed
+        Retranscribe checked even right after retranscribing that same clip).
         """
         db = ctx.get_db()
         try:
             video = db.get(Video, video_id)
             if not video:
                 raise HTTPException(404, "Video not found")
+            clip = None
+            if clip_id is not None:
+                clip = db.get(ClipCandidate, clip_id)
+                if not clip or clip.video_id != video_id:
+                    raise HTTPException(404, "Clip not found")
             export_model = ctx.config.export_retranscribe_model
             return {
                 "export_retranscribe_model": export_model,
-                "needs_retranscribe": _video_needs_export_retranscribe(video, export_model),
+                "needs_retranscribe": _video_needs_export_retranscribe(video, export_model, clip),
             }
         finally:
             db.close()
 
 
-def _video_needs_export_retranscribe(video: Video, export_model: str) -> bool:
-    """True when at least one do_transcribe track's current transcript wasn't
-    made with export_model - i.e. there's something to gain from retranscribing.
-    A track with no transcript yet counts as "differs" (nothing to lose either).
+def _video_needs_export_retranscribe(
+    video: Video, export_model: str, clip: Optional[ClipCandidate] = None,
+) -> bool:
+    """True when at least one do_transcribe track's best available transcript
+    wasn't made with export_model - i.e. there's something to gain from
+    retranscribing. A track with no transcript yet counts as "differs" (nothing
+    to lose either). When clip is given, a clip-scoped retranscription (from a
+    prior export of THIS clip) takes priority over the recording-level transcript,
+    matching the priority collect_clip_subtitles() uses to pick caption source.
     """
+    clip_tx_by_track: dict[int, Transcript] = {}
+    if clip is not None:
+        for tx in clip.clip_transcripts:
+            existing = clip_tx_by_track.get(tx.audio_track_id)
+            if existing is None or tx.created_at > existing.created_at:
+                clip_tx_by_track[tx.audio_track_id] = tx
+
     for track in video.audio_tracks:
         if not track.do_transcribe:
             continue
-        transcript = latest_track_transcript(track)
+        transcript = clip_tx_by_track.get(track.id) or latest_track_transcript(track)
         if transcript is None or transcript.model_name != export_model:
             return True
     return False

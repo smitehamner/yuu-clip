@@ -18,7 +18,7 @@
     </label>
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
       <label for="batch-container" style="font-size:13px;color:var(--muted);min-width:110px">Output format</label>
-      <select id="batch-container" style="flex:1;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">
+      <select id="batch-container" style="flex:1;min-width:0;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">
         <option value="">Match source</option>
         <option value="mkv">MKV</option>
         <option value="mp4">MP4</option>
@@ -26,9 +26,9 @@
     </div>
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
       <label for="batch-captions" style="font-size:13px;color:var(--muted);min-width:110px">Captions</label>
-      <select id="batch-captions" style="flex:1;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">
+      <select id="batch-captions" style="flex:1;min-width:0;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">
         <option value="none">None</option>
-        <option value="softsub" selected>Embed captions track (fast, no re-encode)</option>
+        <option value="softsub" selected>Embed captions - toggle on/off in your player (fast, no re-encode)</option>
         <option value="hardsub">Burn in captions - can't turn off later (slower, re-encodes)</option>
       </select>
     </div>
@@ -38,7 +38,7 @@
     </label>
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
       <label for="batch-retranscribe-model" style="font-size:13px;color:var(--muted);min-width:110px">Speech-to-text model</label>
-      <select id="batch-retranscribe-model" disabled style="flex:1;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">
+      <select id="batch-retranscribe-model" disabled style="flex:1;min-width:0;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">
         <option value="tiny">tiny - fastest, lowest quality (~75 MB download)</option>
         <option value="base">base - fast, lower quality (~140 MB download)</option>
         <option value="small">small - fast, decent quality (~465 MB download, needs a ~1 GB graphics card)</option>
@@ -49,7 +49,7 @@
     <div id="batch-mode-summary" style="font-size:12px;border-top:1px solid var(--border);padding-top:10px;margin-bottom:14px"></div>
     <div class="modal-actions">
       <button class="btn" id="batch-cancel-btn">Cancel</button>
-      <button class="btn highlight" id="batch-confirm-btn">Export</button>
+      <button class="btn highlight" id="batch-confirm-btn" data-job-blocked>Export</button>
     </div>
   </div>
 </div>

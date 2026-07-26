@@ -4,7 +4,7 @@ import { AppState } from '../core/state.js';
 import {
   escHtml, plural, _fmtVideoStatus, _msToHms, _fmtDate, _parseServerDate, _fmtElapsed, formatApiError,
 } from '../core/format.js';
-import { collapsibleCard, showToast, netErrMsg, revealInFolder, _syncSortDirBtn, openLog, appendLog } from '../core/utils.js';
+import { collapsibleCard, showToast, netErrMsg, revealInFolder, _syncSortDirBtn, appendLog } from '../core/utils.js';
 import { showConfirm, openFieldEditModal, openDiffModal, showKebab, openActionsModal } from '../core/ui.js';
 import { setupRecordingPreview, deferPlayerRebuildForPip } from '../core/preview.js';
 import {
@@ -917,15 +917,15 @@ function rediarizeVideo(id) {
   if (_blockedByAnalyze('re-detect speakers')) return;
   const video = AppState.videos.find(v => v.id === id);
   const name = video ? video.filename : id;
-  openLog();
   appendLog(`Re-detecting speakers: ${name}`);
   streamSSE(
     `/api/videos/${id}/rediarize`,
-    async () => {
+    async outcome => {
       await loadVideos();
       const v = AppState.videos.find(x => x.id === id);
       if (v && AppState.activeVideoId === id) renderVideoDetail(v, null);
       loadSpeakers(id);
+      if (outcome === 'cancelled') return;
       showToast('Speaker detection complete');
       SoundFx.play('analysis');
     },
@@ -937,7 +937,7 @@ function rediarizeVideo(id) {
     url:     '/api/analyze/cancel',
     title:   'Cancel speaker re-detection?',
     body:    'Speaker assignments will stay as they were before this run. You can re-detect speakers again anytime.',
-    confirm: 'Cancel',
+    confirm: 'Cancel Re-detection',
     logMsg:  '[Speaker re-detection cancelled]',
   });
 }
@@ -950,14 +950,14 @@ function reextractVideoRun(id) {
   if (_blockedByAnalyze('re-extract audio')) return;
   const video = AppState.videos.find(v => v.id === id);
   const name = video ? video.filename : id;
-  openLog();
   appendLog(`Re-extracting audio: ${name}`);
   streamSSE(
     `/api/videos/${id}/reextract`,
-    async () => {
+    async outcome => {
       await loadVideos();
       const v = AppState.videos.find(x => x.id === id);
       if (v && AppState.activeVideoId === id) renderVideoDetail(v, null);
+      if (outcome === 'cancelled') return;
       showToast('Audio re-extracted - re-transcribe to update the transcript');
       SoundFx.play('analysis');
     },
@@ -969,7 +969,7 @@ function reextractVideoRun(id) {
     url:     '/api/analyze/cancel',
     title:   'Cancel audio re-extraction?',
     body:    'The recording keeps its previous extracted audio. You can re-extract again anytime.',
-    confirm: 'Cancel',
+    confirm: 'Cancel Re-extraction',
     logMsg:  '[Audio re-extraction cancelled]',
   });
 }
@@ -1008,13 +1008,13 @@ async function retranscribeVideoRun(id) {
 }
 
 function _startVideoRetranscribe(id, name, model) {
-  openLog();
   appendLog(`Re-transcribing: ${name} (${model})`);
   streamSSE(
     `/api/videos/${id}/retranscribe?model=${encodeURIComponent(model)}`,
-    async () => {
+    async outcome => {
       await loadVideos();
       if (AppState.activeVideoId === id) await selectVideo(id);
+      if (outcome === 'cancelled') return;
       showToast('Re-transcription complete - re-score to refresh clip scores');
       SoundFx.play('analysis');
     },
@@ -1026,7 +1026,7 @@ function _startVideoRetranscribe(id, name, model) {
     url:     '/api/analyze/cancel',
     title:   'Cancel re-transcription?',
     body:    'The recording keeps its previous transcript. You can re-transcribe again anytime.',
-    confirm: 'Cancel',
+    confirm: 'Cancel Re-transcribe',
     logMsg:  '[Re-transcription cancelled]',
   });
 }
@@ -1040,13 +1040,13 @@ function regenerateClipsRun(id) {
     'This rebuilds every clip from the current transcript, discarding all approvals, edits, tags, and scores on this recording\'s existing clips. The transcript itself is kept. Re-score afterward to populate the new clips.',
     'Regenerate Clips',
     () => {
-      openLog();
       appendLog(`Regenerating clips: ${name}`);
       streamSSE(
         `/api/videos/${id}/regenerate-clips`,
-        async () => {
+        async outcome => {
           await loadVideos();
           if (AppState.activeVideoId === id) await selectVideo(id);
+          if (outcome === 'cancelled') return;
           showToast('Clips regenerated - re-score to populate scores');
           SoundFx.play('analysis');
         },
@@ -1058,7 +1058,7 @@ function regenerateClipsRun(id) {
         url:     '/api/analyze/cancel',
         title:   'Cancel clip regeneration?',
         body:    'The recording keeps its existing clips. You can regenerate clips again anytime.',
-        confirm: 'Cancel',
+        confirm: 'Cancel Regeneration',
         logMsg:  '[Clip regeneration cancelled]',
       });
     },

@@ -535,6 +535,26 @@ faster-whisper, `speaker_*` for diarization) rather than renaming them generic.
 - Dynamic button lists must use event delegation (`el.onclick = e => { ... }`) not inline `onclick=` attributes with JS values - inline attributes break when names contain quotes
 - SSE streams are tracked in `_activeES`; call `_activeES.close()` before starting a new one
 - `startJobUI` / `endJobUI` / `streamSSE` are the canonical helpers for long-running jobs
+- **Any button that starts a job the backend would `reject_if_busy()` must carry
+  `data-job-blocked`** - `applyJobBlockedState()` (called from `startJobUI`/`endJobUI`)
+  disables every tagged element while a job is active, with a why-tooltip, so the user
+  sees a disabled button instead of a 409 after clicking. This applies whether the
+  button is in static partial HTML or built into a template string at render time - the
+  attribute is enough, no JS wiring needed per-button. Found 2026-07-25: the Export,
+  Batch Export, and Retranscribe confirm buttons all launch `reject_if_busy`-guarded
+  endpoints but weren't tagged, unlike the URL-import Download button and "Analyze
+  frames" that were - add the tag for every new job-launching button from the start.
+- **`streamSSE`'s `onDone` callback receives the typed `outcome`
+  (`"success"`/`"cancelled"`/`"error"`) - branch on it before showing a success
+  toast/sound.** `onDone(outcome) { if (outcome === 'cancelled') return; showToast(...) }`
+  is the pattern; skipping the branch shows a false "complete!" toast right after the
+  user cancelled (found 2026-07-25, fixed across ~9 call sites - see `jobs.js`'s
+  `streamSSE` and any `videos.js`/`clipexport.js`/`reel.js` job starter for the pattern).
+- **A confirm-dialog's button label must name the actual action being confirmed**, not a
+  generic "Cancel" - e.g. "Cancel Re-detection", "Stop Export", not a bare "Cancel" that
+  reads as confirming the dialog itself rather than the destructive action. Copy-pasting
+  a confirm-dialog config across call sites is exactly how this drifts (found 2026-07-25:
+  4 sites in `videos.js` all reused the literal `confirm: 'Cancel'`).
 - **Panel flows**: a multi-step flow (Split Editor, manual-clip picker, etc.) must take
   over the main detail panel via `PanelNav.open()` (`panelnav.js`), not a modal. Tabs are only
   for navigation *within* a single view. `PanelNav.open({id, title, render, isDirty, onClose})`

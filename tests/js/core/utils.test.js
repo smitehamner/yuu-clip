@@ -34,6 +34,17 @@ describe('_exportRetranscribeDefault', () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('offline'))));
     expect(await _exportRetranscribeDefault(42)).toEqual({ model: 'large-v3', needsRetranscribe: false });
   });
+
+  it('includes clip_id in the query when passed, for a single-clip export', async () => {
+    vi.stubGlobal('fetch', vi.fn((url) => {
+      expect(url).toBe('/api/videos/42/retranscribe-status?clip_id=7');
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ export_retranscribe_model: 'large-v3', needs_retranscribe: false }),
+      });
+    }));
+    expect(await _exportRetranscribeDefault(42, 7)).toEqual({ model: 'large-v3', needsRetranscribe: false });
+  });
 });
 
 describe('_diarizationReason', () => {
@@ -91,6 +102,14 @@ describe('showToast', () => {
     showToast('Saved', 'success', { durationMs: 100 });
     vi.advanceTimersByTime(500);
     expect(container().querySelectorAll('.toast.success')).toHaveLength(0);
+  });
+  it('a persist:true toast stays until dismissed regardless of type', () => {
+    showToast('Nothing found', 'warning', { durationMs: 100, persist: true });
+    vi.advanceTimersByTime(1200);
+    const warningToast = container().querySelector('.toast.warning');
+    expect(warningToast).not.toBe(null);
+    warningToast.querySelector('button[aria-label="Dismiss"]').click();
+    expect(container().querySelectorAll('.toast.warning')).toHaveLength(0);
   });
   it('the stack is capped at four, keeping the newest', () => {
     for (let i = 0; i < 6; i++) showToast(`toast ${i}`, 'info', { durationMs: 60000 });

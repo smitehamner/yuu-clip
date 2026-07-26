@@ -102,6 +102,19 @@ except the two items below).
   live (it was block-buffered in the raw-`print` import subprocess). Apply the same elapsed-time-minimum
   when wiring the remaining event-loop jobs above.
 
+- [ ] **CUDA libs (opt-in transcription GPU acceleration) don't survive an app
+  upgrade** - found 2026-07-25 during the 0.1.29 upgrade-install manual check.
+  Every version bump re-extracts the whole prebuilt venv (`prebuilt-env.js`
+  `decidePrebuiltEnvAction` -> `extract`), and `nvidia-cublas-cu12`/
+  `nvidia-cudnn-cu12` are pip-installed inside that venv by the "Enable GPU
+  acceleration" flow, so they're wiped on every upgrade with nothing reinstalling
+  them. Not a silent-data-loss bug - `gpustatus.js`'s Setup Warnings chip already
+  detects and surfaces the missing-libs state with a one-click reinstall - but it
+  means anyone who opted in re-pays a ~1 GB download every release. Proposed fix
+  (persist across upgrades, mirroring the already-fixed `.gguf` model-persistence
+  case) and full root-cause detail in the private planning workspace,
+  `CUDA-LIBS-LOST-ON-UPGRADE-2026-07-25.md`.
+
 - [ ] **Hoist repeated inline `style="..."` in the index.html partials into `app.css`
   classes (opportunistic)** - the WS-E split made `index.html` a stitch of
   `static/partials/*.html`; each partial still carries verbose inline styles (hint text,
@@ -185,6 +198,13 @@ Wanted before distributing beyond friends/trusted users.
   Suggest-names, samples) and wants a deliberate layout/interaction rethink, not just the
   incremental fixes already shipped. Fold the "Suggest names" progress+cancel gap (section 1)
   into the same pass since it lives on this card.
+  **Owner feedback (2026-07-25, 0.1.29 manual check):** the card's two header buttons
+  (`+ New speaker` / `Suggest names`, `people/speakers.js` `_renderSpeakersCard`) aren't
+  formatted consistently with each other; add a **Re-detect Speakers** shortcut directly
+  on the card (today it's only reachable via the video-level "Additional Actions" modal -
+  `rediarizeVideo` in `videos/videos.js`); and `+ New speaker` is the least-used of the
+  three, so it should not get equal header prominence with Suggest names/Re-detect - lower
+  it (e.g. behind a kebab, or visually deprioritized) when this pass happens.
 
 - [ ] **Sidebar grouping for split segments** *(speculative)* - a collapsible parent row
   "session.mkv (3 segments)" with indented children, as an alternative to the flat list.

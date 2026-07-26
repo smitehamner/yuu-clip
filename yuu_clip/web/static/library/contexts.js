@@ -4,7 +4,7 @@ import { AppState } from '../core/state.js';
 import { escHtml, formatApiError, plural } from '../core/format.js';
 import { showConfirm, openDiffModal } from '../core/ui.js';
 import {
-  showToast, openLog, appendLog,
+  showToast, appendLog,
   _diarizationReadiness, _diarizationNoteHtml, _wireDiarizationSettingsLink, _exportRetranscribeDefault,
 } from '../core/utils.js';
 import {
@@ -530,7 +530,6 @@ function _doRescoreClips(videoId, btn, endpoint = 'rescore-clips', includeFrames
   if (_blockedByAnalyze('re-score clips')) return;
   const orig = btn?.textContent;
   if (btn) { btn.disabled = true; btn.textContent = 'Re-scoring…'; }
-  openLog();
   _supersedeActiveStream();
   startJobUI(RESCORE_JOB_STEPS, 'Re-scoring clips', true);
   const resetBtn = () => { if (btn) { btn.disabled = false; btn.textContent = orig; } };
@@ -636,7 +635,6 @@ function _doRedescribeClips(videoId, btn) {
   if (_blockedByAnalyze('re-describe clips')) return;
   const orig = btn?.textContent;
   if (btn) { btn.disabled = true; btn.textContent = 'Re-describing…'; }
-  openLog();
   _supersedeActiveStream();
   startJobUI(REDESCRIBE_JOB_STEPS, 'Re-describing clips', true);
   const resetBtn = () => { if (btn) { btn.disabled = false; btn.textContent = orig; } };
@@ -863,10 +861,9 @@ function _doStartRetranscribe() {
   const model = document.getElementById('retranscribe-model').value;
   const speakerLabels = document.getElementById('retranscribe-speaker-labels').checked;
   closeRetranscribeModal();
-  openLog();
   streamSSE(
     `/api/clips/${clipId}/retranscribe?model=${encodeURIComponent(model)}&speaker_labels=${speakerLabels}`,
-    () => { selectClip(clipId); showToast('Retranscription complete'); },
+    outcome => { selectClip(clipId); if (outcome !== 'cancelled') showToast('Retranscription complete'); },
     [{label: 'Transcribe', patterns: ['Retranscribing', 'OK']}],
     'Retranscribing',
     true,
@@ -896,7 +893,6 @@ export function rescoreClipChoose(clipId) {
 export function rescoreClip(clipId, full = false) {
   if (_blockedByAnalyze('re-score a clip')) return;
   _supersedeActiveStream();
-  openLog();
   startJobUI(SCORE_STEPS, 'Re-scoring clip');
   const teardown = () => endJobUI();
   let rescoreResult = null;

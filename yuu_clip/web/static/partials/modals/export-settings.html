@@ -7,14 +7,14 @@
     <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:14px">
       <div style="display:flex;align-items:center;gap:10px">
         <label for="export-preset" style="font-size:13px;color:var(--muted);min-width:110px">Export preset</label>
-        <select id="export-preset" style="flex:1;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px">
+        <select id="export-preset" style="flex:1;min-width:0;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px">
           <option value="">Original quality (default)</option>
         </select>
       </div>
       <div id="export-tightcap-warning" role="status" style="display:none;font-size:12px;color:var(--warning);line-height:1.4"></div>
       <div style="display:flex;align-items:center;gap:10px">
         <label for="export-container" style="font-size:13px;color:var(--muted);min-width:110px">Output format</label>
-        <select id="export-container" style="flex:1;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px">
+        <select id="export-container" style="flex:1;min-width:0;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px">
           <option value="">Match source</option>
           <option value="mkv">MKV</option>
           <option value="mp4">MP4</option>
@@ -22,9 +22,9 @@
       </div>
       <div style="display:flex;align-items:center;gap:10px">
         <label for="export-captions" style="font-size:13px;color:var(--muted);min-width:110px">Captions</label>
-        <select id="export-captions" style="flex:1;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px">
+        <select id="export-captions" style="flex:1;min-width:0;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px">
           <option value="none">None</option>
-          <option value="softsub" selected>Embed captions track (fast, no re-encode)</option>
+          <option value="softsub" selected>Embed captions - toggle on/off in your player (fast, no re-encode)</option>
           <option value="hardsub">Burn in captions - can't turn off later (slower, re-encodes)</option>
         </select>
       </div>
@@ -35,7 +35,7 @@
           <div style="display:flex;align-items:center;gap:10px">
             <label for="export-caption-font" style="font-size:13px;color:var(--muted);min-width:110px">Font</label>
             <input id="export-caption-font" type="text" placeholder="Renderer default" maxlength="64"
-                   style="flex:1;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px">
+                   style="flex:1;min-width:0;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px">
           </div>
           <div style="font-size:11px;color:var(--muted);padding-left:120px;margin-top:-4px">Must be installed on this PC - e.g. Arial, Segoe UI.</div>
           <div style="display:flex;align-items:center;gap:10px">
@@ -92,7 +92,7 @@
       </div>
       <div style="display:flex;align-items:center;gap:10px">
         <label for="export-retranscribe-model" style="font-size:13px;color:var(--muted);min-width:110px">Speech-to-text model</label>
-        <select id="export-retranscribe-model" disabled style="flex:1;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px">
+        <select id="export-retranscribe-model" disabled style="flex:1;min-width:0;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px">
           <option value="tiny">tiny - fastest, lowest quality (~75 MB download)</option>
           <option value="base">base - fast, lower quality (~140 MB download)</option>
           <option value="small">small - fast, decent quality (~465 MB download, needs a ~1 GB graphics card)</option>
@@ -128,7 +128,7 @@
     </div>
     <div class="modal-actions">
       <button class="btn" id="export-cancel-btn">Cancel</button>
-      <button class="btn highlight" id="export-confirm-btn">Export</button>
+      <button class="btn highlight" id="export-confirm-btn" data-job-blocked>Export</button>
     </div>
   </div>
 </div>

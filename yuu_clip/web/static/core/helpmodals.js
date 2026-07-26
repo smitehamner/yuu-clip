@@ -94,14 +94,16 @@ const HELP_DOCS = [
     onlineUrl: 'https://github.com/smitehamner/yuu-clip/blob/main/docs/user/PERFORMANCE.md' },
 ];
 
+// Always opens on Overview (HELP_DOCS[0]) - it used to reopen on whichever guide
+// was last viewed (persisted via localStorage), which read as a display bug
+// ("opens to the bottom option") since the entry point is meant to be a fixed,
+// predictable landing page, not session state (found 2026-07-25).
 let _helpOpener = null;
 export function openHelpModal() {
   _helpOpener = document.activeElement;
   document.getElementById('help-modal').classList.add('visible');
   _renderHelpDocList();
-  const saved = localStorage.getItem('yuu-help-doc');
-  const initial = HELP_DOCS.find((d) => d.key === saved)?.key || HELP_DOCS[0].key;
-  _openHelpDoc(initial);
+  _openHelpDoc(HELP_DOCS[0].key);
   setTimeout(() => document.querySelector('#help-doc-list [data-help-doc]')?.focus(), 50);
 }
 export function closeHelpModal() {
@@ -153,7 +155,6 @@ function _helpViewHtml(doc, bodyHtml, toc) {
 
 async function _openHelpDoc(key, fragment) {
   const doc = HELP_DOCS.find((d) => d.key === key) || HELP_DOCS[0];
-  localStorage.setItem('yuu-help-doc', doc.key);
   _highlightActiveDoc(doc.key);
   const view = document.getElementById('help-doc-view');
   view.innerHTML = '<div style="color:var(--muted)">Loading&#x2026;</div>';

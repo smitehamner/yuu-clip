@@ -131,6 +131,24 @@ class TestProjectSwitch:
         assert res.status_code == 200
         assert (fresh / ".yuu-clip" / "project.db").exists()
         assert client.get("/api/videos").json() == []
+        assert res.json()["created"] is False
+
+    def test_switch_to_nonexistent_dir_reports_created(self, client, tmp_path):
+        # A path that doesn't exist yet - e.g. a moved/deleted project folder
+        # someone meant to reopen - silently starts a brand-new empty project
+        # there. `created` lets the frontend tell the two apart instead of
+        # reading the same as reopening real existing data (found 2026-07-25).
+        missing = tmp_path / "does-not-exist-yet"
+        res = client.post("/api/projects/switch", json={"path": str(missing)})
+        assert res.status_code == 200
+        assert res.json()["created"] is True
+        assert missing.is_dir()
+
+    def test_switch_to_existing_project_reports_not_created(self, client, tmp_path):
+        other = _seed_project(tmp_path / "reopened", "reopened.mkv")
+        res = client.post("/api/projects/switch", json={"path": str(other)})
+        assert res.status_code == 200
+        assert res.json()["created"] is False
 
     def test_switch_creates_new_project_log(self, client, tmp_path):
         other = _seed_project(tmp_path / "logged", "logged.mkv")

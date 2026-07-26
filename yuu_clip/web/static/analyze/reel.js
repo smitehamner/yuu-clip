@@ -4,7 +4,7 @@
 import { AppState } from '../core/state.js';
 import { escHtml, plural, formatApiError } from '../core/format.js';
 import { showConfirm } from '../core/ui.js';
-import { openLog, appendLog, showToast, revealInFolder, _exportRetranscribeDefault } from '../core/utils.js';
+import { appendLog, showToast, revealInFolder, _exportRetranscribeDefault } from '../core/utils.js';
 import { streamSSE, setJobCancel, _blockedByAnalyze } from '../core/jobs.js';
 import { loadVideos } from '../videos/videos.js';
 import { _renderExportModeSummary } from '../clips/clipexport.js';
@@ -415,7 +415,6 @@ async function exportUnexportedReelClips() {
   const statusEl = document.getElementById('demo-status');
   statusEl.style.color = 'var(--muted)';
   statusEl.textContent = `Exporting ${plural(toExport.length, 'clip')}…`;
-  openLog();
   streamSSE(
     `/api/clips/bulk-export?clip_ids=${encodeURIComponent(ids)}`,
     () => {
@@ -555,12 +554,12 @@ async function startDemo() {
   const skipNote = unexported.length ? ` - ${plural(unexported.length, 'unexported clip')} skipped` : '';
   statusEl.textContent = `Building reel from ${plural(data.clip_count, 'clip')}…${skipNote}`;
   closeDemoModal();
-  openLog();
   if (unexported.length) appendLog(`[Skipping ${plural(unexported.length, 'clip')} not yet exported]`);
   streamSSE(
     '/api/demo/events',
-    () => {
+    outcome => {
       loadVideos();
+      if (outcome === 'cancelled') return;
       showToast(`Highlight reel complete!${skipNote}`, 'success');
       openHighlightReelsModal('view');
       SoundFx.play('reel');
@@ -657,7 +656,6 @@ async function confirmBatchExport() {
   if (captions === 'softsub') params.set('embed_subs', 'true');
   if (retx) { params.set('retranscribe', 'true'); params.set('retranscribe_model', retxModel); }
 
-  openLog();
   streamSSE(
     `/api/videos/${id}/batch-export?${params}`,
     () => { loadVideos(); showToast('Batch export complete'); SoundFx.play('export'); },

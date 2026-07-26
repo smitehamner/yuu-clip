@@ -4,7 +4,7 @@ import { AppState } from '../core/state.js';
 import { PanelNav } from '../core/panelnav.js';
 import { escHtml, plural, formatApiError } from '../core/format.js';
 import { setupRecordingPreview, releaseVideoRespectingPip } from '../core/preview.js';
-import { showToast, netErrMsg, openLog, appendLog } from '../core/utils.js';
+import { showToast, netErrMsg, appendLog } from '../core/utils.js';
 import { showConfirm } from '../core/ui.js';
 import { streamSSE, _openSSE, INGEST_STEPS, _waitWhileAnalyzePaused } from '../core/jobs.js';
 import { loadVideos, renderVideoDetail, _reanalyzeParams } from '../videos/videos.js';
@@ -783,7 +783,6 @@ async function _doSplitAndReanalyze(keepExported) {
   }
 
   closeSplitEditor();
-  openLog();
   // Held for the whole chain (cleared when the last segment finishes, in
   // _reanalyzeSegmentsSequentially's terminal branch) so _blockedByAnalyze
   // protects every segment's run, not just the one currently streaming - a

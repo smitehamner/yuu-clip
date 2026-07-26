@@ -26,7 +26,7 @@ import {
   _setActiveStream, _clearActiveStream, _supersedeActiveStream, _blockedByAnalyze,
   RESCORE_JOB_STEPS, REDESCRIBE_JOB_STEPS, HOTWORD_SCAN_STEPS, SUMMARY_JOB_STEPS,
   SPEAKER_NAMES_STEPS, FIND_SIMILAR_STEPS, TIMELINE_JOB_STEPS, setJobProgress,
-  setJobCancel, cancelJob,
+  setJobCancel, cancelJob, streamSSE,
 } from '../../../yuu_clip/web/static/core/jobs.js';
 import { registerRefreshHooks, _resetRefreshHooks } from '../../../yuu_clip/web/static/core/refreshhooks.js';
 
@@ -335,5 +335,44 @@ describe('_blockedByAnalyze', () => {
     AppState.analyzeFilename = null;
     expect(_blockedByAnalyze('re-score clips')).toBe(false);
     expect(showToast).not.toHaveBeenCalled();
+  });
+});
+
+// streamSSE's built-in done wrapper used to call the caller's onDone with no
+// arguments, silently discarding the typed done event's outcome ('ok' vs
+// 'cancelled') - every caller's success toast/sound then fired unconditionally,
+// including when the job had actually been cancelled (found 2026-07-25 manual
+// check: cancelling a clip export/retranscribe/re-extract-audio still showed a
+// success toast whenever the server's done{cancelled} event won the race against
+// the client's own stream-abort).
+describe('streamSSE outcome passthrough', () => {
+  function sseResponse(payloads) {
+    const encoder = new TextEncoder();
+    const chunks = payloads.map((p) => encoder.encode(`data: ${JSON.stringify(p)}\n\n`));
+    let i = 0;
+    return {
+      ok: true,
+      body: { getReader: () => ({ read: async () => (i < chunks.length ? { done: false, value: chunks[i++] } : { done: true }) }) },
+    };
+  }
+
+  afterEach(() => { delete globalThis.fetch; });
+
+  it("passes the typed done event's outcome through to the caller's onDone", async () => {
+    const outcomes = [];
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(sseResponse([{ v: 1, type: 'done', outcome: 'cancelled' }]))));
+    await new Promise(resolve => {
+      streamSSE('/api/whatever', outcome => { outcomes.push(outcome); resolve(); }, null, null);
+    });
+    expect(outcomes).toEqual(['cancelled']);
+  });
+
+  it('passes an ok outcome through the same way', async () => {
+    const outcomes = [];
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(sseResponse([{ v: 1, type: 'done', outcome: 'ok' }]))));
+    await new Promise(resolve => {
+      streamSSE('/api/whatever', outcome => { outcomes.push(outcome); resolve(); }, null, null);
+    });
+    expect(outcomes).toEqual(['ok']);
   });
 });

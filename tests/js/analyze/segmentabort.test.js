@@ -18,7 +18,7 @@ vi.mock('../../../yuu_clip/web/static/core/jobs.js', async (importActual) => {
 });
 vi.mock('../../../yuu_clip/web/static/core/utils.js', async (importActual) => {
   const actual = await importActual();
-  return { ...actual, showToast: vi.fn(), openLog: vi.fn(), appendLog: vi.fn() };
+  return { ...actual, showToast: vi.fn(), appendLog: vi.fn() };
 });
 
 import { streamSSE } from '../../../yuu_clip/web/static/core/jobs.js';

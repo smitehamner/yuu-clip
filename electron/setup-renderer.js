@@ -431,7 +431,10 @@ document.getElementById('browse-btn').addEventListener('click', async () => {
 
 // Restore-from-backup is a first-run choice only: rerun/update already have a
 // live project, and restoring over it belongs in the in-app Settings flow.
-if (mode === 'initial') document.getElementById('restore-row').style.display = '';
+if (mode === 'initial') {
+  document.getElementById('restore-row').style.display = '';
+  document.getElementById('restore-note').style.display = '';
+}
 
 document.getElementById('restore-backup-btn').addEventListener('click', async () => {
   const archive = await api.pickFile({
@@ -527,11 +530,13 @@ api.onInstallProgress(onInstallProgress);
 api.onGgufDownloadProgress(onGgufDownloadProgress);
 
 function applyOsTheme(s) {
-  // Mirrors the shared tokens.css data-theme contract (see index.html's inline
-  // pre-paint script) so the wizard follows the same OS preference the packaged
-  // app's window chrome does, instead of always rendering the dark palette.
+  // The app itself always defaults to dark regardless of OS light/dark preference
+  // (index.src.html's inline pre-paint script only ever deviates from dark when
+  // the user explicitly picked a theme in Settings) - the wizard matches that so
+  // first run doesn't flip from a light wizard into a dark app the moment it
+  // finishes. OS high-contrast is still honored since that is an accessibility
+  // need, not a color preference.
   if (s.osThemeIsHighContrast) document.documentElement.dataset.theme = 'high-contrast';
-  else if (s.osThemeIsLight) document.documentElement.dataset.theme = 'light';
 }
 
 (async () => {

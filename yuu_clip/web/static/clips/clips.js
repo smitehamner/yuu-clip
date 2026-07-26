@@ -4,7 +4,7 @@ import {
   _fmtAgo, _fmtOffset, formatApiError,
 } from '../core/format.js';
 import {
-  showToast, collapsibleCard, copyText, _syncSortDirBtn, openLog, appendLog,
+  showToast, collapsibleCard, copyText, _syncSortDirBtn, appendLog,
 } from '../core/utils.js';
 import {
   showConfirm, showKebab, openActionsModal, openDiffModal, openFieldEditModal, showUndoToast,
@@ -1575,7 +1575,6 @@ function startFindSimilar() {
   // inline spinner on the Related Clips card (PROGRESS-CANCEL-GAP Part B / bug 3.3).
   _supersedeActiveStream();
   startJobUI(FIND_SIMILAR_STEPS, 'Finding similar clips');
-  openLog();
   _findingSimilarClipId = clipId;
   _renderSimilarSearchState();
 
@@ -1614,13 +1613,12 @@ function startFindSimilar() {
 
 // ── scoring ───────────────────────────────────────────────────────────────────
 function scoreAll() {
-  openLog();
   streamSSE(
     '/api/score',
-    () => {
+    outcome => {
       loadVideos();
       _reloadClipList(AppState.activeVideoId);
-      showToast('Scoring complete');
+      if (outcome !== 'cancelled') showToast('Scoring complete');
     },
     SCORE_STEPS,
     'Scoring',

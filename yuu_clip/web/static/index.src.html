@@ -61,16 +61,6 @@
           style="padding:2px 10px;font-size:12px;display:none">Cancel</button>
 </div>
 
-<!-- Minimal visible status for the silent preview-proxy warm-up that runs right
-     after analysis finishes (analyze.js's _warmPreviewProxy). It never disables
-     other buttons or offers cancel - it exists only so a "another job is running"
-     rejection from an action attempted during the warm-up has something on screen
-     to point at. Kept separate from #job-status so it never fights that strip's
-     own visibility/hide-timer state. -->
-<div class="preview-warm-status" id="preview-warm-status" role="status" aria-live="polite">
-  <div class="spinner" role="status" aria-label="Preparing preview"></div>
-  <span>Preparing preview...</span>
-</div>
 
 <!-- Background local-model download banner (first-run-friction Stage 4). Non-blocking
      top-of-app chrome; content + visibility are driven by modeldownload.js. -->

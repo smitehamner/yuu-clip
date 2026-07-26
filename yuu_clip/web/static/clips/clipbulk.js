@@ -5,7 +5,7 @@
 // rows are drawn, and _pruneClipSelection on every re-render.
 import { AppState } from '../core/state.js';
 import { formatApiError, plural } from '../core/format.js';
-import { showToast, openLog } from '../core/utils.js';
+import { showToast } from '../core/utils.js';
 import { showConfirm, showUndoToast } from '../core/ui.js';
 import { streamSSE } from '../core/jobs.js';
 import { loadVideos } from '../videos/videos.js';
@@ -185,7 +185,6 @@ export function bulkExportClips() {
 function _doBulkExportClips(ids) {
   const qs = new URLSearchParams({clip_ids: ids.join(',')});
   AppState.selectedClipIds.clear();
-  openLog();
   // The server may skip already-exported clips, so report the actual exported
   // count from its completion line rather than the requested selection size.
   let exportedCount = null;

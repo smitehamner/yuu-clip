@@ -38,6 +38,24 @@ describe('switchProject', () => {
     expect(JSON.parse(opts.body)).toEqual({ path: 'D:\\Videos\\proj' });
   });
 
+  it('shows the generic switching toast when reopening an existing project', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okJson({ current: 'D:\\Videos\\proj', created: false })));
+
+    await switchProject('D:\\Videos\\proj');
+
+    expect(showToast).toHaveBeenCalledWith('Switching project…');
+  });
+
+  it('shows a distinct toast when the path did not exist and a new project was created', async () => {
+    // A moved/deleted project folder someone meant to reopen must not read the
+    // same as reopening real existing data (found 2026-07-25).
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okJson({ current: 'D:\\gone', created: true })));
+
+    await switchProject('D:\\gone');
+
+    expect(showToast).toHaveBeenCalledWith('Created a new project here - folder was empty');
+  });
+
   it('surfaces the server rejection detail as an error toast and reports failure', async () => {
     const fetchMock = vi.fn().mockResolvedValue(errJson({ detail: 'Folder not found' }));
     vi.stubGlobal('fetch', fetchMock);

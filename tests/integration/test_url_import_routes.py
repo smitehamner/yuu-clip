@@ -99,6 +99,21 @@ class TestImportUrlRoutes:
         assert "https://www.youtube.com/watch?v=vid1" in cmd
         assert not any("list=" in arg for arg in cmd)
 
+    def test_start_rejected_while_another_job_is_running(self, client):
+        # A second /start while a first download's SSE stream is live must not
+        # silently clobber ctx.import_cmd - the frontend's streamSSE() would then
+        # unconditionally supersede/abort the FIRST download's still-open stream to
+        # open the second, actually killing its subprocess rather than leaving it
+        # running untouched (found 2026-07-25: pasting a second URL mid-download).
+        ctx = client.app.state.ctx
+        ctx.active_jobs += 1
+        try:
+            r = client.post("/api/import-url/start", json={"url": "https://www.youtube.com/watch?v=vid1"})
+            assert r.status_code == 409
+            assert ctx.import_cmd is None
+        finally:
+            ctx.active_jobs -= 1
+
     def test_events_without_start_returns_400(self, client):
         r = client.get("/api/import-url/events")
         assert r.status_code == 400

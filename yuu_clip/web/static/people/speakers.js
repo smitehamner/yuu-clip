@@ -6,7 +6,7 @@
 import { AppState } from '../core/state.js';
 import { escHtml, truncate, plural, formatApiError } from '../core/format.js';
 import { ColorPicker } from '../library/colorpicker.js';
-import { openLog, appendLog, showToast, collapsibleCard } from '../core/utils.js';
+import { appendLog, showToast, collapsibleCard } from '../core/utils.js';
 import { showConfirm } from '../core/ui.js';
 import {
   _blockedByAnalyze, _openSSE, _supersedeActiveStream, _clearActiveStream, _setActiveStream,
@@ -157,7 +157,6 @@ function _suggestSpeakerNames() {
   const btn = document.querySelector('.speaker-suggest-btn');
   if (btn && btn.disabled) return;
   if (btn) { btn.disabled = true; btn.textContent = 'Suggesting…'; }
-  openLog();
   _supersedeActiveStream();
   startJobUI(SPEAKER_NAMES_STEPS, 'Suggesting speaker names');
   const resetBtn = () => {
@@ -175,9 +174,8 @@ function _suggestSpeakerNames() {
       _clearActiveStream(handle);
       teardown();
       const n = suggestResult?.suggested || 0;
-      showToast(n > 0
-        ? `${plural(n, 'name suggestion')} - review and accept`
-        : 'No names could be inferred from the transcript');
+      if (n > 0) showToast(`${plural(n, 'name suggestion')} - review and accept`);
+      else showToast('No names could be inferred from the transcript', 'warning', { persist: true });
       await loadSpeakers(videoId);
     },
     errMsg => {
@@ -228,6 +226,12 @@ export async function _saveSpeakerName(speakerId, name) {
     // clip) instead of reloading the whole panel - a full reload was disruptive while
     // editing inside the transcript. A rename changes only the label, never structure.
     updateSpeakerLabelsInTranscript(speakerId, { displayName: updated.display_name, color: updated.color });
+    // A manual rename confirms the speaker server-side, but a stale "Suggested: ...
+    // Dismiss" chip from an earlier inferred suggestion can still be sitting in this
+    // row (no full-card reload ran to drop it) - if left in place, clicking its
+    // Dismiss button would still fire and blank out the name just saved. Remove it now
+    // that the row's own manual name has confirmed the speaker.
+    input?.closest('.speaker-row')?.querySelector('.speaker-suggestion')?.remove();
   } catch (_) {
     showToast('Could not save speaker name', 'error');
   } finally {

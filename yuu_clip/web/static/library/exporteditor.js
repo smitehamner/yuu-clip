@@ -2,7 +2,7 @@ import { AppState } from '../core/state.js';
 import { escHtml, formatApiError, fmtClock } from '../core/format.js';
 import { PanelNav } from '../core/panelnav.js';
 import { setupRecordingPreview, releaseVideoRespectingPip } from '../core/preview.js';
-import { openLog, showToast } from '../core/utils.js';
+import { showToast } from '../core/utils.js';
 import { streamSSE, setJobCancel } from '../core/jobs.js';
 import { renderPlayer, renderDetail, _reloadClipList } from '../clips/clips.js';
 import { loadVideos } from '../videos/videos.js';
@@ -127,7 +127,7 @@ function _edMount(container) {
       <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)">Captions
         <select id="ed-captions" aria-label="Captions" style="padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px">
           <option value="none">None</option>
-          <option value="embed" selected>Embed captions track (fast, no re-encode)</option>
+          <option value="embed" selected>Embed captions - toggle on/off in your player (fast, no re-encode)</option>
           <option value="burn">Burn in captions - can't turn off later (slower, re-encodes)</option>
         </select>
       </label>
@@ -530,10 +530,9 @@ async function _edExport() {
     captionMode: _edCaptionMode, preset: _edPreset, titleCard: _edTitleCard, config: _edConfig,
   });
   const qs = params.toString() ? `?${params}` : '';
-  openLog();
   streamSSE(
     `/api/clips/${id}/export${qs}`,
-    async () => {
+    async outcome => {
       const [clip, media] = await Promise.all([
         fetch(`/api/clips/${id}`).then(r => r.json()),
         fetch(`/api/clips/${id}/media_url`).then(r => r.json()),
@@ -546,6 +545,7 @@ async function _edExport() {
       renderDetail(clip);
       await _reloadClipList(AppState.activeVideoId);
       loadVideos();
+      if (outcome === 'cancelled') return;
       showToast('Clip exported successfully');
       SoundFx.play('export');
     },
