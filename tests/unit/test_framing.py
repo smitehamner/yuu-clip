@@ -168,3 +168,75 @@ class TestEnsureFaceModel:
         monkeypatch.setattr(framing_mod, "_ensure_face_model", lambda: calls.append(1) or model_path)
         framing_mod.prefetch_face_model()
         assert calls == [1]
+
+
+class TestSuggestCropX:
+    """suggest_crop_x's orchestration (sample -> extract -> detect -> median ->
+    crop_x). find_ffmpeg/_extract_frame/_make_detector/_detect_face_center_x are
+    monkeypatched so no real ffmpeg or MediaPipe runs."""
+
+    def _patch_ffmpeg_and_detector(self, monkeypatch, tmp_path, *, extract_ok=True, detector=None):
+        import yuu_clip.analyze.framing as framing_mod
+
+        monkeypatch.setattr(framing_mod, "find_ffmpeg", lambda: ("ffmpeg", "ffprobe"))
+        monkeypatch.setattr(framing_mod, "_extract_frame", lambda ffmpeg, src, ts, out: extract_ok)
+        monkeypatch.setattr(
+            framing_mod, "_make_detector", lambda: detector or SimpleNamespace(close=lambda: None),
+        )
+        return framing_mod
+
+    def test_returns_none_when_no_faces_found_in_any_frame(self, monkeypatch, tmp_path):
+        framing_mod = self._patch_ffmpeg_and_detector(monkeypatch, tmp_path)
+        monkeypatch.setattr(framing_mod, "_detect_face_center_x", lambda frame, detector: None)
+
+        result = framing_mod.suggest_crop_x(tmp_path / "src.mkv", 0.0, 10.0, 1920, 1080)
+        assert result is None
+
+    def test_returns_crop_x_from_the_median_detected_face(self, monkeypatch, tmp_path):
+        framing_mod = self._patch_ffmpeg_and_detector(monkeypatch, tmp_path)
+        centers = iter([0.1, 0.3, 0.5, 0.7, 0.9])  # 5 = _SAMPLE_COUNT
+        monkeypatch.setattr(framing_mod, "_detect_face_center_x", lambda frame, detector: next(centers))
+
+        result = framing_mod.suggest_crop_x(tmp_path / "src.mkv", 0.0, 10.0, 1920, 1080)
+        assert result == pytest.approx(crop_x_from_face_center(0.5, 1920, 1080))
+
+    def test_skips_timestamps_that_fail_to_extract(self, monkeypatch, tmp_path):
+        framing_mod = self._patch_ffmpeg_and_detector(monkeypatch, tmp_path)
+        calls = {"extract": 0, "detect": 0}
+
+        def fake_extract(ffmpeg, src, ts, out):
+            calls["extract"] += 1
+            return calls["extract"] != 2  # the second sampled frame fails to extract
+
+        def fake_detect(frame, detector):
+            calls["detect"] += 1
+            return 0.5
+
+        monkeypatch.setattr(framing_mod, "_extract_frame", fake_extract)
+        monkeypatch.setattr(framing_mod, "_detect_face_center_x", fake_detect)
+
+        framing_mod.suggest_crop_x(tmp_path / "src.mkv", 0.0, 10.0, 1920, 1080)
+        assert calls["extract"] == 5  # _SAMPLE_COUNT
+        assert calls["detect"] == 4   # the failed extraction is never handed to detection
+
+    def test_detector_is_closed_even_when_detection_raises(self, monkeypatch, tmp_path):
+        framing_mod = self._patch_ffmpeg_and_detector(monkeypatch, tmp_path)
+
+        class _FakeDetector:
+            def __init__(self):
+                self.closed = False
+
+            def close(self):
+                self.closed = True
+
+        detector = _FakeDetector()
+        monkeypatch.setattr(framing_mod, "_make_detector", lambda: detector)
+
+        def boom(frame, det):
+            raise RuntimeError("mediapipe blew up")
+
+        monkeypatch.setattr(framing_mod, "_detect_face_center_x", boom)
+
+        with pytest.raises(RuntimeError, match="mediapipe blew up"):
+            framing_mod.suggest_crop_x(tmp_path / "src.mkv", 0.0, 10.0, 1920, 1080)
+        assert detector.closed is True

@@ -90,6 +90,14 @@ def _pearson(a: list[float], b: list[float]) -> float:
     return num / (da * db)
 
 
+def _promote_combined_track(track: "AudioTrack") -> None:
+    """Re-enable the combined track as the transcribe/score source after specialized
+    tracks were suppressed as duplicates, floating its weight so it isn't outranked."""
+    track.do_transcribe = True
+    track.do_score = True
+    track.relevance_weight = max(track.relevance_weight, 1.5)
+
+
 def detect_and_apply_overlap_fallback(
     tracks: list[AudioTrack],
     threshold: float = OVERLAP_THRESHOLD,
@@ -129,9 +137,7 @@ def detect_and_apply_overlap_fallback(
         t.do_score = False
 
     first_combined = combined[0]
-    first_combined.do_transcribe = True
-    first_combined.do_score = True
-    first_combined.relevance_weight = max(first_combined.relevance_weight, 1.5)
+    _promote_combined_track(first_combined)
     log.info("Track overlap fallback: using combined track %d for transcription/scoring", first_combined.id)
 
     return True
@@ -191,9 +197,7 @@ def detect_transcript_overlap(
 
     if changed:
         first_combined = combined[0]
-        first_combined.do_transcribe = True
-        first_combined.do_score = True
-        first_combined.relevance_weight = max(first_combined.relevance_weight, 1.5)
+        _promote_combined_track(first_combined)
         log.info("Transcript overlap fallback: using combined track %d for scoring", first_combined.id)
 
     return changed

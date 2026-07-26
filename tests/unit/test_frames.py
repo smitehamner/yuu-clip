@@ -97,6 +97,67 @@ class TestResolveFrameWindow:
         assert start == 9.5 and end == 21.0
 
 
+class TestSampleClipFrames:
+    def _patch(self, monkeypatch, extract_ok=True):
+        import yuu_clip.analyze.frames as frames_mod
+        monkeypatch.setattr(frames_mod, "find_ffmpeg", lambda: ("ffmpeg", "ffprobe"))
+        monkeypatch.setattr(frames_mod, "_extract_frame", lambda ffmpeg, src, ts, out: extract_ok)
+        return frames_mod
+
+    def test_returns_written_frames_in_time_order(self, monkeypatch, tmp_path):
+        frames_mod = self._patch(monkeypatch)
+        frames = frames_mod.sample_clip_frames(tmp_path / "src.mkv", 0.0, 10.0, 3, tmp_path)
+        assert [f.name for f in frames] == ["frame_0.jpg", "frame_1.jpg", "frame_2.jpg"]
+
+    def test_skips_timestamps_that_fail_to_extract(self, monkeypatch, tmp_path):
+        import yuu_clip.analyze.frames as frames_mod
+        monkeypatch.setattr(frames_mod, "find_ffmpeg", lambda: ("ffmpeg", "ffprobe"))
+        calls = {"n": 0}
+
+        def fake_extract(ffmpeg, src, ts, out):
+            calls["n"] += 1
+            return calls["n"] != 2  # the second sampled timestamp fails to extract
+
+        monkeypatch.setattr(frames_mod, "_extract_frame", fake_extract)
+        frames = frames_mod.sample_clip_frames(tmp_path / "src.mkv", 0.0, 10.0, 3, tmp_path)
+        assert len(frames) == 2
+        assert calls["n"] == 3
+
+    def test_no_frames_extracted_returns_empty_list(self, monkeypatch, tmp_path):
+        frames_mod = self._patch(monkeypatch, extract_ok=False)
+        frames = frames_mod.sample_clip_frames(tmp_path / "src.mkv", 0.0, 10.0, 3, tmp_path)
+        assert frames == []
+
+
+class TestAnalyzeClipFrames:
+    def test_resolves_window_then_delegates_to_sample_and_describe(self, monkeypatch, tmp_path):
+        import yuu_clip.analyze.frames as frames_mod
+        from yuu_clip.config import Config
+
+        video = SimpleNamespace(path=str(tmp_path / "v.mkv"), segment_start_s=None)
+        clip = SimpleNamespace(start_ms=1000, end_ms=5000, start_offset=0, end_offset=0)
+        config = Config()
+        captured = {}
+
+        def fake_resolve(v, c, proxy_dir):
+            captured["resolve_args"] = (v, c, proxy_dir)
+            return Path("/enc/src.mkv"), 1.0, 5.0
+
+        def fake_sample_and_describe(encode_src, start_s, end_s, count, cfg, context_text=""):
+            captured["sample_args"] = (encode_src, start_s, end_s, count, context_text)
+            return "described"
+
+        monkeypatch.setattr(frames_mod, "resolve_frame_window", fake_resolve)
+        monkeypatch.setattr(frames_mod, "sample_and_describe", fake_sample_and_describe)
+
+        result = frames_mod.analyze_clip_frames(video, clip, config, tmp_path, context_text="ctx")
+
+        assert result == "described"
+        assert captured["resolve_args"] == (video, clip, tmp_path)
+        assert captured["sample_args"][:3] == (Path("/enc/src.mkv"), 1.0, 5.0)
+        assert captured["sample_args"][4] == "ctx"
+
+
 class TestSampleAndDescribe:
     def test_raises_when_no_frames_sampled(self, monkeypatch, tmp_path):
         import yuu_clip.analyze.frames as frames_mod

@@ -15,7 +15,7 @@ from fastapi import HTTPException
 # input and left the video uncut - exporting the entire multi-hour source.
 # ---------------------------------------------------------------------------
 
-class TestExportClipCmd:
+class TestBuildClipCmdOrdering:
     def _cmd(self, **overrides):
         from yuu_clip.analyze.extract import _build_clip_cmd
         args = dict(
@@ -54,6 +54,41 @@ class TestExportClipCmd:
     def test_softsub_duration_is_clip_length(self):
         cmd = self._cmd(subtitle_track_path=Path("subs.srt"), duration_s=42.0)
         assert cmd[cmd.index("-t") + 1] == "42.0"
+
+    def test_softsub_maps_only_selected_audio_stream(self):
+        # export_clip's contract: with audio_stream_index set, export the first video
+        # stream plus that one audio stream - not every audio track. A multi-track OBS
+        # recording exported as softsub must not embed all its audio tracks.
+        cmd = self._cmd(subtitle_track_path=Path("subs.srt"), audio_stream_index=3)
+        map_targets = [cmd[i + 1] for i, a in enumerate(cmd) if a == "-map"]
+        assert map_targets == ["0:v:0", "0:3", "1:s"]
+
+    def test_softsub_without_audio_index_copies_all_source_streams(self):
+        # No requested audio stream -> keep the copy-everything behaviour (whole
+        # recording, all tracks) plus the added subtitle track.
+        cmd = self._cmd(subtitle_track_path=Path("subs.srt"), audio_stream_index=None)
+        map_targets = [cmd[i + 1] for i, a in enumerate(cmd) if a == "-map"]
+        assert map_targets == ["0", "1:s"]
+
+    def test_reencode_maps_only_selected_audio_stream(self):
+        # Same contract as softsub: reencode (hardsub/frame-accurate) must also map
+        # only the requested audio stream, not every track on the source.
+        cmd = self._cmd(reencode=True, audio_stream_index=3)
+        map_targets = [cmd[i + 1] for i, a in enumerate(cmd) if a == "-map"]
+        assert map_targets == ["0:v:0", "0:3"]
+
+    def test_reencode_without_audio_index_omits_map_flags(self):
+        cmd = self._cmd(reencode=True, audio_stream_index=None)
+        assert "-map" not in cmd
+
+    def test_burn_in_maps_only_selected_audio_stream(self):
+        cmd = self._cmd(subtitle_path=Path("subs.srt"), audio_stream_index=2)
+        map_targets = [cmd[i + 1] for i, a in enumerate(cmd) if a == "-map"]
+        assert map_targets == ["0:v:0", "0:2"]
+
+    def test_burn_in_without_audio_index_omits_map_flags(self):
+        cmd = self._cmd(subtitle_path=Path("subs.srt"), audio_stream_index=None)
+        assert "-map" not in cmd
 
 
 class TestSubtitlesFilter:
@@ -652,7 +687,7 @@ class TestFfmpegPath:
         assert isinstance(result, str)
 
 
-class TestExportClipCommand:
+class TestExportClipPublicApiCommand:
     """Validate the ffmpeg command built by export_clip without running FFmpeg."""
 
     def _run_export(self, tmp_path, reencode=False, subtitle_path=None,

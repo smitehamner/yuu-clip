@@ -83,12 +83,11 @@ class TestExportPresetRoutes:
     def test_delete_unknown_custom_404s(self, client):
         assert client.delete("/api/export-presets/does-not-exist").status_code == 404
 
-    def test_delete_a_preset_a_prior_export_used_degrades_gracefully(self, client, project_dir):
+    def _preset_with_a_recorded_export(self, client, project_dir):
         """A clip's clip_exports row records the preset name it was exported with
         (export/render.py::_record_clip_export) with no FK back to the preset - so
         deleting the preset afterward must not corrupt or hide that clip's export
-        history, and a NEW export attempt referencing the now-gone preset must fail
-        with a clear 400, not a crash."""
+        history."""
         from yuu_clip.db.models import ClipCandidate, ClipExport, make_session
 
         created = client.post(
@@ -108,6 +107,10 @@ class TestExportPresetRoutes:
 
         assert client.delete(f"/api/export-presets/{preset_name}").status_code == 200
         assert preset_name not in {p["name"] for p in client.get("/api/export-presets").json()["custom"]}
+        return preset_name, clip_id
+
+    def test_deleted_preset_leaves_prior_export_history_intact(self, client, project_dir):
+        preset_name, clip_id = self._preset_with_a_recorded_export(client, project_dir)
 
         # The clip's export history still reflects the (now-dangling) preset name
         # instead of erroring or silently dropping the row.
@@ -115,6 +118,9 @@ class TestExportPresetRoutes:
         assert detail.status_code == 200
         export_rows = detail.json()["exports"]
         assert any(row["preset_name"] == preset_name for row in export_rows)
+
+    def test_export_against_a_deleted_preset_returns_400_not_a_crash(self, client, project_dir):
+        preset_name, clip_id = self._preset_with_a_recorded_export(client, project_dir)
 
         # A fresh export attempt against the deleted preset degrades to a plain
         # 400, not a 500 or a silent fallback to some other preset.

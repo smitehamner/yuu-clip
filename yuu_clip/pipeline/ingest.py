@@ -86,17 +86,17 @@ def _llm_unavailable_message(reason: str) -> str:
     so a creator who scrolled past the live log still learns why clips got only a
     basic description. Backend-neutral: the *reason* carries the specific fix."""
     return (
-        f"AI clip ranking and descriptions were skipped - {reason}. Clips were still "
+        f"LLM clip ranking and descriptions were skipped - {reason}. Clips were still "
         "created and ranked from the other signals, with a basic one-line description. "
-        "Fix this in Settings, then use Rescore to add the AI score and descriptions."
+        "Fix this in Settings, then use Rescore to add the LLM score and descriptions."
     )
 
 
 def _llm_unavailable_notice(reason: str) -> None:
-    console.print(f"  [yellow]AI clip ranking and descriptions unavailable - {reason}.[/yellow]")
+    console.print(f"  [yellow]LLM clip ranking and descriptions unavailable - {reason}.[/yellow]")
     console.print(
         "  [yellow]Clips will still be created and ranked from the other signals, with a "
-        "basic one-line description. Fix this in Settings, then use Rescore to add the AI "
+        "basic one-line description. Fix this in Settings, then use Rescore to add the LLM "
         "score and descriptions - do it now and it applies to this run.[/yellow]"
     )
 
@@ -196,11 +196,12 @@ def _analyze_one(
 
     console.print(f"Analyzing: {video_path.name}")
     console.rule(f"[bold]{video_path.name}[/bold]")
+    log.info("Analyze started: %s", video_path.name)
 
     _preflight_llm_check(config, opts)
 
     started_at = datetime.now(timezone.utc)
-    recorder = StageRecorder()
+    recorder = StageRecorder(label=video_path.name)
 
     with recorder.stage("Inspect"):
         info = _probe_video(video_path)
@@ -317,6 +318,10 @@ def _analyze_one(
     except Exception:
         log.exception("Failed to record analyze run metadata (non-fatal): video_id=%s", video.id)
     session.commit()
+    log.info(
+        "Analyze finished: video_id=%s video=%s elapsed_ms=%d",
+        video.id, video_path.name, recorder.elapsed_ms,
+    )
 
 
 def _import_subtitles(subtitle_source: str, video_path: Path, track_objs, session, video):
@@ -358,13 +363,15 @@ def _import_subtitles(subtitle_source: str, video_path: Path, track_objs, sessio
         if detail:
             console.print(f"  [red]{detail}[/red]")
         log.error(
-            "Subtitle import failed (ffmpeg exit %s): source=%s video=%s\n%s",
-            exc.returncode, subtitle_source, video_path, detail,
+            "Subtitle import failed (ffmpeg exit %s): video_id=%s source=%s video=%s\n%s",
+            exc.returncode, video.id, subtitle_source, video_path, detail,
         )
         return []
     except Exception as exc:
         console.print(f"  [red]Subtitle import failed: {exc}[/red]")
-        log.exception("Subtitle import failed: source=%s video=%s", subtitle_source, video_path)
+        log.exception(
+            "Subtitle import failed: video_id=%s source=%s video=%s", video.id, subtitle_source, video_path,
+        )
         return []
     finally:
         if tmp_file:
@@ -388,7 +395,6 @@ def _import_subtitles(subtitle_source: str, video_path: Path, track_objs, sessio
     console.print(f"  Imported {len(parsed)} subtitle segment(s)")
 
     transcripts = []
-    # Attach to the first do_transcribe track (or track 0 as fallback).
     target_track = next((t for t in track_objs if t.do_transcribe), track_objs[0] if track_objs else None)
     if target_track is None:
         return []
@@ -572,7 +578,10 @@ def _extract_audio_and_check_rms_overlap(
             )
         except RuntimeError as e:
             console.print(f"  [red]  FAIL extraction: {e}[/red]")
-            log.exception("Audio extraction failed: video=%s stream=%s", video.filename, track.stream_index)
+            log.exception(
+                "Audio extraction failed: video_id=%s video=%s stream=%s",
+                video.id, video.filename, track.stream_index,
+            )
 
     session.flush()
 
@@ -693,7 +702,10 @@ def _transcribe_and_check_overlap(
             transcripts.append(transcript)
         except Exception as e:
             console.print(f"  [red]  FAIL transcription: {e}[/red]")
-            log.exception("Transcription failed: video=%s stream=%s", video.filename, track.stream_index)
+            log.exception(
+                "Transcription failed: video_id=%s video=%s stream=%s",
+                video.id, video.filename, track.stream_index,
+            )
 
     session.flush()
     video.status = "transcribed"

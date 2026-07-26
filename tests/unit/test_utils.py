@@ -189,6 +189,9 @@ class TestParseFps:
     def test_exact_fraction(self):
         assert self._fps("30/1") == 30.0
 
+    def test_plain_float_string(self):
+        assert abs(self._fps("29.97") - 29.97) < 1e-9
+
     def test_zero_denominator_returns_default(self):
         assert self._fps("30/0") == 30.0
 

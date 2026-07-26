@@ -1,18 +1,106 @@
 from __future__ import annotations
 
+import itertools
+import types
+
+# ---------------------------------------------------------------------------
+# detect_and_apply_overlap_fallback - the RMS-curve audio fallback (before
+# transcription). _rms_curve is monkeypatched so the test controls the
+# correlation directly instead of decoding a real WAV.
+# ---------------------------------------------------------------------------
+
+class TestDetectAndApplyOverlapFallback:
+    def setup_method(self):
+        self._ids = itertools.count(200)
+
+    def _make_track(self, tmp_path, label, *, extracted=True, weight=1.0):
+        path = tmp_path / f"{label}_{next(self._ids)}.wav"
+        if extracted:
+            path.write_bytes(b"fake")
+        return types.SimpleNamespace(
+            id=next(self._ids),
+            label=label,
+            extracted_path=str(path) if extracted else None,
+            do_transcribe=(label == "combined"),
+            do_score=(label == "combined"),
+            relevance_weight=weight,
+        )
+
+    def test_no_combined_track_returns_false(self, tmp_path):
+        from yuu_clip.analyze.overlap import detect_and_apply_overlap_fallback
+        tracks = [self._make_track(tmp_path, "player_voice")]
+        assert detect_and_apply_overlap_fallback(tracks) is False
+
+    def test_no_specialized_track_returns_false(self, tmp_path):
+        from yuu_clip.analyze.overlap import detect_and_apply_overlap_fallback
+        tracks = [self._make_track(tmp_path, "combined")]
+        assert detect_and_apply_overlap_fallback(tracks) is False
+
+    def test_tracks_with_no_extracted_audio_are_ignored(self, tmp_path):
+        from yuu_clip.analyze.overlap import detect_and_apply_overlap_fallback
+        tracks = [
+            self._make_track(tmp_path, "combined", extracted=False),
+            self._make_track(tmp_path, "player_voice", extracted=False),
+        ]
+        assert detect_and_apply_overlap_fallback(tracks) is False
+
+    def test_correlated_curve_disables_specialized_and_boosts_combined(self, tmp_path, monkeypatch):
+        import yuu_clip.analyze.overlap as overlap_mod
+
+        combined = self._make_track(tmp_path, "combined")
+        specialized = self._make_track(tmp_path, "player_voice")
+        # Same (non-constant) ramp for every track -> perfect correlation.
+        monkeypatch.setattr(overlap_mod, "_rms_curve", lambda path, max_seconds=30: [1.0, 2.0, 3.0, 4.0, 5.0])
+
+        result = overlap_mod.detect_and_apply_overlap_fallback([combined, specialized])
+
+        assert result is True
+        assert specialized.do_transcribe is False
+        assert specialized.do_score is False
+        assert combined.do_transcribe is True
+        assert combined.do_score is True
+        assert combined.relevance_weight == 1.5
+
+    def test_uncorrelated_curves_leave_tracks_unchanged(self, tmp_path, monkeypatch):
+        import yuu_clip.analyze.overlap as overlap_mod
+
+        combined = self._make_track(tmp_path, "combined")
+        specialized = self._make_track(tmp_path, "player_voice")
+        specialized.do_transcribe = False
+        curves = iter([[1.0, 2.0, 3.0, 4.0, 5.0], [5.0, 4.0, 3.0, 2.0, 1.0]])  # perfectly anti-correlated
+        monkeypatch.setattr(overlap_mod, "_rms_curve", lambda path, max_seconds=30: next(curves))
+
+        result = overlap_mod.detect_and_apply_overlap_fallback([combined, specialized])
+
+        assert result is False
+        assert specialized.do_transcribe is False  # untouched
+
+    def test_existing_combined_weight_above_boost_floor_is_kept(self, tmp_path, monkeypatch):
+        import yuu_clip.analyze.overlap as overlap_mod
+
+        combined = self._make_track(tmp_path, "combined", weight=2.0)
+        specialized = self._make_track(tmp_path, "player_voice")
+        monkeypatch.setattr(overlap_mod, "_rms_curve", lambda path, max_seconds=30: [1.0, 2.0, 3.0, 4.0, 5.0])
+
+        overlap_mod.detect_and_apply_overlap_fallback([combined, specialized])
+
+        assert combined.relevance_weight == 2.0  # max(2.0, 1.5) - never lowered
+
+
 # ---------------------------------------------------------------------------
 # analyze/overlap.py - detect_transcript_overlap (unit, no DB)
 # ---------------------------------------------------------------------------
 
 class TestDetectTranscriptOverlapUnit:
-    _next_id = 100
+    def setup_method(self):
+        import itertools
+        self._ids = itertools.count(100)
 
     def _make_track(self, label, do_score, words):
         """Build a minimal track-like object whose transcript returns *words*."""
         import types
-        TestDetectTranscriptOverlapUnit._next_id += 1
         return types.SimpleNamespace(
-            id=TestDetectTranscriptOverlapUnit._next_id,
+            id=next(self._ids),
             label=label,
             do_score=do_score,
             relevance_weight=1.0,

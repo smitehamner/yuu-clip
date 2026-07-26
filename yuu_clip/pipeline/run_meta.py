@@ -13,24 +13,45 @@ import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
 
+from yuu_clip.log import get_logger
+
+log = get_logger(__name__)
+
 
 class StageRecorder:
-    """Times named pipeline stages and the overall run via a context manager."""
+    """Times named pipeline stages and the overall run via a context manager.
 
-    def __init__(self) -> None:
+    *label* identifies the video in the file log (usually its filename - the
+    video row may not exist yet when the recorder is created), so a stalled or
+    crashed run can be traced to the stage it was in without a code reread.
+    """
+
+    def __init__(self, label: str = "") -> None:
         self.stages: list[dict] = []
         # Plain-English notices worth surfacing after the run (e.g. LLM unavailable,
         # so clips got only a basic description). Persisted in the run JSON.
         self.warnings: list[str] = []
         self._t0 = time.perf_counter()
+        self._label = label
 
     @contextmanager
     def stage(self, name: str):
         start = time.perf_counter()
+        suffix = f" [{self._label}]" if self._label else ""
+        log.info("Stage started: %s%s", name, suffix)
+        failed = False
         try:
             yield
+        except Exception:
+            failed = True
+            raise
         finally:
-            self.stages.append({"name": name, "seconds": round(time.perf_counter() - start, 2)})
+            elapsed = round(time.perf_counter() - start, 2)
+            self.stages.append({"name": name, "seconds": elapsed})
+            if failed:
+                log.warning("Stage raised: %s%s (%.2fs)", name, suffix, elapsed)
+            else:
+                log.info("Stage finished: %s%s (%.2fs)", name, suffix, elapsed)
 
     @property
     def elapsed_ms(self) -> int:
@@ -53,7 +74,8 @@ def _resolve_devices(config, *, transcribed: bool, diarized: bool) -> dict:
         try:
             import torch
             diar_device = "cuda" if torch.cuda.is_available() else "cpu"
-        except Exception:
+        except Exception as exc:
+            log.debug("Diarization device resolution failed, recording cpu: %s", exc)
             diar_device = "cpu"
         devices["diarization"] = diar_device
         devices["has_gpu"] = devices["has_gpu"] or diar_device == "cuda"

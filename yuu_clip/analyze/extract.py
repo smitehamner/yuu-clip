@@ -103,6 +103,18 @@ def _ffmpeg_path(p: Path) -> str:
     return p.as_posix()
 
 
+def _audio_stream_maps(audio_stream_index: Optional[int]) -> list[str]:
+    """FFmpeg -map args for the first video stream + one specific audio stream, or []
+    to keep FFmpeg's default stream selection.
+
+    A requested index means "export exactly this audio track" - never a bare `-map 0`,
+    which would copy every audio track of a multi-track OBS recording into the clip.
+    """
+    if audio_stream_index is None:
+        return []
+    return ["-map", "0:v:0", "-map", f"0:{audio_stream_index}"]
+
+
 def extract_audio_track(
     video_path: Path,
     stream_index: int,
@@ -190,8 +202,7 @@ def _build_clip_cmd(
             "-ss", str(start_s),
             "-t",  str(duration_s),
         ]
-        if audio_stream_index is not None:
-            cmd += ["-map", "0:v:0", "-map", f"0:{audio_stream_index}"]
+        cmd += _audio_stream_maps(audio_stream_index)
         cmd += [
             "-c:v", "libx264", "-crf", "18", "-preset", "fast",
             "-c:a", "aac",     "-b:a", "192k",
@@ -206,13 +217,19 @@ def _build_clip_cmd(
         # -t must come AFTER both inputs so it is an output option that limits the clip
         # length; placing it between the inputs binds it to the subtitle input instead
         # and leaves the video uncut (the full-source export bug).
+        #
+        # When a specific audio_stream_index is requested, map exactly the first video
+        # stream + that one audio stream (honouring export_clip's documented contract),
+        # not `-map 0` which would copy EVERY audio track of a multi-track OBS recording
+        # into the clip. Without a requested index, keep copying all source streams.
         sub_codec = "mov_text" if output_path.suffix.lower() == ".mp4" else "srt"
+        source_maps = _audio_stream_maps(audio_stream_index) or ["-map", "0"]
         return [
             ffmpeg, "-y",
             "-ss", str(start_s),
             "-i",  _ffmpeg_path(video_path),
             "-i",  _ffmpeg_path(subtitle_track_path),
-            "-map", "0", "-map", "1:s",
+            *source_maps, "-map", "1:s",
             "-t",  str(duration_s),
             "-c:v", "copy", "-c:a", "copy", "-c:s", sub_codec,
             _ffmpeg_path(output_path),
@@ -225,8 +242,7 @@ def _build_clip_cmd(
         "-i",  _ffmpeg_path(video_path),
         "-t",  str(duration_s),
     ]
-    if audio_stream_index is not None:
-        cmd += ["-map", "0:v:0", "-map", f"0:{audio_stream_index}"]
+    cmd += _audio_stream_maps(audio_stream_index)
     cmd += ["-c", "copy", _ffmpeg_path(output_path)]
     return cmd
 
@@ -241,6 +257,11 @@ def _probe_duration_s(ffprobe: str, path: Path) -> Optional[float]:
     try:
         return float(result.stdout.strip())
     except (ValueError, AttributeError, TypeError):
+        _log.debug(
+            "Could not parse export duration for %s from ffprobe output %r (exit %s) - "
+            "skipping the post-export duration check",
+            path.name, result.stdout, result.returncode,
+        )
         return None
 
 
@@ -414,7 +435,7 @@ def export_clip_with_preset(
     start_s    = start_ms / 1000.0
     duration_s = (end_ms - start_ms) / 1000.0
     vf = _preset_video_filter(preset, subtitle_path, caption_style, crop_x)
-    map_args = ["-map", "0:v:0", "-map", f"0:{audio_stream_index}"] if audio_stream_index is not None else []
+    map_args = _audio_stream_maps(audio_stream_index)
 
     if preset.target_size_mb is not None:
         video_kbps = resolve_video_kbps(preset, duration_s)

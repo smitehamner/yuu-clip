@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -579,6 +580,254 @@ class TestProbe:
 
 
 # ---------------------------------------------------------------------------
+# _resolve_existing_video - which Video row (if any) this run targets, and
+# whether to skip it. Every _analyze_one test above mocks this out; these
+# exercise the real branch logic (video_id lookup, segment lookup, the
+# already-done skip, --force override).
+# ---------------------------------------------------------------------------
+
+class TestResolveExistingVideo:
+    def _session(self, tmp_path):
+        from yuu_clip.db.models import make_session
+        return make_session(tmp_path / "project.db")
+
+    def test_new_path_with_no_prior_row_returns_no_existing(self, tmp_path):
+        from yuu_clip.pipeline.ingest import AnalyzeOptions, _resolve_existing_video
+
+        session = self._session(tmp_path)
+        video_path = tmp_path / "fresh.mkv"
+        try:
+            result = _resolve_existing_video(session, video_path, AnalyzeOptions())
+        finally:
+            session.close()
+
+        assert result == (video_path, None)
+
+    def test_done_video_is_skipped_without_force(self, tmp_path):
+        from yuu_clip.db.models import Video
+        from yuu_clip.pipeline.ingest import AnalyzeOptions, _resolve_existing_video
+
+        session = self._session(tmp_path)
+        video_path = tmp_path / "s.mkv"
+        session.add(Video(path=str(video_path.resolve()), filename="s.mkv", status="done"))
+        session.commit()
+        try:
+            result = _resolve_existing_video(session, video_path, AnalyzeOptions())
+        finally:
+            session.close()
+
+        assert result is None
+
+    def test_done_video_is_reused_with_force(self, tmp_path):
+        from yuu_clip.db.models import Video
+        from yuu_clip.pipeline.ingest import AnalyzeOptions, _resolve_existing_video
+
+        session = self._session(tmp_path)
+        video_path = tmp_path / "s.mkv"
+        video = Video(path=str(video_path.resolve()), filename="s.mkv", status="done")
+        session.add(video)
+        session.commit()
+        video_id = video.id
+        try:
+            result = _resolve_existing_video(session, video_path, AnalyzeOptions(force=True))
+        finally:
+            session.close()
+
+        assert result is not None
+        assert result[0] == video_path
+        assert result[1].id == video_id
+
+    def test_not_yet_done_video_is_returned_without_force(self, tmp_path):
+        from yuu_clip.db.models import Video
+        from yuu_clip.pipeline.ingest import AnalyzeOptions, _resolve_existing_video
+
+        session = self._session(tmp_path)
+        video_path = tmp_path / "s.mkv"
+        video = Video(path=str(video_path.resolve()), filename="s.mkv", status="labeled")
+        session.add(video)
+        session.commit()
+        video_id = video.id
+        try:
+            result = _resolve_existing_video(session, video_path, AnalyzeOptions())
+        finally:
+            session.close()
+
+        assert result is not None
+        assert result[1].id == video_id
+
+    def test_video_id_not_found_returns_none(self, tmp_path):
+        from yuu_clip.pipeline.ingest import AnalyzeOptions, _resolve_existing_video
+
+        session = self._session(tmp_path)
+        try:
+            result = _resolve_existing_video(
+                session, tmp_path / "ignored.mkv", AnalyzeOptions(video_id=999),
+            )
+        finally:
+            session.close()
+
+        assert result is None
+
+    def test_video_id_rewrites_the_path_to_the_stored_video(self, tmp_path):
+        from yuu_clip.db.models import Video
+        from yuu_clip.pipeline.ingest import AnalyzeOptions, _resolve_existing_video
+
+        session = self._session(tmp_path)
+        real_path = tmp_path / "real.mkv"
+        video = Video(path=str(real_path), filename="real.mkv", status="probed")
+        session.add(video)
+        session.commit()
+        video_id = video.id
+        try:
+            result = _resolve_existing_video(
+                session, tmp_path / "ignored.mkv", AnalyzeOptions(video_id=video_id),
+            )
+        finally:
+            session.close()
+
+        assert result == (real_path, video)
+
+    def test_segment_start_s_does_not_match_a_plain_row_for_the_same_path(self, tmp_path):
+        """A pre-analysis split segment is keyed by (path, segment_start_s), so a
+        plain (non-segment) row for the same source file must not be reused."""
+        from yuu_clip.db.models import Video
+        from yuu_clip.pipeline.ingest import AnalyzeOptions, _resolve_existing_video
+
+        session = self._session(tmp_path)
+        video_path = tmp_path / "s.mkv"
+        session.add(Video(
+            path=str(video_path.resolve()), filename="s.mkv", status="done", segment_start_s=None,
+        ))
+        session.commit()
+        try:
+            result = _resolve_existing_video(
+                session, video_path, AnalyzeOptions(segment_start_s=30.0),
+            )
+        finally:
+            session.close()
+
+        assert result == (video_path, None)
+
+    def test_segment_start_s_matches_its_own_segment_row(self, tmp_path):
+        from yuu_clip.db.models import Video
+        from yuu_clip.pipeline.ingest import AnalyzeOptions, _resolve_existing_video
+
+        session = self._session(tmp_path)
+        video_path = tmp_path / "s.mkv"
+        segment = Video(
+            path=str(video_path.resolve()), filename="s.mkv", status="probed",
+            segment_start_s=30.0, segment_end_s=60.0,
+        )
+        session.add(segment)
+        session.commit()
+        segment_id = segment.id
+        try:
+            result = _resolve_existing_video(
+                session, video_path, AnalyzeOptions(segment_start_s=30.0),
+            )
+        finally:
+            session.close()
+
+        assert result is not None
+        assert result[1].id == segment_id
+
+
+# ---------------------------------------------------------------------------
+# _upsert_video_and_tracks - creates the Video/AudioTrack rows on a fresh run,
+# and either reuses an existing track untouched or re-labels it under --force.
+# ---------------------------------------------------------------------------
+
+class TestUpsertVideoAndTracks:
+    def _stream(self, stream_index, codec="aac", sample_rate=48000, channels=2, layout="stereo", title=None):
+        return SimpleNamespace(
+            stream_index=stream_index, codec_name=codec, sample_rate=sample_rate,
+            channels=channels, channel_layout=layout, title_tag=title,
+        )
+
+    def _info(self, streams):
+        return SimpleNamespace(audio_streams=streams, duration_ms=60_000, fps=30.0, width=1920, height=1080)
+
+    def test_creates_video_and_one_track_per_stream_for_a_fresh_path(self, tmp_path):
+        from yuu_clip.db.models import Video, make_session
+        from yuu_clip.pipeline.ingest import _upsert_video_and_tracks
+
+        session = make_session(tmp_path / "project.db")
+        info = self._info([self._stream(0), self._stream(1)])
+        try:
+            video, track_objs = _upsert_video_and_tracks(
+                session, tmp_path / "s.mkv", info, existing=None, profile=None, force=False,
+                non_interactive=True,
+            )
+        finally:
+            session.close()
+
+        assert isinstance(video, Video)
+        assert video.status == "labeled"
+        assert [t.stream_index for t in track_objs] == [0, 1]
+        assert track_objs[0].label == "combined"
+        assert track_objs[1].label == "unlabeled"  # non-interactive: extra tracks ignored
+
+    def test_existing_track_is_reused_unchanged_without_force(self, tmp_path):
+        from yuu_clip.db.models import AudioTrack, Video, make_session
+        from yuu_clip.pipeline.ingest import _upsert_video_and_tracks
+
+        session = make_session(tmp_path / "project.db")
+        video = Video(path=str((tmp_path / "s.mkv").resolve()), filename="s.mkv", status="labeled")
+        session.add(video)
+        session.flush()
+        stale_track = AudioTrack(
+            video_id=video.id, stream_index=0, label="player_voice",
+            do_transcribe=True, do_score=True, codec="opus",
+        )
+        session.add(stale_track)
+        session.commit()
+        stale_track_id = stale_track.id
+
+        info = self._info([self._stream(0, codec="aac")])
+        try:
+            _, track_objs = _upsert_video_and_tracks(
+                session, tmp_path / "s.mkv", info, existing=video, profile=None, force=False,
+                non_interactive=True,
+            )
+        finally:
+            session.close()
+
+        # Reused as-is: the fresh probe's codec is ignored and the prior label survives.
+        assert track_objs[0].id == stale_track_id
+        assert track_objs[0].label == "player_voice"
+        assert track_objs[0].codec == "opus"
+
+    def test_force_relabels_and_refreshes_stream_info_on_an_existing_track(self, tmp_path):
+        from yuu_clip.db.models import AudioTrack, Video, make_session
+        from yuu_clip.pipeline.ingest import _upsert_video_and_tracks
+
+        session = make_session(tmp_path / "project.db")
+        video = Video(path=str((tmp_path / "s.mkv").resolve()), filename="s.mkv", status="labeled")
+        session.add(video)
+        session.flush()
+        stale_track = AudioTrack(
+            video_id=video.id, stream_index=0, label="player_voice",
+            do_transcribe=True, do_score=True, codec="opus",
+        )
+        session.add(stale_track)
+        session.commit()
+        stale_track_id = stale_track.id
+
+        info = self._info([self._stream(0, codec="aac")])
+        try:
+            _, track_objs = _upsert_video_and_tracks(
+                session, tmp_path / "s.mkv", info, existing=video, profile=None, force=True,
+                non_interactive=True,
+            )
+        finally:
+            session.close()
+
+        assert track_objs[0].id == stale_track_id
+        assert track_objs[0].label == "combined"  # single stream -> auto-labeled combined
+        assert track_objs[0].codec == "aac"
+
+
+# ---------------------------------------------------------------------------
 # Scoring isolation - a scoring crash must not abort the analyze run or
 # discard the clips that were already generated and committed.
 # ---------------------------------------------------------------------------
@@ -776,6 +1025,84 @@ class TestRunScoringModelDownloadNotice:
 
         out = capsys.readouterr().out
         assert "couldn't be downloaded" in out
+
+
+# ---------------------------------------------------------------------------
+# _check_laugh_and_audio_event_availability - the "unavailable" notice for
+# each of the two AST-backed scorers, printed in a fixed order before scoring.
+# ---------------------------------------------------------------------------
+
+class TestCheckLaughAndAudioEventAvailability:
+    def test_notice_shown_when_laugh_model_unavailable(self, monkeypatch, capsys):
+        from yuu_clip.config import Config
+        from yuu_clip.pipeline.ingest import _check_laugh_and_audio_event_availability
+        from yuu_clip.scoring.laugh import LaughScorer
+
+        monkeypatch.setattr(LaughScorer, "available", lambda self: (False, "model not downloaded"))
+        cfg = Config(scorer_laugh_mode="model", scorer_audio_event_enabled=False)
+
+        _, _, laugh_ok, audio_ok = _check_laugh_and_audio_event_availability(cfg)
+
+        out = capsys.readouterr().out
+        assert laugh_ok is False
+        assert audio_ok is True  # disabled scorer defaults to "ok", never checked
+        assert "Laughter detection unavailable - model not downloaded" in out
+
+    def test_no_laugh_notice_when_mode_is_transcript_only(self, monkeypatch, capsys):
+        """'transcript' mode never touches the AST model, so an unavailable model
+        must not surface a warning the run doesn't actually depend on."""
+        from yuu_clip.config import Config
+        from yuu_clip.pipeline.ingest import _check_laugh_and_audio_event_availability
+        from yuu_clip.scoring.laugh import LaughScorer
+
+        monkeypatch.setattr(LaughScorer, "available", lambda self: (False, "unused"))
+        cfg = Config(scorer_laugh_mode="transcript", scorer_audio_event_enabled=False)
+
+        _, _, laugh_ok, _ = _check_laugh_and_audio_event_availability(cfg)
+
+        out = capsys.readouterr().out
+        assert laugh_ok is True
+        assert "Laughter detection unavailable" not in out
+
+    def test_notice_shown_when_audio_event_unavailable(self, monkeypatch, capsys):
+        from yuu_clip.config import Config
+        from yuu_clip.pipeline.ingest import _check_laugh_and_audio_event_availability
+        from yuu_clip.scoring.audio_event import AudioEventScorer
+
+        monkeypatch.setattr(AudioEventScorer, "available", lambda self: (False, "AST model missing"))
+        cfg = Config(scorer_audio_event_enabled=True, scorer_laugh_mode="transcript")
+
+        _, _, _, audio_ok = _check_laugh_and_audio_event_availability(cfg)
+
+        out = capsys.readouterr().out
+        assert audio_ok is False
+        assert "Audio-event detection unavailable - AST model missing" in out
+
+    def test_no_audio_event_notice_when_scorer_disabled(self, monkeypatch, capsys):
+        from yuu_clip.config import Config
+        from yuu_clip.pipeline.ingest import _check_laugh_and_audio_event_availability
+        from yuu_clip.scoring.audio_event import AudioEventScorer
+
+        monkeypatch.setattr(AudioEventScorer, "available", lambda self: (False, "unused"))
+        cfg = Config(scorer_audio_event_enabled=False, scorer_laugh_mode="transcript")
+
+        _, _, _, audio_ok = _check_laugh_and_audio_event_availability(cfg)
+
+        out = capsys.readouterr().out
+        assert audio_ok is True
+        assert "Audio-event detection unavailable" not in out
+
+    def test_returns_the_built_scorer_instances(self, monkeypatch):
+        from yuu_clip.config import Config
+        from yuu_clip.pipeline.ingest import _check_laugh_and_audio_event_availability
+        from yuu_clip.scoring.audio_event import AudioEventScorer
+        from yuu_clip.scoring.laugh import LaughScorer
+
+        cfg = Config(scorer_laugh_mode="transcript", scorer_audio_event_enabled=False)
+        laugh_scorer, audio_event_scorer, _, _ = _check_laugh_and_audio_event_availability(cfg)
+
+        assert isinstance(laugh_scorer, LaughScorer)
+        assert isinstance(audio_event_scorer, AudioEventScorer)
 
 
 # ---------------------------------------------------------------------------
@@ -1680,7 +2007,7 @@ class TestThermalPollLoopIntegration:
         def _boom():
             raise AssertionError("sampler must never be called when unavailable")
 
-        monitor = GpuThermalMonitor(sampler=None)
+        monitor = GpuThermalMonitor(sampler=_boom)
         monkeypatch.setattr(monitor, "available", lambda: False)
         app.state.ctx.thermal_monitor = monitor
         with TestClient(app) as tc:
@@ -1689,7 +2016,8 @@ class TestThermalPollLoopIntegration:
             with tc.stream("GET", "/api/analyze/events") as resp:
                 lines = list(resp.iter_lines())
         data_values = [_json.loads(ln.removeprefix("data: ")) for ln in lines if ln.startswith("data: ")]
-        assert not any("GPU" in v for v in data_values if isinstance(v, str))
+        texts = _sse_log_texts(data_values)
+        assert not any("GPU" in t for t in texts)
         assert app.state.ctx.analyze_job.gpu_state == "unavailable"
         assert app.state.ctx.analyze_job.gpu_temp_c is None
 
@@ -2520,25 +2848,6 @@ class TestAnalyzeStartWithVideoId:
 
 
 # ---------------------------------------------------------------------------
-# probe._parse_fps - branch coverage
-# ---------------------------------------------------------------------------
-
-class TestParseFps:
-    def _parse(self, s):
-        from yuu_clip.analyze.probe import _parse_fps
-        return _parse_fps(s)
-
-    def test_normal_fraction(self):
-        assert abs(self._parse("60000/1001") - 59.94) < 0.01
-
-    def test_plain_integer_fraction(self):
-        assert abs(self._parse("30/1") - 30.0) < 1e-9
-
-    def test_plain_float_string(self):
-        assert abs(self._parse("29.97") - 29.97) < 1e-9
-
-
-# ---------------------------------------------------------------------------
 # labeler.label_tracks - single-stream auto-label
 # ---------------------------------------------------------------------------
 
@@ -2675,38 +2984,6 @@ class TestApplyProfile:
         assert result is not None
         assert len(result) == 2
         assert all(r["label"] == "combined" for r in result)
-
-
-# ---------------------------------------------------------------------------
-# labeler._guess_label_index
-# ---------------------------------------------------------------------------
-
-class TestGuessLabelIndex:
-    def _stream(self, title):
-        return _make_mock_stream(0, title)
-
-    def _guess_label(self, title):
-        from yuu_clip.analyze.labeler import _guess_label_index
-        from yuu_clip.track_labels import TRACK_LABELS
-        return TRACK_LABELS[_guess_label_index(self._stream(title)) - 1]
-
-    def test_mic_keyword_labels_as_player_voice(self):
-        assert self._guess_label("Microphone") == "player_voice"
-
-    def test_voice_keyword_labels_as_player_voice(self):
-        assert self._guess_label("Player Voice") == "player_voice"
-
-    def test_desktop_keyword_labels_as_combined(self):
-        assert self._guess_label("Desktop Audio") == "combined"
-
-    def test_game_keyword_labels_as_combined(self):
-        assert self._guess_label("Game Capture") == "combined"
-
-    def test_unknown_title_labels_as_unlabeled(self):
-        assert self._guess_label("Track 3") == "unlabeled"
-
-    def test_none_title_labels_as_unlabeled(self):
-        assert self._guess_label(None) == "unlabeled"
 
 
 # ---------------------------------------------------------------------------

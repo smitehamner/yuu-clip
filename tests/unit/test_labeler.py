@@ -103,22 +103,23 @@ class TestGuessLabelIndex:
 
     def _guess(self, title):
         from yuu_clip.analyze.labeler import _guess_label_index
-        return _guess_label_index(self._make_stream(title))
+        from yuu_clip.track_labels import TRACK_LABELS
+        return TRACK_LABELS[_guess_label_index(self._make_stream(title)) - 1]
 
     def test_mic_in_title_returns_player_voice(self):
-        assert self._guess("Mic (Clean)") == 1
+        assert self._guess("Mic (Clean)") == "player_voice"
 
     def test_voice_in_title_returns_player_voice(self):
-        assert self._guess("My Voice") == 1
+        assert self._guess("My Voice") == "player_voice"
 
     def test_desktop_in_title_returns_combined(self):
-        assert self._guess("Desktop Audio") == 4
+        assert self._guess("Desktop Audio") == "combined"
 
     def test_game_in_title_returns_combined(self):
-        assert self._guess("Game Capture") == 4
+        assert self._guess("Game Capture") == "combined"
 
     def test_unknown_title_returns_unlabeled(self):
-        assert self._guess("Track 1") == 5
+        assert self._guess("Track 1") == "unlabeled"
 
     def test_none_title_returns_unlabeled(self):
-        assert self._guess(None) == 5
+        assert self._guess(None) == "unlabeled"

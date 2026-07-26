@@ -36,6 +36,90 @@ class TestBuildProxyCmd:
         assert "scale=-2:480" in cmd
 
 
+# ── NVENC detection ─────────────────────────────────────────────────────────────
+
+class TestNvencAvailable:
+    def setup_method(self):
+        proxy._nvenc_cache = None
+
+    def teardown_method(self):
+        proxy._nvenc_cache = None
+
+    def test_true_when_encoder_listed(self, monkeypatch):
+        monkeypatch.setattr(
+            proxy.subprocess, "run",
+            lambda cmd, **k: SimpleNamespace(stdout="... h264_nvenc ..."),
+        )
+        assert proxy.nvenc_available("ffmpeg") is True
+
+    def test_false_when_encoder_absent(self, monkeypatch):
+        monkeypatch.setattr(
+            proxy.subprocess, "run",
+            lambda cmd, **k: SimpleNamespace(stdout="libx264 libx265"),
+        )
+        assert proxy.nvenc_available("ffmpeg") is False
+
+    def test_result_is_cached_across_calls(self, monkeypatch):
+        calls = {"n": 0}
+
+        def fake_run(cmd, **k):
+            calls["n"] += 1
+            return SimpleNamespace(stdout="h264_nvenc")
+
+        monkeypatch.setattr(proxy.subprocess, "run", fake_run)
+        assert proxy.nvenc_available("ffmpeg") is True
+        assert proxy.nvenc_available("ffmpeg") is True
+        assert calls["n"] == 1
+
+    def test_subprocess_failure_treated_as_unavailable(self, monkeypatch):
+        def raising_run(cmd, **k):
+            raise OSError("ffmpeg not found")
+
+        monkeypatch.setattr(proxy.subprocess, "run", raising_run)
+        assert proxy.nvenc_available("ffmpeg") is False
+
+
+# ── FFmpeg progress parsing ─────────────────────────────────────────────────────
+
+class TestRunWithProgressHappyPath:
+    class _FakeProc:
+        def __init__(self, lines, returncode=0):
+            self.stdout = iter(lines)
+            self.returncode = returncode
+
+        def wait(self):
+            return self.returncode
+
+    def test_progress_callback_receives_fractions(self, monkeypatch):
+        lines = ["out_time_us=250000\n", "out_time_us=500000\n", "out_time_us=1000000\n"]
+        monkeypatch.setattr(proxy.subprocess, "Popen", lambda *a, **k: self._FakeProc(lines))
+        fractions: list[float] = []
+        proxy._run_with_progress(["ffmpeg"], duration_ms=1000, progress_cb=fractions.append)
+        assert fractions == [0.25, 0.5, 1.0]
+
+    def test_na_progress_lines_are_skipped_not_raised(self, monkeypatch):
+        lines = ["out_time_us=N/A\n", "out_time_us=500000\n"]
+        monkeypatch.setattr(proxy.subprocess, "Popen", lambda *a, **k: self._FakeProc(lines))
+        fractions: list[float] = []
+        proxy._run_with_progress(["ffmpeg"], duration_ms=1000, progress_cb=fractions.append)
+        assert fractions == [0.5]
+
+    def test_no_duration_never_calls_progress_cb(self, monkeypatch):
+        lines = ["out_time_us=500000\n"]
+        monkeypatch.setattr(proxy.subprocess, "Popen", lambda *a, **k: self._FakeProc(lines))
+        fractions: list[float] = []
+        proxy._run_with_progress(["ffmpeg"], duration_ms=None, progress_cb=fractions.append)
+        assert fractions == []
+
+    def test_nonzero_exit_raises_with_stderr_tail(self, monkeypatch):
+        lines = ["frame=1\n", "error: codec not found\n"]
+        monkeypatch.setattr(
+            proxy.subprocess, "Popen", lambda *a, **k: self._FakeProc(lines, returncode=1),
+        )
+        with pytest.raises(RuntimeError, match="codec not found"):
+            proxy._run_with_progress(["ffmpeg"], duration_ms=None, progress_cb=None)
+
+
 # ── fallback behaviour ──────────────────────────────────────────────────────────
 
 class TestGenerateProxyFallback:

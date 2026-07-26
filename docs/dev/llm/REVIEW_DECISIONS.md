@@ -11,6 +11,161 @@ same thing without the context. Most recent first.
 
 ---
 
+## Phase 6 docs and comments - full-app review section 1, analyze pipeline (2026-07-26)
+
+Docs-and-comments phase over the same 12 files as the Phase 5 logging entry below
+(`pipeline/{ingest,run_meta}.py` + the 10 `analyze/*.py` stage helpers). Grepped every
+`#` comment and `"""` docstring in scope and read each file in full. The comment density
+here was already high quality going in (refined across this section's earlier phases and
+several prior review passes) - only one restatement comment survived.
+
+Applied: deleted `pipeline/ingest.py::_import_subtitles`'s
+`# Attach to the first do_transcribe track (or track 0 as fallback).` immediately above
+`target_track = next((t for t in track_objs if t.do_transcribe), track_objs[0] if track_objs else None)`
+- the comment translated the one-liner into English without adding any WHY (it didn't say
+*why* the first do_transcribe track, just restated the fallback the ternary already
+spells out). Comment-only; `yuu-dev test-api` 3331 passed (unchanged), lint clean.
+
+Verified and deliberately left as-is:
+
+### The two CLAUDE.md-flagged load-bearing comments are present, accurate, and survived Phase 4's extraction
+- `ingest.py:250-252` - the SpeechBrain-must-be-prewarmed-before-transformers import-order
+  comment, paired with `_should_prewarm_transformers`'s docstring. Matches the actual
+  prewarm call site and CLAUDE.md's "SpeechBrain poisons transformers.pipeline" section.
+- `extract.py:179-184` (`_build_clip_cmd`'s header) + `:216-224` (the softsub branch) - the
+  ffmpeg `-ss`/`-t` argument-ordering invariants, including the two-input softsub ordering
+  bug this comment guards against. Both read correctly against the current code after
+  Phase 4's `_audio_stream_maps()` extraction - the softsub comment's claim that `-t` must
+  come after both inputs, and the map-args comment's claim about honouring the
+  `audio_stream_index` contract, both still hold.
+
+### The many multi-line docstrings on internal (`_`-prefixed) functions in `ingest.py` - kept, not pared to one-liners
+Decision: do not strip `ingest.py`'s docstrings on private helpers (`_resolve_existing_video`,
+`_upsert_video_and_tracks`, `_reusable_track_transcript`, `_transcribe_and_check_overlap`,
+`_retranscribe_video`, `_clear_existing_clips`, etc.) down to bare one-liners, despite
+CLAUDE.md's "No docstrings on internal functions - clear names are enough" guidance.
+Rationale: every one of these documents genuinely non-obvious return-value shape or
+side-effect behavior a name alone cannot carry - e.g. `_resolve_existing_video`'s "Returns
+(video_path, existing) or None when the caller should skip this video (ID not found, or
+already done without --force)", or `_reusable_track_transcript`'s explanation of *why* it
+also deletes stale rows as a side effect (a truncated transcript from a run that died
+mid-track, which reusing would silently pass off as complete). This is the same bar the
+governing rule sets ("explains why, or something a careful reader can't tell from the code
+itself") and matches precedent already recorded for this exact pattern elsewhere in the
+codebase (the "approval.py route docstrings... kept" and "transcribe_track ~76 lines - not
+decomposed" entries below). Not a phase-6 finding to fix; do not re-flag.
+
+### Terminology sweep - clean
+Grepped every `console.print` line in the 12 in-scope files against `docs/dev/llm/GLOSSARY.md`
+for a code-name-in-user-facing-text slip (the recurring pattern class this project has hit
+before - "profile" vs "Track layout", "AI" vs "LLM"). `labeler.py` already says "Track
+layout" consistently in every user-facing line; no "profile"/"AI"/"RP context" leaks found
+in this scope beyond the ones Phase 5 already fixed (`_llm_unavailable_message`/`_notice`).
+
+### `docs/dev/llm/REVIEW_MAP.md`'s Stage 1/Stage 2 file lists - verified accurate
+Spot-checked the file list and one-line descriptions for all 12 in-scope files (lines 36-62)
+against the current module docstrings and content. No file was renamed or moved this
+section (only 2 helper extractions and a few logger calls in earlier phases), and the
+descriptions still match. No doc edit needed.
+
+---
+
+## Phase 5 logging - full-app review section 1, analyze pipeline (2026-07-26)
+
+Logging-coverage phase over `yuu_clip/pipeline/{ingest,run_meta}.py` and
+`yuu_clip/analyze/{probe,extract,labeler,overlap,proxy,frames,motion,framing,pause,
+thermal}.py` - the analyze pipeline's orchestration and every per-stage helper, the
+single most operationally critical path in the app. Confirmed via `web/sse.py` and
+`web/analyze_job.py`: every `console.print` line these modules emit is tailed as the
+child subprocess's stdout and reaches the browser's live log panel over SSE - so
+these strings are genuinely user-facing, not just CLI decoration, and glossary
+compliance applies to them.
+
+Applied:
+- **`run_meta.py`'s `StageRecorder.stage()` now logs stage boundaries to the file
+  log** (`log.info` on start/finish, `log.warning` on an unhandled exception
+  propagating out of the stage, each carrying the video's filename via a new
+  `StageRecorder(label=...)` constructor arg). Previously the *only* narrative of a
+  run's progress lived in `console.print` (Rich stdout, piped only to the live SSE
+  stream and an in-memory reconnect buffer capped by `_MAX_BUFFER_LINES`) - none of
+  it reached `.yuu-clip/yuu-clip.log`. A user who closes the browser (or hits a run
+  long enough to overflow the buffer) and later checks the log file per this
+  project's own "if it fails, check yuu-clip.log" troubleshooting convention would
+  find only the sparse `log.exception`/`log.warning` calls, missing which stage the
+  pipeline reached before dying. This is the highest-value fix of the pass.
+- `ingest.py`'s `_analyze_one` now logs `Analyze started` / `Analyze finished
+  (elapsed_ms=...)` bookends to the file log for the same reason (per-video, not
+  per-stage - one line each, no spam).
+- `run_meta.py::_resolve_devices`'s bare `except Exception: diar_device = "cpu"`
+  (silently swallowing a torch/CUDA probe failure into an unremarkable "cpu"
+  device report) now logs at `debug` before falling back.
+- **Correlation-id consistency**: the Extract/Transcribe per-track failure logs and
+  the subtitle-import failure logs used `video=%s` (bare filename or `Path` object)
+  while every other failure log in `ingest.py` keys on `video_id=%s` - a reader
+  grepping one video's `video_id` across a run would miss these three lines. Added
+  `video_id=%s` alongside the existing filename (kept for human readability) at all
+  three sites; `video.id` is always populated by the time these run.
+- `extract.py::_probe_duration_s`'s silent `except (ValueError, AttributeError,
+  TypeError): return None` (a failed ffprobe duration parse after export, which
+  silently skips `_verify_export_duration`'s corrupt-export guard) now logs at
+  `debug` with the raw ffprobe output and exit code.
+- **Glossary fix**: `ingest.py`'s `_llm_unavailable_message`/`_llm_unavailable_notice`
+  said "AI clip ranking and descriptions" / "AI score and descriptions" - these
+  strings reach the browser (confirmed above), and the glossary explicitly bans "AI
+  scoring"/"AI" framing in favor of "LLM scoring" (`GLOSSARY.md:806-807`). Reworded
+  both to "LLM clip ranking and descriptions" / "LLM score and descriptions". No test
+  pinned the old wording (`test_preflight_llm.py` mocks the function; `test_run_meta.py`
+  appends its own literal warning string, unrelated to this function's output).
+
+Confirmed and deliberately left as-is - do not re-flag:
+
+### The rest of `ingest.py`'s exception handling is already exemplary
+Every stage that can fail already pairs a user-facing `console.print` with a
+`log.exception`/`log.error`/`log.warning` carrying `video_id` (or `path`/`video=` when
+the video row doesn't exist yet - Probe runs before the row is created, so filename is
+the only identity available). `_probe_video`, subtitle import, extraction, transcription,
+scoring, scene generation, video summary, and run-metadata recording all follow this
+pattern. Nothing else needed adding.
+
+### No log spam found in any per-frame/per-track loop
+`frames.py`/`framing.py`'s `_extract_frame` (called once per sampled frame, up to ~10)
+already logs failures at `debug`, not `info`. `motion.py`'s per-sample decode loop
+(`_sample_from_container`) logs nothing per-frame by design - only a single `warning`
+if the whole decode fails. `overlap.py`'s per-frame RMS decode failure is `debug`. None
+of these needed a level change.
+
+### `extract.py`'s `export_clip`/`export_clip_with_preset`/`_run_ffmpeg` (clip export,
+not audio extraction) carry no logging of their own - confirmed not a gap
+These raise a bare `RuntimeError` on ffmpeg failure with no log call inside `extract.py`
+itself. Left as-is: `extract_audio_track` (the pipeline's own audio-extraction call, used
+by `ingest.py`) already logs via its caller; the clip-export functions are called only
+from `export/render.py` and `web/routes/analyze.py` (both outside this review section's
+scope), and spot-checking `render.py` confirms it already logs the failure with
+`clip_id` context before/around the call. Those two call sites are this codebase's
+export feature, not the analyze pipeline, and will fall under whichever later review
+section covers `export/`/`web/routes/`.
+
+### Thermal auto-pause events are already logged - by the caller, not `thermal.py`
+`ThermalTrigger.poll()` returns a typed `ThermalPollResult` with no logging of its own;
+its one caller, `web/routes/analyze.py::_thermal_poll_loop` (outside this section's
+scope), already logs both `warn_triggered` and `pause_triggered` at `warning` with the
+temperature and threshold. Confirmed via grep before concluding this was a gap - it
+is not.
+
+### DEFERRED - not fixed this phase (needs a bug-hunt/robustness lens, not a logging one)
+`ingest.py::_extract_audio_and_check_rms_overlap` catches only `except RuntimeError` per
+track, while the structurally identical transcription loop
+(`_transcribe_and_check_overlap`) catches `except Exception`. `extract_audio_track` today
+only ever raises `RuntimeError`, so this isn't live, but if `subprocess.run` itself ever
+raised (e.g. `OSError`/`PermissionError` from a broken PATH entry resolved after
+`find_ffmpeg()` returned), it would propagate uncaught out of `_analyze_one` with no
+`log.exception` for that track - a real gap, but *widening a catch clause* is a behavior
+change (it changes what aborts the run vs. what a per-track loop swallows and continues
+past), not a pure logging addition, so it was left for a bug-hunt/refactor pass to weigh
+rather than changed silently here.
+
+---
+
 ## Phase 7 UX/UI - full-surface review (2026-07-23, shipped 2026-07-24)
 
 The `UX-REVIEW-2026-07-23.md` fix plan shipped across six stages (commit range
