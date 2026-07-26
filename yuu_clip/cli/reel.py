@@ -8,6 +8,9 @@ from typing import Optional
 import typer
 
 from yuu_clip.cli._base import BYTES_PER_MB, _load_project, app, console
+from yuu_clip.log import get_logger
+
+log = get_logger(__name__)
 
 
 @app.command()
@@ -73,6 +76,10 @@ def _select_reel_clips(session, clip_ids, video_ids, video_id, status_filter, mi
     if clip_ids:
         from yuu_clip.db.models import ClipCandidate as _CC
         id_map = {c.id: c for c in session.query(_CC).filter(_CC.id.in_(clip_ids)).all()}
+        missing = [cid for cid in clip_ids if cid not in id_map]
+        if missing:
+            log.warning("Reel: requested clip ID(s) not found in this project, skipping: %s", missing)
+            console.print(f"  [yellow]Skipping {len(missing)} clip ID(s) not found: {missing}[/yellow]")
         return [id_map[cid] for cid in clip_ids if cid in id_map]
 
     effective_video_ids = list(video_ids)

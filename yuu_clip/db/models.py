@@ -59,6 +59,14 @@ def _decode_json_list(s) -> list:
     return json.loads(s) if s else []
 
 
+def _prefer_user_value(user_value: Optional[str], generated_value: Optional[str]) -> str:
+    """The override-precedence rule shared by every effective_* accessor: a user edit
+    wins whenever it is set, otherwise the generated value, coalesced to empty. Keyed on
+    ``is not None`` (not truthiness) so a deliberately-blank user override ("") still wins
+    over the generated value rather than falling through to it."""
+    return user_value if user_value is not None else (generated_value or "")
+
+
 def sqlite_url(db_path: Path) -> str:
     """SQLite connection URL for *db_path*.
 
@@ -201,12 +209,11 @@ class Video(Base):
 
     @property
     def effective_title(self) -> str:
-        """User override if present, else the LLM-generated value, else empty."""
-        return self.title_user if self.title_user is not None else (self.title or "")
+        return _prefer_user_value(self.title_user, self.title)
 
     @property
     def effective_summary(self) -> str:
-        return self.summary_user if self.summary_user is not None else (self.summary or "")
+        return _prefer_user_value(self.summary_user, self.summary)
 
 
 class RecordingSession(Base):
@@ -242,11 +249,11 @@ class RecordingSession(Base):
 
     @property
     def effective_title(self) -> str:
-        return self.title_user if self.title_user is not None else (self.title or "")
+        return _prefer_user_value(self.title_user, self.title)
 
     @property
     def effective_summary(self) -> str:
-        return self.summary_user if self.summary_user is not None else (self.summary or "")
+        return _prefer_user_value(self.summary_user, self.summary)
 
 
 class AudioTrack(Base):
@@ -757,16 +764,11 @@ class ClipCandidate(Base):
 
     @property
     def effective_description(self) -> str:
-        """User override if present, else the LLM-generated value, else empty."""
-        return self.description_user if self.description_user is not None else (self.description or "")
+        return _prefer_user_value(self.description_user, self.description)
 
     @property
     def effective_description_long(self) -> str:
-        return (
-            self.description_long_user
-            if self.description_long_user is not None
-            else (self.description_long or "")
-        )
+        return _prefer_user_value(self.description_long_user, self.description_long)
 
 
 class ClipExport(Base):

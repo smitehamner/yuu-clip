@@ -475,18 +475,6 @@ def validate_whisper_language(lang: Optional[str]) -> Optional[str]:
 # user's machine and nothing they record ever leaves it. "none" = no generative language
 # model runs at all (embeddings/lexicon/energy still work - they're discriminative, not
 # generative); "local_only" = on-device LLM allowed.
-ALLOWED_AI_PRIVACY_MODES: frozenset[str] = frozenset({"none", "local_only"})
-
-
-def validate_ai_privacy_mode(mode: str) -> str:
-    if mode not in ALLOWED_AI_PRIVACY_MODES:
-        raise ValueError(
-            f"Unrecognised AI privacy mode '{mode}'. "
-            f"Use one of: {sorted(ALLOWED_AI_PRIVACY_MODES)}."
-        )
-    return mode
-
-
 @dataclass(frozen=True)
 class AiPermissions:
     """What the active AI privacy mode permits. The trust surface: every LLM gate reads

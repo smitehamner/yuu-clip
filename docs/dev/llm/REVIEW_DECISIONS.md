@@ -11,6 +11,272 @@ same thing without the context. Most recent first.
 
 ---
 
+## Phase 6 docs and comments - full-app review section 6, data model/config/catalogs/CLI (2026-07-26)
+
+Docs-and-comments phase over `db/models.py`, `config.py`, `model_catalog.py`, `contexts.py`,
+`content_presets.py`, `sessions.py` (HIGH), the `cli/` adapters (MEDIUM: `analyze`, `export`,
+`reel`, `review`, `serve`, `models`, `restore`, `import_url`, `_base`), and a spot-check of
+`dev/{chaos,tests,shareddata,fixture}.py` (LOW, per this phase's budget). Grepped every `#`
+comment and docstring across the HIGH+MEDIUM scope (~460 hits) before reading; zero
+TODO/FIXME/XXX/HACK markers anywhere in scope. One real terminology-drift fix applied; both
+of this phase's brief-flagged verification items confirmed clean. `yuu-dev test-api` 3464
+passed (unchanged from Phase 5's baseline), lint clean, 0 new mypy errors.
+
+### Applied: cli/export.py's two `--help` strings said "Clip candidate ID", not "Clip ID"
+`export` (line 24) and `retranscribe` (line 93) both had `typer.Argument(..., help="Clip
+candidate ID...")` - user-facing `--help` text using the code name (`ClipCandidate`) instead
+of the glossary term ("Clip" - not "clip candidate" in user-facing text, per `GLOSSARY.md`).
+Confirmed the drift against two sibling surfaces already using the correct term: the error
+message two lines below each (`"No clip with ID {clip_id}"`) and `cli/reel.py:21`'s
+`--clip-id` help ("Specific clip IDs to include..."). Reworded both to "Clip ID to export" /
+"Clip ID" - text-only, no behavior change; grepped `tests/` for the old string first, no test
+pinned it. `yuu_clip/cli/reel.py:172`'s "Query clip candidates for the demo command" and
+`config.py:658`'s "visual moments EXIST as clip candidates" were also checked and left as-is
+- both are internal docstrings/comments describing the `ClipCandidate` data model itself
+(never shown to a user), not user-facing text, so they're the correct code-level usage per
+the glossary's own code/UI split.
+
+### Verified: the two brief-flagged comments from Phase 4 are both correct and load-bearing
+1. **config.py's relocated AI-privacy comment** (lines 472-477, heading `AiPermissions`/
+   `resolve_ai_permissions`) reads cleanly in its new location - it explicitly says
+   "Enforced everywhere a language model could run, via resolve_ai_permissions below" and
+   fully explains the none-vs-local_only / discriminative-vs-generative distinction with no
+   dangling reference to the deleted `validate_ai_privacy_mode` function it used to sit near.
+   Not orphaned. No edit needed.
+2. **db/models.py's `_prefer_user_value` helper** (lines 62-67) carries the WHY docstring
+   Phase 4 claimed: "Keyed on `is not None` (not truthiness) so a deliberately-blank user
+   override ("") still wins over the generated value rather than falling through to it."
+   Present, accurate, and clear. No edit needed.
+
+### Terminology sweep - one drift found and fixed (above), everything else clean
+Grepped `\bprofile\b|RP context|clip candidate|demo reel|\bsubtitle\b|\bProbe\b|slug` across
+the whole HIGH+MEDIUM scope. Findings, all non-issues except the one fixed above:
+- `cli/analyze.py`'s `probe` command (CLI name unchanged, `--help` text already correctly
+  says "Inspect a recording's audio tracks...") - `GLOSSARY.md` already documents this
+  exact exception verbatim ("also available standalone via `yuuclip probe` (CLI name
+  unchanged for now)"). Not a new finding - already anchored in the glossary itself.
+- `contexts.py:136`'s "routes reject an unknown slug with a 400" - an internal docstring for
+  `known_context_ids()` describing route/API validation behavor, immediately following its
+  own use of the code identifier `` `context_slug` ``; not user-facing UI text. Left as-is.
+- `cli/models.py:18`'s "slug -> friendly description" - a different `slug` concept entirely
+  (a Tier-B model catalog key: speaker/audio_event/embeddings/face_detector), unrelated to
+  the world-context `context_slug` the glossary's "Context ID" rule targets. Not a drift.
+- No `RP context`, `demo reel`, or bare `subtitle` (as opposed to "caption") hits in
+  user-facing text anywhere in scope.
+
+### Confirmed clean, no findings: everything else in scope
+`db/models.py`, `model_catalog.py`, `content_presets.py`, `sessions.py`, and the remaining
+`cli/` adapters (`analyze.py`, `reel.py`, `review.py`, `serve.py`, `models.py`, `restore.py`,
+`import_url.py`, `_base.py`) - every comment explains a non-obvious WHY (SQLite locking
+tuning, JSON NULL-vs-empty persistence contracts, the additive-migration no-FK pattern,
+threshold-tuning history with dates/numbers, licence-rejection rationale) or documents a
+real external constraint (OBS filename format, HuggingFace revision pinning steps, the
+GitHub update-check's no-telemetry guarantee). No restatement, no obsolete text, no
+reactive/apology comments. The `dev/{chaos,tests,shareddata,fixture}.py` spot-check (LOW
+tier) showed the same pattern - not exhaustively reviewed beyond these four per the LOW-tier
+budget, consistent with Phase 1/4/5's characterization of this whole section as unusually
+clean coming in.
+
+---
+
+## Phase 5 logging - full-app review section 6, data model/config/catalogs/CLI (2026-07-26)
+
+Logging-coverage phase over `db/models.py`, `config.py`, `model_catalog.py`, `contexts.py`,
+`content_presets.py`, `sessions.py` (HIGH), the `cli/` adapters (MEDIUM), and a spot-check of
+`dev/{bundle,migrate,chaos}.py` (LOW, per this phase's brief). Grep-first survey (every
+`logger.`/`log.`/`console.print`/`typer.echo` call plus every bare `except`) then full reads
+of the zero/thin-logging files. One real gap found and fixed; one dead-code line removed;
+everything else confirmed already correct or deliberately silent. `yuu-dev test-api` 3464
+passed after (3463 baseline + 1 new), lint clean, 0 new mypy errors.
+
+### Applied
+- **cli/reel.py: `_select_reel_clips` now logs + prints when an explicit `--clip-id` is not
+  found.** Previously `[id_map[cid] for cid in clip_ids if cid in id_map]` silently dropped
+  any requested ID with no DB row - reachable in practice via `routes/reel.py`'s
+  `/api/demo/start` (a race: a clip in the web UI's selection gets deleted, exported-away, or
+  mistyped between the route's own pre-check and this subprocess's query, since the route
+  passes the raw `req.clip_ids` through to `--clip-id`, not its own filtered `clips` list).
+  The only visible symptom before this fix was a smaller-than-expected clip count in
+  `_print_reel_plan`'s output line, with no way to tell which ID was dropped or why. Now logs
+  `log.warning("Reel: requested clip ID(s) not found in this project, skipping: %s", missing)`
+  (reaches `.yuu-clip/yuu-clip.log` since `--project` triggers `configure_logging` via
+  `_load_project`, and this command is invoked as an SSE subprocess from the web UI, so the
+  console line is also captured per the established `subprocess_sse` convention - see the
+  Section-5 Phase-5 entry) plus a `[yellow]` console note naming the missing IDs. Selection
+  behavior is unchanged - still skips, doesn't fail the whole reel. Added
+  `test_explicit_clip_ids_unknown_id_is_logged_and_printed` in
+  `tests/integration/test_cli_reel.py` (asserts both the `caplog` warning and the console
+  capture) alongside the existing `test_explicit_clip_ids_skip_unknown_ids` that pins the
+  skip behavior itself.
+- **cli/_base.py: removed the unused `log = get_logger(__name__)` module-level logger.**
+  Grepped `cli._base import.*\blog\b` across the whole repo (including tests): zero
+  importers, and no code in `_base.py` itself called `log.*`. `configure_logging`/`console`
+  stay (both genuinely used - `configure_logging` wires the sink every `_load_project` call
+  needs; `console` re-exports for every CLI command's output). Dead code, not a logging gap
+  by itself, but directly in this phase's file (`log.py`'s own `get_logger`) so cleaned up
+  in passing rather than left for a future refactor pass to rediscover.
+
+### Confirmed already correct, no change needed
+- **config.py's `_sanitize_*` load-path warnings already name the field, the invalid value,
+  and the fallback default on every branch** (`_sanitize_title_card_fields`,
+  `_sanitize_caption_style_fields`, `_sanitize_vision_fields`,
+  `_sanitize_content_preset_field`, `_sanitize_diarization_backend`, plus the unrecognised-key
+  and corrupt-file warnings). This directly answers the brief's flagged concern ("verify these
+  warnings actually identify WHICH field failed and what the fallback value is") - they all
+  do, e.g. `"Config: %s invalid (%r) - using default %s", field_name, merged[field_name],
+  _TITLE_CARD_DEFAULTS[field_name]`. `whisper_model`/`whisper_language` are deliberately NOT
+  healed on load (no load-time sanitizer calls `validate_whisper_model`/
+  `validate_whisper_language`) - a bad hand-edited value instead raises a clear `ValueError`
+  (allowed-list + guidance) at the point of actual use (`transcriber.py`, `routes/config.py`,
+  `cli/export.py`), which is a legitimate "fail loud where it's used" design already covered
+  by tests, not a load-time silent-heal gap. Not a finding.
+- **model_catalog.py: the brief's flagged concern ("does an unknown model_id silently fall
+  through to a default?") does not reproduce.** `model_by_id` is a pure `dict.get` with two
+  real callers in the whole repo: `web/routes/llm.py` (out of this section's scope) and
+  `cli/models.py`'s `_resolve_gguf_entry`, which already turns a miss into
+  `(None, f"Unknown model id '{model_id}'.")`, and `download_gguf_cmd` already prints that
+  reason in red and exits 1 - a clear, CLI-appropriate surface (per this phase's own guidance
+  that console output, not a log line, is what matters for this layer). No silent fallback to
+  a default model exists anywhere in the lookup path. `model_catalog.py` itself stays
+  log-free, matching the existing `content_presets.py`/`describe_basic.py` precedent (pure
+  static-data lookup, no I/O, no external call).
+- **content_presets.py and sessions.py stay log-free - both pure in-memory logic (no I/O, no
+  DB, no external call, no exception path that isn't a programmer error), matching the
+  `describe_basic.py` precedent already anchored in this file's Section-4 Phase-5 entry.**
+  `content_presets.py`'s `preset_by_id`/`preset_flavor` degrade gracefully on an unknown ID
+  (`None`/`""`) with no failure mode to log; `sessions.py` is pure grouping/parsing math over
+  in-memory dataclasses. Not a finding.
+- **db/models.py has no logging of its own, as expected for an ORM layer** - confirmed per
+  this phase's own brief, not re-flagged.
+- **dev/{bundle,migrate,chaos}.py spot-check (LOW tier, per this phase's brief) - subprocess
+  error handling is already solid.** `bundle.py`'s `build_esm_bundle` captures esbuild's
+  stdout/stderr and raises a `RuntimeError` with the captured detail plus a "did you run npm
+  install?" hint on non-zero exit - never a silent failure. `migrate.py`'s three commands
+  don't wrap Alembic calls in try/except, but this is a dev-only, human-run tool where an
+  unhandled exception with a full traceback (Alembic's own, which is already descriptive) is
+  itself the diagnosable surface, not a swallowed error. `chaos.py` (an exploratory bug-hunt
+  harness, not a gate) already has its own extensive per-phase try/except-and-report
+  machinery (`_safe`, `_report`, the bounded-join watchdog for a wedged Playwright driver) -
+  this file's entire purpose is surfacing failures clearly, and it already does. No changes
+  warranted; `deps.py`'s `lock_deps` (glanced at while spot-checking) also already reports
+  pip install failures with an exit-code-preserving message. Not exhaustively reviewed beyond
+  these per the LOW-tier budget.
+
+---
+
+## Phase 4 refactor - full-app review section 6, data model/config/catalogs/CLI (2026-07-26)
+
+Refactor-for-quality phase over `db/models.py`, `config.py`, `model_catalog.py`,
+`contexts.py`, `content_presets.py`, `sessions.py` (HIGH), the `cli/` adapters (MEDIUM),
+and the `dev/` tooling (LOW spot-check). Structural survey (function-length heat map +
+duplication-signature greps) then targeted reads of the two largest files (`db/models.py`
+914 lines, `config.py` 939) plus the flagged candidates. Two changes applied; suite
+stayed at 3463 passed before and after, lint clean, 0 new mypy errors.
+
+### Applied - two changes
+1. **config.py: deleted the dead `validate_ai_privacy_mode` function and its
+   `ALLOWED_AI_PRIVACY_MODES` constant** (the Phase-3 flagged dead-code item). Grepped the
+   whole repo + tests + `__all__`: zero callers of either symbol anywhere; the constant was
+   referenced only inside the dead function. Decisive evidence it is genuine speculative
+   symmetry, not an unwired parallel API: it was written to mirror
+   `ALLOWED_WHISPER_LANGUAGES`/`validate_whisper_language`, but `web/routes/config.py`
+   validates simple set-membership enums through a *generic* `_enum_validator({...}, label)`
+   table (14+ fields inline, including `ai_privacy_mode` at line 248) and imports dedicated
+   `validate_whisper_*` functions ONLY for the two fields that need normalization *beyond*
+   membership (lowercase/auto/None; catalog lookup). `ai_privacy_mode` is plain 2-value
+   membership, so the route's generic path is its intended handler and a dedicated validator
+   is architecturally unnecessary. The genuinely-useful "none vs local_only, discriminative
+   vs generative" explanatory comment was preserved by relocating it to head the
+   `AiPermissions`/`resolve_ai_permissions` enforcement block (it already said "via
+   resolve_ai_permissions below"). No behavior change - `resolve_ai_permissions` was and
+   remains the only enforcement point and fails safe on an unknown mode.
+2. **db/models.py: extracted `_prefer_user_value(user_value, generated_value)`** for the
+   override-precedence rule (`user if user is not None else (generated or "")`) that was
+   duplicated verbatim across all six `effective_*` accessors (Video.effective_title/
+   effective_summary, RecordingSession.effective_title/effective_summary,
+   ClipCandidate.effective_description/effective_description_long). Six identical sites,
+   pure, well-tested - a real duplicated-*knowledge* extraction (the `is not None` vs
+   truthiness distinction is a domain rule that could drift if edited in only one place).
+   The helper carries a WHY docstring documenting that `is not None` keying is deliberate
+   (a blank "" user override still wins). Values byte-identical.
+
+### Section 9 note (not actioned here): routes/config.py's inline ai_privacy enum is CORRECT as-is
+The Phase-3 flag suggested `web/routes/config.py`'s inline `_enum_validator({"none",
+"local_only"}, "ai_privacy_mode")` was a candidate to fix by importing the config.py
+constant. That is now MOOT and should NOT be done: the constant is deleted, and the inline
+form is the consistent, correct pattern - every one of the ~14 simple-enum config fields in
+that validation table lists its allowed set inline (`whisper_device`, `llm_backend`,
+`scorer_laugh_mode`, ...). Importing a constant only for `ai_privacy_mode` would make it the
+lone inconsistent row. No Section 9 action needed on this line.
+
+### Keep as-is: db/models.py's ~8 JSON encode/decode `@property`/`@setter` pairs - not collapsed to a descriptor factory
+Decision: Keep the explicit per-column JSON accessor pairs (`reasons`/`tags`/`user_tags`/
+`hotword_matches`/`hotword_boost`/`sensitive_matches` on ClipCandidate, `words` on
+TranscriptSegment, `settings` on ClipExport).
+Rationale: the *getters* look uniform, but the *setters* encode genuinely different
+empty-value persistence contracts - `words.setter` writes SQL NULL when empty
+(`json.dumps(value) if value else None`) while the others always write the empty container
+(`"[]"`/`"{}"`), and the getters split three ways (`_decode_json_list` -> `[]`, inline
+`... else []`, inline `... else {}`). A single `_json_property(attr, default, nullable)`
+descriptor factory abstracting all of them would need enough parameters that it stops being
+simpler than the explicit pairs, AND it would risk silently changing the `words_json`
+NULL-vs-"[]" representation that callers depend on. This is duplicated *shape*, not
+duplicated *knowledge* (each column's empty-persistence rule genuinely differs) - coupling
+them would be the wrong abstraction. Do not re-flag as DRY without new evidence.
+
+### Keep as-is: Speaker vs ProjectVoice `display_name`/`display_color` - not merged
+Decision: Keep the two classes' `display_*` accessors separate.
+Rationale: they encode different domain rules, not the same rule twice. `Speaker.display_name`/
+`display_color` resolve through the linked Person (`global_voice`) FIRST (naming/recolouring
+a Person flows to every member recording - the whole point of Person linking), then fall
+back to the Speaker's own value; `ProjectVoice.display_*` is the simpler base case with no
+Person-linking precedence. The one genuinely-shared fragment is the palette-cycling fallback
+expression `self.color or SPEAKER_COLOR_PALETTE[(self.display_index - 1) % len(...)]`, which
+appears in exactly two places (below the rule-of-three) and is a trivial one-liner. Each
+accessor already documents "resolved in ONE place" for its own class. Not a finding.
+
+### Keep as-is: cli/analyze.py's "force default diarization backend on" snippet - not extracted
+Decision: Keep the `if config.diarization_backend == "null": config.diarization_backend =
+"speechbrain"` flip inline in both `analyze` (per-run `--diarize` override) and `rediarize`
+(command whose whole purpose is to diarize).
+Rationale: exactly two occurrences (below the rule-of-three), each two lines, and each
+carries its own explanatory comment framing why it forces the backend on in that specific
+command's context. The `ingest.py` hit for the same string is a different check (skip
+diarization when off), not this force-on flip. Extracting a `_force_default_diarization`
+helper would name a rule that lives in only two adapter commands for no legibility gain.
+Revisit if a third force-on site appears.
+
+### Clean coming in - no change: config.py, model_catalog.py, contexts.py, content_presets.py, sessions.py, the CLI adapters, dev/
+`config.py`'s `validate_*`/`_sanitize_*` functions are already a well-decomposed set of small
+single-concern helpers. The `cli/` commands are proper thin Typer adapters (parse args ->
+build config/opts -> delegate to `analyze_one`/`rediarize_video`/pipeline layer); the bulk of
+each command's line count is unavoidable Typer `Option(...)` declarations, not misplaced
+business logic. `dev/` (LOW spot-check) showed nothing glaringly wrong. No refactor warranted.
+
+---
+
+## Phase 1 test integrity - full-app review section 6, data model/config/catalogs/CLI (2026-07-26)
+
+Test-integrity pass over `db/models.py`, `config.py`, `model_catalog.py`, `contexts.py`,
+`content_presets.py`, `sessions.py` (HIGH), the `cli/` adapters (MEDIUM), and all 20
+`yuu_clip/dev/` tooling modules (LOW). Baseline was green (3436 passed) and stayed green -
+no changes made; the suite in this scope is already clear, behavior-named, and free of the
+usual failure modes (no tautologies, no swallowed assertions, no order dependence, no
+hardcoded-then-stale dates - the `datetime(2026, 7, 4, ...)` literals in
+`test_sessions.py`/`test_sessions_timeline.py` are fixed parse-function input/output pairs,
+not now-relative clock assertions, so they don't rot).
+
+### `TestProfiles`/`TestProfileFunctions` track-layout duplication - surfaced, not fixed
+`tests/unit/test_config.py::TestProfiles` and
+`tests/integration/test_profiles_contexts.py::TestProfileFunctions` both cover
+`track_labels.py` save/load/delete round-trips end to end (same behaviors, near-identical
+bodies, different monkeypatch mechanics: `_global_config_dir` vs `_profiles_path`
+directly), and `TestProfileFunctions` needs neither `client` nor `project_dir` so it could
+live in the unit tier. Left as-is, matching the precedent at the `TestSafeFilename`
+duplication entry above (WS-A move-only decision) - a test-integrity pass fixes fragility
+and clarity, not cross-tier dedup; flagged here for a future dedup pass rather than merged
+or moved unprompted.
+
 ## Phase 6 docs and comments - full-app review section 5, clip generation + export/reel (2026-07-26)
 
 Docs-and-comments phase over `segments/{windower,visual_windower,scene_segmenter,merge}.py`,

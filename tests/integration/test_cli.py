@@ -248,6 +248,37 @@ class TestReel:
 
 
 # ---------------------------------------------------------------------------
+# rediarize / reextract / retranscribe-video / regenerate-clips: missing video ID.
+# Only exercised via --help previously (see TestHelp) - these confirm the shared
+# "No video with ID <n>" prelude (rediarize inlines it; the other three share
+# _load_video_or_exit) actually fires a clean exit rather than a raw DB/None error.
+# ---------------------------------------------------------------------------
+
+class TestSingleStageCommandsMissingVideo:
+    def test_rediarize_missing_video_exits_nonzero(self, project_dir):
+        result = runner.invoke(app, ["rediarize", "9999", "--project", str(project_dir)])
+        assert result.exit_code != 0
+        assert "No video with ID 9999" in result.output
+
+    def test_reextract_missing_video_exits_nonzero(self, project_dir, monkeypatch):
+        monkeypatch.setattr("yuu_clip.ffmpeg_tools.find_ffmpeg", lambda: ("ffmpeg", "ffprobe"))
+        result = runner.invoke(app, ["reextract", "9999", "--project", str(project_dir)])
+        assert result.exit_code != 0
+        assert "No video with ID 9999" in result.output
+
+    def test_retranscribe_video_missing_video_exits_nonzero(self, project_dir, monkeypatch):
+        monkeypatch.setattr("yuu_clip.ffmpeg_tools.find_ffmpeg", lambda: ("ffmpeg", "ffprobe"))
+        result = runner.invoke(app, ["retranscribe-video", "9999", "--project", str(project_dir)])
+        assert result.exit_code != 0
+        assert "No video with ID 9999" in result.output
+
+    def test_regenerate_clips_missing_video_exits_nonzero(self, project_dir):
+        result = runner.invoke(app, ["regenerate-clips", "9999", "--project", str(project_dir)])
+        assert result.exit_code != 0
+        assert "No video with ID 9999" in result.output
+
+
+# ---------------------------------------------------------------------------
 # _resolve_videos: helper unit tests (no CLI invocation needed)
 # ---------------------------------------------------------------------------
 

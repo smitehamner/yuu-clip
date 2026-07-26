@@ -4,6 +4,8 @@ import json
 import re
 from pathlib import Path
 
+import pytest
+
 from yuu_clip import model_catalog as mc
 from yuu_clip.config import Config
 
@@ -39,6 +41,26 @@ class TestCatalogIntegrity:
             assert not mc.licence_permits_monetization(entry.licence), (
                 f"{entry.id} is rejected but its licence is monetizable - recommend it instead"
             )
+
+
+class TestLicencePermitsMonetization:
+    """Direct coverage of the allowlist itself - the catalog-integrity tests above only
+    exercise licences that some CATALOG entry actually carries, so BSD-3-Clause (in the
+    allowlist but not used by any current entry) was otherwise never asserted True."""
+
+    @pytest.mark.parametrize("licence", ["Apache-2.0", "MIT", "BSD-3-Clause"])
+    def test_allowlisted_licences_permit_monetization(self, licence):
+        assert mc.licence_permits_monetization(licence) is True
+
+    @pytest.mark.parametrize("licence", [
+        "Llama 3.1 Community License",
+        "Gemma Terms of Use",
+        "GPL-3.0",
+        "apache-2.0",  # case must match exactly - no normalization
+        "",
+    ])
+    def test_other_licences_do_not_permit_monetization(self, licence):
+        assert mc.licence_permits_monetization(licence) is False
 
 
 class TestCatalogHelpers:

@@ -13,14 +13,13 @@ import typer
 # engine, which must not import cli); re-exported here so commands can keep
 # importing them from _base.
 from yuu_clip.console import BYTES_PER_MB, console  # noqa: F401
-from yuu_clip.log import configure_logging, get_logger
+from yuu_clip.log import configure_logging
 
 app = typer.Typer(
     name="yuuclip",
     help="Video session clip extraction pipeline.",
     add_completion=False,
 )
-log = get_logger(__name__)
 
 VIDEO_EXTENSIONS = {".mp4", ".mkv", ".mov", ".avi", ".webm", ".flv", ".ts"}
 

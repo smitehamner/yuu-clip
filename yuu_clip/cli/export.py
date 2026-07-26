@@ -21,7 +21,7 @@ from yuu_clip.export.render import (
 
 @app.command()
 def export(
-    clip_id: int = typer.Argument(..., help="Clip candidate ID to export"),
+    clip_id: int = typer.Argument(..., help="Clip ID to export"),
     project: Optional[Path] = typer.Option(None, "--project", "-p"),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path"),
     precise: bool = typer.Option(False, "--precise", help="Precise export: re-encode for frame-accurate cut (slower)"),
@@ -90,7 +90,7 @@ def export(
 
 @app.command()
 def retranscribe(
-    clip_id: int = typer.Argument(..., help="Clip candidate ID"),
+    clip_id: int = typer.Argument(..., help="Clip ID"),
     project: Optional[Path] = typer.Option(None, "--project", "-p"),
     model: str = typer.Option("large-v3", "--model", "-m"),
     language: Optional[str] = typer.Option(None, "--language"),

@@ -77,6 +77,10 @@ def test_gap_exactly_at_threshold_splits():
     assert suggest_session_groups(candidates) == []
 
 
+def test_empty_input_returns_no_groups():
+    assert suggest_session_groups([]) == []
+
+
 def test_singleton_never_suggested():
     candidates = [_candidate(1, datetime(2026, 7, 4, 20, 0, 0), 20)]
     assert suggest_session_groups(candidates) == []
