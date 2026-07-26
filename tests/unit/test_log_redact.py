@@ -39,6 +39,14 @@ def test_is_idempotent():
     assert redact_paths(once) == once
 
 
+def test_get_logger_prefixes_a_bare_module_name():
+    assert get_logger("web.deps").name == "yuu_clip.web.deps"
+
+
+def test_get_logger_does_not_double_prefix_an_already_scoped_name():
+    assert get_logger("yuu_clip.web.deps").name == "yuu_clip.web.deps"
+
+
 def test_redacts_username_inside_traceback():
     formatter = _SanitizingFormatter("%(message)s")
     try:

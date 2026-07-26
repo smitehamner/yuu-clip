@@ -78,8 +78,7 @@ class TestCheckForUpdate:
         assert result.latest_version is None
 
     def test_http_error_returns_error_not_exception(self, monkeypatch):
-        # Mirrors what an unauthenticated request to a private repo returns (404)
-        # until the repo is flipped public.
+        # e.g. no GitHub release has been published yet, or the repo/tag was renamed.
         def _boom(request, timeout=None):
             raise urllib.error.HTTPError("url", 404, "Not Found", {}, None)
 
@@ -95,6 +94,22 @@ class TestCheckForUpdate:
         monkeypatch.setattr(update_check.urllib.request, "urlopen", _urlopen)
         result = update_check.check_for_update("0.1.28")
         assert result.error is not None
+
+    def test_non_object_json_returns_error_not_exception(self, monkeypatch):
+        # A proxy / captive portal / GitHub error page can return valid JSON that
+        # is not an object (null, a list, a bare string). data["tag_name"] then
+        # raises TypeError - which must still surface as an error result, not a
+        # crash, or the "Never raises" contract the UI relies on is broken.
+        for body in (b"null", b"[]", b'"nope"', b"42"):
+            @contextlib.contextmanager
+            def _urlopen(request, timeout=None, _body=body):
+                yield io.BytesIO(_body)
+
+            monkeypatch.setattr(update_check.urllib.request, "urlopen", _urlopen)
+            result = update_check.check_for_update("0.1.28")
+            assert result.error is not None, f"body {body!r} should yield an error result"
+            assert result.update_available is False
+            assert result.latest_version is None
 
     def test_missing_tag_name_returns_error_not_exception(self, monkeypatch):
         monkeypatch.setattr(

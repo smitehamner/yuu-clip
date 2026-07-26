@@ -192,6 +192,50 @@ class TestAnalyzeJobBroadcast:
         assert _log_texts(live) == ["live-1"]
         assert _done_outcomes(done) == ["ok"]
 
+    def test_nonzero_exit_ends_with_error_done_and_marks_job_failed(self, tmp_path):
+        # A crashed analyze subprocess must surface as a typed done{error} to every
+        # subscriber, not leave the browser's job pill spinning forever.
+        async def drive():
+            job = AnalyzeJob(
+                [sys.executable, "-u", "-c", "print('working'); raise SystemExit(2)"], tmp_path,
+            )
+            await job.start()
+            payloads = _payloads(await _consume(job))
+            return job, payloads
+
+        job, payloads = asyncio.run(drive())
+        assert job.failed is True
+        assert job.done is True
+        assert _done_outcomes(payloads) == ["error"]
+
+    def test_broken_output_pump_ends_with_error_done_and_marks_job_failed(self, tmp_path):
+        # A pump that raises mid-stream (e.g. a decode error) must still emit a
+        # terminal done{error} for every subscriber rather than aborting silently.
+        # Driven with a fake proc (no real subprocess) so the broken stdout is in
+        # place before the pump ever runs - no start()/task-scheduling race.
+        class _FakeProc:
+            pid = 999
+            returncode = None
+
+            async def wait(self):
+                return 0
+
+        async def _broken_stdout():
+            raise RuntimeError("stdout pipe broke")
+            yield  # pragma: no cover - makes this an async generator
+
+        async def drive():
+            job = AnalyzeJob(["noop"], tmp_path)
+            fake_proc = _FakeProc()
+            fake_proc.stdout = _broken_stdout()
+            job.proc = fake_proc
+            await job._pump()
+            return job, _payloads(await _consume(job))
+
+        job, payloads = asyncio.run(drive())
+        assert job.failed is True
+        assert _done_outcomes(payloads) == ["error"]
+
     def test_subscriber_attaching_after_done_is_never_registered(self, tmp_path):
         # The already_done fast path: a client attaching after the job finished gets
         # the buffer + terminal done event and must NOT be added to subscribers (the pump has

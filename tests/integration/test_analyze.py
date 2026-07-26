@@ -1561,6 +1561,31 @@ class TestTerminateProcessTree:
         run_taskkill.assert_not_called()
         assert not proc.terminated
 
+    def test_windows_falls_back_to_terminate_when_taskkill_raises(self):
+        # taskkill.exe can genuinely be missing/blocked (locked-down machine); a
+        # cancel must still signal the child directly rather than silently no-op.
+        from unittest.mock import patch
+
+        from yuu_clip.web import sse
+
+        proc = self._FakeProc()
+        with patch.object(sse.sys, "platform", "win32"), \
+             patch.object(sse, "_run_taskkill", side_effect=OSError("taskkill.exe not found")):
+            sse.terminate_process_tree(proc)
+        assert proc.terminated
+
+    def test_async_windows_falls_back_to_terminate_when_taskkill_raises(self):
+        import asyncio
+        from unittest.mock import patch
+
+        from yuu_clip.web import sse
+
+        proc = self._FakeProc()
+        with patch.object(sse.sys, "platform", "win32"), \
+             patch.object(sse, "_run_taskkill", side_effect=OSError("taskkill.exe not found")):
+            asyncio.run(sse.terminate_process_tree_async(proc))
+        assert proc.terminated
+
 
 # ---------------------------------------------------------------------------
 # DB session cleanup - proves no connection lingers after route handlers
@@ -1668,6 +1693,31 @@ class TestGracefulShutdown:
 
         argv = run.call_args.args[0]
         assert argv[0] == "taskkill" and "/T" in argv and str(mock_proc.pid) in argv
+
+    def test_shutdown_terminates_running_analyze_job(self, project_dir):
+        """The reattachable AnalyzeJob (ctx.analyze_job) is the primary web-UI analyze
+        path - its subprocess lives on job.proc, NOT ctx.analyze_proc. Server shutdown
+        must terminate it too, or a page-refresh-surviving analysis is orphaned holding
+        the SQLite write lock."""
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from fastapi.testclient import TestClient
+
+        from yuu_clip.web import sse
+        from yuu_clip.web.app import create_app
+
+        app = create_app(project_dir)
+        job_proc = MagicMock(returncode=None, pid=4242)
+        job_proc.wait = AsyncMock(return_value=0)
+
+        with patch.object(sse.sys, "platform", "win32"), \
+             patch.object(sse.subprocess, "run") as run:
+            with TestClient(app) as _:
+                app.state.ctx.analyze_job = SimpleNamespace(proc=job_proc)
+
+        argv = run.call_args.args[0]
+        assert argv[0] == "taskkill" and "/T" in argv and str(job_proc.pid) in argv
 
     def test_shutdown_terminates_every_tracked_subprocess(self, project_dir):
         """An overlapped subprocess_sse proc that lost the single analyze_proc slot

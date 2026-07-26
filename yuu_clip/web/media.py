@@ -18,6 +18,10 @@ from typing import Optional
 from fastapi import HTTPException, Request
 from starlette.responses import Response, StreamingResponse
 
+from yuu_clip.log import get_logger
+
+_log = get_logger(__name__)
+
 _CHUNK = 1024 * 1024
 
 
@@ -90,15 +94,24 @@ def media_file_response(path: Path, request: Request, media_type: Optional[str] 
     headers["content-length"] = str(length)
 
     def _stream():
+        # Headers are already sent by the time this generator runs, so a failure here
+        # can't be turned into an HTTP error response and bypasses app.py's global
+        # exception handler (response_started guards it) - this is the only place
+        # left that can put the failure in the app's own log rather than losing it to
+        # whatever (invisible, in a packaged build) console uvicorn writes to.
         remaining = length
-        with _open_shared(path) as handle:
-            handle.seek(start)
-            while remaining > 0:
-                chunk = handle.read(min(_CHUNK, remaining))
-                if not chunk:
-                    break
-                remaining -= len(chunk)
-                yield chunk
+        try:
+            with _open_shared(path) as handle:
+                handle.seek(start)
+                while remaining > 0:
+                    chunk = handle.read(min(_CHUNK, remaining))
+                    if not chunk:
+                        break
+                    remaining -= len(chunk)
+                    yield chunk
+        except Exception:
+            _log.exception("Media streaming failed for %s", path)
+            raise
 
     return StreamingResponse(_stream(), status_code=status, headers=headers, media_type=media_type)
 

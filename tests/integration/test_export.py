@@ -62,6 +62,19 @@ class TestShareDeleteMediaServing:
     def test_missing_export_returns_404(self, client):
         assert client.get("/media/exports/nope.mkv").status_code == 404
 
+    def test_open_ended_range_serves_to_end_of_file(self, client, project_dir):
+        body = bytes(range(256)) * 10  # 2560 bytes
+        (project_dir / ".yuu-clip" / "exports" / "sample.mkv").write_bytes(body)
+        r = client.get("/media/exports/sample.mkv", headers={"Range": "bytes=2540-"})
+        assert r.status_code == 206
+        assert r.headers["content-range"] == "bytes 2540-2559/2560"
+        assert r.content == body[2540:]
+
+    def test_malformed_range_header_returns_416(self, client, project_dir):
+        (project_dir / ".yuu-clip" / "exports" / "sample.mkv").write_bytes(b"x" * 10)
+        r = client.get("/media/exports/sample.mkv", headers={"Range": "bytes=notanumber-5"})
+        assert r.status_code == 416
+
 
 # ---------------------------------------------------------------------------
 # Demo reel start + list

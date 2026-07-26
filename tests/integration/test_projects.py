@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 
@@ -75,6 +76,39 @@ class TestKnownProjectsRegistry:
         registry.parent.mkdir(parents=True, exist_ok=True)
         registry.write_text("{ not json", encoding="utf-8")
         assert load_known_projects() == []
+
+    def test_list_capped_at_max_dropping_oldest(self, tmp_path):
+        from yuu_clip.recent_projects import (
+            _KNOWN_PROJECTS_MAX,
+            load_known_projects,
+            record_known_project,
+        )
+        dirs = []
+        for i in range(_KNOWN_PROJECTS_MAX + 3):
+            d = tmp_path / f"proj{i}"
+            d.mkdir()
+            dirs.append(d)
+            record_known_project(d)
+        known = load_known_projects()
+        assert len(known) == _KNOWN_PROJECTS_MAX
+        paths = [e["path"] for e in known]
+        # Most-recent-first: the last recorded project leads, the earliest 3 fell off.
+        assert paths[0] == str(dirs[-1].resolve())
+        assert str(dirs[0].resolve()) not in paths
+        assert str(dirs[2].resolve()) not in paths
+        assert str(dirs[3].resolve()) in paths
+
+    def test_load_ignores_entries_that_are_not_dicts_with_a_path(self, tmp_path):
+        from yuu_clip.recent_projects import _known_projects_path, load_known_projects
+        registry = _known_projects_path()
+        registry.parent.mkdir(parents=True, exist_ok=True)
+        registry.write_text(json.dumps([
+            {"path": "/valid/one", "last_opened_at": "2026-01-01T00:00:00+00:00"},
+            "not-a-dict",
+            {"last_opened_at": "2026-01-01T00:00:00+00:00"},  # missing "path"
+            {"path": 12345},  # path is not a string
+        ]), encoding="utf-8")
+        assert [e["path"] for e in load_known_projects()] == ["/valid/one"]
 
 
 class TestProjectList:

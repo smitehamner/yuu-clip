@@ -36,6 +36,35 @@ def test_nonzero_exit_surfaces_stderr(monkeypatch):
         ffmpeg_mod.run_ffmpeg(["ffmpeg", "-i", "x.mkv", "out.mp4"])
 
 
+def test_nonzero_exit_includes_command_line_for_repro(monkeypatch):
+    monkeypatch.setattr(ffmpeg_mod, "find_ffmpeg", lambda: ("ffmpeg.exe", "ffprobe.exe"))
+
+    def _fake_run(args, **_kwargs):
+        return types.SimpleNamespace(returncode=1, stderr="Invalid data found", stdout="")
+
+    monkeypatch.setattr(subprocess, "run", _fake_run)
+
+    with pytest.raises(RuntimeError, match=r'ffmpeg -i "x y\.mkv" -to 10 out\.mp4'):
+        ffmpeg_mod.run_ffmpeg(["ffmpeg", "-i", "x y.mkv", "-to", "10", "out.mp4"])
+
+
+def test_nonzero_exit_truncates_an_extremely_long_arg(monkeypatch):
+    monkeypatch.setattr(ffmpeg_mod, "find_ffmpeg", lambda: ("ffmpeg.exe", "ffprobe.exe"))
+
+    def _fake_run(args, **_kwargs):
+        return types.SimpleNamespace(returncode=1, stderr="boom", stdout="")
+
+    monkeypatch.setattr(subprocess, "run", _fake_run)
+
+    huge_path = "C:\\" + ("a" * 500) + "\\out.mp4"
+    with pytest.raises(RuntimeError) as exc_info:
+        ffmpeg_mod.run_ffmpeg(["ffmpeg", "-i", huge_path])
+
+    message = str(exc_info.value)
+    assert "...(truncated)" in message
+    assert huge_path not in message
+
+
 def test_ffprobe_resolves_probe_binary(monkeypatch):
     used = {}
     monkeypatch.setattr(ffmpeg_mod, "find_ffmpeg", lambda: ("ffmpeg.exe", "ffprobe.exe"))
@@ -84,6 +113,38 @@ class TestFindFfmpegBundledDir:
 
         assert ffmpeg == "C:\\PATH\\ffmpeg.exe"
         assert ffprobe == "C:\\PATH\\ffprobe.exe"
+
+    def test_neither_env_nor_path_raises_with_windows_install_hint(self, monkeypatch):
+        monkeypatch.delenv("YUU_CLIP_FFMPEG_DIR", raising=False)
+        monkeypatch.setattr(ffmpeg_mod.shutil, "which", lambda name: None)
+        monkeypatch.setattr(ffmpeg_mod.sys, "platform", "win32")
+
+        with pytest.raises(RuntimeError, match="Required tools not found in PATH: ffmpeg, ffprobe") as exc_info:
+            ffmpeg_mod.find_ffmpeg()
+        assert "winget install Gyan.FFmpeg" in str(exc_info.value)
+
+    def test_neither_env_nor_path_raises_with_posix_install_hint(self, monkeypatch):
+        monkeypatch.delenv("YUU_CLIP_FFMPEG_DIR", raising=False)
+        monkeypatch.setattr(ffmpeg_mod.shutil, "which", lambda name: None)
+        monkeypatch.setattr(ffmpeg_mod.sys, "platform", "linux")
+
+        with pytest.raises(RuntimeError, match="Required tools not found in PATH: ffmpeg, ffprobe") as exc_info:
+            ffmpeg_mod.find_ffmpeg()
+        assert "apt install ffmpeg" in str(exc_info.value)
+
+    def test_only_ffprobe_missing_from_path_is_named(self, monkeypatch):
+        monkeypatch.delenv("YUU_CLIP_FFMPEG_DIR", raising=False)
+        monkeypatch.setattr(
+            ffmpeg_mod.shutil, "which",
+            lambda name: "C:\\PATH\\ffmpeg.exe" if name == "ffmpeg" else None,
+        )
+        monkeypatch.setattr(ffmpeg_mod.sys, "platform", "win32")
+
+        with pytest.raises(RuntimeError) as exc_info:
+            ffmpeg_mod.find_ffmpeg()
+        message = str(exc_info.value)
+        assert "Required tools not found in PATH: ffprobe" in message
+        assert "ffmpeg, ffprobe" not in message
 
 
 class TestRetranscribeResolvesBundledFfmpeg:

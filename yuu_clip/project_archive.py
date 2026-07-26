@@ -28,6 +28,7 @@ import os
 import shutil
 import tempfile
 import zipfile
+import zlib
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from importlib.metadata import PackageNotFoundError
@@ -312,13 +313,20 @@ def restore_into(archive_path: Path, target_dir: Path, overwrite: bool = False) 
     set; when overwriting, the existing project.db is first copied to
     project.db.pre-restore so a restore can never be the thing that loses data."""
     inspect_backup(archive_path)  # validates schema before we touch the target
+    target_dir = Path(target_dir)
     with zipfile.ZipFile(archive_path) as archive:
         # inspect_backup only checks the manifest; guard the DB member too, or the
         # overwrite path below would drop the old WAL for a backup that then writes
         # no project.db - the same check plan_repoint_from_archive already makes.
         if _DB_ARCNAME not in archive.namelist():
             raise RestoreError("This backup is missing its project database.")
-    target_dir = Path(target_dir)
+        # Verify the whole archive (CRC integrity + zip-slip safety) BEFORE any target
+        # mutation. The overwrite path below copies the live project.db aside and drops
+        # its WAL before extracting; a corrupt member (bit-rot on a portable backup, an
+        # interrupted build) or an unsafe path must fail here, cleanly and with the
+        # target untouched, rather than surface as a BadZipFile mid-extract after the
+        # live DB was already half-overwritten.
+        _verify_restorable(archive, target_dir)
     existing_db = target_dir / ".yuu-clip" / "project.db"
     if existing_db.exists() and existing_db.stat().st_size > 0:
         if not overwrite:
@@ -338,18 +346,51 @@ def restore_into(archive_path: Path, target_dir: Path, overwrite: bool = False) 
     return project_db_path(target_dir)
 
 
+def _reject_unsafe_member(name: str, target_dir: Path, target_root: Path) -> None:
+    """Raise if *name* would resolve outside *target_dir* (zip slip). ``ZipFile.extract``
+    already strips ``..`` and drive letters, so this is defense in depth - but a hostile
+    member should fail the whole restore loudly, not be silently rewritten and dropped."""
+    dest = (target_dir / name).resolve()
+    if dest != target_root and target_root not in dest.parents:
+        _log.error(
+            "Backup restore rejected unsafe member %r - resolves to %s, outside target %s",
+            name, dest, target_root,
+        )
+        raise RestoreError(
+            "This backup contains an unsafe file path and was not restored."
+        )
+
+
+def _verify_restorable(archive: zipfile.ZipFile, target_dir: Path) -> None:
+    """Fail the restore before it mutates the target if the archive is corrupt or
+    carries an unsafe path. ``testzip`` CRC-checks every member (backups hold only the
+    small state files, never the large derived media, so this is cheap)."""
+    try:
+        bad_member = archive.testzip()
+    except (zipfile.BadZipFile, OSError, EOFError, zlib.error) as exc:
+        _log.error("Backup restore aborted - archive failed integrity check: %s", exc)
+        raise RestoreError(
+            "This backup is damaged and was not restored."
+        ) from exc
+    if bad_member is not None:
+        _log.error("Backup restore aborted - member %r failed its CRC check", bad_member)
+        raise RestoreError(
+            "This backup is damaged (a file inside it failed its integrity check) "
+            "and was not restored."
+        )
+    target_root = target_dir.resolve()
+    for name in archive.namelist():
+        if name != "manifest.json":
+            _reject_unsafe_member(name, target_dir, target_root)
+
+
 def _extract_members(archive: zipfile.ZipFile, target_dir: Path) -> None:
-    """Extract every member except the manifest, refusing any whose path would
-    land outside *target_dir*. ``ZipFile.extract`` already strips ``..`` and drive
-    letters, so this is defense in depth - but a hostile member (zip slip) should
-    fail the whole restore loudly, not be silently rewritten and dropped."""
+    """Extract every member except the manifest. The archive was already integrity-
+    and zip-slip-checked by _verify_restorable before the target was touched; the
+    per-member check here stays as defense in depth on the actual write."""
     target_root = target_dir.resolve()
     for name in archive.namelist():
         if name == "manifest.json":
             continue
-        dest = (target_dir / name).resolve()
-        if dest != target_root and target_root not in dest.parents:
-            raise RestoreError(
-                "This backup contains an unsafe file path and was not restored."
-            )
+        _reject_unsafe_member(name, target_dir, target_root)
         archive.extract(name, target_dir)

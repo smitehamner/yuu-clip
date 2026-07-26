@@ -73,7 +73,7 @@ def check_for_update(current_version: str, repo: str = _REPO) -> UpdateCheckResu
         data = _fetch_latest_release(repo)
         latest_tag = data["tag_name"]
         release_url = data["html_url"]
-    except (urllib.error.URLError, OSError, ValueError, KeyError) as e:
+    except (urllib.error.URLError, OSError, ValueError, KeyError, TypeError) as e:
         _log.info("Update check failed: %s", e)
         return UpdateCheckResult(current_version=current_version, error=str(e))
 

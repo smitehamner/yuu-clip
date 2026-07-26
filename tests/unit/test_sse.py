@@ -179,3 +179,51 @@ class TestSubprocessSseTypedWire:
 
         payloads = _payloads(asyncio.run(run()))
         assert payloads[-1] == {"v": 1, "type": "done", "outcome": "ok"}
+
+
+class TestSubprocessSseActiveJobTracking:
+    """The track_active_job/clear_cmd_attr options - used by callers (e.g. URL
+    import's /api/import-url/events) that need /api/status's any_running to
+    reflect a job with no dedicated analyze_proc-based flag."""
+
+    def test_active_jobs_incremented_while_running_and_cleared_after(self, tmp_path: Path):
+        import sys
+        from types import SimpleNamespace
+
+        from yuu_clip.web.sse import subprocess_sse
+
+        ctx = SimpleNamespace(
+            analyze_proc=None, active_jobs=0, import_cmd="queued",
+            subprocess_procs=set(), counted_procs=set(), cancelled_procs=set(),
+        )
+        observed = []
+
+        async def drive():
+            response = await subprocess_sse(
+                [sys.executable, "-c", "print('hello')"], tmp_path, ctx,
+                clear_cmd_attr="import_cmd", track_active_job=True,
+            )
+            async for _ in response.body_iterator:
+                observed.append(ctx.active_jobs)
+
+        asyncio.run(drive())
+
+        assert observed and max(observed) == 1
+        assert ctx.active_jobs == 0
+        assert ctx.import_cmd is None
+
+    def test_active_jobs_untouched_when_not_tracked(self, tmp_path: Path):
+        import sys
+        from types import SimpleNamespace
+
+        from yuu_clip.web.sse import subprocess_sse
+
+        ctx = SimpleNamespace(analyze_proc=None, active_jobs=0, subprocess_procs=set(), cancelled_procs=set())
+
+        async def drive():
+            response = await subprocess_sse([sys.executable, "-c", "print('hi')"], tmp_path, ctx)
+            async for _ in response.body_iterator:
+                pass
+
+        asyncio.run(drive())
+        assert ctx.active_jobs == 0

@@ -5,11 +5,8 @@ No real network calls: yt-dlp is always mocked.
 """
 from __future__ import annotations
 
-import asyncio
-import sys
 from datetime import datetime
 from pathlib import Path
-from types import SimpleNamespace
 from unittest import mock
 
 import pytest
@@ -362,107 +359,10 @@ class TestSourceMetadataSidecar:
         assert video.title_user == "Creator's own title"
 
 
-# ---------------------------------------------------------------------------
-# subprocess_sse's track_active_job option (used by /api/import-url/events so
-# any_running reflects a running download)
-# ---------------------------------------------------------------------------
-
-class TestSubprocessSseTracksActiveJob:
-    def test_active_jobs_incremented_while_running_and_cleared_after(self, tmp_path: Path):
-        from yuu_clip.web.sse import subprocess_sse
-
-        ctx = SimpleNamespace(
-            analyze_proc=None, active_jobs=0, import_cmd="queued",
-            subprocess_procs=set(), counted_procs=set(), cancelled_procs=set(),
-        )
-        observed = []
-
-        async def drive():
-            response = await subprocess_sse(
-                [sys.executable, "-c", "print('hello')"], tmp_path, ctx,
-                clear_cmd_attr="import_cmd", track_active_job=True,
-            )
-            async for _ in response.body_iterator:
-                observed.append(ctx.active_jobs)
-
-        asyncio.run(drive())
-
-        assert observed and max(observed) == 1
-        assert ctx.active_jobs == 0
-        assert ctx.import_cmd is None
-
-    def test_active_jobs_untouched_when_not_tracked(self, tmp_path: Path):
-        from yuu_clip.web.sse import subprocess_sse
-
-        ctx = SimpleNamespace(analyze_proc=None, active_jobs=0, subprocess_procs=set(), cancelled_procs=set())
-
-        async def drive():
-            response = await subprocess_sse([sys.executable, "-c", "print('hi')"], tmp_path, ctx)
-            async for _ in response.body_iterator:
-                pass
-
-        asyncio.run(drive())
-        assert ctx.active_jobs == 0
-
-
-# ---------------------------------------------------------------------------
-# subprocess_sse cancel messaging (used by /api/import-url/cancel)
-# ---------------------------------------------------------------------------
-
-class TestSubprocessSseCancel:
-    def _payloads(self, chunks: list[str]) -> list:
-        import json
-        out = []
-        for chunk in chunks:
-            for line in chunk.splitlines():
-                if line.startswith("data: "):
-                    out.append(json.loads(line.removeprefix("data: ")))
-        return out
-
-    def test_cancelled_proc_yields_done_cancelled(self, tmp_path: Path):
-        # The import cancel endpoint adds the running proc to ctx.cancelled_procs;
-        # subprocess_sse's tail reads that (keyed by proc identity) and ends with a
-        # typed done{cancelled}, then discards the entry.
-        from yuu_clip.web.sse import subprocess_sse
-
-        ctx = SimpleNamespace(
-            analyze_proc=None, analyze_proc_kind=None, active_jobs=0,
-            subprocess_procs=set(), counted_procs=set(), cancelled_procs=set(),
-        )
-        chunks: list[str] = []
-
-        async def drive():
-            response = await subprocess_sse([sys.executable, "-c", "print('working')"], tmp_path, ctx)
-            async for chunk in response.body_iterator:
-                chunks.append(chunk)
-                if ctx.analyze_proc is not None:
-                    ctx.cancelled_procs.add(ctx.analyze_proc)
-
-        asyncio.run(drive())
-        payloads = self._payloads(chunks)
-        assert payloads[-1] == {"v": 1, "type": "done", "outcome": "cancelled"}
-        assert ctx.cancelled_procs == set()
-
-    def test_stale_proc_identity_not_leaked(self, tmp_path: Path):
-        # A proc left in the set by a prior job must not mark this different proc
-        # cancelled - the identity keying is what makes stale state structurally safe.
-        from yuu_clip.web.sse import subprocess_sse
-
-        ctx = SimpleNamespace(
-            analyze_proc=None, analyze_proc_kind=None, active_jobs=0,
-            subprocess_procs=set(), counted_procs=set(), cancelled_procs={object()},
-        )
-        chunks: list[str] = []
-
-        async def drive():
-            response = await subprocess_sse([sys.executable, "-c", "print('working')"], tmp_path, ctx)
-            async for chunk in response.body_iterator:
-                chunks.append(chunk)
-
-        asyncio.run(drive())
-        payloads = self._payloads(chunks)
-        assert payloads[-1] == {"v": 1, "type": "done", "outcome": "ok"}
-
+# subprocess_sse's track_active_job/clear_cmd_attr options and its cancel
+# messaging are generic behavior of yuu_clip.web.sse, not specific to URL
+# import - covered in tests/unit/test_sse.py (moved there 2026-07-26 to stop
+# duplicating the same generic-subprocess_sse assertions in two tiers).
 
 
 # ---------------------------------------------------------------------------

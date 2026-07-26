@@ -11,6 +11,248 @@ same thing without the context. Most recent first.
 
 ---
 
+## Phase 6 docs and comments - full-app review section 7, web plumbing + cross-cutting utilities (2026-07-26)
+
+Docs-and-comments phase over `web/{app,deps,sse,analyze_job,media,file_deletion}.py`,
+`log.py`, `console.py`, `hf_cache.py`, `url_import.py`, `project_archive.py`,
+`ffmpeg_tools.py`, `track_labels.py`, `recent_projects.py`, `update_check.py`,
+`whisper_catalog.py`. Grepped every `#` comment and docstring across the scope
+(~180 hits) before reading; zero TODO/FIXME/XXX/HACK markers. One fix applied (the
+item Phase 1 carried forward); everything else confirmed accurate and load-bearing on
+direct read - this is the cleanest section reviewed so far, consistent with Phases 1/4/5's
+own characterization.
+
+### Applied: tests/unit/test_update_check.py's stale "until the repo is flipped public" comment
+`test_http_error_returns_error_not_exception` explained the mocked 404 as "what an
+unauthenticated request to a private repo returns... until the repo is flipped public" -
+the repo flipped public 2026-07-26 (same day, per project history), so the rationale was
+already obsolete. Reworded to a still-accurate reason a real GitHub release-tag lookup can
+404 regardless of repo visibility (no release published yet, or the repo/tag renamed) - the
+test's behavior and mock are unchanged, this was a comment-only fix.
+
+### Verified: project_archive.py's `_verify_restorable`/`_reject_unsafe_member`/`restore_into` comments (Phase 2 fix + Phase 5 logging) - accurate, no edit
+Re-read `restore_into` (project_archive.py:309-346) and its two helpers against the current
+code. The comments correctly explain the WHY the brief flagged: `_verify_restorable` runs
+inside the first `with zipfile.ZipFile(...)` block, entirely BEFORE the overwrite-copy /
+old-DB-WAL-drop / second-`with`-extract sequence, and the inline comment at the call site
+spells out why ("a corrupt member... or an unsafe path must fail here, cleanly and with the
+target untouched, rather than surface... after the live DB was already half-overwritten").
+Phase 5's added `_log.error` calls (member name, resolved path/target root for the zip-slip
+case) are present and match what's actually raised. No drift, no edit needed.
+
+### Verified: ffmpeg_tools.py's `_format_cmd_for_log`/`run_ffmpeg` (Phase 5's command-args-in-error fix) - accurate; `_MAX_LOGGED_ARG_LEN = 200` needs no added comment
+Re-read against the brief's flagged concern (does the truncation-length constant need a WHY
+comment). `_format_cmd_for_log`'s docstring already explains the truncation *shape* that
+matters (per-arg, not whole-line, "so a single huge path can't hide the rest of the
+command") - the specific number 200 is an arbitrary-but-reasonable round threshold (long
+enough to show a real path, short enough to keep the line scannable), the same class of
+magic number as `_BUFFER_LINES = 2_000` in analyze_job.py or `_KNOWN_PROJECTS_MAX = 20` in
+recent_projects.py, neither of which carries a "why this number" comment either. Not adding
+one - it would be padding, not information. No edit.
+
+### Terminology sweep - clean
+Grepped `clip candidate|demo reel|\bsubtitle\b|\bProfile\b|RP context|\bslug\b|\bIngest\b|Probe`
+across the whole scope: zero hits. No user-facing strings in this scope at all, in fact -
+every user-facing message (`RestoreError`, `ImportUrlError`, the 409 in
+`file_deletion.py::locked_files_error`) was independently re-read for glossary terms while
+verifying the comments above and found clean.
+
+### Confirmed clean, no findings: everything else in scope
+`web/app.py`, `web/deps.py`, `web/sse.py`, `web/analyze_job.py`, `web/media.py`, `log.py`,
+`console.py`, `hf_cache.py`, `url_import.py`, `track_labels.py`, `recent_projects.py`,
+`whisper_catalog.py` - every comment explains a non-obvious WHY (SQLite locking, the
+identity-keyed cancel-set design, the share-delete media-serving Windows constraint, the
+cp1252/UTF-8 console rewrap, credential/path log redaction, the HF-offline-mode gating
+rationale) or documents a real external constraint (RFC 7233 range requests, the Restart
+Manager API, yt-dlp's progress-hook/URL-cleaning rules). No restatement, no obsolete text,
+no reactive/apology comments, no orphaned TODOs. `yuu-dev test-api` 3489 passed (unchanged
+count from Phase 3's baseline - this phase touched only a test comment, no test
+added/removed), lint clean, 0 new mypy errors (typecheck not re-run since no `.py` type
+surface changed, per the "cosmetic change -> lint only" convention; the comment edit is in
+a test file with no annotations touched).
+
+---
+
+## Phase 5 logging coverage - full-app review section 7, web plumbing + cross-cutting utilities (2026-07-26)
+
+Grep-first survey (`logger.`/`log.`/`_log.` calls, then bare `except` blocks) over
+`web/{app,deps,sse,analyze_job,media,file_deletion}.py`, `log.py`, `console.py`,
+`hf_cache.py`, `url_import.py`, `project_archive.py`, `ffmpeg_tools.py`,
+`track_labels.py`, `recent_projects.py`, `update_check.py`, `whisper_catalog.py`.
+Fixed 3 real gaps (see below); confirmed several checked-but-adequate areas that a
+future pass should not re-flag without new evidence.
+
+### Fixed: `ffmpeg_tools.py::run_ffmpeg` errors now include the command line
+Carried forward from Section 5's bug-hunt phase (deferred there because
+`ffmpeg_tools.py` wasn't yet in any reviewed section's scope). The raised
+`RuntimeError` on a non-zero exit named only the tool (`ffmpeg`/`ffprobe`) and
+stderr, not the argument list, so a failure wasn't reproducible from the log alone.
+Added `_format_cmd_for_log` (per-arg truncation at 200 chars, not a whole-line cap,
+so one huge path can't hide the rest of the command) and folded it into the error
+message. This is the sole choke point every ffmpeg/ffprobe caller in the app routes
+through (`render.py`, `reel.py`, `extract.py`, `proxy.py`, `crud.py`, ...), so the
+fix is project-wide from one edit. `tests/unit/test_run_ffmpeg.py` covers both the
+new repro-line content and the truncation.
+
+### Fixed: `web/media.py`'s streaming generator now logs before re-raising
+`media_file_response`'s body generator (`_stream`) runs *after* Starlette has
+already sent HTTP headers (`StreamingResponse` sends `http.response.start` before
+touching the body iterator), so a failure inside it - e.g. Windows `CreateFileW`
+denying the share-delete open - can't become an HTTP error response and bypasses
+`app.py`'s global `@app.exception_handler(Exception)` (which guards on
+`response_started`). Before this fix such a failure had **no trace anywhere in the
+app's own log** - only uvicorn's own "Exception in ASGI application" traceback,
+which in a packaged Electron build has no visible console. Added a
+try/log.exception/re-raise around the generator body; behavior is unchanged
+(same exception still propagates), only now it lands in `yuu-clip.log` too.
+`tests/unit/test_media.py` (new file) covers both this failure path and the
+existing happy path, which had no prior test.
+
+### Fixed: `project_archive.py`'s restore-integrity rejections now log the specific cause
+`_verify_restorable`/`_reject_unsafe_member` (Phase 2's data-loss fix) raise a
+deliberately generic `RestoreError` ("this backup is damaged" / "contains an unsafe
+file path") so as not to confuse a non-technical user with zip internals - but
+that meant the *actual* cause (which member failed CRC, or which member's resolved
+path escaped the target dir) was lost entirely; a user's "restore failed" report
+gave the maintainer nothing to go on. Added an `_log.error` immediately before each
+raise, carrying the member name (and, for the zip-slip case, the resolved
+destination and target root). `tests/integration/test_restore.py`'s existing
+`test_restore_rejects_zip_slip_member` and
+`test_restore_rejects_corrupt_archive_before_touching_target` were extended with
+`caplog` assertions rather than adding new tests, since they already construct the
+exact archives that trigger each path.
+
+### Checked, no gap: `hf_cache.py`'s cache-check
+Prompted check: does a "reported cached but actually wasn't" scenario leave a
+trace? `_consumable_models_cached`/`repo_cached` both catch broad `Exception` and
+log at `debug` ("scan failed, staying online" / "gate check failed, staying
+online") - correct, since a scan failure only forgoes an optimization (never
+forces a wrong answer that then breaks a real download) and staying online is
+always the safe fallback. A true "said cached, wasn't" mismatch would only surface
+where the model is actually loaded (whisper_runner et al.), outside this module's
+job. No change.
+
+### Checked, no gap: `app.py`'s lifespan shutdown sequence
+Prompted check: loud enough to diagnose a *hung* shutdown, not just a normal one?
+Already logs `info` before terminating each subprocess and `warning` before the
+5 s-timeout kill escalation (both confirmed exercised and correct in Phase 2). The
+one theoretical gap - `proc.kill()` followed by an un-timed `await proc.wait()` that
+could itself hang if the kill somehow didn't take - was judged not worth an added
+log: OS-level `kill()`/`taskkill /F` essentially always take effect immediately, and
+this would be a genuinely novel OS-level failure mode, not a scenario this app has
+ever hit. No change.
+
+### Checked, no gap: raw `logging.getLogger(__name__)` vs `yuu_clip.log.get_logger`
+`hf_cache.py` and `recent_projects.py` use plain `import logging;
+logging.getLogger(__name__)` instead of the project's `yuu_clip.log.get_logger`
+wrapper used elsewhere in this section (`app.py`, `sse.py`, `analyze_job.py`,
+`file_deletion.py`, `url_import.py`, `project_archive.py`, `update_check.py`).
+Verified this is functionally identical, not a coverage gap: Python's logging
+hierarchy is keyed by the *name string*, not by which call created the logger
+object, and both files' `__name__` already equals `"yuu_clip.<module>"` - the exact
+name `get_logger` would produce anyway. It is also the dominant pattern across the
+wider codebase (22 files under `yuu_clip/` use the raw form), so this is an
+established convention, not a one-off inconsistency in scope here. No change.
+
+## Phase 4 refactor - full-app review section 7, web plumbing + cross-cutting utilities (2026-07-26)
+
+Refactor pass over `web/{app,deps,sse,analyze_job,media,file_deletion}.py`, `log.py`,
+`console.py`, `hf_cache.py`, `url_import.py`, `project_archive.py`, `ffmpeg_tools.py`,
+`track_labels.py`, `recent_projects.py`, `update_check.py`, `whisper_catalog.py`.
+Structural survey (function-length + duplication grep) then full reads of every file.
+No code changes: the scope is uniformly well-decomposed (functions single-concern and
+under the size bar, names reveal intent, tradeoffs already carried in comments), and
+Phase 2 already hardened the one complex file (`project_archive.py`'s restore-integrity
+path). The only two genuine duplicated-knowledge signals both have the majority of their
+call sites in out-of-scope `web/routes/*.py`, so both are deferred to the routes pass
+rather than half-migrated here (see below). No behavior changed; test suite unchanged
+from the Phase 3 baseline (3485 passed) - no code touched, so not re-run.
+
+### `project_archive.py::restore_into` decomposition after the Phase 2 integrity fix - kept whole
+Phase 2 added an up-front `_verify_restorable(archive, target_dir)` call inside
+`restore_into`'s first `with zipfile.ZipFile(...)` block, then the overwrite/pre-restore
+copy, then a second `with` for `_extract_members`. Reviewed whether the two-open shape and
+the extra validation step warrant splitting `restore_into` further. Decision: keep as-is.
+The function is ~30 lines of body with the verify -> guard-overwrite -> extract sequence
+reading top to bottom; the two zip opens are deliberate (verify before the target is
+touched, extract after), and the CRC/zip-slip/DB-member checks are already extracted into
+named helpers (`_verify_restorable`, `_reject_unsafe_member`, the `_DB_ARCNAME` guard).
+Splitting the orchestration further would scatter the ordering that the comments make
+load-bearing. The atomic-write question for `track_labels.py` remains a separate open
+human-decision item (untouched, per this phase's scope).
+
+### `web/sse.py` cancelled/counted proc-tracking vs `web/analyze_job.py`'s AnalyzeJob state - deliberately separate, not duplicated
+Confirmed the two process-tracking mechanisms are two different designs by intent, not
+accidental duplication (CLAUDE.md's "Subprocess cancellation" + the SSE typed-event
+migration record). `subprocess_sse` tracks short, stream-tied jobs via identity-keyed
+`ctx.cancelled_procs`/`counted_procs` sets (killed on client disconnect); `AnalyzeJob`
+is a reattachable broadcast buffer whose lifecycle is decoupled from any single stream
+(survives a browser refresh, killed only on explicit cancel/shutdown). They already share
+the correct surface - `terminate_process_tree_async`, `new_session_kwargs`, and the
+`jobevents` wire helpers. No merge.
+
+### Deferred to the routes pass (Section 8/9): `_pkg_version("yuu-clip")` -> "unknown" block duplicated 4x
+The three-line "installed yuu-clip version, or 'unknown'" try/except appears verbatim in
+`project_archive.py::_app_version` (in scope), `web/app.py`'s module-level `_PKG_VERSION`
+(in scope), `web/routes/updates.py` (OUT of scope), and a variant in `dev/notices.py`.
+Genuine duplicated knowledge, but 2 of the 4 sites (the routes helper being a primary
+stakeholder) are outside this phase's scope. Extracting a single `app_version()` now would
+convert only the two in-scope callers, pre-commit the helper's home, and leave the routes
+duplicate in place - the half-migrated state the wide-change convention warns against.
+Surfaced for a wholesale extraction when `routes/updates.py` is reviewed, so every call
+site converts in one coherent change and the routes pass picks the home.
+
+### Deferred to the routes pass (Section 8/9): "resolve within a base dir, reject traversal" duplicated
+`media.py::resolve_within` (raises `HTTPException` 404) and
+`project_archive.py::_reject_unsafe_member` (raises `RestoreError`) share the same
+resolved-path-not-escaping-base shape, as do several out-of-scope route sites
+(`routes/reveal.py::_is_within`, `routes/backup.py`, `routes/projects.py`). Each raises a
+domain-specific error (or returns a bool), so any shared primitive would be a pure
+`is_within(base, target) -> bool` predicate the callers wrap. Same situation as the version
+block: the majority of call sites are in out-of-scope routes, so a complete extraction
+belongs to the routes pass rather than a partial in-scope-only conversion. Surfaced, not
+extracted.
+
+## Phase 1 test integrity - full-app review section 7, web plumbing + cross-cutting utilities (2026-07-26)
+
+Test-integrity pass over `web/{app,deps,sse,analyze_job,media,file_deletion}.py`,
+`log.py`, `console.py`, `hf_cache.py`, `url_import.py`, `project_archive.py`,
+`ffmpeg_tools.py`, `track_labels.py`, `recent_projects.py`, `update_check.py`, and
+`whisper_catalog.py` (the last 5 modules missing from `REVIEW_MAP.md` entirely, folded
+in here as cross-cutting utilities). Baseline was green (3464 passed) and stayed green -
+no changes made. This is the strongest-tested scope reviewed so far: `test_sse.py` and
+`test_url_import.py`'s `TestSubprocessSseCancel` classes exercise the identity-keyed
+`ctx.cancelled_procs` design directly (a stale entry from a different job's proc object
+must not leak into a new job's `done{cancelled}`); `test_restore.py` covers zip-slip
+path-traversal rejection, a pre-restore safety copy of the old DB, and schema-version
+rejection - real data-loss-adjacent guards, not happy-path-only; `test_log_redact.py`
+asserts the username/secret is actually absent from the formatted output (not just that
+logging didn't crash); `test_export.py`'s `TestUnlinkWithRetry` drives a genuinely flaky
+mocked `Path.unlink` (fails N times then succeeds) rather than mocking away the retry
+loop itself. No vague names, tautologies, order dependence, or fragile snapshot/log-line
+assertions found.
+
+### `TestSubprocessSseTracksActiveJob`/`TestSubprocessSseCancel` in test_url_import.py duplicate test_sse.py - surfaced, not fixed
+`tests/unit/test_url_import.py`'s two classes re-exercise the same generic
+`web/sse.py::subprocess_sse` identity-keyed cancel behavior already covered by
+`tests/unit/test_sse.py::TestSubprocessSseTypedWire` (`test_cancelled_proc_yields_done_cancelled`,
+`test_stale_cancelled_proc_does_not_leak_into_a_new_job` vs. `test_stale_proc_identity_not_leaked`).
+Same shape as the `TestProfiles`/`TestProfileFunctions` precedent from Section 6's phase 1:
+left as-is - a test-integrity pass fixes fragility and clarity, not cross-file dedup -
+flagged here for a future dedup pass rather than merged unprompted.
+
+### Coverage gaps noted for the Phase 3 pass, not addressed here
+- `tests/integration/test_analyze.py::TestGracefulShutdown` covers `ctx.analyze_proc` and
+  `ctx.subprocess_procs` termination on server shutdown but never sets `ctx.analyze_job.proc`
+  (the `AnalyzeJob`-tracked path `web/app.py`'s `lifespan` also terminates) - a real gap in
+  the shutdown test, not a fragility issue.
+- `file_deletion.py`'s `_rm_locking_processes` (the actual Restart Manager ctypes call) has
+  no unit test - inherently hard to test without mocking ctypes/ WinDLL deeply; the
+  surrounding `locking_processes`/`locked_files_error` behavior is tested via monkeypatching
+  it out, which is the pragmatic boundary.
+- `console.py` (the stdout/stderr UTF-8 rewrap + `BYTES_PER_MB`) has no dedicated test -
+  low value given it is a two-line encoding shim executed at import time.
+
 ## Phase 6 docs and comments - full-app review section 6, data model/config/catalogs/CLI (2026-07-26)
 
 Docs-and-comments phase over `db/models.py`, `config.py`, `model_catalog.py`, `contexts.py`,

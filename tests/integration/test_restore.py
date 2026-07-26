@@ -142,9 +142,11 @@ def test_restore_rejects_backup_missing_project_db(tmp_path):
     assert wal.exists()  # WAL not dropped
 
 
-def test_restore_rejects_zip_slip_member(tmp_path):
+def test_restore_rejects_zip_slip_member(tmp_path, caplog):
     """A backup carrying a path-traversal member must fail the whole restore, and
-    must never write the escaping file outside the target dir (zip slip)."""
+    must never write the escaping file outside the target dir (zip slip). The
+    user-facing message is deliberately generic, so the offending member name must
+    land in the log for a "restore failed" report to be diagnosable."""
     archive = tmp_path / "malicious.zip"
     with zipfile.ZipFile(archive, "w") as zf:
         zf.writestr("manifest.json", json.dumps({"schema_version": BACKUP_SCHEMA_VERSION}))
@@ -152,10 +154,47 @@ def test_restore_rejects_zip_slip_member(tmp_path):
         zf.writestr("../escaped.txt", b"pwned")
     target = tmp_path / "restore_target"
 
-    with pytest.raises(RestoreError, match="unsafe file path"):
-        restore_into(archive, target, overwrite=True)
+    with caplog.at_level("ERROR", logger="yuu_clip.project_archive"):
+        with pytest.raises(RestoreError, match="unsafe file path"):
+            restore_into(archive, target, overwrite=True)
 
     assert not (tmp_path / "escaped.txt").exists()  # never escaped target_dir
+    assert any("../escaped.txt" in record.message for record in caplog.records)
+
+
+def test_restore_rejects_corrupt_archive_before_touching_target(tmp_path, caplog):
+    """A backup whose central directory is intact (so its members are present) but
+    whose data is corrupt - bit-rot on a portable backup, an interrupted build - must
+    be refused up front. Restore copies the live project.db aside and drops its WAL
+    before extracting, so a member that only fails its CRC mid-extract would otherwise
+    leave the live DB half-overwritten with only an opaque error. The user-facing
+    message is deliberately generic, so the failing member must land in the log for a
+    "restore failed" report to be diagnosable."""
+    good = tmp_path / "good.zip"
+    with zipfile.ZipFile(good, "w", zipfile.ZIP_STORED) as zf:
+        zf.writestr("manifest.json", json.dumps({"schema_version": BACKUP_SCHEMA_VERSION}))
+        zf.writestr(".yuu-clip/project.db", b"REAL-DB-CONTENT")
+    # Flip a byte inside the stored (uncompressed) project.db data so its CRC no longer
+    # matches, while the zip's central directory - and therefore namelist() - stays intact.
+    raw = bytearray(good.read_bytes())
+    raw[raw.index(b"REAL-DB-CONTENT")] ^= 0xFF
+    corrupt = tmp_path / "corrupt.zip"
+    corrupt.write_bytes(raw)
+
+    target = tmp_path / "existing"
+    (target / ".yuu-clip").mkdir(parents=True)
+    existing_db = target / ".yuu-clip" / "project.db"
+    existing_db.write_bytes(b"OLD-DB")
+    wal = target / ".yuu-clip" / "project.db-wal"
+    wal.write_bytes(b"WAL")
+
+    with caplog.at_level("ERROR", logger="yuu_clip.project_archive"):
+        with pytest.raises(RestoreError, match="damaged"):
+            restore_into(corrupt, target, overwrite=True)
+
+    assert existing_db.read_bytes() == b"OLD-DB"  # untouched
+    assert wal.exists()  # WAL not dropped
+    assert any(".yuu-clip/project.db" in record.message for record in caplog.records)
 
 
 def test_inspect_rejects_unsupported_schema(tmp_path):
@@ -171,6 +210,44 @@ def test_inspect_rejects_non_zip(tmp_path):
     junk.write_bytes(b"not a zip file at all")
     with pytest.raises(RestoreError, match="not a valid"):
         inspect_backup(junk)
+
+
+def test_inspect_rejects_manifest_that_is_not_json(tmp_path):
+    # A valid zip whose manifest.json member is present but unparseable (e.g.
+    # truncated by a bad transfer) - a distinct failure mode from "not a zip at all".
+    bad = tmp_path / "bad-manifest.zip"
+    with zipfile.ZipFile(bad, "w") as archive:
+        archive.writestr("manifest.json", "{ not json")
+    with pytest.raises(RestoreError, match="unreadable"):
+        inspect_backup(bad)
+
+
+# --- plan_repoint_from_archive (the restore-preview path) -------------------
+
+
+def test_plan_repoint_from_archive_reports_manifest_and_groups(project_dir, tmp_path):
+    # project_dir's fixture seed already carries one unresolved video (session.mkv
+    # is never written to disk) - reuse it rather than seeding a second row.
+    from yuu_clip.project_archive import plan_repoint_from_archive
+
+    archive = build_backup(project_dir, tmp_path / "out.zip")
+
+    manifest, groups = plan_repoint_from_archive(archive)
+
+    assert manifest["schema_version"] == BACKUP_SCHEMA_VERSION
+    assert len(groups) == 1
+    assert groups[0].missing_dir == str(project_dir)
+    assert groups[0].file_count == 1
+
+
+def test_plan_repoint_from_archive_rejects_archive_missing_project_db(tmp_path):
+    from yuu_clip.project_archive import plan_repoint_from_archive
+
+    archive = tmp_path / "no-db.zip"
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("manifest.json", json.dumps({"schema_version": BACKUP_SCHEMA_VERSION}))
+    with pytest.raises(RestoreError, match="missing its project database"):
+        plan_repoint_from_archive(archive)
 
 
 # --- routes -----------------------------------------------------------------

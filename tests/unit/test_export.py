@@ -658,6 +658,24 @@ class TestLockedFilesError:
         monkeypatch.setattr(file_deletion.sys, "platform", "linux")
         assert file_deletion.locking_processes(Path("/tmp/x.mkv")) == []
 
+    def test_locking_processes_probe_failure_degrades_to_empty_list(self, tmp_path, monkeypatch):
+        # "never fatal" per the docstring: a Restart Manager/ctypes failure on
+        # Windows must not propagate out of locking_processes.
+        from yuu_clip.web import file_deletion
+        monkeypatch.setattr(file_deletion.sys, "platform", "win32")
+        monkeypatch.setattr(
+            file_deletion, "_rm_locking_processes",
+            lambda path: (_ for _ in ()).throw(RuntimeError("Restart Manager unavailable")),
+        )
+        assert file_deletion.locking_processes(tmp_path / "clip.mkv") == []
+
+    def test_dedups_holders_across_multiple_locked_files(self, tmp_path, monkeypatch):
+        from yuu_clip.web import file_deletion
+        a, b = tmp_path / "a.mkv", tmp_path / "b.mkv"
+        monkeypatch.setattr(file_deletion, "locking_processes", lambda path: ["OBS Studio"])
+        exc = file_deletion.locked_files_error([a, b])
+        assert exc.detail.count("OBS Studio") == 1
+
 
 class TestReelEsc:
     def _esc(self, s):
