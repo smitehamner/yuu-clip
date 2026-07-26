@@ -519,15 +519,14 @@ export function initResize() {
 export function _applyPrereqWarnings(prereqs) {
   const inElectron = !!window.electronAPI;
   const wizardLink = inElectron
-    ? ' <a href="#" onclick="window.electronAPI.runSetupWizard();return false" style="color:var(--warning)">Re-run Setup Wizard</a>'
+    ? ' <a href="#" class="prereq-wizard-link" style="color:var(--warning)">Re-run Setup Wizard</a>'
     : '';
 
   const banner = document.getElementById('prereq-banner');
   if (!banner) return;
 
   if (!prereqs.ffmpeg_ok) {
-    banner.innerHTML = `<span>⚠ FFmpeg not found - analysis and export will fail.${wizardLink}</span>`;
-    banner.style.display = '';
+    _showPrereqBanner(banner, `⚠ FFmpeg not found - analysis and export will fail.${wizardLink}`);
     const btn = document.getElementById('btn-start-analyze');
     if (btn) {
       btn.disabled = true;
@@ -536,8 +535,7 @@ export function _applyPrereqWarnings(prereqs) {
     return;
   }
   if (!prereqs.llm_ok && inElectron) {
-    banner.innerHTML = `<span>ℹ LLM scoring is not configured - clips will be scored by energy and scenes only.${wizardLink}</span>`;
-    banner.style.display = '';
+    _showPrereqBanner(banner, `ℹ LLM scoring is not configured - clips will be scored by energy and scenes only.${wizardLink}`);
     return;
   }
   // Prerequisites satisfied - clear any banner shown by an earlier state. Without
@@ -545,6 +543,15 @@ export function _applyPrereqWarnings(prereqs) {
   // hide a stale warning.
   banner.style.display = 'none';
   banner.innerHTML = '';
+}
+
+function _showPrereqBanner(banner, innerHtml) {
+  banner.innerHTML = `<span>${innerHtml}</span>`;
+  banner.style.display = '';
+  banner.querySelector('.prereq-wizard-link')?.addEventListener('click', event => {
+    event.preventDefault();
+    window.electronAPI.runSetupWizard();
+  });
 }
 
 // ── undo toast (auto-dismiss, single Undo button) ─────────────────────────────

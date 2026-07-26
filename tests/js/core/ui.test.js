@@ -55,6 +55,20 @@ describe('_applyPrereqWarnings', () => {
     expect(banner().style.display).toBe('none');
     expect(banner().innerHTML).toBe('');
   });
+
+  it('wires the Electron Setup Wizard link to runSetupWizard on click', () => {
+    let wizardRuns = 0;
+    window.electronAPI = { runSetupWizard: () => { wizardRuns += 1; } };
+    try {
+      _applyPrereqWarnings({ ffmpeg_ok: false, llm_ok: true, llm_reason: '' });
+      const link = banner().querySelector('.prereq-wizard-link');
+      expect(link).not.toBeNull();
+      link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      expect(wizardRuns).toBe(1);
+    } finally {
+      delete window.electronAPI;
+    }
+  });
 });
 
 // playbackRatePref/applyPlaybackRate - the global playback-speed preference.

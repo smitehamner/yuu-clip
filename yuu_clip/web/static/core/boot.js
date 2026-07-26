@@ -123,7 +123,7 @@ fetch('/api/status').then(r => r.json()).then(d => {
   // Reconnect to an analysis that was already running when this page loaded
   // (e.g. after a refresh) - the subprocess survives independently of the stream.
   if (d.analyze_filename) reattachAnalysis(d.analyze_filename, d.analyze_paused);
-}).catch(() => {});
+}).catch(err => console.warn('boot: initial /api/status fetch failed - version tag, export dir, and any in-progress analysis reattach will be missing until the next refresh', err));
 
 if (window.electronAPI) {
   document.getElementById('btn-setup-wizard').style.display = '';
@@ -148,17 +148,17 @@ async function refreshServerState() {
     window._aiPrivacyMode = cfg.ai_privacy_mode || 'local_only';
     window._visionEnabled = cfg.vision_enabled === true;
     initUpdateCheckOnLaunch(cfg.update_check_enabled);
-  } catch { /* keep the last known config on a transient fetch failure */ }
+  } catch (err) { console.warn('refreshServerState: could not refresh /api/config, keeping last known config', err); }
   try {
     const prereqs = await fetch('/api/prereqs').then(r => r.json());
     window._prereqs = prereqs;
     _applyPrereqWarnings(prereqs);
-  } catch { /* keep the last known prereqs */ }
+  } catch (err) { console.warn('refreshServerState: could not refresh /api/prereqs, keeping last known prereqs', err); }
   try {
     const status = await fetch('/api/status').then(r => r.json());
     renderGpuWarningChip(status);
     renderSectionWarnings(status);
-  } catch { /* keep the last known chip state */ }
+  } catch (err) { console.warn('refreshServerState: could not refresh /api/status, keeping last known chip state', err); }
   _renderClips();  // basic-description chip + vision frames
 }
 window.refreshServerState = refreshServerState;

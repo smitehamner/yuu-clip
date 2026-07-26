@@ -1,7 +1,8 @@
 // Feature-map - Cross-cutting UI feedback helpers with no home in a single feature: toasts, the
 //   bottom log panel, sort-direction buttons, speaker-labels (diarization) readiness, "reveal in
 //   folder", and clipboard copy. State/format/job-SSE/preview machinery split out in stage 02.
-//   API: routes/config.py, routes/logs.py (indirectly) · Tests: tests/ui/test_ui_utils.py
+//   API: routes/config.py, routes/analyze.py (install/{slug}), routes/reveal.py,
+//   routes/logs.py (indirectly) · Tests: tests/ui/test_ui_utils.py
 import { escHtml, stripRichMarkup } from './format.js';
 
 // ── sort-direction toggle ─────────────────────────────────────────────────────

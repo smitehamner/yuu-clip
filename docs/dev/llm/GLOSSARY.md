@@ -399,7 +399,7 @@ The local AI model that converts audio to text. YuuClip uses Whisper.
   model" (used on the export/retranscribe surfaces 2026-07-02 - M3-4) and the bare
   "Whisper model" / "Model" labels are retired (Fable-review WS-2, TERM-M3).
 - **Also called:** "Whisper model", "transcription model"
-- **Do not call it:** just "model" - ambiguous with the AI scoring model; "Caption
+- **Do not call it:** just "model" - ambiguous with the LLM scoring model; "Caption
   model" - retired, collides with the unrelated Caption Style feature
 - **Notes:** all five model selects share one canonical option-copy set
   (guarded by `tests/test_ui_terminology.py`)
@@ -946,7 +946,7 @@ AI-generated descriptions of what happened in each 15-minute chunk of a session.
 
 ### World Context
 
-A named bundle of information about the setting, the people involved, and any notes - used to help the AI scorer understand what's happening (works for any content: RP, competitive, podcast, etc.).
+A named bundle of information about the setting, the people involved, and any notes - used to help the LLM scorer understand what's happening (works for any content: RP, competitive, podcast, etc.).
 
 - **Code:** `rp_context`, `Context` (code name predates the rename; kept for compatibility)
 - **Also called:** "RP context", "game context", "context"
@@ -1386,7 +1386,7 @@ These terms are used with multiple meanings in the codebase or everyday speech. 
 | **Speaker** | A diarized voice in a recording | - | A **Speaker** is a voice; a **Character** is a world-context lore entity. Don't use them interchangeably; never expose the raw `SPEAKER_00` label |
 | **Export** | Save a single clip to a file | Build a highlight reel | Use **"export clip"** for the single-clip action; **"build reel"** for compilations |
 | **Profile** | Track layout (saved audio assignments) | User/app profile (does not exist here) | Always say **"track layout"**; retire bare "profile" from the UI |
-| **Model** | Speech-to-text model (Whisper) | AI scoring model (LLM) | Qualify as **"speech-to-text model"** / **"AI model"**; never bare "model" in user-facing text |
+| **Model** | Speech-to-text model (Whisper) | LLM scoring model (LLM) | Qualify as **"speech-to-text model"** / **"LLM model"**; never bare "model" in user-facing text |
 
 ---
 

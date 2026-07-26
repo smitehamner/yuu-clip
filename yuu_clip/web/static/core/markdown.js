@@ -32,13 +32,19 @@ function uniqueSlug(text, seen) {
   return count === 0 ? base : `${base}-${count}`;
 }
 
-function inlineMd(text, resolveHref) {
-  const escaped = text
+// Escape HTML then apply the inline emphasis subset (code/bold/italic) the doc
+// viewer and the glossary renderer (helpmodals.js) both use. Links are layered on
+// top by inlineMd, since only the doc viewer resolves relative hrefs.
+export function renderInlineMarkdown(text) {
+  return text
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/`([^`]+)`/g, '<code>$1</code>')
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replace(/\*([^*]+)\*/g, '<em>$1</em>');
-  return escaped.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, label, href) =>
+}
+
+function inlineMd(text, resolveHref) {
+  return renderInlineMarkdown(text).replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, label, href) =>
     `<a href="${resolveHref(href)}" target="_blank" rel="noopener">${label}</a>`);
 }
 

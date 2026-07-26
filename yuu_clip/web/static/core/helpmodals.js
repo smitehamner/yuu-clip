@@ -1,10 +1,12 @@
 // Feature-map - the four app-global help/info modals (Getting Started, Help &
 // Guides, About, Glossary). Extracted out of settings.js (which grew into a
 // catch-all) - these have no coupling to the settings save/dirty machinery.
-//   API: routes/config.py (glossary), /static/help/*.md (bundled user guides)
-//   Tests: tests/ui/test_ui_settings.py, tests/ui/test_ui_help.py, tests/ui/test_ui_page.py, tests/ui/test_ui_keyboard.py
+//   API: routes/logs.py (glossary), routes/llm.py (capability tiers, download status),
+//   /static/help/*.md (bundled user guides)
+//   Tests: tests/js/core/helpmodals.test.js, tests/ui/test_ui_settings.py, tests/ui/test_ui_help.py,
+//     tests/ui/test_ui_page.py, tests/ui/test_ui_keyboard.py
 
-import { renderMarkdown } from './markdown.js';
+import { renderMarkdown, renderInlineMarkdown } from './markdown.js';
 import { escHtml } from '../shared/escapehtml.js';
 import { closeHamburger } from './ui.js';
 
@@ -24,7 +26,7 @@ export function openGettingStartedModal() {
 
 // State-driven off /api/capabilities/tiers so a user who already set up a local
 // model isn't told to do it again every time this modal reopens.
-async function _renderGettingStartedBanner() {
+export async function _renderGettingStartedBanner() {
   const banner = document.getElementById('getting-started-model-banner');
   if (!banner) return;
   let data;
@@ -221,7 +223,7 @@ export function closeGlossaryModal() {
   if (opener?.focus) opener.focus();
 }
 
-function _renderGlossaryMd(md) {
+export function _renderGlossaryMd(md) {
   const lines = md.split('\n');
   let html = '';
   let inList = false;
@@ -230,11 +232,7 @@ function _renderGlossaryMd(md) {
   let inSection = false;
   let inTerm = false;
 
-  const inline = s => s
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  const inline = renderInlineMarkdown;
 
   const closeList  = () => { if (inList)  { html += '</ul>';   inList  = false; } };
   const closeTable = () => { if (inTable) { html += '</tbody></table>'; inTable = false; tableHead = false; } };

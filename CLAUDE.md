@@ -228,10 +228,13 @@ unit tier. `boot.js` is the one exempt module (it is the side-effect entry point
 graph into one scope and hoists function declarations, so a mutual import is fine as long as
 the imported name is used inside a function body (which is true of essentially every handler
 / render call here) rather than at module-evaluation time. Verified empirically 2026-07-21.
-The one real exception is `core/jobs.js`, which keeps 9 `window.*` reads: importing there
-adds a jobs.js <-> videos/clips edge that esbuild handles but that breaks vitest's
-`vi.mock`/`importActual` resolution (the real `streamSSE` runs instead of the mock). Leave
-those alone - the in-code comments explain why.
+The one real exception is `core/jobs.js` and `core/format.js`'s reads of `videos.js`/
+`clips.js` render functions: a direct `jobs.js -> videos/clips` (or `format.js -> videos`)
+import adds an edge that esbuild bundles fine but that breaks vitest's
+`vi.mock`/`importActual` resolution (the real `streamSSE` runs instead of the mock). These
+route through `core/refreshhooks.js`'s registry (`registerRefreshHooks`/`refreshHooks`)
+instead - see that module's header for the seam's shape and why it replaced the old
+implicit `window.loadVideos`/`window._renderClips` reads.
 
 ## Project layout
 

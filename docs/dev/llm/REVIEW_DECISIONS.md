@@ -11,6 +11,407 @@ same thing without the context. Most recent first.
 
 ---
 
+## Phase 7 UX/UI - full-app review section 10, app shell & core plumbing (2026-07-26)
+
+UX/UI walk over the shared app chrome every screen renders inside of: the header/nav,
+sidebar, all 22 modals + their shared confirm/alert pattern, toast/job-pill feedback,
+keyboard shortcuts, getting-started onboarding, help/glossary/about, theming
+(`tokens.css`/`app.css`), and the core JS plumbing (`boot.js` a11y stamping, `ui.js`
+`showConfirm`/`showAlert`, `shortcuts.js`). Anchored hard against the 2026-07-23/24
+full-surface UX review (11 HIGH / ~24 MEDIUM / ~29 LOW all fixed or settled) and the
+YuuClip-retheme Phase 7 - this pass looked for genuine drift/gaps those didn't cover
+(individual modal content quality, onboarding copy, per-form label a11y), not
+re-derivation. The shared chrome is high quality: single document-level focus trap +
+boot-time `role=dialog`/`aria-modal`/`aria-labelledby` stamping, Cancel-left /
+verb-specific-primary-right button order, `danger` vs `primary` OK styling driven by
+`showConfirm(..., danger)`, universal `:focus-visible` ring + `prefers-reduced-motion`
+block, `#sr-live-*` mirrors, `lang="en"` + viewport + theme-flash-prevention inline
+script. Two clear-cut fixes applied; the rest verified good or Low/note-only.
+
+### Applied: `auto-approve.html` used raw emoji where every other partial uses numeric entities
+The score-type `<select>` rendered its axis glyphs as literal emoji (funny/dramatic/action/visual/laugh) while
+`&#11088;` (Overall) and every other partial (sidebar `clips-sort`, getting-started,
+etc.) use numeric HTML entities. It was the ONLY partial with raw emoji (verified by
+grep over `partials/`). Renders identically in-browser, but it is real drift from the
+codebase's established authored-text convention (CLAUDE.md "default to plain ASCII in
+all authored text"). Aligned the five glyphs to the same entities the sidebar
+`clips-sort` list uses (`&#128514;`/`&#127917;`/`&#9876;&#65039;`/`&#127916;`/`&#129315;`).
+No test pinned the raw emoji; unit tier + UI smoke green after re-stitch.
+
+### Applied: `field-edit.html` `<textarea>` had no accessible name (WCAG 4.1.2)
+The single free-text field in the shared Field Edit modal had no `<label>`, no
+`aria-label`, and no placeholder - its only name came indirectly from the modal's
+`aria-labelledby` (the dynamic `#field-edit-title` h3). A screen reader focusing the
+field announced just "edit, multi-line, blank". Added `aria-labelledby="field-edit-title"`
+to the textarea so the field itself carries the dialog's dynamic title as its name
+("Edit description" etc.). Low/Medium a11y; cheap and safe.
+
+### Verified good, do NOT re-flag - getting-started is a strong non-dev first-run surface
+Auto-opens once (`boot.js` gates on `localStorage 'yuu-getting-started-seen'`), focuses
+the top-right X (deliberate - focusing a bottom control scrolled the tall modal open at
+the bottom, see the code comment), and its top banner is state-driven off
+`/api/capabilities/tiers` + `/api/llm/download-status` so a user who already set up a
+local model (or has one downloading) is never told to go do it again. Content is
+well-chunked (numbered Analyze/Review/Export/Build-a-reel workflow, score legend, key
+concepts, quick tips) in glossary-correct terms. No bottom "Close"/CTA is by design
+(2026-07-23 Low 13 removed it from all five info modals). Not a finding.
+
+### Verified good, do NOT re-flag - help/glossary modals are clear and offline-safe
+Help & Guides always lands on Overview (`HELP_DOCS[0]`, no longer reopens on last-viewed
+- fixed 2026-07-25), renders the four bundled `static/help/*.md` in-app so Help works
+offline/while-private, per-doc "View online" escape hatch, in-app TOC with smooth-scroll,
+and a plain-English "Could not load this guide" + online-fallback error state. Glossary
+has a live filter with a "No terms match your filter" empty state, `aria-label`led search
+input, and section/term wrappers the filter shows/hides. Both close via top-right X,
+Escape (`shortcuts.js` cascade), and background click, with focus-return to the opener.
+
+### Verified good, do NOT re-flag - modal form copy is exemplary plain-English for a non-dev
+Spot-checked the form-bearing modals (export-settings, batch-export, context-manager,
+retranscribe, highlight-reels, profile-manager). Caption options read
+"Embed captions - toggle on/off in your player (fast, no re-encode)" /
+"Burn in captions - can't turn off later (slower, re-encodes)"; trim help gives concrete
+examples and points at Edit-&-export for a visual alternative; context-manager groups
+destructive actions under a labelled "Danger zone" (Delete + Reset, both `btn danger`);
+profile-manager and export have `role="alert"` inline validation slots tied via
+`aria-describedby`. Job-launching confirms (export/batch/retranscribe) all carry
+`data-job-blocked`. Whisper `<option>` copy is identical across all five lists
+(`test_ui_terminology.py`). Nothing to add.
+
+### Low, note-only - view-switch tab buttons use `.active` class, not `role=tab`/`aria-selected`
+The Highlight Reels Build/View tab bar (`reel-tab-btn`) and a few similar in-modal
+view switchers signal their active view with a CSS `.active` class only, where the
+sidebar's filter chips use `aria-pressed`. Minor a11y polish (a screen-reader user
+doesn't hear which view is active), not a defect - the visible active state is clear and
+these are pointer-first controls in a single-user desktop tool. Consistent with the app's
+established tab pattern; deferred rather than reworked. Trigger to revisit: a broader
+tablist a11y pass, or an AT user reports confusion.
+
+---
+
+## Phase 6 docs and comments - full-app review section 10, app shell & core plumbing (2026-07-26)
+
+Grep-first survey of every `//`/`/* */` comment and Feature-map header across the HIGH scope
+(`static/core/*.js`, `static/shared/{escapehtml,whisperlang}.js`, `main.esm.js`) plus MEDIUM
+`library/colorpicker.js`, `routes/common.py`, `app.css`, `shared/tokens.css`, and a lighter
+pass over the LOW HTML/glossary scope. Zero TODO/FIXME/XXX/HACK markers anywhere in scope.
+Comment quality itself was, as Phases 1-5 already found, exceptionally clean - this section's
+prose comments are uniformly WHY-focused with no restatement/obsolete/reactive/apology text
+to delete. The real findings were factual drift: one stale CLAUDE.md paragraph, two Feature-map
+header `API:` omissions, and two "AI scoring"/"AI scorer" self-contradictions inside
+`GLOSSARY.md`'s own no-that-phrase rule. `yuu-dev bundle` (2 static JS files had comment-only
+edits), `yuu-dev lint` clean, `yuu-dev test-api` 3516 passed (unchanged - comment-only diffs),
+`yuu-dev typecheck` `new: 0`. No `test-js`/`test-ui` re-run - no JS logic changed, only comment
+text, so neither tier's assertions could be affected.
+
+### Fixed: `CLAUDE.md`'s jobs.js/format.js "9 `window.*` reads" paragraph was stale
+The frontend-build section's "Do NOT defer a cross-module import" paragraph (added 2026-07-21)
+claimed `core/jobs.js` "keeps 9 `window.*` reads" as the one exception to direct cross-module
+imports, breaking vitest's `vi.mock`/`importActual` resolution. But the ui-shim-retirement
+plan's Phase 2 (2026-07-25, `67a106b`) replaced that exact mechanism: `jobs.js` now has zero
+`window.*` reads (confirmed by grep) and instead imports `refreshHooks` from the new
+`core/refreshhooks.js` registry, which explicitly states it "replaces the old implicit
+`window.loadVideos`/`window._renderClips` contract with an explicit one." The literal "9
+window.* reads" language also collides with an unrelated "9" - the main.esm.js GROUP 2
+test-poke shim's 9 job-machinery names kept on `window` for Playwright `page.evaluate`, a
+different problem (test reachability, not import-cycle/vi.mock avoidance). Rewrote the
+CLAUDE.md paragraph to name `core/refreshhooks.js`'s registry seam instead of "9 window.*
+reads," and to point at that module's own header for the mechanism. NOTE: today's earlier
+Phase 4 refactor entry below ("jobs.js's 9 window.* reads are the documented vi.mock
+exception (CLAUDE.md), not a refactor target") repeats the same now-corrected claim - left
+that entry as a historical record rather than editing it, since this entry supersedes it.
+
+### Fixed: two Feature-map header `API:` lines were incomplete/wrong (same drift class as Sections 8/9)
+`core/helpmodals.js`'s header cited only "routes/config.py (glossary)" - `/api/glossary` is
+actually served by `routes/logs.py` (verified via `@router.get`), and the header omitted
+`routes/llm.py` entirely despite the module fetching `/api/capabilities/tiers` and
+`/api/llm/download-status` from it (both used by `_renderGettingStartedBanner`). Fixed to
+"routes/logs.py (glossary), routes/llm.py (capability tiers, download status)".
+`core/utils.js`'s header cited only "routes/config.py, routes/logs.py (indirectly)" but the
+module also fetches `/api/install/{slug}` (routes/analyze.py's generic install endpoint, used
+by the speechbrain-install helper) and `/api/reveal` (its own dedicated `routes/reveal.py`,
+backing the file's own "reveal in folder" feature named in its summary line one line above).
+Added both.
+
+### Fixed: `GLOSSARY.md` contradicted its own "do not call it AI scoring" rule in two spots
+The `LLM Scoring` entry (line ~807) explicitly bans "AI scoring" as a term ("LLM is the
+accurate term... distinguishing LLMs from 'AI' broadly") and the terminology table at line 73
+enforces this too - but the file's own `World Context` entry (line 949) described it as
+helping "the AI scorer" understand context, and the Disambiguation table's `Model` row
+(line 1389) glossed the LLM model as "AI scoring model (LLM)" and told readers to qualify it
+as "AI model." Both are literal instances of the banned phrase inside the file that owns the
+ban. Fixed both to "LLM scorer" / "LLM scoring model (LLM)" / "LLM model" respectively.
+Also fixed a third instance at the `Speech-to-Text Model` entry's "Do not call it" line
+("ambiguous with the AI scoring model" -> "the LLM scoring model"). Left `Session Summary`/
+`Session Timeline`'s "AI-generated" phrasing and the Disambiguation `Timeline` row's "AI
+15-min chunk descriptions" alone - those describe a generation feature, not the scoring
+feature the ban specifically targets, and are internally consistent with each other.
+
+### Verified clean, no drift found - `docs/dev/llm/GLOSSARY.md` vs `static/glossary.md` term-by-term
+Spot-checked every term appearing in both files (Recording Segment/Split, Track Layout,
+World Context, Clip, Clip Status, Highlight Reel, LLM Scoring, and the full `### ` header
+list diffed side by side) for wording drift following the many Section 1-9 terminology
+fixes (LLM scoring not AI scoring, Track layout not Profile, World context not RP context,
+Clip not clip candidate, Highlight reel not demo reel). All current and matching; the
+2026-07-13 "intentionally different files" decision below still holds - the two files differ
+in scope and depth by design, not in terminology. `static/glossary.md` also re-verified free
+of every banned code-name term (profile/probe/pending/demo reel/clip candidate/ingest/subtitle).
+
+### Verified clean, no fix needed - `renderInlineMarkdown()`'s doc comment
+The Phase 4 extraction's doc comment ("Escape HTML then apply the inline emphasis subset...
+the doc viewer and the glossary renderer (helpmodals.js) both use") already states the WHY
+(shared knowledge, not coincidence) concisely - no expansion needed.
+
+### Verified clean, no fix needed - Phase 5's new `console.error`/`console.warn` calls
+The four new log calls in `jobs.js`/`boot.js` (SSE catch sites, `refreshServerState`'s four
+catches) are self-explanatory one-liners naming the failing call and the fallback behavior,
+matching the file's existing `console.warn` convention - no comment needed per the "message
+already clear" rule.
+
+### Verified clean, no fix needed - `partials/modals/profile-manager.html`'s "Profile" naming
+The include comment ("Profile Manager Modal"), filename, and internal DOM ids all use the
+code name "profile," but the actual rendered `<h3>` reads "Track Layouts" and every button
+says "Track Layout" - exactly the documented Code/UI-label split (glossary: `Code: profile`).
+Not a drift; code identifiers are allowed to differ from user-facing text.
+
+---
+
+## Phase 5 logging coverage - full-app review section 10, app shell & core plumbing (2026-07-26)
+
+Logging-coverage phase over the HIGH-priority app-shell/core-plumbing scope
+(`static/core/*.js`, `static/shared/*.js`, `main.esm.js`) plus MEDIUM
+`library/colorpicker.js` and `routes/common.py`. Grepped every `console.`/`try {`/
+`catch` in scope, then read each catch site for whether a swallowed exception
+would ever reach a developer (console or `core/errorreporter.js`'s global
+`window.onerror`/`unhandledrejection` surface). Two real gaps fixed (both in
+`core/jobs.js`/`core/boot.js`); everything else reviewed and confirmed
+deliberate/already-visible. `yuu-dev bundle`, `yuu-dev test-js` 725 passed
+(unchanged), `yuu-dev test-api` 3516 passed (unchanged), `yuu-dev test-ui` full
+suite run (cross-cutting `boot.js`/`jobs.js` per CLAUDE.md), lint clean,
+typecheck `new: 0`.
+
+### Fixed: `core/jobs.js::_openSSE`'s two catch blocks swallowed the real error
+The SSE read-loop `catch (err)` reported every failure - a malformed JSON line, a
+bug in `decodeEvent`, or an exception thrown by a *consumer-supplied*
+onLine/onProgress/onResult callback (jobs.js's own callbacks, or a caller like
+`preview.js`/`settings-installs.js`/`modelcatalog.js` that calls `_openSSE`
+directly) - as the same generic "Connection lost - server disconnected", with
+zero trace of `err` anywhere. Because the exception is caught here, it never
+reaches `errorreporter.js`'s global handler either, so a genuine JS bug firing
+mid-stream was reported to the user as a network blip with literally no way for a
+developer to find the real cause short of reproducing it. Same issue on the outer
+`.catch(err => ...)` around the initial `fetch()` (any error, not just the
+expected "backend stopped" `TypeError` `netErrMsg` is built for, landed there
+silently too). Added `console.error(...)` in both catches before calling
+`onError` - user-facing message and control flow unchanged. No test asserted
+console silence (`errorreporter.test.js` is the only file that spies on
+`console.error`, unrelated to `jobs.js`).
+
+### Fixed: `core/boot.js`'s three `refreshServerState()` catches and the initial `/api/status` fetch's `.catch(() => {})` were silent
+`refreshServerState()`'s three `try { fetch(...) } catch { /* keep the last known
+X */ }` blocks, and the very first boot-time `/api/status` fetch (sets the
+version tag, `AppState.exportDir`/`reelsDir`/`canReveal`, and reattaches an
+in-progress analysis after a page refresh), had comments explaining the
+fallback but no `console.warn` - a genuine backend bug (not just "the app
+stopped") on any of these would be completely invisible, and for the initial
+fetch specifically, a real failure means an in-progress analysis silently fails
+to reattach after a refresh with no signal anywhere. These are not hot-loop
+polls (`refreshServerState` fires ~6 times across the app, all user-action- or
+boot-triggered, not on a timer), so a `console.warn` per failure is not log
+spam - added one to each of the four catches, matching the existing
+`utils.js::_toggleCollapsibleCard` convention (`console.warn('Could not persist
+card collapse state:', err)`) already established in this same scope. Toast/UI
+behavior unchanged.
+
+### Not a gap (confirmed): `core/panelnav.js`'s `render(container)` call has no try/catch
+`_doPanelNavOpen` calls the caller-supplied `render(container)` synchronously,
+uncaught. Traced the call chain (`panelNavOpen` -> `closeSettings(callback)` ->
+`_doPanelNavOpen` -> `render`): `closeSettings` invokes its callback either
+directly or from inside `showConfirm`'s confirm-button click handler - both
+synchronous DOM-event call chains, never deferred through an unguarded promise.
+A throw inside `render()` therefore propagates all the way to the browser's
+event dispatch and fires `window.onerror`, which `errorreporter.js` (wired first
+thing in `boot.js`, before any other init) already catches, consoles, and
+surfaces to the user via the log panel + toast. No `try/catch` needed here -
+matches the pattern already confirmed for this codebase in the section 8/9
+Phase 5 entries below (explicit try/catch isn't needed everywhere; the global
+handler is the backstop for genuine bugs).
+
+### Not a gap (confirmed): `core/jobs.js`'s `_pollThermalStatus`/`_waitWhileAnalyzePaused` and `utils.js::_diarizationReadiness` silent `.catch(() => null)`/`.catch(() => ({}))`
+These are periodic polls (5s/3s intervals while a job runs) or a low-stakes UI
+default (a checkbox's pre-check state) - logging on every failed poll would be
+exactly the log-spam case the skill's "no log spam" rule warns about, and a
+poll's next tick self-heals regardless. Left silent, matching the project's
+established "expected transient failure, tolerant fallback" pattern (`helpmodals.js`'s
+network catches, `preview.js`'s video/PiP catches, `colorpicker.js`'s localStorage
+catches) - all of these either show a user-visible fallback already or guard a
+low-risk, self-correcting best-effort path, not a hidden production failure.
+
+### Not a gap (confirmed): `routes/common.py` has adequate logging
+`reject_if_busy` and `with_write_retry` already log at `info` (a 409 rejection
+names the blocked action; a lock-retry names the attempt count); every other
+function either has no failure path worth logging (pure helpers, `HTTPException`
+raises that the route's own error response documents) or propagates unchanged
+for the caller/route to handle. No gap.
+
+---
+
+## Phase 4 refactor - full-app review section 10, app shell & core plumbing (2026-07-26)
+
+Refactor pass over the app-shell/core-plumbing scope (`static/core/*.js`,
+`static/shared/*.js`, `main.esm.js`, `library/colorpicker.js`, `routes/common.py`).
+Structural survey (line counts + function-length + duplication heat map) then targeted
+reads. This is the last web-layer section, so it also swept for cross-cutting duplication
+now that every other web section is visible in this file's history. Two changes applied
+(one assigned convention fix, one genuine extraction); everything else reviewed and left
+as-is (reasons below). `yuu-dev bundle` (2 static JS edited), `yuu-dev test-js` 725 passed
+(724 baseline + 1 new), `yuu-dev test-api` 3516 passed (unchanged - drift guards green),
+lint clean, typecheck `new: 0`.
+
+### Applied (assigned Phase-2 carry-forward): `core/ui.js::_applyPrereqWarnings` inline `onclick=` -> `addEventListener`
+The FFmpeg/LLM prerequisite banner built its "Re-run Setup Wizard" link with an inline
+`onclick="window.electronAPI.runSetupWizard();return false"` string - constant-only, no
+injection risk, but a deviation from the project's hard "event delegation, never inline
+onclick= with JS values" rule. Converted: the link now carries a `.prereq-wizard-link`
+class and the two banner branches route through a new `_showPrereqBanner(banner, html)`
+helper that sets the innerHTML then wires the click via `addEventListener` (preventDefault
++ `runSetupWizard()`). Behavior is identical; the previously-untested Electron path is now
+pinned by `tests/js/core/ui.test.js` ("wires the Electron Setup Wizard link to
+runSetupWizard on click"). The `style="color:var(--warning)"` is a theme token, not a
+literal, so it stays.
+
+### Applied (cross-section DRY): inline-markdown escaper extracted from `helpmodals.js` into `markdown.js`
+`core/markdown.js`'s `inlineMd` and `core/helpmodals.js`'s `_renderGlossaryMd` each carried
+the byte-identical escape+emphasis chain (`&<>` escape, then `` `code` ``/`**bold**`/
+`*italic*`). That is shared *knowledge* (the inline-markdown subset the app supports), not a
+coincidence - a future syntax addition (e.g. strikethrough) would otherwise have to touch
+both. Extracted `renderInlineMarkdown(text)` (exported from `markdown.js`); `inlineMd` now
+layers only its link pass on top (links stay markdown.js-only, since only the doc viewer
+resolves relative hrefs), and `helpmodals.js` imports it (the import edge to `markdown.js`
+already existed via `renderMarkdown`, so no new coupling). Byte-exact output, covered by the
+existing `markdown.test.js` (9) + `helpmodals.test.js` (`_renderGlossaryMd`, 9). NOTE: only
+the tiny inline primitive was shared - see the keep-as-is below on why the two *full*
+renderers stay forked.
+
+### Keep as-is: the two full markdown renderers (`markdown.js::renderMarkdown` vs `helpmodals.js::_renderGlossaryMd`) NOT merged
+Decision: Keep the two block-level renderers separate.
+Rationale: They emit structurally different HTML for different surfaces. `renderMarkdown`
+(Help & Guides viewer) emits heading anchors + a table-of-contents and resolves relative
+cross-links to GitHub. `_renderGlossaryMd` emits `.glossary-section`/`.glossary-term`
+wrapper divs (the exact units the glossary filter shows/hides) with per-element inline
+styles, no anchors/TOC/links. `markdown.js`'s own header documents this as a deliberate fork
+("Modeled on the glossary modal's renderer... but generalized"). Merging would require
+parameterizing the wrapper-div/inline-style/anchor differences into one function - the
+"generic base that buries each caller's specifics" the codebase repeatedly rejects. Only the
+inline primitive was genuinely shared knowledge (extracted above); the block structure is
+not.
+
+### Keep as-is: `core/utils.js::netErrMsg` and `core/format.js::formatApiError` are NOT duplication
+Decision: Keep both error formatters.
+Rationale: They format different inputs. `netErrMsg` takes a thrown `Error`/`TypeError` from
+the fetch/network layer and distinguishes the "server stopped" `TypeError` into a plain-
+English retry message. `formatApiError` takes a *parsed server error body* and unpacks its
+`detail` (FastAPI string or validation-array) / `message` shape. Different concerns, no
+shared kernel worth extracting.
+
+### Keep as-is: `library/colorpicker.js::attach` (~51 lines) not decomposed
+Decision: Keep whole.
+Rationale: Over the ~30-line guideline but a single cohesive concern - construct one color
+picker's DOM (hidden input + trigger button + popover) and wire that same widget's listeners,
+read top-to-bottom. Splitting the construction from its own wiring would fragment tightly-
+coupled setup across a seam for no legibility gain (same class as the `_attach_speakers` /
+`transcribe_track` and boot-wiring keep-as-is calls). Every other function in the file is
+already a small focused helper.
+
+### Keep as-is: `core/ui.js` (675 lines) and `core/jobs.js` (698 lines) large-but-cohesive
+Decision: Do not split either "core" module.
+Rationale: Both are collections of small, single-concern functions around one cohesive area -
+`ui.js` is the shared modal/menu/kebab/resize/toast primitive set; `jobs.js` is the job-pill
++ SSE-stream state machine. Line count comes from breadth of small helpers, not from any
+long function (largest functions in each are well under the guideline). `jobs.js`'s 9
+`window.*` reads are the documented `vi.mock` exception (CLAUDE.md), not a refactor target.
+No natural sub-module seam that wouldn't just scatter tightly-related helpers.
+
+### Keep as-is (re-confirmed, already anchored): `main.esm.js` residual `window.X = X` shim
+Decision: Not shrunk in this pass.
+Rationale: Already anchored ("Phase 4 refactor - window.X shim-drain slice (2026-07-23):
+GROUP 1 shim lines all verified alive; GROUP 2 kept whole"). Draining it further is the
+deferred vitest follow-on's territory, not this pass's mandate; nothing was trivially/safely
+removable. `test_main_esm_shim_ratchet.py` still green (part of the test-api run). No change.
+
+---
+
+## Phase 3 test coverage - full-app review section 10, app shell & core plumbing (2026-07-26)
+
+Closed the coverage gap Phase 1/2 recorded in `REVIEW_OPEN_ITEMS.md` for `core/boot.js`,
+`core/refreshhooks.js`, and `core/helpmodals.js` having no dedicated `tests/js/` file, plus
+checked `routes/common.py`'s `require_clip`/`require_clip_with_source` (added in Section 8)
+for direct coverage while the file was already open. `yuu-dev test-js` 724 passed (698
+baseline + 26 new), `yuu-dev test-api` 3516 passed (3510 baseline + 6 new), lint clean,
+typecheck `new: 0`.
+
+### Fixed: `core/refreshhooks.js` had zero `tests/js/` coverage of its own contract
+The registration/dispatch/no-op-fallback registry seam was only ever exercised
+incidentally, through 2 of its 7 hook keys, as test fixture setup inside
+`jobs.test.js`/`format.test.js` - its own guarantees (additive registration, override
+on re-register, the "unregistered hook is a safe no-op, never a ReferenceError" contract
+the module's own header comment promises) were never asserted directly. Added
+`tests/js/core/refreshhooks.test.js` (7 tests, no DOM needed - pure registry logic).
+
+### Fixed: `core/helpmodals.js` had zero `tests/js/` coverage of its parsing/state logic
+The modal open/close flows and the bundled help docs are already covered end to end in
+`tests/ui/test_ui_help.py`, `test_ui_settings.py` (`TestGlossaryFilter`), and
+`test_ui_whisper_prefetch.py` (`TestGettingStartedModal`) - but two pieces of real,
+non-trivial logic inside the module had no case-by-case coverage anywhere: the hand-rolled
+`_renderGlossaryMd` markdown-to-HTML parser (sections/terms/lists/tables/inline formatting/
+HTML-escaping, with a section/term open-close state machine that could silently mis-nest)
+and `_renderGettingStartedBanner`'s 4-branch state machine (tiers-fetch failure, a full
+model already active, a lightweight tier with a model downloading, a lightweight tier with
+none downloading) driven off two chained fetches that Playwright never exercises branch by
+branch. Exported both (previously module-private) following the project's existing
+underscore-prefixed test-only export convention (matches `_filterGlossary`,
+`_resetRefreshHooks`). Added `tests/js/core/helpmodals.test.js` (19 tests): 9 for
+`_renderGlossaryMd` (including a balanced-nesting check and HTML-escaping), 4 for
+`_filterGlossary` (a light addition since Playwright already covers this one end to end),
+and 6 for `_renderGettingStartedBanner`'s branches plus its early-return guard when the
+banner element isn't in the DOM.
+
+### Not a gap (checked, ruled out): `core/boot.js` has no dedicated `tests/js/` file
+`boot.js` is the project's one deliberately-exempt module (per `CLAUDE.md`'s frontend-build
+section: "the side-effect entry point") - importing it re-runs the entire app's first-paint
+wiring against a bare DOM, which is exactly what `tests/js/setup.js`'s seeded-DOM approach
+exists to make unnecessary elsewhere, and re-importing it per-case would require
+`vi.resetModules()` plus re-seeding the whole graph for every test, the kind of new test
+infrastructure this phase's skill says to confirm scope on rather than build unasked. Its
+practically-testable behaviors are already exercised end to end via Playwright, spread
+across the files the boot logic actually feeds: the version-tag/about-modal text
+(`test_ui_page.py::test_footer_version_tag_has_v_prefix`,
+`::test_about_modal_shows_version`), the clip/video sort restore-from-localStorage
+(`test_ui_page.py::test_video_sort_persists_and_restores`), the getting-started-modal
+open-on-first-run (`test_ui_whisper_prefetch.py::TestGettingStartedModal`), and the GPU/LLM
+setup-warning chip rendering it wires from `/api/status` (`gpustatus.test.js` for the pure
+logic, Settings-panel Playwright coverage for the live DOM). No test added; same pattern
+Section 9 confirmed for `library/{contexts,exporteditor,sounds}.js` (DOM-heavy modules
+deliberately covered in Playwright, not `tests/js/`).
+
+### Fixed: `routes/common.py`'s `require_clip`/`require_clip_with_source` had no direct unit test
+Both are shared cross-cutting helpers (used by clip preview, auto-framing, and frame
+analysis routes) with real branching - `require_clip`'s 404, and
+`require_clip_with_source`'s three outcomes (clip missing, recording row missing, source
+file missing on disk) plus the happy path - but `test_routes_common.py` (whose own
+docstring scopes it to "pure helpers... no DB, no TestClient") only ever exercised them
+indirectly through the routes that call them. Added `TestRequireClip` +
+`TestRequireClipWithSource` (6 tests) using a small `_FakeDb` stub (`.get(model, id)` over
+a dict) plus `tmp_path` for the real/missing source-file check - no real DB or TestClient
+involved, consistent with the file's existing scope. `missing_ids`, `json_list`, and
+`srt_to_vtt` (the file's other pure helpers) were checked too: `json_list` and `srt_to_vtt`
+already have direct unit tests (`test_utils.py::TestJsonList`, `test_captions.py`);
+`missing_ids` is exercised only indirectly (`test_videos.py`'s
+`test_bulk_status_reports_missing_ids` and siblings) but is a two-line order-preserving
+filter with no branching worth a dedicated case - left as adequate indirect coverage, not
+manufactured for its own sake.
+
+---
+
 ## Phase 7 UX/UI - full-app review section 9, people/settings/project ops (2026-07-26)
 
 UX/UI walk over the Section 9 static JS (reading the rendered template strings, not just

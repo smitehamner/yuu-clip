@@ -1,7 +1,24 @@
 """Unit tests for pure helpers in web/routes/common.py (no DB, no TestClient)."""
 import pytest
+from fastapi import HTTPException
 
-from yuu_clip.web.routes.common import parse_int_list, parse_optional_color
+from yuu_clip.db.models import ClipCandidate, Video
+from yuu_clip.web.routes.common import (
+    parse_int_list,
+    parse_optional_color,
+    require_clip,
+    require_clip_with_source,
+)
+
+
+class _FakeDb:
+    """Stands in for a SQLAlchemy session's .get() - no real DB involved."""
+
+    def __init__(self, rows):
+        self._rows = rows
+
+    def get(self, model, obj_id):
+        return self._rows.get((model, obj_id))
 
 
 class TestParseOptionalColor:
@@ -86,3 +103,59 @@ class TestParseIntList:
         result = parse_int_list(None, default=default)
         result.append(9)
         assert default == [7]
+
+
+class TestRequireClip:
+    def test_returns_the_clip_when_found(self):
+        clip = ClipCandidate(id=1, video_id=10)
+        db = _FakeDb({(ClipCandidate, 1): clip})
+        assert require_clip(db, 1) is clip
+
+    def test_404s_when_the_clip_is_missing(self):
+        db = _FakeDb({})
+        with pytest.raises(HTTPException) as exc:
+            require_clip(db, 999)
+        assert exc.value.status_code == 404
+        assert exc.value.detail == "Clip not found"
+
+
+class TestRequireClipWithSource:
+    def test_returns_clip_and_video_when_the_source_file_exists(self, tmp_path):
+        video_path = tmp_path / "recording.mp4"
+        video_path.write_bytes(b"fake")
+        clip = ClipCandidate(id=1, video_id=10)
+        video = Video(id=10, path=str(video_path), filename="recording.mp4")
+        db = _FakeDb({(ClipCandidate, 1): clip, (Video, 10): video})
+
+        result_clip, result_video = require_clip_with_source(db, 1)
+
+        assert result_clip is clip
+        assert result_video is video
+
+    def test_404s_when_the_clip_is_missing(self):
+        db = _FakeDb({})
+        with pytest.raises(HTTPException) as exc:
+            require_clip_with_source(db, 999)
+        assert exc.value.status_code == 404
+        assert exc.value.detail == "Clip not found"
+
+    def test_404s_when_the_recording_row_is_missing(self):
+        clip = ClipCandidate(id=1, video_id=10)
+        db = _FakeDb({(ClipCandidate, 1): clip})
+
+        with pytest.raises(HTTPException) as exc:
+            require_clip_with_source(db, 1)
+
+        assert exc.value.status_code == 404
+        assert exc.value.detail == "Video not found"
+
+    def test_404s_when_the_source_file_is_missing_on_disk(self, tmp_path):
+        clip = ClipCandidate(id=1, video_id=10)
+        video = Video(id=10, path=str(tmp_path / "missing.mp4"), filename="missing.mp4")
+        db = _FakeDb({(ClipCandidate, 1): clip, (Video, 10): video})
+
+        with pytest.raises(HTTPException) as exc:
+            require_clip_with_source(db, 1)
+
+        assert exc.value.status_code == 404
+        assert exc.value.detail == "Source video file not found on disk"

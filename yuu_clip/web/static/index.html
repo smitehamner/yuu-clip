@@ -37,8 +37,8 @@
        · Toast container
        · Drag-and-drop analyze overlay (Electron only)
        · App footer bar
-       · Modals: Getting Started · About · Profile Manager · Highlight Reels ·
-         Reel Preview · Batch Export · Retranscribe · Context Manager · Diff ·
+       · Modals: Getting Started · Help & Guides · About · Profile Manager ·
+         Highlight Reels · Reel Preview · Batch Export · Retranscribe · Context Manager · Diff ·
          Field Edit · Alert · Open Project · Confirm · Export Settings ·
          Timeline Interval · Auto-approve · Glossary · Controls · Find Similar ·
          Additional Actions · Score Override
@@ -1482,7 +1482,6 @@
   </div>
 </div>
 
-<!-- About modal -->
 <!-- Help & Guides Modal -->
 <div class="modal-bg" id="help-modal">
   <div class="modal" style="width:940px;max-width:96vw;max-height:90vh;display:flex;flex-direction:column">
@@ -1499,6 +1498,7 @@
   </div>
 </div>
 
+<!-- About modal -->
 <div class="modal-bg" id="about-modal">
   <div class="modal" style="width:780px;max-width:94vw">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;position:sticky;top:0;background:var(--surface);z-index:1">
@@ -1904,7 +1904,7 @@
 <div class="modal-bg" id="field-edit-modal">
   <div class="modal" style="width:540px">
     <h3 id="field-edit-title">Edit Field</h3>
-    <textarea id="field-edit-text" style="width:100%;min-height:100px;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box" rows="5"></textarea>
+    <textarea id="field-edit-text" aria-labelledby="field-edit-title" style="width:100%;min-height:100px;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box" rows="5"></textarea>
     <div class="modal-actions">
       <button class="btn" id="field-edit-cancel-btn">Cancel</button>
       <button class="btn primary" id="field-edit-save-btn">Save</button>
@@ -2124,11 +2124,11 @@
         <label for="auto-approve-field" style="font-size:13px;color:var(--muted);white-space:nowrap">Score type</label>
         <select id="auto-approve-field" style="flex:1;font-size:13px;padding:3px 6px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text)">
           <option value="overall">&#11088; Overall</option>
-          <option value="funny">😂 Funny</option>
-          <option value="dramatic">🎭 Dramatic</option>
-          <option value="action">⚔️ Action</option>
-          <option value="visual">🎬 Visual</option>
-          <option value="laugh">🤣 Laughs</option>
+          <option value="funny">&#128514; Funny</option>
+          <option value="dramatic">&#127917; Dramatic</option>
+          <option value="action">&#9876;&#65039; Action</option>
+          <option value="visual">&#127916; Visual</option>
+          <option value="laugh">&#129315; Laughs</option>
         </select>
       </div>
       <label for="auto-approve-slider" style="font-size:13px;color:var(--muted)">Threshold</label>

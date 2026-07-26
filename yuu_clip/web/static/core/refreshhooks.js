@@ -1,7 +1,8 @@
 // Feature-map - Refresh-hook registry: the dependency-inversion seam that lets the
 //   cross-cutting job machinery (core/jobs.js) and the pure formatters (core/format.js)
 //   trigger a videos/clips re-render WITHOUT importing those modules.
-//   API: none (client-only) · Tests: tests/js/core/jobs.test.js, tests/js/core/format.test.js
+//   API: none (client-only)
+//   Tests: tests/js/core/refreshhooks.test.js, tests/js/core/jobs.test.js, tests/js/core/format.test.js
 //
 // WHY this exists instead of a direct import: a jobs.js -> videos/clips (or
 // format.js -> videos) import adds an edge that esbuild bundles fine but that breaks

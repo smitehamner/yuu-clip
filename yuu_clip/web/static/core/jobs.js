@@ -509,10 +509,14 @@ function _openSSE(url, onLine, onDone, onError, opts = {}, onProgress = null, on
         }
       }
     } catch (err) {
-      if (!ctrl.signal.aborted) onError('Connection lost - server disconnected');
+      // This catch also covers a malformed SSE line (bad JSON) or a bug in a
+      // consumer-supplied onLine/onProgress/onResult callback, not just a real
+      // network drop - without this log those get mislabeled as "Connection
+      // lost" with no trace of what actually threw.
+      if (!ctrl.signal.aborted) { console.error('SSE stream read failed:', err); onError('Connection lost - server disconnected'); }
     }
   }).catch(err => {
-    if (!ctrl.signal.aborted) onError(netErrMsg(err));
+    if (!ctrl.signal.aborted) { console.error('SSE connection failed:', err); onError(netErrMsg(err)); }
   });
   return handle;
 }

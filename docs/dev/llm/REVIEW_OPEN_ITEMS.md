@@ -251,7 +251,7 @@ previously-silent security-boundary rejection. Phase 6 (docs) fixed extensive
 Feature-map header drift across ~14 files. See `REVIEW_DECISIONS.md` for full
 details on all of the above.
 
-### Phase 7 (UX/UI) - deferred Low findings
+### Section 9 Phase 7 (UX/UI) - deferred Low findings
 - **Project-switcher menu / Backup / Restore buttons** - not tagged
   `data-job-blocked`. The busy case IS handled (backend 409 + clear error
   toast), but the project's convention prefers a disabled control with a
@@ -265,3 +265,90 @@ details on all of the above.
   placeholder + aria-label and gated behind a confirm dialog; this is a
   settled app-wide pattern on a pointer-first single-user desktop tool.
   Note-only, not a real defect.
+
+## Section 10 - Web UI: app shell & core plumbing (Phase 1 + Phase 3 committed)
+
+Phase 1 (test integrity) found the whole section's test suite already clean - no
+fragile assertions, vague names, tautologies, or hidden coupling across the 16
+`tests/js/` files covering `core/*.js` (`state`, `markdown`, `updatecheck`,
+`errorreporter`, `shortcuts`, `jobevents`, `ui`, `format`, `gpustatus`, `utils`,
+`panelnav`, `jobs`, `preview`), `shared/{escapehtml,whisperlang}.js`, and
+`library/colorpicker.js` - fake timers used throughout instead of real sleeps,
+documented WHY comments on every import-cycle mock. No test changes needed; no
+JS-side changes made. The 5 reviewed `tests/ui/*.py` files
+(`test_ui_help`, `test_ui_panelnav`, `test_ui_smoke`, `test_ui_theme`,
+`test_ui_keyboard`) and `tests/unit/test_wizard_theme.py` were likewise clean:
+proper `wait_for_selector`/`expect(...).to_be_visible` waits, no
+`page.wait_for_timeout` sleeps, no hardcoded user-tunable literals. The
+Python-side structural ratchets in scope
+(`test_static_module_side_effects.py`, `test_main_esm_shim_ratchet.py`,
+`test_static_theme_colors.py`, `test_bundle_drift.py`, `test_index_html_drift.py`,
+`test_routes_common.py`) were re-read directly (not delegated) and are all
+still tight and accurate - the module-side-effects allowlist is confirmed
+empty, matching the shim-retirement plan's "GROUP 1 now EMPTY" state.
+
+One fix was made outside the test files themselves: `index.src.html`'s
+page-TOC comment block had drifted (omitted "Help & Guides" from the modal
+list, and the `<!-- About modal -->` section-banner comment sat above the Help
+include instead of the About include - both stale from when the Help modal
+was added later than the TOC was written). Comment-only, no functional
+change; `yuu-dev bundle` was re-run to regenerate the committed `index.html`
+and the full gate (`test-js` 698, `test-api` 3510, `lint`) re-confirmed green
+afterward.
+
+Phase 2 (bug hunt) did a thorough read of the whole scope, including the
+shared infrastructure other sections have been trusting all review long
+(jobs.js, panelnav.js, ui.js, utils.js, boot.js) - found no bugs. Several
+suspects (a `<video>` listener leak in preview.js, an SSE-malformed-line
+abort in jobs.js, a kebab-menu dismiss race, a hide-timer/new-job race) were
+each traced and confirmed correct-by-design, not fixed. Two minor items
+deferred:
+- **`core/utils.js::appendLog`** - styles any log line containing the bare
+  substring `'error'` (case-insensitive) as a red error line, so benign
+  lines like "0 errors" paint red and could alarm a non-technical user.
+  Narrowing the heuristic risks under-matching real errors - needs a
+  considered UX call, not a unilateral change.
+- **`core/ui.js::_applyPrereqWarnings`** - builds an inline
+  `onclick="window.electronAPI.runSetupWizard()..."` instead of using
+  `addEventListener`, a convention deviation (constant-only interpolation,
+  no injection risk). Refactor-phase concern, not a bug.
+
+Comparing `yuu_clip/web/static/glossary.md` against
+`docs/dev/llm/GLOSSARY.md` term-by-term found no new drift - their divergence
+is the documented intentional split (see `REVIEW_DECISIONS.md`: "The two
+glossaries are intentionally different files, not a drift").
+
+Coverage gap noted here for `core/boot.js`, `core/refreshhooks.js`, and
+`core/helpmodals.js` (no dedicated `tests/js/` file) was resolved by Phase 3 -
+see `REVIEW_DECISIONS.md`'s "Phase 3 test coverage - full-app review section
+10" entry: `refreshhooks.js` and `helpmodals.js` were genuine gaps (both
+added dedicated `tests/js/core/` files); `boot.js` was confirmed a non-issue
+(the side-effect entry point, already covered end to end via Playwright).
+
+Phase 4 (refactor) fixed the `_applyPrereqWarnings` inline-onclick deviation
+(Phase 2's deferred item) and extracted a genuine shared `renderInlineMarkdown()`
+helper deduping `markdown.js`/`helpmodals.js`. Phase 5 (logging) added
+`console.error`/`console.warn` to previously-silent catch blocks in
+`jobs.js`'s SSE handling and `boot.js`'s server-state refresh - the latter
+meant an in-progress analysis could silently fail to reattach after a page
+refresh with zero signal anywhere; ran the full `test-ui` suite (660 passed)
+given the cross-cutting change. Phase 6 (docs) fixed a stale CLAUDE.md
+paragraph and 3 places where `GLOSSARY.md` itself violated its own
+"don't call it AI scoring" rule, plus 2 more Feature-map header drifts.
+
+### Phase 7 (UX/UI) - this is the shared chrome every screen renders inside,
+the highest-leverage UX review in the app. Fixed 2 clear-cut issues (raw-emoji
+glyphs in auto-approve.html standardized to entities; a missing accessible
+name on field-edit.html's textarea). One Low finding deferred:
+- **Tab-bar view switchers** (Highlight Reels Build/View tabs and a few
+  in-modal view switchers) signal the active view with a `.active` CSS class
+  only, not `role=tab`/`aria-selected`, unlike the sidebar filter chips which
+  use `aria-pressed`. Minor a11y polish, not a defect - visible active state
+  is clear. Revisit trigger: a broader tablist a11y pass, or an AT user
+  reporting confusion.
+
+Confirmed via this phase: the shared chrome is high quality and largely
+settled by the 2026-07-23/24 full-surface UX review - single document-level
+focus trap + boot-time modal a11y stamping, consistent danger/primary confirm
+styling, `:focus-visible` + `prefers-reduced-motion` support, and a genuinely
+welcoming onboarding flow all hold up.
