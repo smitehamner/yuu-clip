@@ -11,6 +11,141 @@ same thing without the context. Most recent first.
 
 ---
 
+## Phase 6 docs and comments - full-app review section 2, transcription & diarization (2026-07-26)
+
+Docs-and-comments phase over `yuu_clip/transcribe/{whisper_runner,diarization_client,
+transcriber,align,project_voice,speaker_attach}.py` and `yuu_clip/subtitles.py`.
+Grepped every `#` comment and docstring in scope, then read each file in full
+(~2285 lines). Comment density here was already excellent going in - Phases 1-4
+exercised this code hard and it shows in the comments too. No restatement,
+obsolete, or apology comments found anywhere in scope; nothing was deleted.
+
+Applied - 3 additions, all comment-only (verified with `yuu-dev test-api`, 3341
+passed, and `yuu-dev lint` clean):
+
+- `diarization_client.py::diarize_with_embeddings` - added a 3-line comment
+  immediately above the `_consolidate_labels(...)` call clarifying it deliberately
+  takes `speaker_match_threshold` (a SIMILARITY), not the `cluster_threshold`
+  (a DISTANCE) used one line above for `_cluster_labels(...)`. The distinction was
+  already well documented at each definition (config.py's DISTANCE/SIMILARITY
+  callouts on `speaker_cluster_threshold`/`speaker_match_threshold`,
+  `_consolidate_labels`' own docstring) but not at this call site, where a reader
+  scanning just the function body could otherwise read the threshold swap as a
+  copy-paste bug.
+- `project_voice.py::_best_exemplar_score` - added a comment above the
+  `backend is not None and ...` guard explaining the None-backend legacy-data
+  tolerance (deliberately skips the cross-backend filter when the caller doesn't
+  know the query vector's own backend). Previously this behavior was explained
+  only in `tests/unit/test_project_voice.py::test_none_backend_compares_across_all_backends`'s
+  comment, not in the source.
+  - Same fix, same reasoning, in `speaker_attach.py::_best_voiceprint_match`'s
+    equivalent `active_backend is not None and ...` guard (previously explained
+    only in `tests/unit/test_diarization.py::test_none_active_backend_compares_across_backend_mismatch`).
+
+Verified and deliberately left as-is - do not re-flag:
+
+### ARCH-3 (align.py's seam-convention exception) - module docstring still reads clearly
+Re-read `align.py`'s module docstring (lines 15-26) against the ARCH-3 decision
+recorded in this file's Fable-review WS-5 entry (below). Still accurate: no
+`alignment_backend` config value, one implementation, the single caller
+(`web/routes/common.py`) never gates on availability. No edit needed.
+
+### Multi-line docstrings on internal (`_`-prefixed) functions across this section - kept, not pared to one-liners
+Same call as the Phase 6 section-1 entry above (`ingest.py`'s private helpers):
+`diarization_client.py`'s clustering helpers (`_consolidate_labels`,
+`_prune_small_clusters`, `_densify_labels`, etc.), `project_voice.py`'s matching
+functions, and `subtitles.py`'s rendering helpers (`_highlight_shade`,
+`strip_baked_speaker_prefix`, etc.) all carry docstrings substantially longer than
+a name-restating one-liner, despite CLAUDE.md's "No docstrings on internal
+functions" guidance. Every one earns its place under the governing rule: they
+document non-obvious algorithm invariants (`_prune_small_clusters`' "monotonic in
+the grouping distance" guarantee), numeric-threshold rationale, or a subtle
+edge case a name can't carry (`_densify_labels`' hole-filling behavior feeding
+user-visible "Speaker N" numbers). Do not re-flag as a docstring-density issue.
+
+### Terminology sweep - clean
+Grepped user-facing `console.print`/log-adjacent text in all 7 files against
+`docs/dev/llm/GLOSSARY.md`. "Captions" vs "subtitles" is the one term this
+section touches directly - confirmed `subtitles.py`'s own docstrings/comments
+never claim to be user-facing (the module/variable name split is already
+documented in CLAUDE.md as deliberate) and no `console.print`/error string in
+scope says "subtitles" where a user would read it. No other code-name leaks
+("profile", "AI", "RP context") found.
+
+---
+
+## Phase 5 logging - full-app review section 2, transcription & diarization (2026-07-26)
+
+Logging-coverage phase over `yuu_clip/transcribe/{whisper_runner,diarization_client,
+transcriber,align,project_voice,speaker_attach}.py` and `yuu_clip/subtitles.py` - the
+speech-to-text and speaker-identity stage of the analyze pipeline, a common source of
+confusing "why did my clips have no captions/wrong speaker" reports. Grepped every
+`logger.`/`log.` call and every `except` block in scope first (0.5 survey), then read
+each file in full.
+
+Applied: `speaker_attach.py::diarize_track`'s entry log ("Running diarization for
+track %d [%s]...") now includes `backend=%s` (`config.diarization_backend`), matching
+`whisper_runner.transcribe_track`'s entry log, which already names its backend. Low
+cost, and the value grows the day a second diarization backend exists (today only
+`speechbrain`/`null`) - a user comparing two runs' results can already tell which
+transcription backend ran from the log; diarization couldn't.
+
+Confirmed and deliberately left as-is - do not re-flag:
+
+### This section already had exemplary logging coming in - no gaps found
+Phases 1-4 of this section (test integrity, bug hunt, coverage, refactor) already
+exercised this code hard, and it shows: every model load (Whisper CUDA-to-CPU
+fallback, SpeechBrain ECAPA encoder), every backend-unavailable path (`diar_client
+.available()` reason surfaced as a `warning` with the actual missing-package reason),
+and every catchable failure (`transcribe_track`'s caller in `ingest.py` wraps with
+`log.exception`; `diarize_track` catches both `DiarizationError` and bare `Exception`
+with `exc_info=True`; `align.py`'s `realign_words`/`realign_segment_words` already log
+every failure mode at the correct level) already carries a log line with
+`track.id`/`track.label`/`video_id` context. Nothing in scope has a bare `except`
+with no log call - the earlier grep-first survey found zero.
+
+### No log spam in any loop
+`whisper_runner.py`'s per-segment loop drives a Rich `Progress` bar, not per-segment
+logging. `diarization_client.py`'s per-embedding-batch loop (`_embed_windows`) and
+per-cluster-merge loops (`_consolidate_labels`/`_prune_small_clusters`) log nothing
+per-iteration - only one summary `info` line per `diarize_with_embeddings()` call
+(bounded to once per track). `speaker_attach.py`'s `_report_attach_decision` fires
+once per resolved speaker *cluster* (bounded by speaker count, typically single
+digits), not per turn or per embedding - not spam.
+
+### `subtitles.py` and `project_voice.py` carry no logging at all - confirmed not a gap
+Both are pure, deterministic, torch/DB-free transformation modules (no model calls, no
+subprocess calls, no network). `subtitles.py` raises `ValueError` for missing
+transcript data and lets file-write `OSError`s propagate; `project_voice.py` is pure
+cosine-similarity/clustering math. Every real caller of either lives in
+`yuu_clip/web/routes/*.py` and `yuu_clip/pipeline/ingest.py` - both out of this
+section's scope - so a raised exception is the correct failure signal for the caller
+to catch/log with its own request/run context, and adding logging inside these two
+pure modules would either duplicate that caller-side log or (for the many
+`refresh_export_sidecars` call sites in `web/routes/`) log without the request context
+that makes a log line useful. Revisit if a future section's review of those callers
+finds an uncaught/unlogged `refresh_export_sidecars`/`export_srt_sidecars` failure.
+
+### Terminology sweep - clean
+Confirmed via `web/sse.py`/`web/analyze_job.py` that this section's SSE-visible text
+comes from `console.print` (Rich stdout tailed by the subprocess pump), not from
+`logger.`/`log.` calls, which only reach `.yuu-clip/yuu-clip.log`. Checked both:
+neither the `logger.*` calls nor the `console.print` lines in scope use "subtitles"/
+"AI"/"profile"/other banned code-name framing in user-facing text (the one hit for
+"subtitle" is `speaker_attach.py`'s docstring referencing the `_import_subtitles`
+*function name*, which is a code identifier, not user-facing copy - no fix needed).
+
+### The `diarization_backend != "null"` guard around the skip-log is dead code, not a logging gap
+`diarize_track`'s `if not ok: if config.diarization_backend != "null": ...` can never
+take the inner branch when `ok` is `False` and the backend is `"null"`, because
+`NullDiarizationClient.available()` unconditionally returns `(True, "")` - so `ok`
+is never `False` when the backend is `"null"`. The log line itself is correct and
+reachable for the one backend where it matters (`speechbrain`); the guard is
+vestigial dead code, a bug-hunt/refactor finding, not something to fix under a
+logging-coverage lens. Left for a future bug-hunt/refactor pass over this file.
+
+---
+
 ## Phase 6 docs and comments - full-app review section 1, analyze pipeline (2026-07-26)
 
 Docs-and-comments phase over the same 12 files as the Phase 5 logging entry below

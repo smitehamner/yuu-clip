@@ -1,3 +1,13 @@
+"""Diarization + the speaker-identity call chain around it - offline-safe (no sklearn).
+
+Despite the filename, this covers more than transcribe/diarization_client.py: the
+speaker-matching/re-attach core lives in transcribe/speaker_attach.py, plus the
+orchestration call sites in pipeline/ingest.py, export/render.py, and
+segments/windower.py. The sklearn-gated clustering math (_cluster_labels,
+_consolidate_labels) that needs a real scikit-learn is in
+tests/integration/test_diarization.py instead - see that file's docstring for the
+split's rationale.
+"""
 from __future__ import annotations
 
 from unittest.mock import MagicMock
@@ -127,13 +137,16 @@ class TestRetranscribeDiarization:
 
 class TestDiarizeTrack:
     def _wire(self, monkeypatch, client, *, available=(True, ""),
-              embeddings_result=None, diarize_side_effect=None):
+              embeddings_result=None, diarize_side_effect=None, model_cached=True):
         """Patch make_diarization_client and capture _assign/_attach calls."""
         from yuu_clip.transcribe import speaker_attach
 
         class FakeClient:
             def available(self_inner):
                 return available
+
+            def model_cached(self_inner):
+                return model_cached
 
             def diarize_with_embeddings(self_inner, path):
                 if diarize_side_effect is not None:
@@ -240,11 +253,9 @@ class TestDiarizeTrack:
         looking hung (packaging-strategy Wave 4's analyze-log surfacing)."""
         from pathlib import Path
 
-        from yuu_clip.transcribe import speaker_attach
         from yuu_clip.transcribe.speaker_attach import diarize_track
 
-        monkeypatch.setattr(speaker_attach, "speechbrain_model_cached", lambda: False)
-        self._wire(monkeypatch, None, embeddings_result=([], {}))
+        self._wire(monkeypatch, None, embeddings_result=([], {}), model_cached=False)
         cfg = Config(diarization_backend="speechbrain")
         diarize_track(cfg, None, self._fake_transcript(), Path("a.wav"), self._fake_track())
 
@@ -254,11 +265,9 @@ class TestDiarizeTrack:
     def test_downloading_notice_omitted_when_model_cached(self, monkeypatch, capsys):
         from pathlib import Path
 
-        from yuu_clip.transcribe import speaker_attach
         from yuu_clip.transcribe.speaker_attach import diarize_track
 
-        monkeypatch.setattr(speaker_attach, "speechbrain_model_cached", lambda: True)
-        self._wire(monkeypatch, None, embeddings_result=([], {}))
+        self._wire(monkeypatch, None, embeddings_result=([], {}), model_cached=True)
         cfg = Config(diarization_backend="speechbrain")
         diarize_track(cfg, None, self._fake_transcript(), Path("a.wav"), self._fake_track())
 
@@ -408,6 +417,21 @@ class TestBestVoiceprintMatch:
         cand = self._speaker(1, [0.5, 0.87])
         assert _best_voiceprint_match([1.0, 0.0], [cand], set())[0] is None
         assert _best_voiceprint_match([1.0, 0.0], [cand], set(), threshold=0.4)[0].id == 1
+
+    def test_none_active_backend_compares_across_backend_mismatch(self):
+        from yuu_clip.transcribe.speaker_attach import _best_voiceprint_match
+        # Deliberate legacy-data tolerance, not a bug: the cross-backend skip (see
+        # "Candidates whose voiceprint came from a different diarization backend
+        # are skipped" in the docstring) only fires when active_backend is known.
+        # active_backend=None (its default) leaves the filter unapplied, so a
+        # candidate recorded under a different/old backend can still match.
+        cand = self._speaker(1, [1.0, 0.0])
+        cand.voiceprint_backend = "pyannote"
+        matched, score, _top = _best_voiceprint_match(
+            [1.0, 0.0], [cand], set(), active_backend=None,
+        )
+        assert matched is cand
+        assert score == pytest.approx(1.0)
 
 
 # ---------------------------------------------------------------------------
@@ -787,6 +811,116 @@ class TestSpeechBrainPipeline:
         for vector in centroids.values():
             assert np.isclose(np.linalg.norm(vector), 1.0)
         assert np.allclose(centroids["SPEAKER_00"], [0.6, 0.8])
+
+
+# ---------------------------------------------------------------------------
+# _load_waveform / _load_mono_waveform - PCM WAV decode (real wave/numpy/torch,
+# no speechbrain needed - torch is a base yuu-clip dependency)
+# ---------------------------------------------------------------------------
+
+def _write_wav(path, *, channels, sample_width, sample_rate, frame_bytes):
+    import wave
+    with wave.open(str(path), "wb") as writer:
+        writer.setnchannels(channels)
+        writer.setsampwidth(sample_width)
+        writer.setframerate(sample_rate)
+        writer.writeframes(frame_bytes)
+
+
+class TestLoadWaveform:
+    def test_int16_mono_normalizes_by_full_scale(self, tmp_path):
+        import numpy as np
+
+        from yuu_clip.transcribe.diarization_client import _load_waveform
+
+        path = tmp_path / "a.wav"
+        samples = np.array([0, 16384, -16384, 32767], dtype=np.int16)
+        _write_wav(path, channels=1, sample_width=2, sample_rate=16000, frame_bytes=samples.tobytes())
+
+        decoded = _load_waveform(str(path))
+
+        assert decoded["sample_rate"] == 16000
+        assert decoded["waveform"].shape == (1, 4)
+        assert decoded["waveform"][0].tolist() == pytest.approx([0.0, 0.5, -0.5, 32767 / 32768], abs=1e-6)
+
+    def test_uint8_is_centered_at_128(self, tmp_path):
+        import numpy as np
+
+        from yuu_clip.transcribe.diarization_client import _load_waveform
+
+        path = tmp_path / "b.wav"
+        samples = np.array([0, 128, 255], dtype=np.uint8)
+        _write_wav(path, channels=1, sample_width=1, sample_rate=8000, frame_bytes=samples.tobytes())
+
+        decoded = _load_waveform(str(path))
+
+        assert decoded["waveform"][0].tolist() == pytest.approx([-1.0, 0.0, 255 / 128 - 1.0], abs=1e-6)
+
+    def test_unsupported_sample_width_raises_diarization_error(self, tmp_path):
+        from yuu_clip.transcribe.diarization_client import DiarizationError, _load_waveform
+
+        path = tmp_path / "c.wav"
+        # 24-bit PCM (3-byte width) has no dtype mapping - must fail loudly rather
+        # than misinterpret the bytes as some other width.
+        _write_wav(path, channels=1, sample_width=3, sample_rate=16000, frame_bytes=b"\x00\x01\x02" * 5)
+
+        with pytest.raises(DiarizationError, match="Unsupported WAV sample width"):
+            _load_waveform(str(path))
+
+    def test_mono_downmix_averages_channels(self, tmp_path):
+        import numpy as np
+
+        from yuu_clip.transcribe.diarization_client import _load_mono_waveform
+
+        path = tmp_path / "d.wav"
+        left = np.array([32767, 0], dtype=np.int16)
+        right = np.array([0, 32767], dtype=np.int16)
+        interleaved = np.empty(4, dtype=np.int16)
+        interleaved[0::2] = left
+        interleaved[1::2] = right
+        _write_wav(path, channels=2, sample_width=2, sample_rate=16000, frame_bytes=interleaved.tobytes())
+
+        mono, sample_rate = _load_mono_waveform(str(path))
+
+        assert sample_rate == 16000
+        assert mono.tolist() == pytest.approx([32767 / 32768 / 2, 32767 / 32768 / 2], abs=1e-6)
+
+
+# ---------------------------------------------------------------------------
+# speechbrain_model_dir / speechbrain_model_cached - filesystem-only cache probe
+# ---------------------------------------------------------------------------
+
+class TestSpeechbrainModelCacheState:
+    def test_model_dir_is_under_the_platform_cache_dir(self, monkeypatch, tmp_path):
+        import platformdirs
+
+        from yuu_clip.transcribe.diarization_client import speechbrain_model_dir
+
+        monkeypatch.setattr(platformdirs, "user_cache_dir", lambda name: str(tmp_path))
+        assert speechbrain_model_dir() == tmp_path / "models" / "spkrec-ecapa-voxceleb"
+
+    def test_not_cached_when_dir_missing(self, monkeypatch, tmp_path):
+        from yuu_clip.transcribe import diarization_client as diar
+
+        monkeypatch.setattr(diar, "speechbrain_model_dir", lambda: tmp_path / "missing")
+        assert diar.speechbrain_model_cached() is False
+
+    def test_not_cached_when_dir_exists_but_empty(self, monkeypatch, tmp_path):
+        from yuu_clip.transcribe import diarization_client as diar
+
+        empty = tmp_path / "empty"
+        empty.mkdir()
+        monkeypatch.setattr(diar, "speechbrain_model_dir", lambda: empty)
+        assert diar.speechbrain_model_cached() is False
+
+    def test_cached_when_dir_has_files(self, monkeypatch, tmp_path):
+        from yuu_clip.transcribe import diarization_client as diar
+
+        populated = tmp_path / "populated"
+        populated.mkdir()
+        (populated / "model.bin").write_bytes(b"x")
+        monkeypatch.setattr(diar, "speechbrain_model_dir", lambda: populated)
+        assert diar.speechbrain_model_cached() is True
 
 
 # ---------------------------------------------------------------------------

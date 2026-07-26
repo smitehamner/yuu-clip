@@ -65,12 +65,22 @@ class DiarizationClient(ABC):
     @abstractmethod
     def available(self) -> tuple[bool, str]: ...
 
+    @abstractmethod
+    def model_cached(self) -> bool:
+        """Whether this backend's model is already downloaded (filesystem-only, no
+        network) - lets a caller warn "downloading..." on first use without knowing
+        which backend is configured. True when there is nothing to download."""
+        ...
+
 
 class NullDiarizationClient(DiarizationClient):
     """Returned when diarization is disabled (backend = "null")."""
 
     def available(self) -> tuple[bool, str]:
         return True, ""
+
+    def model_cached(self) -> bool:
+        return True
 
     def diarize(self, audio_path: str) -> list[tuple[float, float, str]]:
         return []
@@ -361,6 +371,9 @@ class SpeechBrainDiarizationClient(DiarizationClient):
             )
         return True, ""
 
+    def model_cached(self) -> bool:
+        return speechbrain_model_cached()
+
     def _model_dir(self):
         return speechbrain_model_dir()
 
@@ -430,6 +443,9 @@ class SpeechBrainDiarizationClient(DiarizationClient):
             else _SB_DISTANCE_THRESHOLD
         )
         raw_labels = _cluster_labels(embeddings, cluster_threshold)
+        # Deliberately a different config value, not cluster_threshold: consolidation
+        # merges on speaker_match_threshold (a SIMILARITY), while the clustering above
+        # used speaker_cluster_threshold (a DISTANCE) - see _consolidate_labels' docstring.
         consolidated = _consolidate_labels(embeddings, raw_labels, self._config.speaker_match_threshold)
         min_seconds = (
             self._config.speaker_min_cluster_seconds

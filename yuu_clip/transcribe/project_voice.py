@@ -48,6 +48,9 @@ def _best_exemplar_score(vector: list[float], backend: Optional[str], voice) -> 
     """
     best: Optional[float] = None
     for exemplar in voice.exemplars:
+        # backend=None means the caller doesn't know the query vector's own backend
+        # (legacy data predating backend tracking) - deliberately skip the filter
+        # rather than reject every exemplar, tolerating a cross-backend comparison.
         if backend is not None and exemplar.voiceprint_backend != backend:
             continue
         score = cosine_similarity(vector, deserialize_voiceprint(exemplar.voiceprint))

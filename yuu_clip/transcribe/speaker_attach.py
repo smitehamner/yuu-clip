@@ -19,7 +19,6 @@ from yuu_clip.log import get_logger
 from yuu_clip.transcribe.diarization_client import (
     DiarizationError,
     make_diarization_client,
-    speechbrain_model_cached,
 )
 
 # The pure voiceprint math lives in project_voice (importable in the offline unit tier
@@ -140,6 +139,9 @@ def _best_voiceprint_match(vector, candidates, taken_ids, threshold=_VOICEPRINT_
     for speaker in candidates:
         if speaker.id in taken_ids or not speaker.voiceprint:
             continue
+        # active_backend=None means the current run's backend is unknown (legacy
+        # caller) - deliberately skip the filter rather than reject every candidate,
+        # tolerating a cross-backend comparison against an old/different backend.
         if active_backend is not None and speaker.voiceprint_backend != active_backend:
             continue
         score = _cosine_similarity(vector, _deserialize_voiceprint(speaker.voiceprint))
@@ -408,13 +410,16 @@ def diarize_track(
             console.print(f"[yellow]Speaker labels skipped for [{track.label}]: {reason}[/yellow]")
         return
 
-    if config.diarization_backend == "speechbrain" and not speechbrain_model_cached():
+    if not diar_client.model_cached():
         console.print(
             f"  [dim]Downloading the speaker model (~80 MB) so speaker labels can run "
             f"for [{track.label}] - this happens once...[/dim]"
         )
 
-    _log.info("Running diarization for track %d [%s]...", track.id, track.label)
+    _log.info(
+        "Running diarization for track %d [%s] using backend=%s...",
+        track.id, track.label, config.diarization_backend,
+    )
     try:
         turns, embeddings = diar_client.diarize_with_embeddings(str(audio_path))
         _assign_speakers(session, transcript.id, turns)

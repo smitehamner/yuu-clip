@@ -98,6 +98,19 @@ class TestBestVoiceMatch:
     def test_no_candidate_voices(self):
         assert best_voice_match([1.0, 0.0], "speechbrain", [], set(), 0.80) == (None, 0.0, None)
 
+    def test_none_backend_compares_across_all_backends(self):
+        # Deliberate legacy-data tolerance, not a bug (see the "Every cosine skips
+        # cross-backend pairs" module docstring): the skip only applies when the
+        # query vector's OWN backend is known. When it is None, the backend filter
+        # is not applied at all, so an exemplar from a different backend can still
+        # match - unlike test_backend_mismatch_is_skipped, where both sides are known
+        # and differ.
+        voices = [_voice(1, [_exemplar([1.0, 0.0], backend="pyannote")])]
+        matched, score, top = best_voice_match([1.0, 0.0], None, voices, set(), 0.80)
+        assert matched is voices[0]
+        assert top is voices[0]
+        assert score == pytest.approx(1.0)
+
 
 class TestClusterSpeakersIntoVoices:
     def test_two_similar_one_different(self):
