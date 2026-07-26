@@ -72,6 +72,38 @@ class TestSegmentStartTimes:
     def test_never_negative(self):
         assert self._starts([0.2, 0.2], 0.5) == [0.0, 0.0]
 
+    @staticmethod
+    def _path(name):
+        from pathlib import Path
+        return Path(name)
+
+    def test_short_early_segment_does_not_drift_caption_timeline(self):
+        # A segment shorter than trans_dur clamps its own start to 0, but that lost
+        # negative carry must NOT push later starts. The caption offsets have to stay
+        # equal to the xfade offsets _build_xfade_cmd feeds ffmpeg, or captions drift.
+        durations = [0.1, 2.0, 1.0]
+        trans_dur = 0.5
+        starts = self._starts(durations, trans_dur)
+        assert starts == [0.0, 0.0, 1.1]
+
+    def test_matches_build_xfade_cmd_offsets(self):
+        # The two are the single source of truth for where each segment lands; they
+        # must never diverge. Parse the offset= values out of the real xfade command
+        # and compare against _segment_start_times for the clip (non-first) segments.
+        import re
+
+        from yuu_clip.reel import _build_xfade_cmd
+        durations = [0.1, 2.0, 1.0, 3.0]
+        trans_dur = 0.5
+        segments = [self._path(f"seg{i}.mkv") for i in range(len(durations))]
+        transitions = ["fade"] * (len(durations) - 1)
+        cmd = _build_xfade_cmd(segments, durations, self._path("out.mkv"), transitions, trans_dur)
+        filter_complex = cmd[cmd.index("-filter_complex") + 1]
+        xfade_offsets = [float(m) for m in re.findall(r"offset=([\d.]+)", filter_complex)]
+        starts = self._starts(durations, trans_dur)
+        # starts[0] is 0; starts[i+1] is the offset of xfade cut i.
+        assert starts[1:] == xfade_offsets
+
 
 class TestBurnReelCaptions:
     """reel.burn_reel_captions - the final burn-in pass reuses the clip-export

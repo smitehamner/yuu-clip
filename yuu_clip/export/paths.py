@@ -54,12 +54,10 @@ def all_sidecar_paths(
     Includes per-label sidecars (e.g. {stem}.player_voice.srt) produced by
     export_srt_sidecars when multiple audio tracks are transcribed.
     """
-    stem = clip_stem(clip, video, name_template)
-    srt_files = list(export_dir.glob(f"{glob.escape(stem)}.*.srt"))
-    merged_srt = export_dir / f"{stem}.srt"
-    if merged_srt.exists():
-        srt_files.append(merged_srt)
-    return [*export_paths(clip, video, export_dir, name_template), *srt_files]
+    return [
+        *export_paths(clip, video, export_dir, name_template),
+        *srt_sidecar_paths(clip, video, export_dir, name_template),
+    ]
 
 
 def clip_export_row_files(clip: ClipCandidate) -> list[Path]:

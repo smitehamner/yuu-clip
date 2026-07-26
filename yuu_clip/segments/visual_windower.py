@@ -21,11 +21,15 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING
 
+from yuu_clip.log import get_logger
+
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
     from yuu_clip.config import Config
     from yuu_clip.db.models import ClipCandidate, Video
+
+_log = get_logger(__name__)
 
 # Interest points (motion peaks + scene cuts) within this many ms of each other form
 # one run; a gap wider than this starts a new candidate. Motion is sampled at ~2 fps
@@ -80,6 +84,7 @@ def generate_visual_candidates(
         for row in session.query(SceneBoundary).filter_by(video_id=video.id).all()
     )
     if not motion and not scenes:
+        _log.info("generate_visual_candidates: no motion/scene data for video %d - returning empty", video.id)
         return []
 
     regions = allowed_regions if allowed_regions is not None else [(0, _video_end(video, motion, scenes))]
@@ -98,6 +103,11 @@ def generate_visual_candidates(
             cand.tags = ["visual", "no_speech"]
             cand.visual_peak = peak
             candidates.append(cand)
+
+    _log.info(
+        "generate_visual_candidates: video %d - %d motion point(s), %d scene cut(s) -> %d candidate(s)",
+        video.id, len(motion), len(scenes), len(candidates),
+    )
     return candidates
 
 

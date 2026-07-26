@@ -14,6 +14,10 @@ from datetime import date as _date
 from pathlib import Path
 from typing import Optional
 
+from yuu_clip.log import get_logger
+
+_log = get_logger(__name__)
+
 DEFAULT_EXPORT_NAME_TEMPLATE = "{video}_clip{clip_id}_{start}"
 EXPORT_NAME_PLACEHOLDERS: frozenset[str] = frozenset(
     {"video", "clip_id", "start", "end", "score", "date", "preset"}
@@ -113,7 +117,12 @@ def export_base_stem(
         values["preset"] = preset or "default"
     try:
         stem = template.format(**values)
-    except (KeyError, IndexError, ValueError):
+    except (KeyError, IndexError, ValueError) as exc:
+        _log.warning(
+            "export_base_stem: template %r failed to render for clip %s (%s) - "
+            "falling back to the default naming scheme",
+            template, cand.id, exc,
+        )
         stem = _default_stem(cand, video_filename)
     if preset and preset != "default" and "preset" not in used:
         stem = f"{stem}_{preset}"

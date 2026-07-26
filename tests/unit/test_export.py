@@ -223,6 +223,92 @@ class TestWriteExportSubs:
         assert burn is None and soft is None
 
 
+class TestExportSettingsDict:
+    """_export_settings_dict builds the clip_exports.settings JSON recorded on a
+    clip: which caption/title-card options were applied, plus the preset encode
+    params when a preset drove the export (export/render.py)."""
+
+    def _cand(self, crop_x=0.5):
+        return SimpleNamespace(crop_x=crop_x)
+
+    def _style(self, **kw):
+        from yuu_clip.analyze.extract import CaptionStyle
+        return CaptionStyle(**kw)
+
+    def _preset(self, **kw):
+        from yuu_clip.export.presets import ExportPreset
+        defaults = dict(
+            name="youtube-1080p", label="YouTube 1080p", container="mp4",
+            height=1080, crf=18, target_size_mb=None, audio_kbps=192,
+        )
+        defaults.update(kw)
+        return ExportPreset(**defaults)
+
+    def _settings(self, **overrides):
+        from yuu_clip.export.render import _export_settings_dict
+        kwargs = dict(
+            cand=self._cand(), bake_captions=False, embed_subs=False, title_card=False,
+            caption_style=None, preset=None,
+        )
+        kwargs.update(overrides)
+        return _export_settings_dict(**kwargs)
+
+    def test_no_options_yields_bare_flags(self):
+        assert self._settings() == {"burn_subs": False, "embed_subs": False, "title_card": False}
+
+    def test_flags_pass_through_unchanged(self):
+        settings = self._settings(bake_captions=True, embed_subs=True, title_card=True)
+        assert settings["burn_subs"] is True
+        assert settings["embed_subs"] is True
+        assert settings["title_card"] is True
+
+    def test_default_caption_style_adds_no_caption_fields(self):
+        settings = self._settings(bake_captions=True, caption_style=self._style())
+        assert "caption_font" not in settings
+        assert "caption_word_highlight" not in settings
+
+    def test_custom_caption_style_adds_font_fields(self):
+        style = self._style(font_name="Arial", font_size=32, position="top")
+        settings = self._settings(bake_captions=True, caption_style=style)
+        assert settings["caption_font"] == "Arial"
+        assert settings["caption_size"] == 32
+        assert settings["caption_position"] == "top"
+        assert "caption_word_highlight" not in settings
+
+    def test_word_highlight_adds_chunk_size(self):
+        style = self._style(font_name="Arial", word_highlight=True, word_chunk_size=6)
+        settings = self._settings(bake_captions=True, caption_style=style)
+        assert settings["caption_word_highlight"] is True
+        assert settings["caption_word_chunk_size"] == 6
+
+    def test_custom_style_ignored_when_not_baking(self):
+        style = self._style(font_name="Arial")
+        settings = self._settings(bake_captions=False, embed_subs=True, caption_style=style)
+        assert "caption_font" not in settings
+        assert settings["embed_subs"] is True
+
+    def test_preset_adds_encode_fields(self):
+        settings = self._settings(preset=self._preset())
+        assert settings["height"] == 1080
+        assert settings["crf"] == 18
+        assert settings["target_size_mb"] is None
+        assert settings["audio_kbps"] == 192
+        assert "vertical" not in settings
+        assert "crop_x" not in settings
+
+    def test_vertical_preset_adds_crop_x_from_clip(self):
+        preset = self._preset(name="tiktok-9x16", height=1920, crf=20, audio_kbps=160, vertical=True)
+        settings = self._settings(cand=self._cand(crop_x=0.25), preset=preset)
+        assert settings["vertical"] is True
+        assert settings["crop_x"] == 0.25
+
+    def test_no_preset_omits_encode_fields(self):
+        settings = self._settings()
+        assert "height" not in settings
+        assert "crf" not in settings
+        assert "audio_kbps" not in settings
+
+
 class TestRenderExport:
     """render_export is the public export orchestrator the CLI shrank onto - the
     sequence now has a seam reachable without CliRunner+ffmpeg. These patch the
@@ -969,6 +1055,115 @@ class TestRefreshCaptionSidecars:
         refresh_caption_sidecars(self._make_clip("SPEAKER_00"), tmp_path)
 
         assert list(exports.glob("*.srt")) == []
+
+
+class TestBuildExportPath:
+    """render._build_export_path resolves the output container + destination path
+    from a clip, an optional --container/--output override, and a preset name."""
+
+    def _cand(self, clip_id=1, start_hms="0:15"):
+        return SimpleNamespace(id=clip_id, start_hms=start_hms, end_ms=90_000,
+                               score_overall=None, video=SimpleNamespace(filename="session.mkv"))
+
+    def test_defaults_to_source_suffix(self, tmp_path):
+        from yuu_clip.export.render import _build_export_path
+        base, output = _build_export_path(
+            self._cand(), tmp_path / "session.mkv", None, tmp_path, None,
+        )
+        assert base == "session_clip1_0-15"
+        assert output == tmp_path / "session_clip1_0-15.mkv"
+
+    def test_container_override_replaces_suffix(self, tmp_path):
+        from yuu_clip.export.render import _build_export_path
+        _base, output = _build_export_path(
+            self._cand(), tmp_path / "session.mkv", "mp4", tmp_path, None,
+        )
+        assert output.suffix == ".mp4"
+
+    def test_explicit_output_overrides_the_derived_path(self, tmp_path):
+        from yuu_clip.export.render import _build_export_path
+        explicit = tmp_path / "custom" / "name.mkv"
+        _base, output = _build_export_path(
+            self._cand(), tmp_path / "session.mkv", None, tmp_path, explicit,
+        )
+        assert output == explicit
+
+    def test_non_default_preset_is_folded_into_the_stem(self, tmp_path):
+        from yuu_clip.export.render import _build_export_path
+        base, output = _build_export_path(
+            self._cand(), tmp_path / "session.mkv", None, tmp_path, None,
+            preset_name="youtube-1080p",
+        )
+        assert base.endswith("_youtube-1080p")
+        assert output.stem == base
+
+    def test_default_preset_name_leaves_stem_unchanged(self, tmp_path):
+        from yuu_clip.export.render import _build_export_path
+        base_default, _ = _build_export_path(
+            self._cand(), tmp_path / "session.mkv", None, tmp_path, None,
+        )
+        base_explicit_default, _ = _build_export_path(
+            self._cand(), tmp_path / "session.mkv", None, tmp_path, None,
+            preset_name="default",
+        )
+        assert base_default == base_explicit_default
+
+
+class TestResolveAudioStreamIndex:
+    """render._resolve_audio_stream_index picks the combined track, falling back
+    to the first transcribed track when there is no combined one."""
+
+    def _setup_db(self, tmp_path):
+        from yuu_clip.db.models import Video, make_session
+        session = make_session(tmp_path / "test.db")
+        video = Video(path=str(tmp_path / "v.mkv"), filename="v.mkv", status="done")
+        session.add(video)
+        session.flush()
+        return session, video
+
+    def _add_track(self, session, video_id, stream_index, label, do_transcribe=True):
+        from yuu_clip.db.models import AudioTrack
+        track = AudioTrack(
+            video_id=video_id, stream_index=stream_index, label=label,
+            do_transcribe=do_transcribe, do_score=True, relevance_weight=1.0,
+        )
+        session.add(track)
+        session.flush()
+        return track
+
+    def test_prefers_the_combined_track(self, tmp_path):
+        from yuu_clip.export.render import _resolve_audio_stream_index
+        session, video = self._setup_db(tmp_path)
+        self._add_track(session, video.id, 2, "mic")
+        self._add_track(session, video.id, 0, "combined")
+        cand = SimpleNamespace(video_id=video.id)
+        try:
+            result = _resolve_audio_stream_index(session, cand)
+        finally:
+            session.close()
+        assert result == 0
+
+    def test_falls_back_to_first_transcribed_track_without_combined(self, tmp_path):
+        from yuu_clip.export.render import _resolve_audio_stream_index
+        session, video = self._setup_db(tmp_path)
+        self._add_track(session, video.id, 3, "mic")
+        cand = SimpleNamespace(video_id=video.id)
+        try:
+            result = _resolve_audio_stream_index(session, cand)
+        finally:
+            session.close()
+        assert result == 3
+
+    def test_none_when_no_track_qualifies(self, tmp_path):
+        from yuu_clip.export.render import _resolve_audio_stream_index
+        session, video = self._setup_db(tmp_path)
+        self._add_track(session, video.id, 1, "mic", do_transcribe=False)
+        cand = SimpleNamespace(video_id=video.id)
+        try:
+            result = _resolve_audio_stream_index(session, cand)
+        finally:
+            session.close()
+        assert result is None
 
 
 class TestExportBaseStemPreset:

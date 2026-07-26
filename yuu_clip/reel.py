@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import glob
 import json
-import logging
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
@@ -24,6 +23,7 @@ from yuu_clip.export.naming import (
     export_base_stem,
 )
 from yuu_clip.ffmpeg_tools import run_ffmpeg
+from yuu_clip.log import get_logger
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -31,7 +31,7 @@ if TYPE_CHECKING:
     from yuu_clip.config import Config
     from yuu_clip.db.models import ClipCandidate, Video
 
-_log = logging.getLogger(__name__)
+_log = get_logger(__name__)
 
 TRANSITIONS = ("fade", "dissolve", "wipeleft", "wiperight", "slideleft", "slideright", "none", "random")
 _RANDOM_POOL = [t for t in TRANSITIONS if t not in ("none", "random")]
@@ -306,11 +306,13 @@ def _build_xfade_cmd(
 
     v_chain: list[str] = []
     a_chain: list[str] = []
-    cumulative = 0.0
+    # segment_starts[i+1] is where segment i+1 fades in on the output timeline.
+    # _segment_start_times is the single source of this clamp so the burned-in
+    # caption timeline (which calls the same helper) can never drift from the video.
+    segment_starts = _segment_start_times(durations, trans_dur)
 
     for i in range(n - 1):
-        cumulative += durations[i]
-        offset = max(0.0, cumulative - (i + 1) * trans_dur)
+        offset = segment_starts[i + 1]
         t = per_cut_transitions[i]
 
         in_v = f"[xv{i-1}]" if i > 0 else "[v0]"
@@ -492,18 +494,18 @@ def compile_demo(
 
     n = len(clips)
 
-    clip_files, clip_durations, clip_fps = _resolve_clip_files(clips, video_map, export_dir, name_template)
-    total_footage = sum(clip_durations)
-
-    if transition == "none":
-        msg = f"Compiling {n} clip(s) - {total_footage:.0f}s footage - stream copy (fast)"
-    else:
-        eta = (total_footage + n * title_dur) / 3.0
-        msg = f"Compiling {n} clip(s) - {total_footage:.0f}s footage - estimated encode ~{eta:.0f}s"
-    _log.info(msg)
-    print(msg, flush=True)
-
     try:
+        clip_files, clip_durations, clip_fps = _resolve_clip_files(clips, video_map, export_dir, name_template)
+        total_footage = sum(clip_durations)
+
+        if transition == "none":
+            msg = f"Compiling {n} clip(s) - {total_footage:.0f}s footage - stream copy (fast)"
+        else:
+            eta = (total_footage + n * title_dur) / 3.0
+            msg = f"Compiling {n} clip(s) - {total_footage:.0f}s footage - estimated encode ~{eta:.0f}s"
+        _log.info(msg)
+        print(msg, flush=True)
+
         with tempfile.TemporaryDirectory() as tmp:
             segments, durations = _build_segment_list(
                 clips, video_map, clip_files, clip_durations, Path(tmp), clip_fps, title_dur, config,
@@ -562,12 +564,20 @@ def _segment_start_times(durations: list[float], trans_dur: float) -> list[float
 
     Segments alternate [title, clip, title, clip, ...]. With an xfade transition
     each cut overlaps the previous segment by *trans_dur*, so every segment after
-    the first starts *trans_dur* earlier than a plain concat would place it -
-    matching the offsets _build_xfade_cmd feeds ffmpeg.
+    the first starts *trans_dur* earlier than a plain concat would place it.
+
+    This is the single source of that offset: _build_xfade_cmd feeds these same
+    values to ffmpeg as the xfade offsets, and the burned-in caption timeline is
+    shifted by them - computing the clamp in two places is exactly what drifted
+    the captions before. Each start comes from the true running total, not the
+    previous (already clamped) start, so the negative carry on a segment shorter
+    than trans_dur is not dropped.
     """
     starts = [0.0]
+    cumulative = 0.0
     for i in range(len(durations) - 1):
-        starts.append(max(0.0, starts[-1] + durations[i] - trans_dur))
+        cumulative += durations[i]
+        starts.append(max(0.0, cumulative - (i + 1) * trans_dur))
     return starts
 
 

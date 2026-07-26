@@ -14,9 +14,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from yuu_clip.log import get_logger
+
 if TYPE_CHECKING:
     from yuu_clip.config import Config
     from yuu_clip.db.models import ClipCandidate
+
+_log = get_logger(__name__)
 
 
 def merge_candidates(
@@ -28,9 +32,17 @@ def merge_candidates(
         vc for vc in visual_cands
         if _covered_fraction(vc, transcript_cands) <= config.visual_dedup_overlap
     ]
+    deduped_away = len(visual_cands) - len(kept)
     kept.sort(key=lambda c: (-_peak(c), c.start_ms, c.end_ms))
+    kept_before_cap = len(kept)
     kept = kept[: config.visual_candidate_cap]
+    capped_away = kept_before_cap - len(kept)
     kept.sort(key=lambda c: (c.start_ms, c.end_ms))
+
+    _log.info(
+        "merge_candidates: %d visual candidate(s) -> %d kept (%d deduped against transcript, %d capped)",
+        len(visual_cands), len(kept), deduped_away, capped_away,
+    )
     return list(transcript_cands), kept
 
 

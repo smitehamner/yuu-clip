@@ -185,51 +185,55 @@ def run_retranscribe(cand, session, config, language: Optional[str] = None,
     effective_start_ms = int(effective_start_s * 1000)
 
     new_tx_ids: list[int] = []
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        tmp_path = Path(tmp_dir)
-        for track in tracks:
-            if not track.extracted_path or not Path(track.extracted_path).exists():
-                console.print(f"  [yellow]  Track {track.stream_index} - no extracted audio, skipping[/yellow]")
-                continue
+    try:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            for track in tracks:
+                if not track.extracted_path or not Path(track.extracted_path).exists():
+                    console.print(f"  [yellow]  Track {track.stream_index} - no extracted audio, skipping[/yellow]")
+                    continue
 
-            segment_wav = tmp_path / f"seg_{track.stream_index}.wav"
-            _extract_wav_segment(Path(track.extracted_path), segment_wav, effective_start_s, effective_end_s)
+                segment_wav = tmp_path / f"seg_{track.stream_index}.wav"
+                _extract_wav_segment(Path(track.extracted_path), segment_wav, effective_start_s, effective_end_s)
 
-            for old_tx in session.query(Transcript).filter_by(audio_track_id=track.id, clip_id=cand.id).all():
-                session.delete(old_tx)
-            session.flush()
+                for old_tx in session.query(Transcript).filter_by(audio_track_id=track.id, clip_id=cand.id).all():
+                    session.delete(old_tx)
+                session.flush()
 
-            console.print(f"  [dim]  Retranscribing track {track.stream_index} [{track.label}]...[/dim]")
-            result = transcriber.transcribe(segment_wav, language)
+                console.print(f"  [dim]  Retranscribing track {track.stream_index} [{track.label}]...[/dim]")
+                result = transcriber.transcribe(segment_wav, language)
 
-            tx = Transcript(
-                audio_track_id=track.id,
-                clip_id=cand.id,
-                model_name=config.whisper_model,
-                language=result.language,
-                completed_at=datetime.now(timezone.utc),
-            )
-            session.add(tx)
-            session.flush()
-            new_tx_ids.append(tx.id)
+                tx = Transcript(
+                    audio_track_id=track.id,
+                    clip_id=cand.id,
+                    model_name=config.whisper_model,
+                    language=result.language,
+                    completed_at=datetime.now(timezone.utc),
+                )
+                session.add(tx)
+                session.flush()
+                new_tx_ids.append(tx.id)
 
-            seg_count = 0
-            for seg in result.segments:
-                session.add(TranscriptSegment(
-                    transcript_id=tx.id,
-                    start_ms=effective_start_ms + seg.start_ms,
-                    end_ms=effective_start_ms + seg.end_ms,
-                    text=seg.text,
-                    confidence=seg.confidence,
-                ))
-                seg_count += 1
+                seg_count = 0
+                for seg in result.segments:
+                    session.add(TranscriptSegment(
+                        transcript_id=tx.id,
+                        start_ms=effective_start_ms + seg.start_ms,
+                        end_ms=effective_start_ms + seg.end_ms,
+                        text=seg.text,
+                        confidence=seg.confidence,
+                    ))
+                    seg_count += 1
 
-            session.flush()
-            console.print(f"  [green]  OK[/green] [{track.label}]  {seg_count} segments")
+                session.flush()
+                console.print(f"  [green]  OK[/green] [{track.label}]  {seg_count} segments")
 
-            if speaker_labels:
-                _maybe_diarize_segment(session, config, cand.video_id, tx.id, segment_wav,
-                                       effective_start_s, track.label)
+                if speaker_labels:
+                    _maybe_diarize_segment(session, config, cand.video_id, tx.id, segment_wav,
+                                           effective_start_s, track.label)
+    except Exception as exc:
+        log.error("Retranscribe failed: clip_id=%s video_id=%s: %s", cand.id, cand.video_id, exc, exc_info=True)
+        raise
 
     _update_clip_excerpt(cand, session, new_tx_ids)
     if new_tx_ids:
@@ -363,6 +367,36 @@ def _write_export_subs(cand, bake_captions: bool, embed_subs: bool, lines_to_srt
     return None, None
 
 
+def _export_settings_dict(cand, *, bake_captions: bool, embed_subs: bool, title_card: bool,
+                          caption_style, preset) -> dict:
+    """The settings JSON recorded on the clip_exports row: which caption/title-card
+    options were applied, plus the preset encode params when a preset drove the export."""
+    settings: dict = {
+        "burn_subs": bake_captions,
+        "embed_subs": embed_subs,
+        "title_card": title_card,
+    }
+    if bake_captions and caption_style is not None and not caption_style.is_default():
+        settings.update(
+            caption_font=caption_style.font_name,
+            caption_size=caption_style.font_size,
+            caption_position=caption_style.position,
+        )
+        if caption_style.word_highlight:
+            settings.update(
+                caption_word_highlight=True,
+                caption_word_chunk_size=caption_style.word_chunk_size,
+            )
+    if preset is not None:
+        settings.update(
+            height=preset.height, crf=preset.crf,
+            target_size_mb=preset.target_size_mb, audio_kbps=preset.audio_kbps,
+        )
+        if preset.vertical:
+            settings.update(vertical=True, crop_x=cand.crop_x)
+    return settings
+
+
 def _finalize_export(cand, session, video_path: Path, output: Path, config, *,
                      precise: bool, title_card: bool, audio_stream_idx: Optional[int],
                      subtitle_path: Optional[Path], subtitle_track_path: Optional[Path],
@@ -425,34 +459,15 @@ def _finalize_export(cand, session, video_path: Path, output: Path, config, *,
         cand.exported_burn_subs = bake_captions
         cand.exported_embed_subs = subtitle_track_path is not None
         cand.exported_title_card = title_card
-        settings = {
-            "burn_subs": bake_captions,
-            "embed_subs": subtitle_track_path is not None,
-            "title_card": title_card,
-        }
-        if bake_captions and caption_style is not None and not caption_style.is_default():
-            settings.update(
-                caption_font=caption_style.font_name,
-                caption_size=caption_style.font_size,
-                caption_position=caption_style.position,
-            )
-            if caption_style.word_highlight:
-                settings.update(
-                    caption_word_highlight=True,
-                    caption_word_chunk_size=caption_style.word_chunk_size,
-                )
-        if preset is not None:
-            settings.update(
-                height=preset.height, crf=preset.crf,
-                target_size_mb=preset.target_size_mb, audio_kbps=preset.audio_kbps,
-            )
-            if preset.vertical:
-                settings.update(vertical=True, crop_x=cand.crop_x)
+        settings = _export_settings_dict(
+            cand, bake_captions=bake_captions, embed_subs=subtitle_track_path is not None,
+            title_card=title_card, caption_style=caption_style, preset=preset,
+        )
         _record_clip_export(cand, session, preset_name, result, settings)
         session.commit()
     except (RuntimeError, ValueError) as e:
         console.print(f"  [red]Export failed: {e}[/red]")
-        log.error("Export failed: clip_id=%s video=%s: %s", cand.id, video_path, e)
+        log.error("Export failed: clip_id=%s video=%s: %s", cand.id, video_path, e, exc_info=True)
         raise typer.Exit(1)
     finally:
         for tmp_path in (subtitle_path, subtitle_track_path):

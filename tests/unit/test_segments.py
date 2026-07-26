@@ -281,6 +281,149 @@ class TestGenerateCandidates:
         assert count >= 1
 
 # ---------------------------------------------------------------------------
+# windower.clip_window_segments - the shared lookup for excerpt rebuilds and
+# manual clip creation. Its own overlap-boundary and multi-transcript logic was
+# previously only exercised through mocks in the scoring tests, never for real.
+# ---------------------------------------------------------------------------
+
+class TestClipWindowSegments:
+    def _setup_db(self, tmp_path):
+        from yuu_clip.db.models import Video, make_session
+        db_path = tmp_path / "test.db"
+        session = make_session(db_path)
+        v = Video(path=str(tmp_path / "v.mkv"), filename="v.mkv",
+                  status="done", duration_ms=600_000)
+        session.add(v)
+        session.flush()
+        return session, v
+
+    def _add_track(self, session, video_id, do_transcribe=True):
+        from yuu_clip.db.models import AudioTrack
+        track = AudioTrack(
+            video_id=video_id, stream_index=0, label="combined",
+            do_transcribe=do_transcribe, do_score=True, relevance_weight=1.0,
+        )
+        session.add(track)
+        session.flush()
+        return track
+
+    def _add_transcript(self, session, track_id, created_at, segments):
+        from yuu_clip.db.models import Transcript, TranscriptSegment
+        tx = Transcript(audio_track_id=track_id, model_name="base", created_at=created_at)
+        session.add(tx)
+        session.flush()
+        for start_ms, end_ms, text in segments:
+            session.add(TranscriptSegment(
+                transcript_id=tx.id, start_ms=start_ms, end_ms=end_ms, text=text,
+            ))
+        session.flush()
+        return tx
+
+    def test_segment_ending_at_window_start_is_excluded(self, tmp_path):
+        from datetime import datetime, timezone
+
+        from yuu_clip.segments.windower import clip_window_segments
+        session, v = self._setup_db(tmp_path)
+        track = self._add_track(session, v.id)
+        self._add_transcript(session, track.id, datetime.now(timezone.utc),
+                              [(0, 10_000, "before"), (10_000, 20_000, "inside")])
+        try:
+            result = clip_window_segments(v, 10_000, 20_000)
+        finally:
+            session.close()
+        assert [s.text for s in result] == ["inside"]
+
+    def test_segment_starting_at_window_end_is_excluded(self, tmp_path):
+        from datetime import datetime, timezone
+
+        from yuu_clip.segments.windower import clip_window_segments
+        session, v = self._setup_db(tmp_path)
+        track = self._add_track(session, v.id)
+        self._add_transcript(session, track.id, datetime.now(timezone.utc),
+                              [(0, 10_000, "inside"), (10_000, 20_000, "after")])
+        try:
+            result = clip_window_segments(v, 0, 10_000)
+        finally:
+            session.close()
+        assert [s.text for s in result] == ["inside"]
+
+    def test_partially_overlapping_segment_is_included(self, tmp_path):
+        from datetime import datetime, timezone
+
+        from yuu_clip.segments.windower import clip_window_segments
+        session, v = self._setup_db(tmp_path)
+        track = self._add_track(session, v.id)
+        self._add_transcript(session, track.id, datetime.now(timezone.utc),
+                              [(5_000, 15_000, "straddles")])
+        try:
+            result = clip_window_segments(v, 10_000, 20_000)
+        finally:
+            session.close()
+        assert [s.text for s in result] == ["straddles"]
+
+    def test_non_transcribable_track_is_ignored(self, tmp_path):
+        from datetime import datetime, timezone
+
+        from yuu_clip.segments.windower import clip_window_segments
+        session, v = self._setup_db(tmp_path)
+        track = self._add_track(session, v.id, do_transcribe=False)
+        self._add_transcript(session, track.id, datetime.now(timezone.utc),
+                              [(0, 10_000, "hidden")])
+        try:
+            result = clip_window_segments(v, 0, 10_000)
+        finally:
+            session.close()
+        assert result == []
+
+    def test_track_with_no_transcripts_is_ignored(self, tmp_path):
+        from yuu_clip.segments.windower import clip_window_segments
+        session, v = self._setup_db(tmp_path)
+        self._add_track(session, v.id)
+        try:
+            result = clip_window_segments(v, 0, 10_000)
+        finally:
+            session.close()
+        assert result == []
+
+    def test_uses_newest_transcript_per_track(self, tmp_path):
+        from datetime import datetime, timezone
+
+        from yuu_clip.segments.windower import clip_window_segments
+        session, v = self._setup_db(tmp_path)
+        track = self._add_track(session, v.id)
+        self._add_transcript(session, track.id, datetime(2024, 1, 1, tzinfo=timezone.utc),
+                              [(0, 10_000, "stale")])
+        self._add_transcript(session, track.id, datetime(2024, 6, 1, tzinfo=timezone.utc),
+                              [(0, 10_000, "current")])
+        try:
+            result = clip_window_segments(v, 0, 10_000)
+        finally:
+            session.close()
+        assert [s.text for s in result] == ["current"]
+
+    def test_segments_from_multiple_tracks_are_merged_and_sorted(self, tmp_path):
+        from datetime import datetime, timezone
+
+        from yuu_clip.segments.windower import clip_window_segments
+        session, v = self._setup_db(tmp_path)
+        track_a = self._add_track(session, v.id)
+        from yuu_clip.db.models import AudioTrack
+        track_b = AudioTrack(
+            video_id=v.id, stream_index=1, label="mic",
+            do_transcribe=True, do_score=True, relevance_weight=1.0,
+        )
+        session.add(track_b)
+        session.flush()
+        self._add_transcript(session, track_a.id, datetime.now(timezone.utc), [(5_000, 15_000, "b")])
+        self._add_transcript(session, track_b.id, datetime.now(timezone.utc), [(0, 5_000, "a")])
+        try:
+            result = clip_window_segments(v, 0, 15_000)
+        finally:
+            session.close()
+        assert [s.text for s in result] == ["a", "b"]
+
+
+# ---------------------------------------------------------------------------
 # _silence_window - tag content
 # ---------------------------------------------------------------------------
 

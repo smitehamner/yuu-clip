@@ -11,6 +11,287 @@ same thing without the context. Most recent first.
 
 ---
 
+## Phase 6 docs and comments - full-app review section 5, clip generation + export/reel (2026-07-26)
+
+Docs-and-comments phase over `segments/{windower,visual_windower,scene_segmenter,merge}.py`,
+`export/{render,naming,presets,paths,window}.py`, and `reel.py`. Grepped every `#` comment
+and docstring (~140 hits) before reading full files; no TODO/FIXME/XXX/HACK markers found.
+Zero changes made - every comment earns its place per Phases 1/4/5's own read-throughs, which
+already tightened this scope (Phase 4's refactor pass rewrote docstrings while extracting
+helpers; Phase 5's logging pass added summary logs, not comments). Nothing added, nothing
+deleted, nothing rewritten.
+
+### Verified: reel.py's `_segment_start_times`/`_build_xfade_cmd` docstrings are accurate and current
+The one comment this section flagged as load-bearing going in. `_segment_start_times`
+(reel.py:562) states plainly: "This is the single source of that offset:
+`_build_xfade_cmd` feeds these same values to ffmpeg as the xfade offsets, and the
+burned-in caption timeline is shifted by them - computing the clamp in two places is
+exactly what drifted the captions before." `_build_xfade_cmd`'s inline comment
+(reel.py:309-311) points back the same way ("`_segment_start_times` is the single
+source of this clamp so the burned-in caption timeline... can never drift from the
+video"). Both match the actual code post-Phase-4 (the xfade builder calls the helper,
+no duplicated formula remains) - no stale pre-refactor wording survived. No edit needed.
+
+### Terminology check: `scene_segmenter.py`'s "LLM transcript-segmentation generator" is not a glossary violation
+`GLOSSARY.md` bans "segmentation" only in **user-facing text** for the "Clip generation"
+concept (`generate_candidates()`); this is an internal module docstring describing a
+different feature entirely (LLM scene-boundary proposal, `kind='scene'` rows), and the
+module's own filename already uses `segmenter` as a code identifier. Not a drift case -
+left as-is.
+
+### Confirmed clean, no findings: every other file in scope
+`segments/windower.py`, `visual_windower.py`, `merge.py`; `export/naming.py`,
+`presets.py`, `paths.py`, `window.py`; the rest of `render.py` and `reel.py`. Every
+comment either explains a non-obvious WHY (algorithm choice, ffmpeg pitfall, a
+drifted-behavior warning) or documents a real external constraint (libass PlayRes,
+ffmpeg timebase mismatches, the concat demuxer's quote-escaping, Windows drive-letter
+colons). No restatement-of-code, no reactive/apology comments, no obsolete text. The
+top-of-file `# Feature-map - Export: ...` header comments on `paths.py`/`window.py` are
+a real, widespread codebase convention (present in ~20+ modules across `web/routes/`
+and elsewhere) - not an orphaned annotation style, so left untouched.
+
+---
+
+## Phase 5 logging - full-app review section 5, clip generation + export/reel (2026-07-26)
+
+Logging-coverage phase over `segments/{windower,visual_windower,scene_segmenter,merge}.py`,
+`export/{render,naming,presets,paths,window}.py`, and `reel.py`. Grep-first survey (every
+`logger.`/`log.`/`print(` call plus every bare `except`) then full reads of the files with
+zero or thin logging. Section 1's Phase 5 pass had already spot-checked `render.py` and
+explicitly deferred a deeper look here ("will fall under whichever later review section
+covers export/") - this phase is that follow-up. `yuu-dev test-api` 3436 passed after
+(3427 baseline + 9 new), lint clean, 0 new mypy errors.
+
+### Applied
+- **render.py: `_finalize_export`'s `except (RuntimeError, ValueError)` now logs
+  `exc_info=True`.** The `try` spans several distinct ffmpeg-touching calls
+  (`export_clip`/`export_clip_with_preset`, `_apply_title_card`'s concat, plus
+  `_record_clip_export`/`session.commit()`); the message alone couldn't tell a log
+  reader which one raised. The traceback now does.
+- **render.py: `run_retranscribe`'s per-track loop (ffmpeg segment extraction +
+  `transcriber.transcribe`) now has a `try/except Exception: log.error(...,
+  exc_info=True); raise` wrapper.** Previously a failure here (a corrupt extracted
+  WAV, a `run_ffmpeg` failure, a transcriber crash) propagated as a bare unhandled
+  exception with no `log.error` pairing at all - every other failure path in this
+  file (and the codebase's established convention per Section 1's Phase 5 entry:
+  "every stage that can fail already pairs a user-facing console.print with a
+  log.exception/log.error/log.warning carrying context") already does this; this
+  path was the one gap. Re-raises unchanged, so this is a pure logging addition,
+  not a behavior change.
+- **reel.py: `compile_demo`'s `try` now starts before `_resolve_clip_files`, not
+  after.** The missing-export `FileNotFoundError` (by far the most common
+  real-world reel-build failure - a clip in the pool was never exported) used to
+  raise outside the function's own `except Exception: _log.error(...,
+  exc_info=True)` block, so only the generic outer `subprocess_sse` layer (exit
+  code + last output line) recorded it. Now every reel-build failure mode goes
+  through the same structured, clip/output-context-carrying log path.
+- **reel.py: swapped `logging.getLogger(__name__)` for the project's
+  `yuu_clip.log.get_logger(__name__)`** - functionally identical (the module name
+  already starts with `yuu_clip.`) but matches every sibling file in this section
+  and the convention documented in `log.py`'s own module docstring.
+- **naming.py: `export_base_stem`'s silent `except (KeyError, IndexError,
+  ValueError): stem = _default_stem(...)` now logs a `warning`** with the template,
+  clip id, and the caught exception before falling back. The fallback behavior
+  itself is an intentional, documented contract (a stale/hand-edited template
+  must not break an export) - Phase 4's refactor pass explicitly kept this
+  function as-is for that reason - but the *silence* was the gap: a user whose
+  custom filename template silently stopped applying (every export/lookup
+  quietly reverting to the default stem) had no way to find out from the log.
+  Since `validate_export_name_template` gates every template on save, this should
+  only ever fire for a hand-edited config - not a hot path, not spam.
+- **segments/visual_windower.py + segments/merge.py: added the same one-line INFO
+  summary `generate_candidates`/`generate_scenes` already use** -
+  `generate_visual_candidates` logs motion/scene-cut counts -> candidate count
+  (plus an explicit "no motion/scene data" line on the early-empty return);
+  `merge_candidates` logs visual-candidate count -> kept count, broken down by
+  how many were deduped against transcript clips vs. capped. Both functions only
+  run when `visual_candidate_mode` is `gaps`/`parallel` (opt-in, off by default),
+  so this cannot spam a default install; it closes an inconsistency where every
+  sibling candidate-generation function already summarized its output and these
+  two didn't - a real "why did I get 0/too-few visual highlights" question these
+  make answerable without a code reread.
+
+### Confirmed and deliberately left as-is - do not re-flag
+- **`export/render.py`'s and `reel.py`'s `console.print`/`print()` calls carry no
+  parallel `log.info`/`log.debug` call, by design** - both files' own module
+  docstrings say the prints ARE the SSE interface the web UI streams
+  (`render.py`: "these functions print progress to the shared console - that
+  stdout IS the interface the web UI streams over SSE, so the prints stay here
+  rather than being lifted into the command layer"). `web/sse.py`'s
+  `subprocess_sse` (out of this section's scope) already forwards every stdout
+  line to the file log at `debug` and logs the full command + exit code at
+  `error` on a non-zero exit, so nothing here is actually unlogged in production -
+  it just isn't logged from inside these two files a second time. Do not propose
+  converting these prints to `log.*` calls; that would fight a decision already
+  written into the code.
+- **`export/presets.py`, `export/paths.py`, `export/window.py` carry no logging -
+  confirmed not a gap.** These are pure validation/lookup/arithmetic modules; every
+  failure path raises a `ValueError`/`HTTPException` with a plain-English message
+  straight to the caller (a route or the CLI), which is the correct place for it
+  to surface - there is no "silent" failure here to make diagnosable, and adding
+  logging would either duplicate the route's own error response or log an
+  ordinary user-input-validation rejection at a level that would look like a
+  production error. Matches this doc's own guidance elsewhere in this section
+  against logging expected-validation failures at `error`.
+- **`segments/windower.py` and `segments/scene_segmenter.py` already had adequate
+  logging coming in** - both log a one-line INFO summary per call
+  (candidates/scenes generated, with the relevant counts) and the LLM-boundary
+  per-chunk failure in `scene_segmenter.py` is a `warning` with the chunk skipped,
+  not spam (chunks are few per recording). Nothing added.
+- **The `run_ffmpeg`/`find_ffmpeg` choke point (`ffmpeg_tools.py`) not logging the
+  failing command's args is out of this section's scope, not fixed here.**
+  `run_ffmpeg`'s `RuntimeError` carries the tool name and ffmpeg's stderr but not
+  the argument list that was run - real for `render.py`'s and `reel.py`'s several
+  distinct call sites (title card render, WAV segment extract, concat, xfade), but
+  `ffmpeg_tools.py` itself belongs to no section's file list here. The in-scope
+  mitigation applied this phase (exc_info=True / widened try blocks) makes the
+  *traceback* identify which call site raised even without the args in the
+  message; a args-in-the-RuntimeError fix, if wanted, is a `ffmpeg_tools.py`
+  change for whichever section (if any) claims that file.
+
+---
+
+## Phase 4 refactor - full-app review section 5, clip generation + export/reel (2026-07-26)
+
+Refactor-for-quality phase over `segments/{windower,visual_windower,scene_segmenter,
+merge}.py`, `export/{render,naming,presets,paths,window}.py`, and `reel.py`. Structural
+survey (function-length heat map + duplication-signature grep) then full reads of the two
+highest-value files (`reel.py`, `render.py`) plus the flagged candidates. Three
+behavior-preserving refactors applied; suite stayed at 3427 passed before and after, lint
+clean, 0 new mypy errors.
+
+### Applied - three refactors
+1. **reel.py: made `_segment_start_times` the single source of the xfade-offset clamp.**
+   `_build_xfade_cmd` previously recomputed `max(0, cumulative - (i+1)*trans_dur)` inline
+   (its own `cumulative` accumulator), the exact formula `_segment_start_times` computes
+   for the caption timeline - and Phase 2's just-fixed bug was these two drifting.
+   `_build_xfade_cmd` now calls `_segment_start_times(durations, trans_dur)` and indexes
+   `segment_starts[i+1]` per cut, so divergence is now structurally impossible, not merely
+   tested against. Values are byte-identical; `test_matches_build_xfade_cmd_offsets` and
+   the caption-timeline tests still pass. Docstrings on both functions updated to name the
+   single-source relationship.
+2. **paths.py: `all_sidecar_paths` now delegates SRT collection to `srt_sidecar_paths`.**
+   Both functions inlined the identical glob-escape-stem + merged-`{stem}.srt`-existence
+   logic (a real drift risk if sidecar naming ever changed). `all_sidecar_paths` is now
+   `[*export_paths(...), *srt_sidecar_paths(...)]`. Same output; paths.py's full Phase-3
+   coverage guards it.
+3. **render.py: extracted `_export_settings_dict` out of the ~95-line `_finalize_export`.**
+   The clip_exports-row settings JSON build (caption-style + preset-encode fields) was a
+   pure ~22-line block inside the orchestrator; it is now a pure, directly-testable helper,
+   shrinking `_finalize_export` and giving the settings-shape logic a unit seam it lacked
+   (the Phase-3 deferred-coverage gap on this function). Pure move, no behavior change.
+
+### Keep as-is: `windower.py::_silence_window` (~83 lines) - not decomposed
+Decision: Keep the segment-grouping state machine as one function.
+Rationale: it is a single cohesive concern (group merged transcript segments into windows
+by silence gaps / hard splits) built around a `_flush` closure that mutates the window
+accumulators (`win_start/win_end/win_segs/win_tags/dropped_low_speech`) via `nonlocal`.
+The line count is high but the alternative - threading that mutable window state through
+extracted helpers - would scatter one algorithm across several functions and args for no
+legibility gain. The one subtle invariant (each start computed from the true running
+total) lives with the code that needs it. Below the decompose-for-clarity bar despite the
+length. Do not re-flag on line count alone.
+
+### Keep as-is: `render.py::_finalize_export`'s cut-dispatch branch - kept inline
+Decision: Keep the `preset is not None` -> `export_clip_with_preset` vs `export_clip`
+branch (render.py, inside `_finalize_export`'s `try`) inline rather than extracting a
+`_run_cut(...)` helper.
+Rationale: after the `_export_settings_dict` extraction the function is materially shorter,
+and the cut branch's ~10 collaborators (video_path, start/end_ms, clip_dest, preset,
+subtitle paths, audio index, caption_style, crop_x, precise/title_card) are all live local
+state; extracting it would relocate a wall of kwargs without reducing coupling or improving
+legibility. The two encode paths already have their own direct behavior tests
+(`test_export_presets.py`'s real encode; `TestRenderExport`'s wiring assertions per the
+Phase-1 keep entry below). Not worth a diff; revisit only if a third cut path appears.
+
+### Clean coming in - no change: naming.py, presets.py, merge.py, scene_segmenter.py, visual_windower.py, export/window.py
+Read for the 30-line / duplication / one-concern standards; all already conform.
+`naming.py::export_base_stem` is long but is a flat placeholder-by-placeholder render with
+a documented fallback contract (one concern). `merge.py::_covered_fraction`'s interval-union
+sweep and `scene_segmenter`/`visual_windower`'s grouping helpers are each single-concern and
+under the size bar. No refactor warranted.
+
+---
+
+## Phase 1 test integrity - full-app review section 5, clip generation + export/reel (2026-07-26)
+
+Test-integrity phase over `segments/{windower,visual_windower,scene_segmenter,merge}.py`
+and `export/{render,naming,presets,paths,window}.py` + `reel.py`, and their tests
+(`tests/unit/test_{windower,visual_windower,merge,scene_segmenter,segments,export,
+export_presets,export_naming,export_sidecar_glob,reel,title_card}.py`,
+`tests/integration/test_{segments,clip_create,export_presets}.py`). Baseline was
+green (3388 passed) before and after. One real gap found and fixed; one item
+resolved (not deferred a second time); everything else was clean coming in.
+
+### Fixed: `tests/unit/test_title_card.py`'s real-ffmpeg tests ran unconditionally in the unit tier
+6 tests (`test_title_card_simple` and siblings) plus `test_fontfile_single_quoted_escaped_colon`
+called `_make_title_card`/a raw `subprocess.run` against real ffmpeg with no
+`skipif(shutil.which("ffmpeg") is None, ...)` guard, unlike the established
+`requires_ffmpeg` pattern this codebase already uses for exactly this case
+(`tests/integration/test_export_presets.py::TestPresetEncodeIntegration`). Per
+CLAUDE.md's tier rule ("tests/unit must pass offline regardless of machine
+state... a test that needs real OS state belongs in tests/integration"), these
+would fail with a confusing subprocess error (not a clean skip) on any machine
+without ffmpeg on PATH. Split the file the same way `test_export_presets.py`
+already is: the real-encode tests moved to a new `tests/integration/test_title_card.py`
+with the `requires_ffmpeg` guard; `tests/unit/test_title_card.py` keeps only the
+pure (`_esc`, `title_card_lines`) and mocked-ffmpeg (`TestMakeTitleCardCommandConstruction`,
+`TestApplyTitleCardThreadsConfig`, `TestBuildSegmentListThreadsConfig`) tests. Same
+27 tests total, same assertions - a pure re-tiering, not a rewrite. Verified with
+`yuu-dev lint` (clean) and running both split files directly (27 passed).
+
+### Resolved (not deferred again): `TestRenderExport`'s call-count-only mocking is the right shape
+Section 1 flagged this as a human-decision item pending render.py coming into
+scope. Read `render_export` (export/render.py:53-107) directly: it is a pure
+7-collaborator orchestrator (retranscribe gate -> path resolve -> caption-style
+resolve -> subtitle staging -> finalize/cut -> sidecar emission) whose own
+docstring says the CLI "shrinks to arg-parsing plus one call here, so the sequence
+has a seam callers and tests can reach without CliRunner+ffmpeg" - i.e. its entire
+job IS the wiring, not the ffmpeg work. Decision: keep `TestRenderExport`'s
+call-count assertions as-is; this is the correct granularity for an orchestrator,
+not over-mocking of a too-coupled unit. Rationale, each checked directly:
+1. Every mocked collaborator has its own direct behavior test in the same file or
+   nearby: `_write_export_subs` -> `TestWriteExportSubs`, `_resolve_caption_style`
+   -> `TestResolveCaptionStyleWordHighlight`, `_build_export_path`'s naming ->
+   `TestExportBaseStemPreset`, `run_retranscribe`'s diarization sub-call ->
+   `test_diarization.py::TestRetranscribeDiarization` (already reviewed under
+   Section 2, since `_maybe_diarize_segment` is a diarization orchestration call
+   site per that file's own docstring).
+2. The real end-to-end path (real ffmpeg, no mocks) IS exercised: `render_export`
+   itself is called for real in `tests/system/conftest.py` (the system tier's
+   fixture), and `export_clip_with_preset`'s real encode is covered by
+   `tests/integration/test_export_presets.py::TestPresetEncodeIntegration`.
+No test change made. Do not re-flag `TestRenderExport`'s mocking as a gap without
+new information (e.g. a bug this level of test would have caught but didn't).
+
+### `TestVerifyExportDuration`'s tolerance-boundary coverage gap is out of this section's scope
+Confirmed by reading the import: `TestVerifyExportDuration` (`tests/unit/test_export.py:440`)
+tests `yuu_clip.analyze.extract._verify_export_duration`, not anything in
+`export/render.py` or `export/window.py` - that function lives in `analyze/extract.py`,
+Section 1/2's module, not Section 5's. The coverage gap Section 1 flagged (no test
+pinning `_DURATION_TOLERANCE_FLOOR_S`/`_DURATION_TOLERANCE_FRACTION`'s exact boundary)
+stands as a Phase 3 (coverage-review) item for whichever section owns `extract.py`,
+not this one - left untouched here.
+
+### Scope-boundary check: which `tests/unit/test_export.py` classes are this section's vs. Section 1/2's vs. Section 8/9's
+`test_export.py` (1013 lines) is genuinely shared three ways by import target, not
+just by filename - verified every class's own `from yuu_clip...import` line rather
+than guessing from names. In scope here (export/render.py, export/window.py,
+export/naming.py, reel.py): `TestWriteExportSubs`, `TestRenderExport`,
+`TestResolveCaptionStyleWordHighlight`, `TestComputeExportWindow`,
+`TestEmptyTrimWindow`, `TestReelEsc`, `TestBuildXfadeCmd`, `TestResolveClipFiles`,
+`TestRefreshCaptionSidecars`, `TestExportBaseStemPreset`. Out of scope (import
+`yuu_clip.analyze.extract` - Section 1/2's `_build_clip_cmd`/`_subtitles_filter`/
+`_preset_video_filter`/`_verify_export_duration`/`_ffmpeg_path`/`export_clip`, or
+`yuu_clip.web.*` - Section 8/9's route/media/file-deletion layer):
+`TestBuildClipCmdOrdering`, `TestSubtitlesFilter`, `TestCaptionStyleInExportCmd`,
+`TestVerticalCropFilter`, `TestVerifyExportDuration`, `TestFfmpegPath`,
+`TestExportClipPublicApiCommand`, `TestShareDeleteMediaServing`, `TestUnlinkWithRetry`,
+`TestLockedFilesError`, `TestRunExportSubprocessCleanup`. Recorded so a future pass
+over this file doesn't need to re-derive the split from scratch.
+
+---
+
 ## Phase 6 docs and comments - full-app review section 4, scoring - LLM backend (2026-07-26)
 
 Docs-and-comments phase over `scoring/{llm,llm_client,llamacpp_server,describe_basic}.py`.
