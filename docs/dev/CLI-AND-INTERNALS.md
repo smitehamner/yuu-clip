@@ -43,8 +43,10 @@ Full end-to-end pipeline from raw video to scored clips.
 3. **Extract audio** - FFmpeg -> 16-bit mono WAV at 16 kHz per track
 4. **Overlap detection** - RMS correlation; suppress specialized tracks that duplicate the combined track
 5. **Transcribe** - Whisper on each eligible track; suppress near-duplicate transcripts
-6. **Generate clips** - Sliding-window segmentation aligned to transcript word boundaries (30-120 s windows, 15 s stride)
-7. **Score** - Audio energy, scene detection, LLM scoring (see Scoring internals below)
+6. **Detect speakers** - diarization (when enabled): cluster voices and attach durable per-recording Speakers
+7. **Generate clips** - Sliding-window segmentation aligned to transcript word boundaries (30-120 s windows, 15 s stride)
+8. **Summarize** - one LLM pass over the transcript for a title + session summary (when scoring is on)
+9. **Score** - Audio energy, scene detection, LLM scoring (see Scoring internals below)
 
 End-to-end timing estimates by video length, model, and device are in
 [../user/PERFORMANCE.md](../user/PERFORMANCE.md#analysis-time-estimates).

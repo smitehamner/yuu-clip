@@ -155,7 +155,7 @@ the Python byte-pump. This path does not exist in browser-dev mode.
 |----|-----|-------|------|
 | [UC-G01](../USE_CASES.md#uc-g01---back-up-and-restore-a-project) | P1 | Back up downloads a small `.zip` (no source videos/exports/proxies); restore into a folder rebuilds the project; moved-source relink lets clips play; blank folders stay marked missing. | [ ] |
 | [UC-G02](../USE_CASES.md#uc-g02---confirmations-log-download-status-notification-sounds) | P2 | Delete/cancel use the in-app modal; Download Log is non-empty + username-redacted; opted-in notification sound fires on completion. | [ ] |
-| [UC-G03](../USE_CASES.md#uc-g03---desktop-shell-lifecycle-packaged) | P0 | Re-run Setup Wizard preserves config; Reveal-in-folder opens Explorer; quit leaves NO orphan `python.exe` / `llama-server.exe` (Task Manager); clean relaunch skips the wizard; schema-advancing update opens the wizard in `update` mode. Step detail: H1-H6 and I1-I2 below. | [ ] |
+| [UC-G03](../USE_CASES.md#uc-g03---desktop-shell-lifecycle-packaged) | P0 | Re-run Setup Wizard preserves config; Reveal-in-folder opens Explorer; quit leaves NO orphan `python.exe` / `llama-server.exe` / `ffmpeg.exe` (Task Manager); clean relaunch skips the wizard; schema-advancing update opens the wizard in `update` mode. Step detail: H1-H6 and I1-I2 below. | [ ] |
 
 #### UC-G03 detail: Desktop-shell lifecycle (H1-H6)
 
@@ -165,7 +165,7 @@ the Python byte-pump. This path does not exist in browser-dev mode.
 | H2 | Re-run Setup Wizard | Wizard reopens in a re-run flow; existing config is preserved unless changed |
 | H3 | Reveal-in-folder on an export | Opens the OS file explorer at the file (Windows) |
 | H4 | Download Log from the menu | A non-empty log file downloads |
-| H5 | Quit while a job is running | App confirms / cancels cleanly; no orphaned `python.exe` / `llama-server.exe` left behind (check Task Manager) |
+| H5 | Quit while a job is running (incl. mid preview-generation) | App confirms / cancels cleanly; no orphaned `python.exe` / `llama-server.exe` / `ffmpeg.exe` left behind (the quit path tree-kills the backend so its ffmpeg children die too) (check Task Manager) |
 | H6 | Relaunch after a clean quit | Opens straight to the main UI (no wizard - not first-run) |
 
 #### UC-G03 detail: Update path (I1-I2)
@@ -201,6 +201,7 @@ during the same run.
 |---|------|----------|
 | G1 | On an NVIDIA machine, the wizard "cuda-libs" opt-in | Selecting it fetches the CUDA libs; Whisper then runs on GPU |
 | G2 | On a non-NVIDIA / no-GPU machine | Whisper stays on CPU; no crash, no dangling CUDA prompt |
+| G3 | Install a newer build over one that had cuda-libs enabled | The venv-setup window shows "Restoring GPU acceleration for transcription..."; the Setup Warnings chip stays clear afterward (the opt-in libs are reinstalled into the fresh venv, not silently wiped). Offline: falls back to the chip's one-click reinstall rather than blocking launch |
 
 ---
 

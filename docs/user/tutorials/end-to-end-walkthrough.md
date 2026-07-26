@@ -37,7 +37,7 @@ Nothing works yet - there's no data. Let's fix that.
 
 4. **Pick a track layout.** If you haven't created one yet, the default layout will be selected. A track layout tells the app which audio tracks to transcribe - for most recordings there's only one relevant track (your microphone), but OBS sometimes captures game audio separately, and you want to skip that.
 
-5. Click **Start Analysis**. The panel closes and the header shows a row of step chips: `Extract → Transcribe → Generate Clips → Energy → Scene cuts → Score`. These advance as each stage finishes.
+5. Click **Start Analysis**. The panel closes and the header shows a row of step chips: `Extract → Transcribe → Generate Clips → Summarize → Energy → Scene cuts → Score`. These advance as each stage finishes.
 
 6. Wait. Whisper is doing the heavy lifting here. The time estimate from step 2 is your rough guide. The app keeps working in the background - you can leave the tab open and do something else.
 

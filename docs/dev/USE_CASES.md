@@ -96,7 +96,7 @@ A one-glance "what to walk before public" list is in the final section.
   2. Browse to / paste a file path; wait for inspection (duration, track list, per-step time estimate).
   3. Pick a Whisper model and a track layout; optionally assign world contexts, choose a captions source (skip STT with an SRT), or expand Advanced (scene mode, energy mode, speaker labels).
   4. Click Start Analysis.
-  5. Watch the header step pills advance: Extract -> Transcribe -> (Detect speakers) -> Generate Clips -> Energy -> Scene cuts -> Score.
+  5. Watch the header step pills advance: Extract -> Transcribe -> (Detect speakers) -> Generate Clips -> Summarize -> Energy -> Scene cuts -> Score.
   6. Try `+ New Recording` again mid-run.
 - **Expected:** estimate updates when model/layout change; on start the panel closes and pills advance in step with real progress; the recording appears in the sidebar immediately with a live stage spinner and survives a page refresh; a second analyze is blocked with a clear "another job is running" message; on completion the pills clear and clips are listed.
 - **Automation:** automated (drive the real `cli/_pipeline` analyze path against the fixture with Whisper + LLM stubbed) / golden (real models on a spoken clip).
@@ -410,7 +410,7 @@ A one-glance "what to walk before public" list is in the final section.
   2. Reveal-in-folder on an export; OS explorer opens at the file.
   3. Quit while a job is running; then quit cleanly and relaunch.
   4. Install a newer build (schema advanced vs same schema).
-- **Expected:** quit confirms/cancels cleanly and leaves NO orphan `python.exe` / `llama-server.exe` (check Task Manager); relaunch after a clean quit opens straight to the main UI (no wizard); a schema-advancing update opens the wizard in `update` mode preserving project/config; a same-schema bump goes straight to the app.
+- **Expected:** quit confirms/cancels cleanly and leaves NO orphan `python.exe` / `llama-server.exe` / `ffmpeg.exe` (check Task Manager - the Windows quit path tree-kills the backend so its ffmpeg children die too; e.g. quitting mid preview-generation); relaunch after a clean quit opens straight to the main UI (no wizard); a schema-advancing update opens the wizard in `update` mode preserving project/config; a same-schema bump goes straight to the app.
 - **Automation:** manual-only; the Electron smoke test (Stage 5, `electron/test/smoke.test.js`, opt-in `YUU_SMOKE=1`) asserts boot + `/api/status` + the UI document + clean shutdown / no orphan python. It cannot cover the update-mode wizard, Reveal-in-folder, or native playback - those stay a human walk.
 - **Coverage:** installed-app-checklist.md, UC-G03 lifecycle + update detail (steps H1-H6, I1-I2); electron smoke test electron/test/smoke.test.js (opt-in boot + no-orphan-python backstop).
 - **Pre-release priority:** P0 - orphaned processes are the packaging failure mode no pytest suite can catch.

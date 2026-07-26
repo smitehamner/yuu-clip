@@ -37,7 +37,7 @@ Most lookups only need this table: the authoritative user-facing term, the code 
 | Track role | `label` | Semantic function: Player Voice / Voice Chat / Game Sounds / Combined / Unlabeled |
 | Track layout | `profile` | Saved template mapping track positions to roles |
 | Analyze | `ingest`, `run_ingest()` | End-to-end pipeline run - never "ingest" in UI |
-| Pipeline stage | `step` | Inspect → Assign Tracks → Extract → Transcribe → Detect Speakers → Generate Clips → Score |
+| Pipeline stage | `step` | Inspect → Assign Tracks → Extract → Transcribe → Detect Speakers → Generate Clips → Summarize → Score |
 | Inspect | `probe()` | Read recording metadata - never "probe" in UI |
 | Extract | `extract_audio()` | Track → WAV conversion (internal stage) |
 | Re-score | `score`, `/api/score` | Re-run scoring only |
@@ -288,8 +288,8 @@ One step in the ingest process. Displayed as step pills in the UI (gray → blue
 | 7 | **Score** | Evaluate all clip candidates |
 
 - **Code:** `step` (in SSE progress messages)
-- **UI label:** step pill text - matches stage names above (Extract / Transcribe / Speakers / Generate Clips / Energy / Scene cuts / Score)
-- **Notes:** **Detect Speakers** is its own stage (a distinct "Speakers" step pill), split out of Transcribe so the slow diarization pass doesn't look like a hung transcription. It is skipped entirely when the diarization backend is `null`. The **Scene cuts** pill (code `stage: 'scenes'`) is the detected shot-boundary marker, not the `kind='scene'` clip-candidate type - see [Disambiguation](#disambiguation).
+- **UI label:** step pill text - matches stage names above (Extract / Transcribe / Speakers / Generate Clips / Summarize / Energy / Scene cuts / Score)
+- **Notes:** **Detect Speakers** is its own stage (a distinct "Speakers" step pill), split out of Transcribe so the slow diarization pass doesn't look like a hung transcription. It is skipped entirely when the diarization backend is `null`. **Summarize** is likewise its own step pill (the title + session-summary LLM pass), between Generate Clips and Score; it is skipped when scoring is off or there is no transcript. The **Scene cuts** pill (code `stage: 'scenes'`) is the detected shot-boundary marker, not the `kind='scene'` clip-candidate type - see [Disambiguation](#disambiguation).
 
 ---
 

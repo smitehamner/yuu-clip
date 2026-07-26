@@ -97,23 +97,22 @@ except the two items below).
   (`PROGRESS-CANCEL-GAP-2026-07-20.md`). Fix the whole set together, not timeline alone.
   **Baseline rule (owner, 2026-07-20): every long-running progress/loading indicator must show at
   minimum the elapsed time since the process started** - a bare spinner reads as hung. Two instances
-  were fixed on report: the post-analysis "Preparing preview" warm-up now shows the encode % + elapsed
-  (it discarded the proxy encoder's SSE lines), and the YouTube/Twitch download percentage now streams
-  live (it was block-buffered in the raw-`print` import subprocess). Apply the same elapsed-time-minimum
-  when wiring the remaining event-loop jobs above.
+  were fixed on report: the on-demand 720p-preview build now shows the encode % + elapsed (it discarded
+  the proxy encoder's SSE lines; the post-analysis auto warm-up that first surfaced this was later removed
+  entirely per owner request, so only the manual "Build 720p preview" build remains), and the
+  YouTube/Twitch download percentage now streams live (it was block-buffered in the raw-`print` import
+  subprocess). Apply the same elapsed-time-minimum when wiring the remaining event-loop jobs above.
 
-- [ ] **CUDA libs (opt-in transcription GPU acceleration) don't survive an app
-  upgrade** - found 2026-07-25 during the 0.1.29 upgrade-install manual check.
-  Every version bump re-extracts the whole prebuilt venv (`prebuilt-env.js`
-  `decidePrebuiltEnvAction` -> `extract`), and `nvidia-cublas-cu12`/
-  `nvidia-cudnn-cu12` are pip-installed inside that venv by the "Enable GPU
-  acceleration" flow, so they're wiped on every upgrade with nothing reinstalling
-  them. Not a silent-data-loss bug - `gpustatus.js`'s Setup Warnings chip already
-  detects and surfaces the missing-libs state with a one-click reinstall - but it
-  means anyone who opted in re-pays a ~1 GB download every release. Proposed fix
-  (persist across upgrades, mirroring the already-fixed `.gguf` model-persistence
-  case) and full root-cause detail in the private planning workspace,
-  `CUDA-LIBS-LOST-ON-UPGRADE-2026-07-25.md`.
+- [x] **CUDA libs (opt-in transcription GPU acceleration) survive an app upgrade**
+  - fixed 2026-07-26. Every version bump re-extracts the whole prebuilt venv
+  (`prebuilt-env.js` `decidePrebuiltEnvAction` -> `extract`), which used to wipe the
+  `nvidia-cublas-cu12`/`nvidia-cudnn-cu12` libs the "Enable GPU acceleration" flow
+  pip-installs inside it - so anyone who opted in re-paid a ~1 GB download every
+  release. Now `extractPrebuiltEnv` (`electron/main.js`) probes for the libs before
+  the wipe and `restoreVenvExtrasAfterExtract` reinstalls them into the fresh venv
+  with visible progress; a network failure falls back to the existing Setup Warnings
+  chip rather than blocking launch. Still needs one real packaged-upgrade run to
+  field-confirm (build over a cuda-enabled install).
 
 - [ ] **Hoist repeated inline `style="..."` in the index.html partials into `app.css`
   classes (opportunistic)** - the WS-E split made `index.html` a stitch of

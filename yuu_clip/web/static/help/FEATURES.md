@@ -142,7 +142,7 @@ The time estimate panel breaks down expected wall-clock cost per step and warns 
 
 ### Job progress indicator
 
-Step pills in the header: Extract -> Transcribe -> Generate Clips -> Energy -> Scene cuts -> Score. Each pill is gray (pending) -> blue (active) -> green (done). A cancel button is visible during analysis; it stops the run and marks the job cancelled.
+Step pills in the header: Extract -> Transcribe -> Generate Clips -> Summarize -> Energy -> Scene cuts -> Score. Each pill is gray (pending) -> blue (active) -> green (done). A cancel button is visible during analysis; it stops the run and marks the job cancelled.
 
 ### Track layout manager
 
