@@ -241,7 +241,14 @@ class EmbeddingsBackend:
         # scoring path where a first-use fetch is expected.
         try:
             import fastembed  # noqa: F401
-        except ImportError:
+        except Exception as exc:
+            # fastembed wraps onnxruntime, a compiled dependency, so a broken or
+            # partial install can raise OSError (Windows DLL load failure) or
+            # RuntimeError (version mismatch), not only ImportError. This probe is
+            # called directly from route handlers (routes/llm.py, make_backend()'s
+            # callers in routes/scoring.py) with no surrounding try/except, so it
+            # must report unavailable rather than let the failure 500 the route.
+            log.warning("EmbeddingsBackend: fastembed import failed (%s)", exc)
             return False, (
                 "the embeddings engine needs the fastembed package - this should be "
                 "bundled with yuu-clip, so try reinstalling if this persists"

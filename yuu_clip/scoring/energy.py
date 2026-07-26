@@ -65,8 +65,11 @@ def compute_energy(track: "AudioTrack", session: "Session", energy_mode: str = "
     try:
         import av  # noqa: F401
         import numpy as np  # noqa: F401
-    except ImportError:
-        log.warning("av or numpy not available - cannot compute audio energy")
+    except Exception as exc:
+        # PyAV wraps compiled ffmpeg libraries, so a broken install can raise OSError
+        # (DLL load failure), not only ImportError - degrade to "no energy" rather
+        # than letting the pre-computation pass crash the whole analyze run.
+        log.warning("av or numpy unavailable - cannot compute audio energy: %s", exc)
         return 0
 
     downsample_factor = _ENERGY_DOWNSAMPLE.get(energy_mode, 4)
@@ -185,7 +188,11 @@ class AudioEnergyScorer:
             import av  # noqa: F401
             import numpy  # noqa: F401
             return True
-        except ImportError:
+        except Exception as exc:
+            # PyAV wraps compiled ffmpeg libraries, so a broken install can raise
+            # OSError (DLL load failure), not only ImportError - this probe runs
+            # inside ScoringEngine.__init__ and must not crash scorer-set construction.
+            log.warning("AudioEnergyScorer: av or numpy unavailable (%s)", exc)
             return False
 
     def score(self, clip: "ClipCandidate", session: "Session") -> ScoreResult:

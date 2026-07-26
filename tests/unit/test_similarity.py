@@ -1,6 +1,8 @@
 """Tiered similarity engine (scoring/similarity.py) - plan non-llm-tiers/01."""
 from __future__ import annotations
 
+import builtins
+import contextlib
 import sys
 import unittest.mock as mock
 
@@ -9,6 +11,23 @@ from yuu_clip.config import Config
 
 def _cfg(**overrides) -> Config:
     return Config(**overrides)
+
+
+@contextlib.contextmanager
+def _import_raising(module_name: str, error: Exception):
+    """Force ``import <module_name>`` to raise *error*, delegating every other import
+    to the real machinery. Simulates a compiled dependency whose native libraries
+    fail to load (OSError/RuntimeError), which ``import`` surfaces as a non-ImportError."""
+    real_import = builtins.__import__
+
+    def fake_import(name, *args, **kwargs):
+        if name == module_name:
+            raise error
+        return real_import(name, *args, **kwargs)
+
+    with mock.patch.object(builtins, "__import__", fake_import):
+        sys.modules.pop(module_name, None)
+        yield
 
 
 # ── TfidfBackend ──────────────────────────────────────────────────────────────
@@ -149,6 +168,20 @@ class TestMakeBackend:
         from yuu_clip.scoring.similarity import TfidfBackend, make_backend
         with mock.patch.dict(sys.modules, {"fastembed": None}):
             assert isinstance(make_backend(_cfg()), TfidfBackend)
+            assert isinstance(make_backend(_cfg(similarity_backend="embeddings")), TfidfBackend)
+
+    def test_falls_back_to_tfidf_when_fastembed_import_raises_non_importerror(self):
+        # fastembed wraps onnxruntime, a compiled dependency: a broken/partial
+        # install can raise OSError (Windows DLL load failure) or RuntimeError
+        # (version mismatch), not only ImportError. available() is called directly
+        # from route handlers with no surrounding try/except (routes/llm.py's
+        # _similarity_tier, and make_backend()'s callers in routes/scoring.py), so
+        # it must degrade to unavailable rather than let the failure 500 the route.
+        from yuu_clip.scoring.similarity import EmbeddingsBackend, TfidfBackend, make_backend
+        with _import_raising("fastembed", OSError("DLL load failed: module not found")):
+            available, reason = EmbeddingsBackend(_cfg()).available()
+            assert available is False
+            assert reason
             assert isinstance(make_backend(_cfg(similarity_backend="embeddings")), TfidfBackend)
 
     def test_falls_back_to_tfidf_when_model_cannot_be_fetched(self):

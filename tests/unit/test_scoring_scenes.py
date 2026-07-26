@@ -300,3 +300,135 @@ class TestDetectKeyframes:
 
         monkeypatch.setattr(subprocess, "run", _timeout)
         assert scenes._detect_keyframes("v.mkv") == []
+
+
+# ---------------------------------------------------------------------------
+# _detect_content - "full" mode's PySceneDetect wrapper; untested before this
+# pass (mode="full" is never exercised by any test in the repo).
+# ---------------------------------------------------------------------------
+
+class TestDetectContent:
+    def test_scenedetect_not_installed_returns_empty_and_logs(self, caplog):
+        import logging
+        import sys
+        import unittest.mock as mock
+
+        from yuu_clip.scoring import scenes
+
+        with caplog.at_level(logging.WARNING, logger="yuu_clip.scoring.scenes"), \
+                mock.patch.dict(sys.modules, {"scenedetect": None}):
+            result = scenes._detect_content("v.mkv")
+        assert result == []
+        assert any("scenedetect not installed" in r.message for r in caplog.records)
+
+    def test_successful_detect_converts_seconds_to_ms(self):
+        import sys
+        import types
+        import unittest.mock as mock
+
+        from yuu_clip.scoring import scenes
+
+        class _FakeTimecode:
+            def __init__(self, seconds):
+                self._seconds = seconds
+
+            def get_seconds(self):
+                return self._seconds
+
+        fake_module = types.SimpleNamespace(
+            ContentDetector=mock.MagicMock,
+            detect=lambda path, detector, frame_skip=0: [
+                (_FakeTimecode(1.5),),
+                (_FakeTimecode(4.25),),
+            ],
+        )
+        with mock.patch.dict(sys.modules, {"scenedetect": fake_module}):
+            assert scenes._detect_content("v.mkv") == [1500, 4250]
+
+    def test_detect_failure_returns_empty_and_logs_error(self, caplog):
+        import logging
+        import sys
+        import types
+        import unittest.mock as mock
+
+        from yuu_clip.scoring import scenes
+
+        def _boom(path, detector, frame_skip=0):
+            raise RuntimeError("decode failed")
+
+        fake_module = types.SimpleNamespace(ContentDetector=mock.MagicMock, detect=_boom)
+        with caplog.at_level(logging.ERROR, logger="yuu_clip.scoring.scenes"), \
+                mock.patch.dict(sys.modules, {"scenedetect": fake_module}):
+            result = scenes._detect_content("v.mkv")
+        assert result == []
+        assert any("ContentDetector failed" in r.message for r in caplog.records)
+
+
+# ---------------------------------------------------------------------------
+# compute_scenes "full" mode - wiring to _detect_content + segment windowing,
+# never exercised anywhere in the repo before this pass.
+# ---------------------------------------------------------------------------
+
+class TestComputeScenesFullMode:
+    def test_full_mode_detects_and_windows_for_segment(self, tmp_path, monkeypatch):
+        from yuu_clip.db.models import SceneBoundary, Video, make_session
+        from yuu_clip.scoring import scenes
+        session = make_session(tmp_path / "full.db")
+        seg = Video(
+            path=str(tmp_path / "v.mkv"), filename="v.mkv", status="done",
+            duration_ms=120_000, segment_start_s=10.0, segment_end_s=70.0,
+        )
+        session.add(seg)
+        session.flush()
+        monkeypatch.setattr(
+            scenes, "_detect_content", lambda _p, frame_skip=0: [5_000, 15_000, 40_000, 80_000]
+        )
+        try:
+            n = scenes.compute_scenes(seg, session, mode="full")
+            rows = session.query(SceneBoundary).filter_by(video_id=seg.id).order_by(SceneBoundary.timecode_ms).all()
+        finally:
+            session.close()
+        assert [r.timecode_ms for r in rows] == [5_000, 30_000]
+        assert n == 2
+
+
+# ---------------------------------------------------------------------------
+# compute_scenes "fast" mode - the keyframe/transcript-gap merge logic
+# (corroboration window + dedup clustering) was only exercised before this
+# pass with an empty transcript-gap set, which bypasses both rules.
+# ---------------------------------------------------------------------------
+
+class TestComputeScenesFastModeCorroboration:
+    def _make_db(self, tmp_path):
+        from yuu_clip.db.models import AudioTrack, Transcript, Video, make_session
+        session = make_session(tmp_path / "corrob.db")
+        v = Video(path=str(tmp_path / "v.mkv"), filename="v.mkv", status="done", duration_ms=120_000)
+        session.add(v)
+        session.flush()
+        track = AudioTrack(video_id=v.id, stream_index=0, label="combined", do_transcribe=True, do_score=True)
+        session.add(track)
+        session.flush()
+        transcript = Transcript(audio_track_id=track.id, model_name="base")
+        session.add(transcript)
+        session.flush()
+        return session, v, transcript
+
+    def test_only_corroborated_keyframes_kept_and_clustered_ones_deduped(self, tmp_path, monkeypatch):
+        from yuu_clip.db.models import SceneBoundary, TranscriptSegment
+        from yuu_clip.scoring import scenes
+
+        session, v, transcript = self._make_db(tmp_path)
+        # Transcript gap at 15_000 (4s >= 3s threshold) -> tg = {15_000}.
+        session.add(TranscriptSegment(transcript_id=transcript.id, start_ms=0, end_ms=11_000, text="a"))
+        session.add(TranscriptSegment(transcript_id=transcript.id, start_ms=15_000, end_ms=25_000, text="b"))
+        session.flush()
+        # 15_400 and 15_800 both fall within the 2s corroboration window of 15_000,
+        # but 15_800 falls within the 1s dedup window of 15_400 and is dropped.
+        # 50_000 is far from the only transcript gap and must be dropped entirely.
+        monkeypatch.setattr(scenes, "_detect_keyframes", lambda _p: [15_400, 15_800, 50_000])
+        try:
+            scenes.compute_scenes(v, session, mode="fast", transcript_gap_s=3.0)
+            rows = session.query(SceneBoundary).filter_by(video_id=v.id).order_by(SceneBoundary.timecode_ms).all()
+        finally:
+            session.close()
+        assert [r.timecode_ms for r in rows] == [15_000, 15_400]

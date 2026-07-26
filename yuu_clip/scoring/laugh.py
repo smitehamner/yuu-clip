@@ -138,8 +138,11 @@ class LaughScorer:
                 import av  # noqa: F401
                 import numpy  # noqa: F401
                 return True, ""
-            except ImportError:
-                log.warning("LaughScorer (audio): av or numpy not available")
+            except Exception as exc:
+                # PyAV wraps compiled ffmpeg libraries, so a broken install can raise
+                # OSError (DLL load failure), not only ImportError - the probe must
+                # still report unavailable rather than crash scorer-set construction.
+                log.warning("LaughScorer (audio): av or numpy unavailable (%s)", exc)
                 return False, "audio analysis needs the av and numpy packages"
         if mode == "model":
             if not self._config.scorer_laugh_model_id:
@@ -149,10 +152,16 @@ class LaughScorer:
                 import torch  # noqa: F401
                 import transformers  # noqa: F401
                 return True, ""
-            except ImportError:
+            except Exception as exc:
+                # Not just ImportError: torch/transformers are compiled and load
+                # native libraries, so a broken/partial install raises OSError
+                # (Windows DLL load failure) or RuntimeError (version mismatch). This
+                # probe runs inside ScoringEngine.__init__, so it must report
+                # unavailable rather than crash scorer-set construction.
                 log.warning(
-                    "LaughScorer (model): missing deps - run: "
-                    "pip install transformers torch torchaudio soundfile"
+                    "LaughScorer (model): dependency import failed (%s) - run: "
+                    "pip install transformers torch torchaudio soundfile",
+                    exc,
                 )
                 return False, (
                     "its model dependencies aren't installed - this should be bundled "

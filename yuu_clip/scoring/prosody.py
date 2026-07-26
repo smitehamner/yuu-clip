@@ -92,8 +92,11 @@ class ProsodyScorer:
             import av  # noqa: F401
             import numpy  # noqa: F401
             return True, ""
-        except ImportError:
-            log.warning("ProsodyScorer: av or numpy not available")
+        except Exception as exc:
+            # PyAV wraps compiled ffmpeg libraries, so a broken install can raise
+            # OSError (DLL load failure), not only ImportError - the probe must still
+            # report unavailable rather than crash scorer-set construction.
+            log.warning("ProsodyScorer: av or numpy unavailable (%s)", exc)
             return False, "prosody analysis needs the av and numpy packages"
 
     def score(self, clip: "ClipCandidate", session: "Session") -> ScoreResult:

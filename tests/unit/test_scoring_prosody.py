@@ -106,3 +106,48 @@ class TestScore:
         clip.video.audio_tracks = [track]
         result = _make_scorer().score(clip, None)
         assert "prosody_no_wav" in result.tags
+
+    def _clip_with_existing_wav(self, tmp_path):
+        track = MagicMock()
+        track.do_score = True
+        track.relevance_weight = 1.0
+        track.extracted_path = str(tmp_path / "track.wav")
+        (tmp_path / "track.wav").write_bytes(b"RIFF")
+        clip = MagicMock()
+        clip.start_ms = 0
+        clip.end_ms = 3_000
+        clip.video.audio_tracks = [track]
+        return clip
+
+    def test_happy_path_returns_prosody_scored_tag(self, tmp_path):
+        clip = self._clip_with_existing_wav(tmp_path)
+        scorer = _make_scorer()
+        scorer._wav_cache.load = lambda track: (_expressive(seconds=3.0), 16000)
+
+        result = scorer.score(clip, None)
+
+        assert "prosody_scored" in result.tags
+        assert result.score_dramatic == result.score_action
+        assert 0.0 < result.score_dramatic <= 1.0
+        assert result.notes["prosody"] == round(result.score_dramatic, 3)
+
+    def test_silent_audio_returns_no_audio_tag(self, tmp_path):
+        clip = self._clip_with_existing_wav(tmp_path)
+        scorer = _make_scorer()
+        scorer._wav_cache.load = lambda track: (np.zeros(16000 * 3, dtype=np.float32), 16000)
+
+        result = scorer.score(clip, None)
+
+        assert "prosody_no_audio" in result.tags
+        assert result.score_dramatic is None
+        assert result.score_action is None
+
+    def test_wav_decode_failure_returns_no_wav_tag(self, tmp_path):
+        clip = self._clip_with_existing_wav(tmp_path)
+        scorer = _make_scorer()
+        scorer._wav_cache.load = lambda track: (None, None)
+
+        result = scorer.score(clip, None)
+
+        assert "prosody_no_wav" in result.tags
+        assert result.score_dramatic is None

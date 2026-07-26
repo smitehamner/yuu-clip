@@ -155,6 +155,30 @@ class TestLaughScorerAudio:
         result = scorer.score(clip, None)
         assert "laugh_no_wav" in result.tags
 
+    def test_score_audio_mode_wires_rhythm_score_through(self):
+        # score() in "audio" mode must forward sr/start_ms/end_ms to
+        # _detect_laugh_rhythm unchanged - not exercised anywhere before this pass
+        # (existing audio-mode score() tests only cover the missing-wav paths).
+        import unittest.mock as mock
+
+        import numpy as np
+
+        from yuu_clip.scoring.laugh import _detect_laugh_rhythm
+
+        scorer = self._make_scorer()
+        sr = 16000
+        t = np.linspace(0, 30, sr * 30, endpoint=False)
+        samples = np.sin(2 * np.pi * 8 * t).astype(np.float32)
+        scorer._wav_cache = mock.MagicMock()
+        scorer._wav_cache.load.return_value = (samples, sr)
+        clip = mock.MagicMock(id=1, start_ms=0, end_ms=30_000)
+        with mock.patch("yuu_clip.scoring.laugh.best_wav_track", return_value=mock.MagicMock()):
+            result = scorer.score(clip, None)
+        expected = _detect_laugh_rhythm(samples, sr, 0, 30_000)
+        assert result.score_funny == expected
+        assert "laugh_audio" in result.tags
+        assert result.notes["laugh_rhythm_score"] == round(expected, 3)
+
     def test_is_available_audio_mode_when_av_present(self):
         import sys
         import unittest.mock as mock
@@ -182,6 +206,35 @@ class TestLaughScorerAudio:
         scorer = LaughScorer(cfg)
         with mock.patch.dict(sys.modules, {"av": None, "numpy": None}):
             assert scorer.is_available() is False
+
+    def test_is_available_model_mode_dep_load_error_returns_false(self):
+        # torch is compiled and loads native libraries: a broken/partial install
+        # raises OSError (Windows DLL load failure) or RuntimeError (version
+        # mismatch), not ImportError. is_available() runs inside
+        # ScoringEngine.__init__, so it must degrade to unavailable rather than let
+        # the failure propagate and abort scorer-set construction.
+        import builtins
+        import unittest.mock as mock
+
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.laugh import LaughScorer
+        cfg = Config()
+        cfg.scorer_laugh_enabled  = True
+        cfg.scorer_laugh_mode     = "model"
+        cfg.scorer_laugh_model_id = "MIT/ast-finetuned-audioset-10-10-0.4593"
+        scorer = LaughScorer(cfg)
+
+        real_import = builtins.__import__
+
+        def fake_import(name, *args, **kwargs):
+            if name == "torch":
+                raise OSError("DLL load failed: module not found")
+            return real_import(name, *args, **kwargs)
+
+        with mock.patch.object(builtins, "__import__", fake_import):
+            available, reason = scorer.available()
+        assert available is False
+        assert reason
 
 class TestLaughScorerModel:
     """model mode: availability checks and missing deps path."""
@@ -229,6 +282,72 @@ class TestLaughScorerModel:
         with mock.patch("yuu_clip.scoring.laugh.best_wav_track", return_value=mock.MagicMock()):
             scorer.score(clip, None)
         assert scorer.load_failed is True
+
+    def _clip(self, start_ms=0, end_ms=3000):
+        import unittest.mock as mock
+        clip = mock.MagicMock()
+        clip.id = 1
+        clip.start_ms = start_ms
+        clip.end_ms = end_ms
+        return clip
+
+    def test_score_model_success_path_sets_score_funny(self):
+        # The "model" mode classification path (label match + score extraction) was
+        # never exercised via .score() before this pass - only availability and the
+        # load-failed property were covered.
+        import unittest.mock as mock
+
+        import numpy as np
+
+        scorer = self._make_scorer()
+        scorer._wav_cache = mock.MagicMock()
+        scorer._wav_cache.load.return_value = (np.ones(16000 * 3, dtype=np.float32), 16000)
+        classifier = mock.MagicMock(
+            return_value=[{"label": "Laughter", "score": 0.83}, {"label": "Speech", "score": 0.1}]
+        )
+        scorer._get_classifier = lambda: classifier
+        with mock.patch("yuu_clip.scoring.laugh.best_wav_track", return_value=mock.MagicMock()):
+            result = scorer.score(self._clip(), None)
+        assert result.score_funny == 0.83
+        assert "laugh_model" in result.tags
+        assert result.notes["laugh_score"] == 0.83
+
+    def test_model_mode_missing_wav_returns_no_wav_tag(self):
+        import unittest.mock as mock
+        scorer = self._make_scorer()
+        with mock.patch("yuu_clip.scoring.laugh.best_wav_track", return_value=None):
+            result = scorer.score(self._clip(), None)
+        assert "laugh_no_wav" in result.tags
+
+    def test_model_mode_empty_clip_window_returns_no_wav_tag(self):
+        import unittest.mock as mock
+
+        import numpy as np
+
+        scorer = self._make_scorer()
+        scorer._wav_cache = mock.MagicMock()
+        scorer._wav_cache.load.return_value = (np.ones(16000 * 3, dtype=np.float32), 16000)
+        with mock.patch("yuu_clip.scoring.laugh.best_wav_track", return_value=mock.MagicMock()):
+            result = scorer.score(self._clip(start_ms=5000, end_ms=5000), None)
+        assert "laugh_no_wav" in result.tags
+
+    def test_per_clip_inference_failure_does_not_set_load_failed(self):
+        # A transient per-clip classification error must be distinguished from a
+        # model-load failure - conflating them would silently disable laugh
+        # scoring for the rest of the run after one flaky inference call.
+        import unittest.mock as mock
+
+        import numpy as np
+
+        scorer = self._make_scorer()
+        scorer._wav_cache = mock.MagicMock()
+        scorer._wav_cache.load.return_value = (np.ones(16000 * 3, dtype=np.float32), 16000)
+        scorer._classifier = mock.MagicMock(side_effect=RuntimeError("inference blew up"))
+        scorer._get_classifier = lambda: scorer._classifier
+        with mock.patch("yuu_clip.scoring.laugh.best_wav_track", return_value=mock.MagicMock()):
+            result = scorer.score(self._clip(), None)
+        assert "laugh_no_wav" in result.tags
+        assert scorer.load_failed is False
 
 class TestDetectLaughRhythm:
     """_detect_laugh_rhythm pure function unit tests."""

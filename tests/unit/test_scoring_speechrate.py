@@ -111,3 +111,14 @@ class TestScore:
         assert result.score_funny > 0.0
         assert result.score_action == result.score_funny
         assert result.score_dramatic is None
+
+    def test_segment_with_none_text_does_not_crash(self, monkeypatch):
+        # seg.text can be None (e.g. a transcript row with no text yet); the
+        # `seg.text or ""` coalesce in score() must not let .split() raise.
+        segments = [_seg(None, 0, 1000), _seg("a b c d e f g h i j k l", 1000, 3000)]
+        monkeypatch.setattr(
+            "yuu_clip.segments.windower.clip_window_segments", lambda *a: segments
+        )
+        result = _make_scorer().score(self._clip(), None)
+        assert "speech_rate_scored" in result.tags
+        assert result.score_funny > 0.0

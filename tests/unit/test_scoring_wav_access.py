@@ -65,6 +65,38 @@ class TestBestWavTrack:
         assert best_wav_track(_FakeClip([])) is None
 
 
+class TestReadFullAudio:
+    """read_full_audio is the real PyAV decode every WavCache.load call relies on;
+    every other test in this file mocks it away, so its own decode/concatenate/
+    empty-stream logic was previously untested."""
+
+    def _write_wav(self, path, *, sample_rate, samples):
+        import wave
+        with wave.open(str(path), "wb") as writer:
+            writer.setnchannels(1)
+            writer.setsampwidth(2)
+            writer.setframerate(sample_rate)
+            writer.writeframes(samples.tobytes())
+
+    def test_decodes_real_wav_to_mono_float_array(self, tmp_path):
+        import numpy as np
+
+        from yuu_clip.scoring.wav_access import read_full_audio
+
+        sample_rate = 8000
+        seconds = 2
+        samples = (np.sin(np.linspace(0, 2 * np.pi * 5, sample_rate * seconds)) * 20000).astype(np.int16)
+        wav_path = tmp_path / "track.wav"
+        self._write_wav(wav_path, sample_rate=sample_rate, samples=samples)
+
+        decoded, sr = read_full_audio(wav_path)
+
+        assert sr == sample_rate
+        assert decoded.dtype == np.float32
+        assert len(decoded) == sample_rate * seconds
+        assert np.isclose(decoded[0], samples[0], atol=1.0)
+
+
 class TestWavCache:
     def test_decodes_once_and_reuses(self, monkeypatch):
         import yuu_clip.scoring.wav_access as wav_access

@@ -268,6 +268,63 @@ class TestScoringEngine:
         assert clip.score_visual == 0.0
         assert clip.score_laugh is None
 
+
+class TestUnavailableScorerLogging:
+    """ScoringEngine.__init__ logs which scorers were filtered out (and why), so a
+    "why is my Visual score always 0" report is diagnosable from the log alone
+    without reading every scorer's debug output."""
+
+    def _scorer(self, name, available, weight=1.0, reason=None):
+        from unittest.mock import MagicMock
+
+        mock = MagicMock()
+        mock.name = name
+        mock.weight = weight
+        mock.is_available.return_value = available
+        if reason is not None:
+            mock.available.return_value = (available, reason)
+        else:
+            del mock.available  # no (bool, reason) form on this scorer (e.g. energy/visual)
+        return mock
+
+    def test_logs_name_and_reason_for_each_unavailable_scorer(self, caplog):
+        import logging
+
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
+        laugh = self._scorer("laugh", available=False, reason="its model dependencies aren't installed")
+        energy = self._scorer("audio_energy", available=True)
+        with caplog.at_level(logging.INFO, logger="yuu_clip.scoring.engine"):
+            ScoringEngine(Config(), [laugh, energy])
+        messages = [r.message for r in caplog.records]
+        assert any(
+            "1 clip scorer(s) unavailable" in m
+            and "laugh (its model dependencies aren't installed)" in m
+            for m in messages
+        )
+
+    def test_scorer_with_no_available_method_logs_name_only(self, caplog):
+        import logging
+
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
+        visual = self._scorer("visual_activity", available=False)
+        with caplog.at_level(logging.INFO, logger="yuu_clip.scoring.engine"):
+            ScoringEngine(Config(), [visual])
+        messages = [r.message for r in caplog.records]
+        assert any("visual_activity" in m for m in messages if "unavailable" in m)
+
+    def test_all_scorers_available_logs_nothing(self, caplog):
+        import logging
+
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
+        energy = self._scorer("audio_energy", available=True)
+        with caplog.at_level(logging.INFO, logger="yuu_clip.scoring.engine"):
+            ScoringEngine(Config(), [energy])
+        assert not any("unavailable" in r.message for r in caplog.records)
+
+
 class TestLaughScoreAttribute:
     """score_laugh mirrors the laugh scorer's raw result without altering score_funny."""
 

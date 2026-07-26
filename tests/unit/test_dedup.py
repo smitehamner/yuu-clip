@@ -103,6 +103,19 @@ def test_custom_threshold_respected(session):
     assert find_duplicate_candidates(1, session, threshold=0.6) == []
 
 
+def test_tied_start_ms_orders_clip_a_by_lower_id(session):
+    # Two clips share a start_ms; the query orders by (start_ms, id), so the
+    # lower-id clip must be clip_a even though it is inserted second.
+    session.add(ClipCandidate(id=20, video_id=1, start_ms=0, end_ms=1000, status="pending"))
+    session.add(ClipCandidate(id=10, video_id=1, start_ms=0, end_ms=1000, status="pending"))
+    session.flush()
+    pairs = find_duplicate_candidates(1, session)
+    assert len(pairs) == 1
+    clip_a, clip_b, _ = pairs[0]
+    assert clip_a.id == 10
+    assert clip_b.id == 20
+
+
 def test_zero_duration_clip_inside_another_never_divides_by_zero(session):
     # A zero-length clip (start == end) sitting inside a longer clip: the shorter
     # duration is 0, so the overlap-ratio guard returns 0.0 (no flag) instead of

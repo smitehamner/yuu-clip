@@ -126,10 +126,16 @@ class AudioEventScorer:
             import torch  # noqa: F401
             import transformers  # noqa: F401
             return True, ""
-        except ImportError:
+        except Exception as exc:
+            # Not just ImportError: torch/transformers are compiled and load native
+            # libraries, so a broken or partial install raises OSError (Windows DLL
+            # load failure) or RuntimeError (version mismatch), not ImportError. An
+            # availability probe runs inside ScoringEngine.__init__, so it must report
+            # unavailable rather than let the failure crash scorer-set construction.
             log.warning(
-                "AudioEventScorer: missing deps - run: "
-                "pip install transformers torch torchaudio soundfile"
+                "AudioEventScorer: dependency import failed (%s) - run: "
+                "pip install transformers torch torchaudio soundfile",
+                exc,
             )
             return False, (
                 "its model dependencies aren't installed - this should be bundled "

@@ -407,6 +407,133 @@ class TestEnergyBaseline:
         from yuu_clip.scoring.energy import _compute_baseline
         assert _compute_baseline([5.0]) is None
 
+# ---------------------------------------------------------------------------
+# compute_energy - pre-computation orchestration (idempotency, missing-input,
+# and error paths; none of these were previously exercised anywhere in the
+# suite - every existing test starts from already-populated AudioEnergy rows)
+# ---------------------------------------------------------------------------
+
+class TestComputeEnergy:
+    def _make_video(self, session):
+        from yuu_clip.db.models import Video
+        v = Video(path="/fake/v.mkv", filename="v.mkv", status="done", duration_ms=60_000)
+        session.add(v)
+        session.flush()
+        return v
+
+    def _make_track(self, session, video, extracted_path):
+        from yuu_clip.db.models import AudioTrack
+        track = AudioTrack(
+            video_id=video.id, stream_index=0, label="combined",
+            do_transcribe=True, do_score=True, relevance_weight=1.0,
+            extracted_path=extracted_path,
+        )
+        session.add(track)
+        session.flush()
+        return track
+
+    def test_missing_extracted_path_returns_zero(self, tmp_path):
+        from yuu_clip.db.models import make_session
+        from yuu_clip.scoring.energy import compute_energy
+
+        session = make_session(tmp_path / "test.db")
+        try:
+            track = self._make_track(session, self._make_video(session), extracted_path=None)
+            result = compute_energy(track, session)
+        finally:
+            session.close()
+        assert result == 0
+
+    def test_skips_when_rows_already_exist(self, tmp_path):
+        from yuu_clip.db.models import AudioEnergy, make_session
+        from yuu_clip.scoring.energy import compute_energy
+
+        session = make_session(tmp_path / "test.db")
+        try:
+            wav_path = tmp_path / "track.wav"
+            wav_path.write_bytes(b"not a real wav - must not be read since the skip happens first")
+            track = self._make_track(session, self._make_video(session), extracted_path=str(wav_path))
+            session.add(AudioEnergy(audio_track_id=track.id, second_offset=0, rms_db=-10.0))
+            session.commit()
+
+            result = compute_energy(track, session)
+        finally:
+            session.close()
+        assert result == 0
+
+    def test_missing_wav_file_returns_zero(self, tmp_path):
+        from yuu_clip.db.models import make_session
+        from yuu_clip.scoring.energy import compute_energy
+
+        session = make_session(tmp_path / "test.db")
+        try:
+            track = self._make_track(
+                session, self._make_video(session), extracted_path=str(tmp_path / "gone.wav"),
+            )
+            result = compute_energy(track, session)
+        finally:
+            session.close()
+        assert result == 0
+
+    def test_read_failure_returns_zero_and_adds_no_rows(self, tmp_path, monkeypatch):
+        import yuu_clip.scoring.energy as energy_mod
+        from yuu_clip.db.models import AudioEnergy, make_session
+
+        session = make_session(tmp_path / "test.db")
+        try:
+            wav_path = tmp_path / "track.wav"
+            wav_path.write_bytes(b"not really audio")
+            track = self._make_track(session, self._make_video(session), extracted_path=str(wav_path))
+
+            def _boom(path, downsample_factor=1):
+                raise OSError("corrupt wav")
+            monkeypatch.setattr(energy_mod, "_read_rms_per_second", _boom)
+
+            result = energy_mod.compute_energy(track, session)
+            row_count = session.query(AudioEnergy).filter_by(audio_track_id=track.id).count()
+        finally:
+            session.close()
+        assert result == 0
+        assert row_count == 0
+
+    def test_computes_and_stores_rows_from_real_wav(self, tmp_path):
+        import wave
+
+        import numpy as np
+
+        from yuu_clip.db.models import AudioEnergy, make_session
+        from yuu_clip.scoring.energy import compute_energy
+
+        sample_rate = 8000
+        seconds = 3
+        samples = (np.sin(np.linspace(0, 2 * np.pi * 5, sample_rate * seconds)) * 20000).astype(np.int16)
+        wav_path = tmp_path / "track.wav"
+        with wave.open(str(wav_path), "wb") as writer:
+            writer.setnchannels(1)
+            writer.setsampwidth(2)
+            writer.setframerate(sample_rate)
+            writer.writeframes(samples.tobytes())
+
+        session = make_session(tmp_path / "test.db")
+        try:
+            track = self._make_track(session, self._make_video(session), extracted_path=str(wav_path))
+
+            result = compute_energy(track, session)
+            session.commit()
+            rows = (
+                session.query(AudioEnergy)
+                .filter_by(audio_track_id=track.id)
+                .order_by(AudioEnergy.second_offset)
+                .all()
+            )
+        finally:
+            session.close()
+
+        assert result == seconds
+        assert [r.second_offset for r in rows] == [0, 1, 2]
+        assert all(isinstance(r.rms_db, float) for r in rows)
+
+
 class TestAudioEnergyScorerIsAvailable:
     def test_is_available_false_when_av_missing(self):
         import sys
@@ -433,3 +560,34 @@ class TestAudioEnergyScorerIsAvailable:
         fake_np = mock.MagicMock()
         with mock.patch.dict(sys.modules, {"av": fake_av, "numpy": fake_np}):
             assert scorer.is_available() is True
+
+    def test_broken_install_logs_the_cause(self, caplog):
+        # PyAV wraps compiled ffmpeg libraries, so a broken/partial install can raise
+        # OSError (Windows DLL load failure), not only ImportError. is_available()
+        # must degrade to unavailable AND log the exception - otherwise a broken
+        # install silently zeroes score_action for every clip with no trace of why.
+        import builtins
+        import logging
+        import unittest.mock as mock
+
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.energy import AudioEnergyScorer
+        cfg = Config()
+        cfg.scorer_energy_enabled = True
+        scorer = AudioEnergyScorer(cfg)
+
+        real_import = builtins.__import__
+
+        def fake_import(name, *args, **kwargs):
+            if name == "av":
+                raise OSError("DLL load failed: module not found")
+            return real_import(name, *args, **kwargs)
+
+        with caplog.at_level(logging.WARNING, logger="yuu_clip.scoring.energy"):
+            with mock.patch.object(builtins, "__import__", fake_import):
+                assert scorer.is_available() is False
+
+        assert any(
+            "av or numpy unavailable" in r.message and "DLL load failed" in r.message
+            for r in caplog.records
+        )

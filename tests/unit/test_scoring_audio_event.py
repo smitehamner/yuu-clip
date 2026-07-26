@@ -2,10 +2,29 @@
 
 from __future__ import annotations
 
+import builtins
+import contextlib
 import sys
 import unittest.mock as mock
 
 import numpy as np
+
+
+@contextlib.contextmanager
+def _import_raising(module_name: str, error: Exception):
+    """Force ``import <module_name>`` to raise *error*, delegating every other import
+    to the real machinery. Simulates a compiled dependency whose native libraries
+    fail to load (OSError/RuntimeError), which ``import`` surfaces as a non-ImportError."""
+    real_import = builtins.__import__
+
+    def fake_import(name, *args, **kwargs):
+        if name == module_name:
+            raise error
+        return real_import(name, *args, **kwargs)
+
+    with mock.patch.object(builtins, "__import__", fake_import):
+        sys.modules.pop(module_name, None)
+        yield
 
 
 def _make_scorer(enabled=True, weight=1.0, model_id="MIT/ast-finetuned-audioset-10-10-0.4593"):
@@ -78,6 +97,21 @@ class TestAvailability:
         scorer = _make_scorer()
         with mock.patch.dict(sys.modules, {"transformers": mock.MagicMock(), "torch": mock.MagicMock()}):
             assert scorer.is_available() is True
+
+    def test_dep_import_raising_non_importerror_reports_unavailable(self):
+        # torch is compiled and loads native libraries: a broken/partial install
+        # raises OSError (Windows DLL load failure) or RuntimeError (version
+        # mismatch), not ImportError. is_available() runs inside
+        # ScoringEngine.__init__, so it must degrade to unavailable rather than let
+        # the failure propagate and abort scorer-set construction.
+        scorer = _make_scorer()
+        with _import_raising("torch", OSError("DLL load failed: module not found")):
+            available, reason = scorer.available()
+        assert available is False
+        assert reason
+        # And the probe itself never raises.
+        with _import_raising("torch", RuntimeError("version mismatch")):
+            assert scorer.is_available() is False
 
 
 def _clip(start_ms=0, end_ms=3000):
@@ -158,6 +192,20 @@ class TestScore:
         assert first.score_action is None
         assert "audio_event_no_wav" in second.tags
         assert load_attempts.call_count == 1
+
+    def test_per_clip_inference_failure_does_not_set_load_failed(self):
+        # A transient per-clip classification error must be distinguished from a
+        # model-load failure - conflating them would silently disable audio-event
+        # scoring for the rest of the run after one flaky inference call.
+        scorer = _make_scorer()
+        scorer._wav_cache = mock.MagicMock()
+        scorer._wav_cache.load.return_value = (np.ones(16000 * 3, dtype=np.float32), 16000)
+        scorer._classifier = mock.MagicMock(side_effect=RuntimeError("inference blew up"))
+        scorer._get_classifier = lambda: scorer._classifier
+        with mock.patch("yuu_clip.scoring.audio_event.best_wav_track", return_value=mock.MagicMock()):
+            result = scorer.score(_clip(), None)
+        assert "audio_event_no_wav" in result.tags
+        assert scorer.load_failed is False
 
     def test_load_failed_property_reflects_state(self):
         scorer = _make_scorer()

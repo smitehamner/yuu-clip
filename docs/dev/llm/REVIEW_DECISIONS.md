@@ -11,6 +11,130 @@ same thing without the context. Most recent first.
 
 ---
 
+## Phase 6 docs and comments - full-app review section 3, scoring (2026-07-26)
+
+Docs-and-comments phase over the same 17 files as the Phase 4 refactor entry below
+(`scoring/{energy,prosody,speechrate,churn,lexicon,textmatch,laugh,audio_event,
+scenes,visual,wav_access,protocol,scorer_set,engine,dedup,similarity,term_scope}.py`).
+Grepped every `#` comment and `"""`/`'''` docstring in scope (0.5 survey), then read
+all ~2870 lines in full. **No code changes were warranted** - zero restatement,
+obsolete, reactive, or apology comments found anywhere in scope, and no aging
+TODO/FIXME/HACK markers. This matches Phase 1's "unusually clean" characterization
+and Phase 4's finding that prior refactor passes (WS-A..D) already reshaped this
+section; the comment density is uniformly high-value (WHY-explanations of scoring
+math constants/thresholds, narrow-except reliability-pattern warnings from Phases
+2-3, availability-probe contracts) with nothing to prune.
+
+Specifically verified per this phase's brief:
+
+### `engine.py::_run_scorers`'s laugh special case - comment present and clear
+Confirmed the `scorer.name == "laugh"` branch (lines 329-334) already carries the
+WHY comment the Phase 4 refactor entry's keep-decision promised ("Store the laugh
+scorer's raw, unweighted result as its own attribute so laugh density can be
+sorted/displayed apart from its weighted contribution to score_funny..."). No
+addition needed.
+
+### Formula/threshold comments distinguish WHY from WHAT throughout
+Spot-checked every numeric constant with an adjacent comment for the WHAT-restatement
+pattern the brief called out (weighted averages, thresholds, windowing) - all of them
+state a rationale, not a restatement: `prosody.py`'s CoV saturation points (why
+intensity is weighted above pitch), `speechrate.py`'s CALM/FAST WPS bounds (why
+those specific values - "relaxed English speech sits ~2 wps, animated bursts hit
+4-6"), `churn.py`'s switches-per-minute saturation, `energy.py`'s downsample-factor
+table (why "fast" is only marginally quicker - IO-bound at SSD speeds), `visual.py`'s
+`_MAX_INTENSITY` (why peak+mean are blended so one spike can't max the score),
+`textmatch.py`'s name-correction cutoff design (already anchored below - kept
+inline). None read as a restatement candidate.
+
+### Terminology sweep - clean
+Grepped `\bAI\b|RP context|clip candidate|demo reel|subtitle|Probe|profile` (the
+recurring code-name-in-user-facing-text drift pattern) across all 17 files: zero
+hits. `Visual` appears only in dev-facing comments/identifiers (`Visual axis`,
+`VisualActivityScorer`, `VisualActivity` table) consistent with the glossary term -
+none of this section's log/comment text is user-facing (no `console.print`; this is
+all `log.*`/docstring text reaching only `.yuu-clip/yuu-clip.log`). Spot-checked
+`laugh.py`/`audio_event.py`'s module-docstring specifics (model id, ~350 MB size)
+against `config.py`'s `scorer_laugh_model_id` default and comment - still accurate.
+
+---
+
+## Phase 4 refactor - full-app review section 3, scoring (2026-07-26)
+
+Refactor-for-quality phase over the signal scorers + aggregation
+(`scoring/{energy,prosody,speechrate,churn,lexicon,textmatch,laugh,audio_event,
+scenes,visual,wav_access,protocol,scorer_set,engine,dedup,similarity,term_scope}.py`).
+Structural survey (function-length heat map + the targeted narrow-except sweep) then
+targeted reads of the assembly/aggregation core and the longest real-logic functions.
+**No code changes were warranted** - this scope is genuinely clean coming in (Phase 1
+called it "unusually clean"; Phases 2-3 fixed the real reliability bugs; prior refactor
+passes WS-A..D already reshaped it). Recorded per the close-out convention:
+
+### `scorer_set.py` - single-registration assembly, no per-scorer branches - kept
+Decision: Keep as-is.
+Rationale: Adding a scorer is one line in `build_clip_scorers`'s returned list; the
+four `build_*` variants share that single source and carry no `if scorer == ...`
+dispatch. This already matches the "adding a backend = a registration, not a rewrite"
+convention. Nothing to decompose (each builder is well under 30 lines, one concern).
+
+### `engine.py::_run_scorers`'s `scorer.name == "laugh"` special case - kept, not generalized
+Decision: Keep the single name-keyed branch that stores the laugh scorer's raw,
+unweighted density on `clip.score_laugh` separately from its weighted `score_funny`
+contribution.
+Rationale: laugh is the only scorer whose raw result must be persisted apart from its
+weighted aggregation (for sort/display). A generic mechanism - e.g. a `raw_scores`
+dict on `ScoreResult` the engine writes polymorphically - would be speculative
+generality serving exactly one consumer (YAGNI). The branch is localized, documented
+with a WHY comment, and keys on the Protocol's `name` attribute (not `isinstance`), so
+it stays backend-agnostic. Revisit only if a second scorer needs a raw side-channel.
+
+### `engine.py::_compute_overall` - already dynamic-weight and well-decomposed - kept
+Decision: Keep as-is.
+Rationale: Divides by the live dimension-weight sum (not a hardcoded divisor), returns
+`None` when all weights are zero (callers guard it), and is a single 15-line concern.
+The larger `ScoringEngine` methods (`score_clip`, `_run_scorers`, `_write_dimension_scores`,
+`_apply_basic_description`) are each single-concern and under the size bar. No change.
+
+### The two-method scorer availability surface (`is_available()` bool + `available()` tuple) - kept
+Decision: Keep both methods where present, and keep energy/scenes/visual with only
+`is_available()`.
+Rationale: `is_available()` is the `Scorer` Protocol method the engine uses; where a
+scorer also exposes `available() -> (bool, reason)` (prosody, speechrate, churn,
+lexicon, laugh, audio_event), `is_available()` delegates to `available()[0]` - no
+duplicated probe logic. The tuple form exists exactly where a consumer needs the
+user-facing reason (`ingest.py`'s laugh/audio-event notices, `routes/llm.py`'s status
+surfaces); energy/scenes/visual omit it because nothing reads their reason, so adding
+it would be speculative generality. This is an appropriate asymmetry, not drift.
+
+### `similarity.py` backend seam - factory owns all dispatch - kept
+Decision: Keep as-is.
+Rationale: The three backends (`TfidfBackend`, `EmbeddingsBackend`, `LlmBackend`) each
+implement the same interface (`available() -> (bool, reason)`, `rank_similar`,
+`match_concepts`); `_construct`/`make_backend` own every `if backend == ...` branch and
+the tfidf-fallback + first-use model-load policy; no caller branches on the backend
+name. The `isinstance(backend, EmbeddingsBackend)` check inside `make_backend` is the
+seam's single cross-cutting-policy point (the fetch-verify-or-fall-back gate), which the
+convention explicitly places at the factory - not a caller-side leak.
+
+### `textmatch.py::find_fuzzy_matches`'s inner sliding-window scan - kept inline
+Decision: Keep the per-term `while` window-scan inline rather than extracting a
+`_scan_windows(...)` helper.
+Rationale: The function is ~43 lines but a single cohesive concern (fuzzy-match each
+term across the text), and its one subtle invariant - a hit consumes its whole window
+so overlapping windows can't double-count - is already documented in the docstring at
+the exact spot it matters. Extracting the loop would split that invariant from its
+explanation for no legibility gain. Below the rule-of-three (one call site).
+
+### Narrow-except reliability sweep across the rest of the scope - clean
+Grepped `except (ImportError|ModuleNotFoundError)` across churn/speechrate/lexicon/
+textmatch/visual/dedup/term_scope/protocol/engine/scorer_set.py (the files Phases 2-3
+did not primarily target) for the availability-probe crash pattern those phases fixed
+7 times. Zero instances - none of these modules import a compiled/optional dependency
+inside an `available()`-style probe. `scenes.py::_detect_content`'s narrow
+`except ImportError` remains (its sole caller already wraps the compute in a broad
+except, per the Phase-3 note), so it is not a live crash risk; left as-is.
+
+---
+
 ## Phase 6 docs and comments - full-app review section 2, transcription & diarization (2026-07-26)
 
 Docs-and-comments phase over `yuu_clip/transcribe/{whisper_runner,diarization_client,

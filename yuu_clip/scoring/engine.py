@@ -27,6 +27,38 @@ _HOTWORD_SUB_SCORE_TARGETS = ("funny", "dramatic", "action")
 DESC_BASIC_TAG = "desc_basic"
 
 
+def _describe_unavailable_scorer(scorer: Scorer) -> str:
+    """Return scorer.name, or "name (reason)" for a scorer whose is_available() was False.
+
+    Only scorers that also expose the (bool, reason) `available()` form (laugh,
+    audio_event, prosody, speechrate, churn, lexicon) can report why; the rest
+    (energy, scenes, visual, llm) surface just the name - still enough to point a
+    "why is my Visual score always 0" report at config (scorer_visual_enabled)
+    rather than a crash.
+    """
+    probe = getattr(scorer, "available", None)
+    if callable(probe):
+        try:
+            _, reason = probe()
+        except Exception:
+            # Best-effort enrichment for a log line - a malformed/mocked available()
+            # must never take down scorer-set construction over a missing reason.
+            reason = ""
+        if reason:
+            return f"{scorer.name} ({reason})"
+    return str(scorer.name)
+
+
+def _log_unavailable_scorers(label: str, scorers: list[Scorer]) -> None:
+    unavailable = [s for s in scorers if not s.is_available()]
+    if unavailable:
+        _log.info(
+            "ScoringEngine: %d %s scorer(s) unavailable this run - %s",
+            len(unavailable), label,
+            "; ".join(_describe_unavailable_scorer(s) for s in unavailable),
+        )
+
+
 def _compute_overall(
     cfg: "Config", funny: float, dramatic: float, action: float, visual: float
 ) -> float | None:
@@ -184,12 +216,15 @@ class ScoringEngine:
         scene_scorers: list[Scorer] | None = None,
     ) -> None:
         self._config  = config
+        _log_unavailable_scorers("clip", scorers)
         self._scorers = [s for s in scorers if s.is_available()]
         # Scenes (kind='scene' rows in the shared table) are scored by their own
         # scorer set - the scene LLM rubric, never the clip Funny/Dramatic/Action
         # scorers. Empty by default: a caller that never scores scenes passes nothing
         # and scenes are left untouched.
-        self._scene_scorers = [s for s in (scene_scorers or []) if s.is_available()]
+        scene_scorers = scene_scorers or []
+        _log_unavailable_scorers("scene", scene_scorers)
+        self._scene_scorers = [s for s in scene_scorers if s.is_available()]
         # None (the default) means "caller didn't opt in" - skip hot-word/sensitive
         # matching entirely rather than treating it the same as an explicitly empty
         # list, so callers that don't care about these features (most existing
