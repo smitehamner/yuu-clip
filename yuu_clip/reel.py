@@ -523,6 +523,7 @@ def compile_demo(
             print("Encode complete.", flush=True)
     except Exception as exc:
         _log.error("Reel compilation failed for %s: %s", output.name, exc, exc_info=True)
+        output.unlink(missing_ok=True)
         raise
 
     _write_reel_composition(output, clips, clip_durations, transition, trans_dur, title_dur)

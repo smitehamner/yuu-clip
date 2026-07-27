@@ -222,6 +222,29 @@ class TestWriteExportSubs:
         )
         assert burn is None and soft is None
 
+    def test_render_failure_leaves_no_temp_file(self, tmp_path, monkeypatch):
+        """A render_fn exception must not leak the NamedTemporaryFile it was mid-write to."""
+        import tempfile
+
+        from yuu_clip.export.render import _write_subtitle_tmp
+
+        created: list = []
+        real_ntf = tempfile.NamedTemporaryFile
+
+        def tracking_ntf(*args, **kwargs):
+            f = real_ntf(*args, **kwargs)
+            created.append(f.name)
+            return f
+
+        monkeypatch.setattr(tempfile, "NamedTemporaryFile", tracking_ntf)
+
+        def raising_render(merged):
+            raise ValueError("bad template")
+
+        with pytest.raises(ValueError):
+            _write_subtitle_tmp(self._cand(), lambda cand: [object()], raising_render, ".srt", "--bake-captions")
+        assert created and not Path(created[0]).exists()
+
 
 class TestExportSettingsDict:
     """_export_settings_dict builds the clip_exports.settings JSON recorded on a
@@ -553,6 +576,18 @@ class TestVerifyExportDuration:
         monkeypatch.setattr(extract, "_probe_duration_s", lambda ffprobe, path: 3.0)
         with pytest.raises(RuntimeError, match="empty"):
             extract._verify_export_duration("ffprobe", Path("out.mkv"), expected_s=-10.0)
+
+    def test_exact_tolerance_boundary_passes(self, monkeypatch):
+        # expected_s=30 -> tolerance = max(5, 30*0.5) = 15 -> boundary = 45.0 exactly.
+        from yuu_clip.analyze import extract
+        monkeypatch.setattr(extract, "_probe_duration_s", lambda ffprobe, path: 45.0)
+        extract._verify_export_duration("ffprobe", Path("out.mkv"), expected_s=30.0)
+
+    def test_just_past_tolerance_boundary_raises(self, monkeypatch):
+        from yuu_clip.analyze import extract
+        monkeypatch.setattr(extract, "_probe_duration_s", lambda ffprobe, path: 45.01)
+        with pytest.raises(RuntimeError, match="trim was not applied"):
+            extract._verify_export_duration("ffprobe", Path("out.mkv"), expected_s=30.0)
 
 
 class TestShareDeleteMediaServing:

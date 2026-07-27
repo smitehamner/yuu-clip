@@ -344,7 +344,12 @@ def _write_subtitle_tmp(cand, merged_srt_lines_fn, render_fn, suffix: str, label
         console.print(f"  [yellow]{label}: no transcript data found, skipping[/yellow]")
         return None
     tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False, mode="w", encoding="utf-8")
-    tmp.write(render_fn(merged))
+    try:
+        tmp.write(render_fn(merged))
+    except Exception:
+        tmp.close()
+        Path(tmp.name).unlink(missing_ok=True)
+        raise
     tmp.close()
     return Path(tmp.name)
 

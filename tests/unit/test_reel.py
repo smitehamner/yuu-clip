@@ -197,6 +197,30 @@ class TestCompileConcat:
         assert line.endswith(r"Tom'\''s stream_clip.mkv'")
 
 
+class TestCompileDemoPartialOutputCleanup:
+    """compile_demo must not leave a partial reel file behind when the encode step
+    raises mid-write - a caller polling the reels list would otherwise see a
+    corrupt/truncated file where none should exist."""
+
+    def test_output_removed_when_encode_raises(self, tmp_path, monkeypatch):
+        from yuu_clip import reel as reel_mod
+        from yuu_clip.config import Config
+
+        output = tmp_path / "out.mkv"
+        monkeypatch.setattr(reel_mod, "_resolve_clip_files", lambda *a, **k: ([tmp_path / "c.mkv"], [1.0], 30.0))
+        monkeypatch.setattr(reel_mod, "_build_segment_list", lambda *a, **k: ([tmp_path / "c.mkv"], [1.0]))
+
+        def fake_compile_concat(segments, out):
+            out.write_bytes(b"partial")  # ffmpeg wrote something before dying
+            raise RuntimeError("encode failed")
+
+        monkeypatch.setattr(reel_mod, "_compile_concat", fake_compile_concat)
+
+        with pytest.raises(RuntimeError):
+            reel_mod.compile_demo([], {}, tmp_path, output, Config(), transition="none")
+        assert not output.exists()
+
+
 class TestSelectClipExportFile:
     """reel._select_clip_export_file - which exported file a reel build uses when a
     clip has several per-preset formats. Must deterministically prefer the default
