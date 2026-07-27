@@ -266,7 +266,9 @@ follow these rules:
   user-facing strings. Code identifiers can be left for a separate refactor pass -
   but the glossary entry must note the divergence under "Also called in codebase:".
 
-Key terms to get right (common sources of drift):
+Key terms to get right (common sources of drift - this is a curated subset of
+GLOSSARY.md's quick-reference table, kept here so it stays always-visible; update
+both when a term changes):
 - "Analyze" / "Analysis" - not "Ingest" in user-facing text (code: `ingest`)
 - "Inspect" - not "Probe" in user-facing text (code: `probe()`)
 - "Track layout" - not "Profile" in user-facing text (code: `profile`)
@@ -348,20 +350,15 @@ faster-whisper, `speaker_*` for diarization) rather than renaming them generic.
   genuinely-accepted existing gap, never to paper over a new mistake.
 
 ### Licensing
-- The global "no GPL/AGPL dependencies" rule covers *code* - it does **not** cover the
-  thing that actually ships to users' machines here: **model weights and other assets the
-  app downloads or recommends at runtime** (LLM/vision `.gguf` files, HF
-  models). Those are governed by their *own* licences, which are often bespoke (Meta's
-  Llama Community License, Google's Gemma Terms) rather than GPL/AGPL, so they slip past the
-  dependency check.
-- **Any model this project recommends or defaults to must carry a licence that permits the
-  user to monetize the output** - because we distribute this and steer non-developer users.
-  Apache-2.0 / MIT / BSD are in; Llama- and Gemma-licensed models are **out of recommendations
-  and defaults** (they keep working if a user configures them by hand). The authoritative list
-  is `yuu_clip/model_catalog.py`; its licence policy and the "defaults match the catalog" rule
-  are enforced by `tests/unit/test_model_catalog.py`. Licences vary by parameter size (Qwen2.5 **7B**
-  is Apache-2.0 but the 3B/72B are not) - re-verify against the HF model card before adding an
-  entry, and if you change a default model, change it to a *recommended* catalog entry.
+The global "no GPL/AGPL dependencies" rule covers *code* - it does **not** cover
+model weights and other assets the app downloads or recommends at runtime
+(LLM/vision `.gguf` files, HF models), which are governed by their own often-bespoke
+licences (Meta's Llama Community License, Google's Gemma Terms) that slip past the
+dependency check. The monetization-licence gate for recommended/default models is in
+`docs/dev/PACKAGING-TIERS.md`'s "Licence gate" section - re-verify against the HF
+model card before adding an entry (licences vary by parameter size, e.g. Qwen2.5 7B
+is Apache-2.0 but the 3B/72B are not), and if you change a default model, change it
+to a *recommended* catalog entry.
 
 ### Python / backend
 - SQLAlchemy sessions must be explicitly closed in route handlers - always use `try/finally: db.close()`
@@ -415,14 +412,10 @@ one, add it there as a new landmine (or to `docs/dev/TESTING.md` if it's
 test-tier-specific), not here - this section should stay a pointer, not regrow its
 own narrative.
 
-### Local-only: no remote/hosted AI backend (Claude removed)
+### Local-only: no remote/hosted AI backend
 yuu-clip runs all inference on-device; there is no remote/hosted LLM backend and no
-"send my transcript to an API" path. The Claude/Anthropic backend, its distribution
-gate, and the `remote_ok` AI-privacy mode were all removed (see
-`docs/project/DECISIONS.md`). A local-only surface is a deliberate positioning
-choice - do NOT re-add a remote backend without an explicit product decision.
-
-`ai_privacy_mode` is just `none` (no generative AI) | `local_only` (default);
-`resolve_ai_permissions` is the single choke point. The `LLMClient` seam keeps its
-ABC + `make_client` factory (one real backend, `llamacpp`, plus the `NullLLMClient`
-fallback) so a future *local* backend stays a registration, not a rewrite.
+"send my transcript to an API" path. This is a deliberate positioning choice - do
+NOT re-add a remote backend without an explicit product decision. Mechanism +
+history (the removed Claude/Anthropic backend, `ai_privacy_mode`,
+`resolve_ai_permissions`) are in `docs/dev/llm/GLOSSARY.md`'s "AI privacy mode"
+entry.
