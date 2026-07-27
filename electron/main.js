@@ -1,6 +1,16 @@
 'use strict';
 
 const { app, BrowserWindow, Menu, MenuItem, clipboard, dialog, ipcMain, nativeTheme, protocol, shell } = require('electron');
+
+// Two near-simultaneous launches (e.g. double-clicking the icon twice on first
+// run) can race the venv extraction into VENV_DIR/.incoming before setup
+// completes. Only the first instance proceeds; a second launch hands off to it
+// (see the 'second-instance' handler below) instead of racing it.
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+  return;
+}
+
 const { execFileSync, spawn } = require('child_process');
 const fs     = require('fs');
 const http   = require('http');
@@ -1487,6 +1497,19 @@ async function handleClose() {
 // ---------------------------------------------------------------------------
 // App lifecycle
 // ---------------------------------------------------------------------------
+
+// A second launch already handed off via requestSingleInstanceLock() above -
+// focus whichever window this instance currently has up instead of opening
+// (or racing) a second one.
+app.on('second-instance', () => {
+  const win = setupWizardWin && !setupWizardWin.isDestroyed() ? setupWizardWin
+    : wizardWin && !wizardWin.isDestroyed() ? wizardWin
+    : mainWindow;
+  if (win) {
+    if (win.isMinimized()) win.restore();
+    win.focus();
+  }
+});
 
 app.whenReady().then(async () => {
   rotateLogs();
