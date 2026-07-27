@@ -405,9 +405,8 @@ def diarize_track(
     diar_client = make_diarization_client(config)
     ok, reason = diar_client.available()
     if not ok:
-        if config.diarization_backend != "null":
-            _log.warning("Diarization skipped for track %d [%s]: %s", track.id, track.label, reason)
-            console.print(f"[yellow]Speaker labels skipped for [{track.label}]: {reason}[/yellow]")
+        _log.warning("Diarization skipped for track %d [%s]: %s", track.id, track.label, reason)
+        console.print(f"[yellow]Speaker labels skipped for [{track.label}]: {reason}[/yellow]")
         return
 
     if not diar_client.model_cached():
