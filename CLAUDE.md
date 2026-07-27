@@ -410,8 +410,10 @@ faster-whisper, `speaker_*` for diarization) rather than renaming them generic.
 Narrow-scope gotchas (SQLite single-writer discipline, SpeechBrain import order, the
 wizard/Settings parallel-stack split, interactive labeling, subprocess cancellation,
 PowerShell script encoding) live in **`docs/dev/ARCHITECTURE.md`**'s landmines
-section - read the relevant one before touching that area; keep that file (not this
-one) up to date when a landmine's mechanics change.
+section - read the relevant one before touching that area. When you discover a new
+one, add it there as a new landmine (or to `docs/dev/TESTING.md` if it's
+test-tier-specific), not here - this section should stay a pointer, not regrow its
+own narrative.
 
 ### Local-only: no remote/hosted AI backend (Claude removed)
 yuu-clip runs all inference on-device; there is no remote/hosted LLM backend and no

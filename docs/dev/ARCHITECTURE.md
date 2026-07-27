@@ -9,7 +9,10 @@ Where this sits in the docs:
 
 - **[CONTRIBUTING.md](../../CONTRIBUTING.md)** - setup, the `yuu-dev` CLI, and the PR
   process. Start there to get a working checkout.
-- **This file** - the mental model plus the top landmines, in prose you read once.
+- **This file** - the mental model plus the top landmines, in prose you read once. A
+  new narrow-scope gotcha (a bug class, an import-order trap, a subprocess
+  invariant) gets added here as a new numbered landmine, not restated in
+  CLAUDE.md - that file should only ever point to this one, never duplicate it.
 - **[LAYOUT.md](LAYOUT.md)** - the authoritative file-by-file map. When this doc says
   "see the layout map", it means that file.
 - **[TESTING.md](TESTING.md)** - the system/golden/Electron test tiers and the
