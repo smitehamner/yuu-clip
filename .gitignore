@@ -7,7 +7,8 @@ __pycache__/
 /personal-notes
 /exports
 docs/dev/plans/
-.claude
+.claude/*
+!.claude/skills/
 CLAUDE.local.md
 /test-unit-last.log
 /test-unit-last-summary.log

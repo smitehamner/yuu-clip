@@ -128,49 +128,28 @@ suite explicitly.
 
 ## MANDATORY: after any change to a user-visible fact (docs sync)
 
-After changing user-visible behavior, defaults, model recommendations, the scoring
-axes, or the Whisper/hardware numbers: open `docs/dev/llm/DOC-CLAIMS.md`, find the
-affected fact's row, update the code AND **every surface listed in that row** in the
-same change, then run `yuu-dev test-api` (the `tests/unit/test_doc_claims.py` fact
-guards run in the unit tier). This is how docs stay in sync with the code - the
-registry, not memory, is the source of truth. At each code-hygiene checkpoint (see the
-global convention), re-audit `DOC-CLAIMS.md` alongside the code-quality pass so stale
-claims are caught on the same cadence.
+When you change a user-visible fact (a default, a model recommendation, the scoring
+axes, a keyboard shortcut, the Whisper/hardware numbers, clip/scene durations, a
+glossary term), run the **`docs-sync`** skill and follow it before reporting done. Why:
+one fact is stated across many surfaces, and only the registry (`docs/dev/llm/DOC-CLAIMS.md`),
+not memory, knows which - the skill drives the code + every-surface + test-guard sweep.
+Also re-audit `DOC-CLAIMS.md` at each code-hygiene checkpoint.
 
 ## MANDATORY: adding or changing a user-facing feature (use-case catalog)
 
-`docs/dev/USE_CASES.md` is the authoritative end-to-end use-case catalog (IDs
-`UC-<section><nn>`), and `docs/dev/testing/installed-app-checklist.md` is its derived
-manual release sign-off. When you add or materially change a user-facing flow:
-
-1. Add or update its `UC-` entry in `docs/dev/USE_CASES.md` (keep the fields: Actor
-   goal, Preconditions, Steps, Expected, **Automation** one of `automated` / `golden` /
-   `manual-only` (slash-separate when mixed), Coverage, **Pre-release priority** P0/P1/P2).
-   New cases append within their section - never reuse or renumber a retired ID.
-2. Add its matching row to `installed-app-checklist.md`.
-3. Add a `tests/system/` test (once that tier exists, Stage 3) or justify `manual-only`.
-
-`tests/unit/test_use_case_catalog.py` enforces the structure - unique sequential IDs,
-valid Automation/priority tags, and no checklist row or catalog entry without its
-counterpart. Run `yuu-dev test-unit` after editing either file.
+When you add or materially change a user-facing flow, run the **`use-case-catalog`**
+skill and follow it before reporting done. Why: `tests/unit/test_use_case_catalog.py`
+fails the build unless the `UC-` entry in `docs/dev/USE_CASES.md`, its row in
+`docs/dev/testing/installed-app-checklist.md`, and its automated coverage (or a
+justified `manual-only` tag) all exist and agree - the skill walks all three in step.
 
 ## Repeated hygiene passes after a wide change (project specifics)
 
-Follow the global "repeated verification passes after a wide change" convention after a
-change that touches many surfaces (a plan WS/stage, a docs-truth or terminology sweep, a
-wide refactor). Project concretions for the "run the full tiers your targeted gate
-skips" step - the gaps that let real bugs through this repo's normal per-edit gate:
-
-- `yuu-dev test-ui --changed` does NOT map content-only edits to `index.html` /
-  `setup.html` / `glossary.md`, and does NOT run the string-pinning tests. Run the FULL
-  `yuu-dev test-ui`; `tests/ui/test_ui_terminology.py` (all five Whisper `<option>` lists
-  must share identical copy) and `tests/ui/test_ui_wizard.py` are the fastest tripwires.
-- `yuu-dev test-js` if any `static/*.js` changed - the vitest tier is separate and
-  neither `test-api` nor `test-ui` runs it (a `videos.js` default drift shipped a red
-  `test-js` this way).
-- `cd electron; npm test` if `electron/` changed.
-- Re-audit `docs/dev/llm/DOC-CLAIMS.md` for every surface listed against a changed fact,
-  and check cross-surface number/label agreement + dangling doc anchors by grep.
+After a change that touches many surfaces (a plan WS/stage, a docs-truth or terminology
+sweep, a wide refactor), run the **`wide-change-verification`** skill and follow it
+before reporting done. Why: drift hides in the surfaces you did not edit and the fast
+`--changed` gate skips whole tiers (full `test-ui` string-pins, `test-js`, `electron`) -
+the skill lists this repo's exact gaps and the converge-until-clean pass loop.
 
 ## Frontend build (three committed bundles: web ESM + wizard ESM + stitched index.html)
 
