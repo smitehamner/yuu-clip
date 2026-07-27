@@ -56,18 +56,18 @@ except the two items below).
   real marker channel for this instead of a one-off regex hack. Detail in the private
   planning workspace, `UX-BUG-HUNT-2026-07-19.md` B14.
 
-- [ ] **Full-recording transcript panel still renders every page in the DOM
+- [x] **Full-recording transcript panel still renders every page in the DOM
   (virtualize instead of just paginate)** - a real lag report on a 3+ hour
   recording (~7000 transcript lines) traced to `loadVideoTranscript` in
   `static/analyze/transcript.js` building the *entire* transcript's HTML in one
-  `innerHTML` write (tens of thousands of DOM nodes in a single paint). Quick fix
-  shipped (2026-07-20): the panel now renders 300-line pages with a "Show more"
-  button (`_renderNextTranscriptChunk`), so the *initial* render is fast. Not
-  fixed: a user who clicks through to the end of a very long transcript still
-  ends up with all pages live in the DOM at once (memory/scroll cost still grows
-  unbounded with total length) - true virtualization (only the visible rows are
-  ever in the DOM, e.g. windowing by scroll position) would close that, but is a
-  bigger lift not justified until someone actually hits it in practice.
+  `innerHTML` write (tens of thousands of DOM nodes in a single paint). **Fixed
+  2026-07-27** (panel-layout-v2, `d50d30e`): the append-forever "Show more"
+  pager was replaced with a bounded WINDOW - the full transcript now renders one
+  fixed-size (300-line) window at a time inside a scroll box, and paging swaps
+  (replaces, never appends) the window, so the DOM stays capped regardless of
+  recording length. A sticky toolbar adds within-recording search
+  (highlight/next-prev/counter) and jump-to-time over the full in-memory line
+  array. Closes the unbounded-memory-growth gap this item was tracking.
 
 - [ ] **Video list (sidebar) has the same unbounded-DOM-rebuild shape** - audited
   2026-07-20 alongside the transcript fix: `videos.js`'s `_renderVideoList` ->

@@ -70,7 +70,9 @@ instructions (the SmartScreen "More info -> Run anyway" note) to get users past 
 paths aren't justified at the current (near-solo) distribution scale:
 
 - *Self-signed* - free, but no trust chain; users still get the full block. Useless here.
-- *SignPath.io Foundation* - free but requires a **public** OSS repo; yuu-clip is private.
+- *SignPath.io Foundation* - free, requires a **public** OSS repo. yuu-clip flipped
+  public 2026-07-26, so this option is now open - worth a fresh look if signing is
+  revisited (their program also has its own vetting/approval process, not automatic).
 - *Azure Trusted Signing* (~$10/mo) or *Certum OSS* (~$30/yr) - cheap OV certs, but an OV
   cert only earns SmartScreen trust after building download reputation over weeks/months,
   and eligibility needs identity/legal-entity verification.
