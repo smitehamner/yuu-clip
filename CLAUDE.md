@@ -208,6 +208,31 @@ move. Orientation summary only:
 - `electron/` - the desktop wrapper (own Node test suite)
 - `tests/` - unit / integration / system / ui / js tiers, split by directory
 
+### Repo root hygiene
+
+Keep the repo root to only what a tool or a GitHub convention requires there, or what
+must be immediately visible to someone landing on the repo page. Everything else gets a
+named subdirectory - never a new loose file or folder at root.
+
+- **Tool-required at root**: `pyproject.toml`, `package.json`/`package-lock.json`,
+  `pytest.ini`, `vitest.config.mjs`, `alembic.ini`, `.venv/`, `.mypy_cache/`,
+  `.pytest_cache/`, `.ruff_cache/`, `.git*`, `CLAUDE.md`/`CLAUDE.local.md` (Claude Code
+  convention), `yuu_clip/` (the package itself).
+- **First-thing-a-visitor-reads at root**: `README.md`, `LICENSE`, `DEV-README.md`.
+- **GitHub-discovered but does not need to be at root**: `CONTRIBUTING.md`,
+  `SECURITY.md` - these live in `.github/` (GitHub auto-discovers them there for the
+  Security tab, new-issue page, etc. - no config needed).
+- **Generated/build output**: gets its own gitignored top-level directory, never loose
+  files at root. Established ones: `.test-logs/` (test-run logs +
+  `test-ui.lock`, written by `yuu_clip/dev/_base.py`'s `TEST_LOGS_DIR`), `build/`
+  (electron-builder + wheel/venv assembly scratch - `scripts/windows-release/`), `releases/<version>/`
+  (the finished installer `Setup.exe`, archived out of `build/installer/`'s scratch by
+  `build-release.ps1` - this is the file to actually upload/share).
+- Before adding a new file or directory at root, ask: does a tool require it there by
+  name, or does it need root-level visibility for a human browsing the repo? If not,
+  give it a purpose-named subdirectory (or route it into an existing one above) instead
+  of letting it land loose at root.
+
 ## Running tests
 
 Tier definitions (what each of unit/integration/ui/js needs, and when to use each)

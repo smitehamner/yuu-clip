@@ -69,8 +69,8 @@ If first-run setup ever fails, the setup log is saved at
 Prefer to run from source, use the command line, or dig into GPU and Whisper model
 settings? See **[DEV-README.md](DEV-README.md)**.
 
-To modify the code and contribute, see **[CONTRIBUTING.md](CONTRIBUTING.md)**. Please
-report security issues per [SECURITY.md](SECURITY.md) rather than in a public issue.
+To modify the code and contribute, see **[CONTRIBUTING.md](.github/CONTRIBUTING.md)**. Please
+report security issues per [SECURITY.md](.github/SECURITY.md) rather than in a public issue.
 
 ---
 

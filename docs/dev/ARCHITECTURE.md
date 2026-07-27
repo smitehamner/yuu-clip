@@ -7,7 +7,7 @@ assistant.
 
 Where this sits in the docs:
 
-- **[CONTRIBUTING.md](../../CONTRIBUTING.md)** - setup, the `yuu-dev` CLI, and the PR
+- **[CONTRIBUTING.md](../../.github/CONTRIBUTING.md)** - setup, the `yuu-dev` CLI, and the PR
   process. Start there to get a working checkout.
 - **This file** - the mental model plus the top landmines, in prose you read once. A
   new narrow-scope gotcha (a bug class, an import-order trap, a subprocess
@@ -390,7 +390,7 @@ schema. The schema is versioned by **Alembic** ([yuu_clip/db/migrations/](../../
 - **To change the schema:** edit `db/models.py`, run `yuu-dev migrate-new "message"`,
   **review** the generated script (SQLite needs batch ops for anything but an add-column;
   autogenerate output is never blindly trusted), and commit the model + revision together.
-  See [CONTRIBUTING.md](../../CONTRIBUTING.md) "Changing the database schema".
+  See [CONTRIBUTING.md](../../.github/CONTRIBUTING.md) "Changing the database schema".
 
 ### 6. Interactive labeling never runs from the web UI
 

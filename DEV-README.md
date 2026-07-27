@@ -5,7 +5,7 @@ technical reference material. Most people should use the desktop app instead - s
 [README](README.md).
 
 If you want to modify the code and open a pull request, read
-[CONTRIBUTING.md](CONTRIBUTING.md) as well - it covers the dev CLI, tests, and code
+[CONTRIBUTING.md](.github/CONTRIBUTING.md) as well - it covers the dev CLI, tests, and code
 standards.
 
 ---

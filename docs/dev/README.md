@@ -22,4 +22,4 @@ Also here:
   GPL source-accompaniment for the bundled FFmpeg.
 
 Contributor setup and the `yuu-dev` commands live in
-[CONTRIBUTING.md](../../CONTRIBUTING.md).
+[CONTRIBUTING.md](../../.github/CONTRIBUTING.md).
