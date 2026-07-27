@@ -217,13 +217,15 @@ class TestVideoTranscript:
         )
         expect(page.locator("#video-transcript-details .transcript-stale-note")).to_have_count(0)
 
-    def test_long_transcript_renders_in_pages(self, page: Page):
-        # A multi-hour recording can carry thousands of lines; rendering them all in one
-        # innerHTML write visibly locked up the tab. 620 lines = 2 full 300-line pages
-        # plus a partial third, enough to exercise the chunk boundary twice.
+    def _open_long_transcript(self, page: Page, count: int, needle_at=()) -> None:
+        # A multi-hour recording can carry thousands of lines; painting them all in one
+        # innerHTML write visibly locked up the tab. The recording transcript now renders
+        # one bounded 300-line window at a time - prev/next SWAP the window instead of
+        # appending, so the DOM stays capped no matter how long the recording is.
         lines = {"lines": [
-            {"start_ms": i * 1000, "end_ms": i * 1000 + 900, "speaker": None, "text": f"line {i}"}
-            for i in range(620)
+            {"start_ms": i * 1000, "end_ms": i * 1000 + 900, "speaker": None,
+             "text": f"line {i}" + (" needle" if i in needle_at else "")}
+            for i in range(count)
         ]}
         page.route(
             "**/api/videos/*/transcript",
@@ -234,22 +236,68 @@ class TestVideoTranscript:
         self._select_first_video(page)
         page.locator("#video-transcript-details .detail-card-title").click()
 
-        expect(page.locator("#video-transcript-view .tline")).to_have_count(300)
-        more = page.locator(".tx-load-more")
-        expect(more).to_contain_text("320 left")
+    def test_long_transcript_uses_bounded_windowed_paging(self, page: Page):
+        # 620 lines = two full 300-line windows plus a partial third.
+        self._open_long_transcript(page, 620)
+        lines = page.locator("#video-transcript-view .tline")
+        # First window: exactly 300 rows painted; pager visible.
+        expect(lines).to_have_count(300)
+        expect(lines.first).to_contain_text("line 0")
+        expect(page.locator("#tx-pager")).to_be_visible()
+        # Next SWAPS the window (still 300 rows in the DOM, not 600) and shows line 300.
+        page.locator("#tx-range + .tx-page-next").click()
+        expect(lines).to_have_count(300)
+        expect(lines.first).to_contain_text("line 300")
+        # Next again -> final partial window (20 rows), starting at line 600.
+        page.locator("#tx-range + .tx-page-next").click()
+        expect(lines).to_have_count(20)
+        expect(lines.first).to_contain_text("line 600")
+        # Prev walks back to the start.
+        page.locator("#video-transcript-view .tx-page-prev").first.click()
+        expect(lines.first).to_contain_text("line 300")
 
-        more.click()
-        expect(page.locator("#video-transcript-view .tline")).to_have_count(600)
-        expect(page.locator(".tx-load-more")).to_contain_text("20 left")
+    def test_short_transcript_hides_the_pager(self, page: Page):
+        # A transcript that fits in one window needs no paging chrome.
+        self._open_long_transcript(page, 12)
+        expect(page.locator("#video-transcript-view .tline")).to_have_count(12)
+        expect(page.locator("#tx-pager")).to_be_hidden()
+        expect(page.locator("#tx-range")).to_be_hidden()
 
-        page.locator(".tx-load-more").click()
-        expect(page.locator("#video-transcript-view .tline")).to_have_count(620)
-        expect(page.locator(".tx-load-more")).to_have_count(0)
+    def test_transcript_search_counts_and_navigates_across_windows(self, page: Page):
+        self._open_long_transcript(page, 620, needle_at=(5, 350, 615))
+        page.fill("#tx-search", "needle")
+        count = page.locator("#tx-search-count")
+        # Three matches; the first is active and lives in the current window, highlighted.
+        expect(count).to_have_text("1/3")
+        expect(page.locator("#video-transcript-view mark.tx-hit")).to_have_count(1)
+        expect(page.locator("#video-transcript-view .tline-match-active")).to_contain_text("line 5")
+        # Next match jumps to the window holding line 350 (window 1).
+        page.click("#tx-search-next")
+        expect(count).to_have_text("2/3")
+        expect(page.locator("#video-transcript-view .tline").first).to_contain_text("line 300")
+        expect(page.locator("#video-transcript-view .tline-match-active")).to_contain_text("line 350")
+        # Wrapping past the last match returns to the first.
+        page.click("#tx-search-next")
+        expect(count).to_have_text("3/3")
+        page.click("#tx-search-next")
+        expect(count).to_have_text("1/3")
 
-    def test_speaker_label_does_not_repeat_across_a_page_boundary(self, page: Page):
-        # The same speaker's last line on page 1 and first line on page 2 must not both
-        # print the "Yuu" label - _renderNextTranscriptChunk seeds initialPrevSpeaker from
-        # the previous page's last line specifically to prevent this.
+    def test_no_matches_reports_and_disables_navigation(self, page: Page):
+        self._open_long_transcript(page, 40)
+        page.fill("#tx-search", "zzzznope")
+        expect(page.locator("#tx-search-count")).to_have_text("No matches")
+        expect(page.locator("#tx-search-next")).to_be_disabled()
+
+    def test_jump_to_time_loads_the_window_around_that_moment(self, page: Page):
+        # start_ms == i*1000, so 5:10 (310s) lands on line 310 -> window 1 (starts line 300).
+        self._open_long_transcript(page, 620)
+        page.fill("#tx-jump", "5:10")
+        page.click("#tx-jump-go")
+        expect(page.locator("#video-transcript-view .tline").first).to_contain_text("line 300")
+
+    def test_each_window_reprints_the_speaker_label_on_its_first_line(self, page: Page):
+        # A window always prints the speaker of its first line (initialPrevSpeaker=null),
+        # so an unbroken same-speaker run shows exactly one label per window.
         lines = {"lines": [
             {"start_ms": i * 1000, "end_ms": i * 1000 + 900, "speaker": "Yuu", "speaker_id": 1,
              "color": "#4fc3f7", "text": f"line {i}", "seg_id": 100 + i}
@@ -269,11 +317,10 @@ class TestVideoTranscript:
         self._select_first_video(page)
         page.locator("#video-transcript-details .detail-card-title").click()
         expect(page.locator("#video-transcript-view .tline")).to_have_count(300)
-        # One unbroken run of the same speaker -> exactly one label, on the first line.
         expect(page.locator("#video-transcript-view .tline-speaker")).to_have_count(1)
-
-        page.locator(".tx-load-more").click()
-        expect(page.locator("#video-transcript-view .tline")).to_have_count(305)
+        # The second window (5 rows) reprints the single label on its own first line.
+        page.locator("#tx-range + .tx-page-next").click()
+        expect(page.locator("#video-transcript-view .tline")).to_have_count(5)
         expect(page.locator("#video-transcript-view .tline-speaker")).to_have_count(1)
 
 

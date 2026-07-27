@@ -30,11 +30,11 @@ function seekPlayerTo(seconds) {
 // suppresses the click-to-edit-caption affordance even when a line carries a seg_id -
 // used by the manual clip picker, where a line click selects a range instead.
 // opts.initialPrevSpeaker seeds the "did the speaker change" check for the first line -
-// used when rendering one chunk of a longer transcript that was already split into
-// pages (see _renderNextTranscriptChunk) so the speaker label doesn't spuriously
-// reprint at every chunk boundary. opts.diarized overrides the auto-detected diarized
-// flag for the same reason: a chunk can contain zero diarized lines even though the
-// recording as a whole is diarized.
+// the recording transcript renders one bounded window at a time (see
+// _renderTranscriptWindow), passing null so a window always prints the speaker of its
+// first line. opts.diarized overrides the auto-detected diarized flag for the same
+// reason: a window can contain zero diarized lines even though the recording as a whole
+// is diarized. opts.highlightQuery (lowercased) wraps matching text in <mark> for search.
 // Per-line display flags, computed before HTML assembly. showSpeaker: print the speaker
 // label (the name changed from the previous line). nameEditable: the label doubles as an
 // inline rename control (a diarized line in an editable transcript). editable: the caption
@@ -49,10 +49,30 @@ export function _transcriptLineFlags(line, prevSpeaker, opts) {
   };
 }
 
+// Escape `text` and wrap every case-insensitive occurrence of `query` (already
+// lowercased) in <mark class="tx-hit"> so a transcript search highlights in place.
+// textContent still returns the raw text, so click-to-edit is unaffected.
+export function _highlightHtml(text, query) {
+  text = text || '';
+  if (!query) return escHtml(text);
+  const lower = text.toLowerCase();
+  let out = '';
+  let i = 0;
+  while (i < text.length) {
+    const hit = lower.indexOf(query, i);
+    if (hit === -1) { out += escHtml(text.slice(i)); break; }
+    out += escHtml(text.slice(i, hit));
+    out += `<mark class="tx-hit">${escHtml(text.slice(hit, hit + query.length))}</mark>`;
+    i = hit + query.length;
+  }
+  return out;
+}
+
 function _buildTranscriptRows(lines, opts) {
   const offsetS = opts.seekOffsetS || 0;
   const videoId = opts.videoId;
   const readOnly = !!opts.readOnly;
+  const highlightQuery = opts.highlightQuery || null;
   // Show the per-line speaker dot on every line of a diarized transcript - including
   // ones the user set to Unassigned - so an unassigned line keeps a control to
   // reattribute it. A plain (never-diarized) transcript has no speakers, so no dots.
@@ -95,7 +115,7 @@ function _buildTranscriptRows(lines, opts) {
               title="Jump to ${clock}" aria-label="Play from ${clock}">&#9654;</button>
       <span class="tline-time">${clock}</span>
       ${spk}
-      <span class="tline-text${editable ? ' editable' : ''}"${editAttrs}>${escHtml(line.text)}</span>
+      <span class="tline-text${editable ? ' editable' : ''}"${editAttrs}>${_highlightHtml(line.text, highlightQuery)}</span>
     </div>`;
   }).join('');
 }
@@ -124,30 +144,186 @@ export async function loadClipTranscript(clipId) {
 
 // A multi-hour recording can carry several thousand transcript lines (~5-7 DOM
 // nodes each); building and painting them all in one innerHTML write is what made
-// the full-recording transcript panel visibly lock up the UI on long sessions.
-// Render it a page at a time instead - the same event-delegated click handlers
-// below work unchanged since new pages are just appended DOM.
-const _TRANSCRIPT_CHUNK_SIZE = 300;
+// the full-recording transcript panel visibly lock up the UI on long sessions. So
+// the full transcript renders one bounded WINDOW of lines at a time inside a fixed
+// scroll box: prev/next swap the window (replace, never append) so the DOM stays
+// capped at _TRANSCRIPT_WINDOW rows no matter how long the recording is. A sticky
+// toolbar over the box adds within-recording search (highlight + next/prev + a
+// counter) and jump-to-time, both operating over the full in-memory line array
+// while only the current window is painted. Clip/scene transcripts are short and
+// render whole (loadClipTranscript / renderTranscriptLines) - this only drives the
+// recording-level full transcript.
+const _TRANSCRIPT_WINDOW = 300;
 let _videoTranscriptLoadedFor = null;
-let _videoTranscriptPage = null; // {lines, shown, videoId, seekOffsetS, diarized, lastSpeaker}
+// _tx: null when no recording transcript is loaded, else
+// {lines, videoId, seekOffsetS, diarized, windowStart, query, matches, activeMatch}.
+// matches is the list of line indices whose text contains query; activeMatch indexes
+// into it (-1 = none). windowStart is always a multiple of _TRANSCRIPT_WINDOW.
+let _tx = null;
 
-function _renderNextTranscriptChunk() {
-  const page = _videoTranscriptPage;
+function _txWindowEnd() {
+  return Math.min(_tx.windowStart + _TRANSCRIPT_WINDOW, _tx.lines.length);
+}
+
+function _txNavHtml() {
+  return `<div class="tx-nav-box">
+    <div class="tx-toolbar">
+      <div class="tx-toolbar-row">
+        <input type="search" class="tx-search settings-input" id="tx-search"
+               placeholder="Search this transcript..." aria-label="Search this transcript">
+        <span class="tx-search-count" id="tx-search-count" hidden></span>
+        <button class="btn ghost tx-search-prev" id="tx-search-prev"
+                title="Previous match" aria-label="Previous match" disabled>&#9650;</button>
+        <button class="btn ghost tx-search-next" id="tx-search-next"
+                title="Next match" aria-label="Next match" disabled>&#9660;</button>
+      </div>
+      <div class="tx-toolbar-row">
+        <label class="tx-jump-label" for="tx-jump">Jump to</label>
+        <input type="text" class="tx-jump settings-input" id="tx-jump" placeholder="mm:ss"
+               inputmode="numeric" maxlength="8" aria-label="Jump to time (mm:ss)">
+        <button class="btn ghost tx-jump-go" id="tx-jump-go" title="Go to time" aria-label="Go to time">Go</button>
+        <span class="tx-toolbar-sp"></span>
+        <button class="btn ghost tx-page-prev" title="Previous page" aria-label="Previous page">&#8249; Prev</button>
+        <span class="tx-range" id="tx-range" aria-live="polite"></span>
+        <button class="btn ghost tx-page-next" title="Next page" aria-label="Next page">Next &#8250;</button>
+      </div>
+    </div>
+    <div class="tx-scroll" id="video-transcript-scroll">
+      <div class="transcript-lines" id="video-transcript-lines"></div>
+    </div>
+    <div class="tx-pager" id="tx-pager">
+      <button class="btn ghost tx-page-prev" aria-label="Previous page">&#8249; Prev</button>
+      <button class="btn ghost tx-page-next" aria-label="Next page">Next &#8250;</button>
+      <button class="btn ghost tx-to-top" title="Back to top of this page" aria-label="Back to top">&#8593; Top</button>
+    </div>
+  </div>`;
+}
+
+// Paint the current window (replacing whatever was there) and refresh the toolbar
+// chrome. scrollToLineIdx (an absolute line index) centres that line in the box;
+// omit it to reset the box to its top.
+function _renderTranscriptWindow(scrollToLineIdx) {
   const container = document.getElementById('video-transcript-lines');
-  if (!page || !container) return;
-  document.getElementById('tx-load-more')?.remove();
-  const next = page.lines.slice(page.shown, page.shown + _TRANSCRIPT_CHUNK_SIZE);
-  container.insertAdjacentHTML('beforeend', _buildTranscriptRows(next, {
-    seekOffsetS: page.seekOffsetS, videoId: page.videoId,
-    diarized: page.diarized, initialPrevSpeaker: page.lastSpeaker,
-  }));
-  page.shown += next.length;
-  if (next.length) page.lastSpeaker = next[next.length - 1].speaker;
-  const remaining = page.lines.length - page.shown;
-  if (remaining > 0) {
-    container.insertAdjacentHTML('afterend',
-      `<button class="btn ghost tx-load-more" id="tx-load-more">Show more lines (${remaining} left)</button>`);
+  if (!_tx || !container) return;
+  const windowLines = _tx.lines.slice(_tx.windowStart, _txWindowEnd());
+  container.innerHTML = _buildTranscriptRows(windowLines, {
+    seekOffsetS: _tx.seekOffsetS, videoId: _tx.videoId, diarized: _tx.diarized,
+    initialPrevSpeaker: null, highlightQuery: _tx.query,
+  });
+  _reapplySelectionHighlight();
+  _markActiveMatchRow(container);
+  _updateTxChrome();
+  const scroll = document.getElementById('video-transcript-scroll');
+  if (!scroll) return;
+  if (scrollToLineIdx != null) {
+    const row = container.querySelectorAll('.tline')[scrollToLineIdx - _tx.windowStart];
+    if (row) scroll.scrollTop = Math.max(0, row.offsetTop - scroll.clientHeight / 2);
+  } else {
+    scroll.scrollTop = 0;
   }
+}
+
+function _markActiveMatchRow(container) {
+  if (!_tx.query || _tx.activeMatch < 0) return;
+  const lineIdx = _tx.matches[_tx.activeMatch];
+  if (lineIdx < _tx.windowStart || lineIdx >= _txWindowEnd()) return;
+  const row = container.querySelectorAll('.tline')[lineIdx - _tx.windowStart];
+  if (row) row.classList.add('tline-match-active');
+}
+
+function _updateTxChrome() {
+  const total = _tx.lines.length;
+  const start = _tx.windowStart;
+  const end = _txWindowEnd();
+  const multi = total > _TRANSCRIPT_WINDOW;
+  const range = document.getElementById('tx-range');
+  if (range) {
+    range.hidden = !multi;
+    if (multi) {
+      const from = fmtClock(_tx.lines[start] ? _tx.lines[start].start_ms : 0);
+      const to = fmtClock(_tx.lines[end - 1] ? _tx.lines[end - 1].start_ms : 0);
+      range.textContent = `${from} - ${to}`;
+    }
+  }
+  document.querySelectorAll('#video-transcript-view .tx-page-prev').forEach(b => { b.disabled = start <= 0; });
+  document.querySelectorAll('#video-transcript-view .tx-page-next').forEach(b => { b.disabled = end >= total; });
+  const pager = document.getElementById('tx-pager');
+  if (pager) pager.hidden = !multi;
+  _updateSearchCount();
+}
+
+function _updateSearchCount() {
+  const el = document.getElementById('tx-search-count');
+  const prev = document.getElementById('tx-search-prev');
+  const next = document.getElementById('tx-search-next');
+  if (!el) return;
+  const matchCount = _tx.matches.length;
+  if (!_tx.query) {
+    el.hidden = true;
+    if (prev) prev.disabled = true;
+    if (next) next.disabled = true;
+    return;
+  }
+  el.hidden = false;
+  el.textContent = matchCount
+    ? `${(_tx.activeMatch >= 0 ? _tx.activeMatch : 0) + 1}/${matchCount}`
+    : 'No matches';
+  if (prev) prev.disabled = matchCount === 0;
+  if (next) next.disabled = matchCount === 0;
+}
+
+function _runTxSearch(raw) {
+  if (!_tx) return;
+  const query = (raw || '').trim().toLowerCase();
+  _tx.query = query;
+  _tx.matches = [];
+  if (query) {
+    _tx.lines.forEach((line, i) => {
+      if ((line.text || '').toLowerCase().includes(query)) _tx.matches.push(i);
+    });
+  }
+  _tx.activeMatch = _tx.matches.length ? 0 : -1;
+  // Typing only highlights + counts in the current window; navigation (Enter or the
+  // prev/next buttons) is what actually jumps the window to a match.
+  _renderTranscriptWindow();
+}
+
+function _goToMatch(matchIdx) {
+  if (!_tx || !_tx.matches.length) return;
+  const n = _tx.matches.length;
+  _tx.activeMatch = ((matchIdx % n) + n) % n;
+  const lineIdx = _tx.matches[_tx.activeMatch];
+  _tx.windowStart = Math.floor(lineIdx / _TRANSCRIPT_WINDOW) * _TRANSCRIPT_WINDOW;
+  _renderTranscriptWindow(lineIdx);
+}
+
+export function _parseClock(str) {
+  const trimmed = (str || '').trim();
+  if (!trimmed) return null;
+  const parts = trimmed.split(':').map(p => p.trim());
+  if (parts.length > 3 || parts.some(p => !/^\d+$/.test(p))) return null;
+  return parts.reduce((total, part) => total * 60 + parseInt(part, 10), 0);
+}
+
+function _jumpToTime(str) {
+  if (!_tx) return;
+  const seconds = _parseClock(str);
+  if (seconds == null) { showToast('Enter a time like 4:30', 'warning'); return; }
+  const targetMs = seconds * 1000;
+  let idx = _tx.lines.findIndex(line => (line.start_ms || 0) >= targetMs);
+  if (idx === -1) idx = _tx.lines.length - 1;
+  _tx.windowStart = Math.floor(idx / _TRANSCRIPT_WINDOW) * _TRANSCRIPT_WINDOW;
+  _renderTranscriptWindow(idx);
+}
+
+function _txPage(delta) {
+  if (!_tx) return;
+  const total = _tx.lines.length;
+  const lastStart = Math.floor(Math.max(0, total - 1) / _TRANSCRIPT_WINDOW) * _TRANSCRIPT_WINDOW;
+  const next = Math.max(0, Math.min(_tx.windowStart + delta * _TRANSCRIPT_WINDOW, lastStart));
+  if (next === _tx.windowStart) return;
+  _tx.windowStart = next;
+  _renderTranscriptWindow();
 }
 
 async function loadVideoTranscript(videoId) {
@@ -158,23 +334,24 @@ async function loadVideoTranscript(videoId) {
   // fresh empty #video-transcript-view while the flag still points here - that
   // combination is what left the panel silently blank on reopen.
   if (_videoTranscriptLoadedFor === videoId && el.childElementCount > 0) return;
-  el.innerHTML = '<div class="transcript-empty">Loading…</div>';
+  el.innerHTML = '<div class="transcript-empty">Loading...</div>';
   try {
     const data = await fetch(`/api/videos/${videoId}/transcript`).then(r => r.json());
     _resetLineSelect();
     const lines = data.lines || [];
     if (!lines.length) {
       el.innerHTML = '<div class="transcript-empty">No transcript available.</div>';
-      _videoTranscriptPage = null;
+      _tx = null;
       _videoTranscriptLoadedFor = videoId;
       return;
     }
-    _videoTranscriptPage = {
-      lines, shown: 0, videoId, seekOffsetS: data.seek_offset_s || 0,
-      diarized: lines.some(l => l.speaker_id != null), lastSpeaker: null,
+    _tx = {
+      lines, videoId, seekOffsetS: data.seek_offset_s || 0,
+      diarized: lines.some(l => l.speaker_id != null),
+      windowStart: 0, query: '', matches: [], activeMatch: -1,
     };
-    el.innerHTML = `${_lineMoveToolbar()}<div class="transcript-lines" id="video-transcript-lines"></div>`;
-    _renderNextTranscriptChunk();
+    el.innerHTML = `${_lineMoveToolbar()}${_txNavHtml()}`;
+    _renderTranscriptWindow();
     _videoTranscriptLoadedFor = videoId;
   } catch (_) {
     el.innerHTML = '<div class="transcript-empty">Could not load transcript.</div>';
@@ -256,6 +433,19 @@ function _toggleLineSelection(row) {
   if (count) count.textContent = `${plural(_lineMove.selected.size, 'line')} selected`;
 }
 
+// Re-apply the .tline-selected class to any selected rows in the freshly-painted
+// window. A selection can span windows (only the current one is in the DOM), so the
+// authoritative set is _lineMove.selected, not the DOM.
+function _reapplySelectionHighlight() {
+  if (!_lineMove.active || !_lineMove.selected.size) return;
+  const container = document.getElementById('video-transcript-lines');
+  if (!container) return;
+  container.querySelectorAll('.tline').forEach(row => {
+    const segId = parseInt(row.dataset.segId, 10);
+    if (segId && _lineMove.selected.has(segId)) row.classList.add('tline-selected');
+  });
+}
+
 async function _moveSelectedLines(value) {
   const segIds = [..._lineMove.selected];
   const videoId = _lineMove.videoId;
@@ -263,12 +453,15 @@ async function _moveSelectedLines(value) {
   try {
     const target = await _resolveMoveTarget(value, videoId);
     // The bulk endpoint moves lines of ONE source speaker, so group the selection by
-    // each line's current speaker and call once per group.
+    // each line's current speaker and call once per group. A selection can span windows,
+    // so resolve each line's source speaker from the in-memory line array (the DOM only
+    // holds the current window).
+    const srcBySeg = new Map();
+    if (_tx) for (const line of _tx.lines) if (line.seg_id != null) srcBySeg.set(line.seg_id, line.speaker_id);
     const groups = {};
     for (const segId of segIds) {
-      const row = document.querySelector(`#video-transcript-view .tline[data-seg-id="${segId}"]`);
-      const src = row && row.dataset.speakerId;
-      if (src && parseInt(src, 10) !== target) (groups[src] = groups[src] || []).push(segId);
+      const src = srcBySeg.get(segId);
+      if (src != null && src !== target) (groups[src] = groups[src] || []).push(segId);
     }
     let moved = 0;
     for (const [src, ids] of Object.entries(groups)) {
@@ -336,11 +529,12 @@ export function updateSpeakerLabelsInTranscript(speakerId, changes) {
     document.querySelectorAll(`.tline-spk${sel} .tline-spk-dot`).forEach(dot => { dot.style.background = color; });
   }
 
-  // Keep the paged cache in sync so a later "Show more" renders the new label/colour too.
-  const page = _videoTranscriptPage;
-  if (page) {
+  // Keep the in-memory line array in sync so a later window swap renders the new
+  // label/colour too (only the current window is painted, so off-window lines are
+  // patched here rather than in the DOM).
+  if (_tx) {
     const numId = Number(speakerId);
-    for (const line of page.lines) {
+    for (const line of _tx.lines) {
       if (line.speaker_id === numId) {
         if (displayName != null) line.speaker = displayName;
         if (color != null) line.color = color;
@@ -666,7 +860,20 @@ export function initTranscriptListeners() {
   const detail = document.getElementById('detail');
   if (!detail) return;
   detail.addEventListener('click', e => {
-    if (e.target.closest('.tx-load-more')) { _renderNextTranscriptChunk(); return; }
+    if (e.target.closest('.tx-page-prev')) { _txPage(-1); return; }
+    if (e.target.closest('.tx-page-next')) { _txPage(1); return; }
+    if (e.target.closest('.tx-to-top')) {
+      const scroll = document.getElementById('video-transcript-scroll');
+      if (scroll) scroll.scrollTop = 0;
+      return;
+    }
+    if (e.target.closest('.tx-search-prev')) { _goToMatch(_tx ? _tx.activeMatch - 1 : 0); return; }
+    if (e.target.closest('.tx-search-next')) { _goToMatch(_tx ? _tx.activeMatch + 1 : 0); return; }
+    if (e.target.closest('.tx-jump-go')) {
+      const input = document.getElementById('tx-jump');
+      if (input) _jumpToTime(input.value);
+      return;
+    }
     if (e.target.closest('.tx-move-toggle')) { _enterLineSelect(); return; }
     if (e.target.closest('.tx-move-cancel')) { _exitLineSelect(); return; }
     const view = document.getElementById('video-transcript-view');
@@ -698,7 +905,20 @@ export function initTranscriptListeners() {
     const target = e.target.closest && e.target.closest('.tx-move-target');
     if (target && target.value) _moveSelectedLines(target.value);
   });
+  detail.addEventListener('input', e => {
+    if (e.target.closest && e.target.closest('#tx-search')) _runTxSearch(e.target.value);
+  });
   detail.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && e.target.closest && e.target.closest('#tx-search')) {
+      e.preventDefault();
+      _goToMatch(_tx && _tx.activeMatch >= 0 ? _tx.activeMatch : 0);
+      return;
+    }
+    if (e.key === 'Enter' && e.target.closest && e.target.closest('#tx-jump')) {
+      e.preventDefault();
+      _jumpToTime(e.target.value);
+      return;
+    }
     if (e.key !== 'Enter' && e.key !== ' ') return;
     const spkLabel = e.target.closest && e.target.closest('.tline-speaker.editable');
     if (spkLabel && !spkLabel.classList.contains('editing')) { e.preventDefault(); startRenameSpeaker(spkLabel); return; }

@@ -14,6 +14,7 @@ vi.mock('../../../yuu_clip/web/static/clips/clips.js', () => ({ refreshClipDetai
 
 import {
   startRenameSpeaker, updateSpeakerLabelsInTranscript, _transcriptLineFlags,
+  _highlightHtml, _parseClock,
 } from '../../../yuu_clip/web/static/analyze/transcript.js';
 
 // The speaker list is cached per video, so each test uses a fresh video id to keep the
@@ -73,6 +74,41 @@ describe('_transcriptLineFlags', () => {
     expect(_transcriptLineFlags(line({ speaker_id: null }), null, opts()).hasSpeakerDot).toBe(true);
     expect(_transcriptLineFlags(line(), null, opts({ diarized: false })).hasSpeakerDot).toBe(false);
     expect(_transcriptLineFlags(line({ seg_id: null }), null, opts()).hasSpeakerDot).toBe(false);
+  });
+});
+
+describe('_highlightHtml (transcript search)', () => {
+  it('returns plain escaped text when there is no query', () => {
+    expect(_highlightHtml('a <b> & "c"', '')).toBe('a &lt;b&gt; &amp; &quot;c&quot;');
+  });
+
+  it('wraps each case-insensitive match in a <mark class="tx-hit">', () => {
+    expect(_highlightHtml('Go Go go', 'go')).toBe(
+      '<mark class="tx-hit">Go</mark> <mark class="tx-hit">Go</mark> <mark class="tx-hit">go</mark>');
+  });
+
+  it('escapes both the matched and unmatched slices', () => {
+    // query is pre-lowercased by the caller; the match keeps the source casing/entities.
+    expect(_highlightHtml('x <y> z', '<y>')).toBe('x <mark class="tx-hit">&lt;y&gt;</mark> z');
+  });
+
+  it('leaves text untouched when the query does not occur', () => {
+    expect(_highlightHtml('hello', 'zzz')).toBe('hello');
+  });
+});
+
+describe('_parseClock (jump-to-time)', () => {
+  it('parses mm:ss and h:mm:ss into seconds', () => {
+    expect(_parseClock('4:30')).toBe(270);
+    expect(_parseClock('1:02:03')).toBe(3723);
+    expect(_parseClock('45')).toBe(45);
+  });
+
+  it('rejects blank or non-numeric input', () => {
+    expect(_parseClock('')).toBe(null);
+    expect(_parseClock('  ')).toBe(null);
+    expect(_parseClock('4:xx')).toBe(null);
+    expect(_parseClock('1:2:3:4')).toBe(null);
   });
 });
 
