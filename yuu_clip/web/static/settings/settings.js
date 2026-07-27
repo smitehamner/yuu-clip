@@ -151,6 +151,8 @@ async function openSettings(scrollToSectionId) {
     } else {
       setTimeout(() => document.getElementById('s-whisper-model')?.focus({ preventScroll: true }), 50);
     }
+    // Kick the rail scroll-spy so the header height + active link are set on open.
+    requestAnimationFrame(() => panel.dispatchEvent(new Event('scroll')));
   } catch (e) {
     showToast('Failed to load settings', 'error');
   }
@@ -843,14 +845,80 @@ function _wireHeaderButtons() {
   document.getElementById('btn-settings-close')?.addEventListener('click', () => closeSettings());
 }
 
-// Delegated on the whole panel (not just .settings-jump-row) so inline
-// cross-links between related controls (e.g. the Hardware <-> Compute device
-// note pair) reuse the same .settings-jump-link[data-section] pattern as the
-// top jump nav, without a second listener.
+// Delegated on the whole panel so both the left-rail nav (.settings-nav-link) and
+// inline cross-links between related controls (.settings-jump-link, e.g. the
+// Hardware <-> LLM-GPU note pair) reuse one [data-section] scroll path.
 function _wireJumpNav() {
   document.getElementById('settings-panel')?.addEventListener('click', e => {
-    const btn = e.target.closest('.settings-jump-link[data-section]');
+    const btn = e.target.closest('.settings-jump-link[data-section], .settings-nav-link[data-section]');
     if (btn) _scrollToSettingsSection(btn.dataset.section);
+  });
+}
+
+// Scroll-spy: mark the rail link for the section currently under the sticky header
+// as active. Also keeps --settings-header-h in sync so the sticky rail clears the
+// header. rAF-throttled; a no-op when the panel is closed.
+function _wireSettingsRail() {
+  const panel = document.getElementById('settings-panel');
+  if (!panel) return;
+  let queued = false;
+  const sync = () => {
+    queued = false;
+    const header = panel.querySelector('.settings-header');
+    const headerH = header?.offsetHeight ?? 0;
+    panel.style.setProperty('--settings-header-h', `${headerH}px`);
+    const links = [...panel.querySelectorAll('.settings-nav-link[data-section]')];
+    let activeId = null;
+    for (const link of links) {
+      const sec = document.getElementById(link.dataset.section);
+      if (sec && sec.offsetParent !== null && sec.offsetTop - panel.scrollTop <= headerH + 40) {
+        activeId = link.dataset.section;
+      }
+    }
+    for (const link of links) link.classList.toggle('active', link.dataset.section === activeId);
+  };
+  panel.addEventListener('scroll', () => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(sync);
+  });
+  // Recompute once the panel is shown/populated and when the viewport changes.
+  panel.addEventListener('transitionend', sync);
+  window.addEventListener('resize', () => { if (panel.classList.contains('visible')) sync(); });
+}
+
+// Live filter: hide any section (and its rail link) whose visible text does not
+// contain the query, so typing "speed" narrows the panel to the sections that
+// mention it. Empty groups and the whole rail collapse to a "no match" note.
+function _wireSettingsFilter() {
+  const input = document.getElementById('settings-filter');
+  if (!input) return;
+  input.addEventListener('input', () => {
+    const q = input.value.trim().toLowerCase();
+    const sections = [...document.querySelectorAll('.settings-inner .settings-section')];
+    let anyVisible = false;
+    for (const sec of sections) {
+      // Match the human-readable copy (title + field labels + notes), not the whole
+      // textContent - the latter includes every <option> so "speed" would hit the
+      // "speedrun" content-preset option and wrongly match unrelated sections.
+      const copy = [...sec.querySelectorAll('.settings-section-title, .settings-group-title, .settings-label, .settings-note')]
+        .map(el => el.textContent).join(' ').toLowerCase();
+      const match = !q || copy.includes(q);
+      sec.hidden = !match;
+      const link = document.querySelector(`.settings-nav-link[data-section="${sec.id}"]`);
+      if (link) link.hidden = !match;
+      if (match) anyVisible = true;
+    }
+    document.querySelectorAll('.settings-rail-group').forEach(group => {
+      const links = [...group.querySelectorAll('.settings-nav-link')];
+      group.hidden = links.length > 0 && links.every(l => l.hidden);
+    });
+    const empty = document.getElementById('settings-filter-empty');
+    if (empty) {
+      empty.hidden = anyVisible;
+      const term = document.getElementById('settings-filter-term');
+      if (term) term.textContent = input.value.trim();
+    }
   });
 }
 
@@ -901,6 +969,8 @@ function _wireUpdatesSection() {
 function _wireStaticSettingsControls() {
   _wireHeaderButtons();
   _wireJumpNav();
+  _wireSettingsRail();
+  _wireSettingsFilter();
   _wireSectionResets();
   _wireLlmSection();
   _wireSpeakerSection();

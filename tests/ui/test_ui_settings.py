@@ -316,7 +316,7 @@ class TestSettingsPanelChrome:
     def test_jump_link_scrolls_its_section_into_view(self, page: Page):
         self._open_settings(page)
         assert page.evaluate("document.getElementById('settings-panel').scrollTop") == 0
-        page.click(".settings-jump-link:has-text('Paths')")
+        page.click(".settings-nav-link:has-text('Paths')")
         page.wait_for_function(
             "document.getElementById('settings-panel').scrollTop > 0", timeout=3000
         )
@@ -436,7 +436,7 @@ class TestCapabilitiesSection:
 
     def test_jump_link_scrolls_to_capabilities(self, page: Page):
         self._open_settings(page)
-        page.click(".settings-jump-link:has-text('Capabilities')")
+        page.click(".settings-nav-link:has-text('Capabilities')")
         expect(page.locator("#settings-sec-capabilities")).to_be_in_viewport()
 
 
@@ -744,7 +744,7 @@ class TestHardwareSettingsSection:
 
     def test_jump_link_scrolls_hardware_section_into_view(self, page: Page):
         self._open_settings(page)
-        page.click(".settings-jump-link:has-text('Hardware')")
+        page.click(".settings-nav-link:has-text('Hardware')")
         page.wait_for_function(
             "document.getElementById('settings-panel').scrollTop > 0", timeout=3000
         )
