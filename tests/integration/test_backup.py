@@ -40,6 +40,26 @@ def _names_in(archive_path) -> set[str]:
         return set(archive.namelist())
 
 
+def test_backup_failure_leaves_no_partial_or_temp_file(project_dir, tmp_path, monkeypatch):
+    """A failure mid-write (e.g. a file vanishing between listing and archiving)
+    must not leave a partial/corrupt file at dest_path or a leaked .tmp file."""
+    from yuu_clip import project_archive
+
+    _seed_state_and_derived(project_dir)
+    dest = tmp_path / "out.zip"
+
+    def raising_state_files(_project_dir):
+        raise OSError("simulated failure mid-backup")
+
+    monkeypatch.setattr(project_archive, "_state_files", raising_state_files)
+    try:
+        build_backup(project_dir, dest)
+    except OSError:
+        pass
+    assert not dest.exists()
+    assert not dest.with_name(dest.name + ".tmp").exists()
+
+
 def test_backup_contains_project_state(project_dir, tmp_path):
     _seed_state_and_derived(project_dir)
     archive = build_backup(project_dir, tmp_path / "out.zip")

@@ -166,11 +166,17 @@ def build_backup(project_dir: Path, dest_path: Path | None = None) -> Path:
     dest_path = Path(dest_path)
 
     root = project_dir / ".yuu-clip"
-    with zipfile.ZipFile(dest_path, "w", zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr("manifest.json", json.dumps(manifest, indent=2))
-        for file_path in _state_files(project_dir):
-            arcname = (Path(".yuu-clip") / file_path.relative_to(root)).as_posix()
-            archive.write(file_path, arcname)
+    tmp_path = dest_path.with_name(dest_path.name + ".tmp")
+    try:
+        with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr("manifest.json", json.dumps(manifest, indent=2))
+            for file_path in _state_files(project_dir):
+                arcname = (Path(".yuu-clip") / file_path.relative_to(root)).as_posix()
+                archive.write(file_path, arcname)
+        os.replace(tmp_path, dest_path)
+    except Exception:
+        tmp_path.unlink(missing_ok=True)
+        raise
     _log.info("Wrote project backup: %s", dest_path)
     return dest_path
 
