@@ -79,6 +79,46 @@ it from `/api/config` or the known fixture seed (3 clips / 2 scenes with fixed
 scores + statuses); and resolve on-disk project paths (reels, exports) via
 `served_project_dir(page)` (conftest), never the repo root.
 
+### Ad-hoc browser scripts against the live server
+
+A bare one-off script (`python -c "from playwright.sync_api import sync_playwright; ..."`)
+driving your interactive `:8080` server hangs on exit, not launch - the process never
+returns to the shell even after its own last `print` has run. This is the same
+upstream driver-teardown bug `_close_browser_unhang` below works around (landmine #9
+in [ARCHITECTURE.md](ARCHITECTURE.md)), just without pytest's watchdog to unstick it.
+Reproduces under both Git Bash and PowerShell - it is not shell-specific.
+
+For a one-off script, apply the same close-then-kill pattern instead of a bare
+`browser.close()`:
+
+```python
+import threading, subprocess
+from playwright.sync_api import sync_playwright
+
+with sync_playwright() as p:
+    browser = p.chromium.launch()
+    driver_pid = browser._impl_obj._connection._transport._proc.pid
+    ...  # drive the page
+
+    close_finished = threading.Event()
+    def kill_if_stuck():
+        if not close_finished.wait(2):
+            subprocess.run(["taskkill", "/F", "/PID", str(driver_pid)],
+                            capture_output=True, check=False, timeout=10)
+    threading.Thread(target=kill_if_stuck, daemon=True).start()
+    try:
+        browser.close()
+    except Exception:
+        pass  # expected: "Connection closed while reading from the driver"
+    finally:
+        close_finished.set()
+```
+
+`browser.close()` raising that exact exception is expected, not a new failure - it
+means the watchdog had to step in. Don't skip straight to `os._exit()` instead: `close()`
+is what tells Chromium to exit; killing the driver before giving it that chance can
+orphan the Chromium subprocess.
+
 `yuu-dev test-ui` (full) runs 4 pytest-xdist workers by default (~711 tests, ~2.7
 min, plus a few seconds to build + warm the fixture server); targeted runs scale
 workers down to the selected file count (a single file runs in-process). Pass

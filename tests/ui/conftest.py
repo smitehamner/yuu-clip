@@ -222,13 +222,21 @@ def _playwright_driver_pid(browser) -> int | None:
 
 
 def _close_browser_unhang(browser) -> None:
-    """Close the browser without hanging the process (Windows / Python 3.14).
+    """Close the browser without hanging the process (Windows).
 
     Upstream bug (playwright-python #818 family): at session teardown Chromium
     exits, but the driver's response to Browser.close is lost, leaving the sync
-    event loop parked in GetQueuedCompletionStatus forever. The old escape -
-    os._exit watchdogs - is not viable under xdist: a force-exited worker reads
-    as a crashed node and its last test is falsely marked failed.
+    event loop parked in GetQueuedCompletionStatus forever. Confirmed on
+    playwright 1.61.0 / Python 3.12.13 too, so this isn't a narrow 3.14-only
+    case. The old escape - os._exit watchdogs - is not viable under xdist: a
+    force-exited worker reads as a crashed node and its last test is falsely
+    marked failed.
+
+    This same bug bites bare ad-hoc Playwright scripts run outside pytest (a
+    one-off `python -c "..."` against the live :8080 server hangs on exit, not
+    launch) - see docs/dev/ARCHITECTURE.md landmine #9 and
+    docs/dev/TESTING.md's "Ad-hoc browser scripts against the live server" for
+    the same close-then-kill pattern applied to a standalone script.
 
     Instead, give close() a couple of seconds, then kill the node driver: the
     broken pipe wakes the event loop and close() raises 'Connection closed while

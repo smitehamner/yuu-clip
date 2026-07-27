@@ -426,6 +426,32 @@ forces correct decoding and prevents this; ASCII-only scripts don't need one.
 [tests/unit/test_ps1_bom.py](../../tests/unit/test_ps1_bom.py) enforces it for
 `scripts/*.ps1`.
 
+### 9. A bare Playwright script hangs on exit (not launch) - same driver-teardown bug as landmine 8's neighbor
+
+A one-off `python -c "from playwright.sync_api import sync_playwright; ..."` run
+against the live `:8080` server on this machine can look like it hangs at
+`p.chromium.launch()` with zero output - but reproducing it with `flush=True` prints
+after every step shows `launch()` returns fine; the process just never returns to the
+shell afterward, even after the script's own last line has printed. This is the exact
+upstream bug `tests/ui/conftest.py`'s `_close_browser_unhang` already works around
+(playwright-python#818 family): Chromium's driver process loses the response to the
+close/stop call, leaving a background reader thread parked in a blocking read forever.
+A bare script has no watchdog for that thread, so `python.exe` itself never exits -
+only `Ctrl+C` or a `timeout`/job-wrapper kill ends it. Confirmed on this venv
+(`playwright==1.61.0`, Python 3.12.13) under both Git Bash and PowerShell, so it is not
+shell-specific and not exclusive to the Python 3.14 case the existing conftest.py
+comment calls out.
+
+`yuu-dev test-ui` never hits this because `tests/ui/conftest.py`'s session-scoped
+`browser` fixture overrides pytest-playwright's default: it starts a 2s watchdog
+thread before calling `browser.close()` that `taskkill /F`s the driver subprocess if
+close doesn't finish in time, unblocking the stuck reader thread so the interpreter can
+exit. A bare script needs the same pattern - see
+[TESTING.md](TESTING.md#ad-hoc-browser-scripts-against-the-live-server) for the
+copy-pasteable version. Do not "fix" this by adding a blanket `os._exit()` at the end of
+one-off scripts - that skips whatever cleanup ran before the hang and can leave the
+driver/Chromium subprocess itself still running.
+
 ---
 
 ## Where do I change X?
