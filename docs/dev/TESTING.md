@@ -15,7 +15,7 @@ automatable use case in `docs/dev/USE_CASES.md`. Only two seams are stubbed
 energy/scenes/laugh/visual scoring, the DB, routes, ffmpeg cut/encode, and SRT sidecars
 all run for real. It needs ffmpeg on PATH (guard-skips otherwise) and no live server.
 
-- Run it with `yuu-dev test-system` (writes `test-system-last.log` +
+- Run it with `yuu-dev test-system` (writes `.test-logs/test-system-last.log` +
   `-summary.log`, mirroring test-api). It is a **pre-release gate, not a per-edit
   check**, and is deliberately excluded from `test-api`'s default selection (which stays
   ~1 min). `scripts/test-system.ps1` is a thin wrapper over the same command.

@@ -62,10 +62,10 @@ Before reporting a backend fix complete, do:
 5. Confirm the fix works in the browser (or state explicitly that you cannot)
 
 Test script output: both test commands default to quiet output and write
-`test-api-last.log` / `test-ui-last.log` (full) plus `test-*-last-summary.log`
-(failures + summary only). Read the summary file after a run - only open the full
-log when a failure needs more context. Pass `--detailed` for verbose per-test output
-on a manual run.
+`.test-logs/test-api-last.log` / `.test-logs/test-ui-last.log` (full) plus
+`.test-logs/test-*-last-summary.log` (failures + summary only). Read the summary
+file after a run - only open the full log when a failure needs more context. Pass
+`--detailed` for verbose per-test output on a manual run.
 
 ### Before restarting the server
 

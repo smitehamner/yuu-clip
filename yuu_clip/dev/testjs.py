@@ -17,9 +17,9 @@ from typing import List, Optional
 
 import typer
 
-from yuu_clip.dev._base import REPO_ROOT, app, console, node_available, pytest_env, run_and_tee
+from yuu_clip.dev._base import REPO_ROOT, TEST_LOGS_DIR, app, console, node_available, pytest_env, run_and_tee
 
-JS_LOG = REPO_ROOT / "test-js-last.log"
+JS_LOG = TEST_LOGS_DIR / "test-js-last.log"
 VITEST_ENTRY = REPO_ROOT / "node_modules" / "vitest" / "vitest.mjs"
 
 

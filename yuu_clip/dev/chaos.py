@@ -27,7 +27,7 @@ import threading
 import typer
 
 from yuu_clip.dev import procs
-from yuu_clip.dev._base import REPO_ROOT, app, console
+from yuu_clip.dev._base import TEST_LOGS_DIR, app, console
 from yuu_clip.dev.uiserver import fixture_server
 
 # Matches tests.py's _ORPHAN_RE convention: identify Playwright's own Node
@@ -35,7 +35,7 @@ from yuu_clip.dev.uiserver import fixture_server
 # alone could just as easily be an unrelated process.
 _DRIVER_RE = re.compile(r"playwright[/\\]driver[/\\]package[/\\]cli\.js")
 
-CHAOS_LOG = REPO_ROOT / "test-chaos-last.log"
+CHAOS_LOG = TEST_LOGS_DIR / "test-chaos-last.log"
 DEFAULT_TIMEOUT_MS = 3000
 # A broken Playwright driver connection (seen in practice as "Connection closed
 # while reading from the driver" on browser.close()) can make ANY subsequent

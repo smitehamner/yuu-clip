@@ -20,7 +20,7 @@ Any change to a user-visible fact: a default value, a recommended/default model,
 3. **Sweep every surface in the row.** The `Surfaces that state it` column is the complete list - docs under `docs/user/**` and `docs/dev/**`, the Getting Started modal and other partials under `web/static/partials/**`, the in-app glossary `web/static/glossary.md`, the relevant `web/static/**/*.js`, the `<option>` lists in `index.html`, and the wizard `setup.html`. Update each one in the same change. Do not stop at the code.
 4. **Respect the glossary.** User-facing text uses the glossary term (`docs/dev/llm/GLOSSARY.md`), even where the code identifier differs. A registry sweep is a common place to accidentally paste a code name into prose - do not.
 5. **Rebuild artifacts if you touched a source.** If a surface was `index.html`, a `static/partials/**` file, or a `static/*.js`, run `yuu-dev bundle` (it re-stitches `index.html`, rebuilds the ESM bundles, and regenerates the shared catalog). Editing the committed `index.html` or `bundle.esm.js` directly is wrong - they are overwritten by the stitch/build.
-6. **Run the fact guards.** `yuu-dev test-api` - `tests/unit/test_doc_claims.py` runs in the unit tier. Read `test-api-last-summary.log`.
+6. **Run the fact guards.** `yuu-dev test-api` - `tests/unit/test_doc_claims.py` runs in the unit tier. Read `.test-logs/test-api-last-summary.log`.
 
 ## Guarded vs sweep-by-hand rows
 

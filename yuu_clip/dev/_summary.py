@@ -41,6 +41,7 @@ def extract_summary(lines: list[str]) -> list[str]:
 
 
 def write_run_logs(output: str, log_path: Path, summary_path: Path) -> list[str]:
+    log_path.parent.mkdir(parents=True, exist_ok=True)
     log_path.write_text(output, encoding="utf-8")
     summary = extract_summary(output.splitlines())
     summary_path.write_text(("\n".join(summary) + "\n") if summary else "", encoding="utf-8")

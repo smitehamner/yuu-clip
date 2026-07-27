@@ -254,7 +254,7 @@ and the created venv's `pip list` matches the pinned versions (e.g. `av==18.0.0`
 
 ### Sharing informally (no GitHub release)
 
-Copy `dist/yuu-clip-X.Y.Z-Setup.exe` directly to your friend. They double-click and install.
+Copy `releases/X.Y.Z/yuu-clip-X.Y.Z-Setup.exe` directly to your friend. They double-click and install.
 
 To update: build a new `.exe` and send the new file. They run the new installer over the old one (NSIS handles the upgrade).
 
@@ -268,7 +268,7 @@ diagnostic is the log file. Tell them up front: "if anything breaks, zip up and 
 1. Tag the commit: `git tag v0.1.0 && git push origin v0.1.0`
 2. Create a GitHub Release at `github.com/smitehamner/yuu-clip/releases/new`
 3. Set the tag to `v0.1.0`, title `yuu-clip v0.1.0`
-4. Upload `dist/yuu-clip-X.Y.Z-Setup.exe` as a release asset
+4. Upload `releases/X.Y.Z/yuu-clip-X.Y.Z-Setup.exe` as a release asset
 5. Write release notes (what changed since last release)
 6. Publish
 7. **Once the repo is public**, verify the in-app update check for real: install an older build,

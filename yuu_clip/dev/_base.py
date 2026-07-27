@@ -34,6 +34,8 @@ app = typer.Typer(
 # yuu_clip/dev/_base.py -> parents[2] is the repo root.
 REPO_ROOT = Path(__file__).resolve().parents[2]
 LOG_PATH = REPO_ROOT / ".yuu-clip" / "yuu-clip.log"
+TEST_LOGS_DIR = REPO_ROOT / ".test-logs"
+TEST_LOGS_DIR.mkdir(exist_ok=True)
 
 
 def node_available() -> bool:

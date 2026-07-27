@@ -218,16 +218,29 @@ $env:CSC_IDENTITY_AUTO_DISCOVERY = "false"
 npm run dist
 Pop-Location
 
-# ── 6. Report output ────────────────────────────────────────────────────────
+# ── 6. Archive the installer to releases/<version>/ ─────────────────────────
+# electron-builder always writes into build/installer/ alongside its own scratch
+# (win-unpacked/, builder-debug.yml, the FFmpeg source tarballs) and never cleans
+# prior versions' output, so that folder is not where you want to go looking for
+# the file to share. Move just the finished installer out to a plain top-level
+# releases/<version>/ folder - the one file the "Share / Publish" step in
+# docs/dev/HOW-TO-RELEASE.md actually needs.
 $exe = Get-ChildItem "$root\build\installer\*.exe" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 if ($exe) {
-    Write-Host "`nInstaller ready: $($exe.FullName)"
+    $releaseDir = "$root\releases\$version"
+    New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
+    Move-Item $exe.FullName "$releaseDir\" -Force
+    $blockmap = "$($exe.FullName).blockmap"
+    if (Test-Path $blockmap) { Move-Item $blockmap "$releaseDir\" -Force }
+    $releasedExe = "$releaseDir\$($exe.Name)"
+
+    Write-Host "`nInstaller ready: $releasedExe"
     Write-Host @"
 
 Next steps:
   1. Install $($exe.Name) in a secondary account and run the smoke-test checklist
   2. git tag v$version && git push origin v$version
-  3. Upload to GitHub Releases (or share directly)
+  3. Upload $releasedExe to GitHub Releases (or share directly)
 "@
 } else {
     Write-Warning "Build completed but no .exe found in build/installer/"

@@ -10,24 +10,11 @@ docs/dev/plans/
 .claude/*
 !.claude/skills/
 CLAUDE.local.md
-/test-unit-last.log
-/test-unit-last-summary.log
-/test-integration-last.log
-/test-integration-last-summary.log
-/test-api-last.log
-/test-ui-last.log
-/test-api-last-summary.log
-/test-ui-last-summary.log
-/test-js-last.log
-/test-system-last.log
-/test-system-last-summary.log
-/test-golden-last.log
-/test-golden-last-summary.log
-/test-chaos-last.log
-/test-ui.lock
+/.test-logs/
 
 # Build artifacts
 /build/
+/releases/
 /dist/
 /electron/dist/
 /electron/node_modules/

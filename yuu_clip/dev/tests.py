@@ -20,25 +20,25 @@ from typing import List, Optional
 import typer
 
 from yuu_clip.dev import procs
-from yuu_clip.dev._base import REPO_ROOT, app, console, print_summary, pytest_env, run_and_tee
+from yuu_clip.dev._base import REPO_ROOT, TEST_LOGS_DIR, app, console, print_summary, pytest_env, run_and_tee
 from yuu_clip.dev._summary import write_run_logs
 from yuu_clip.dev.uiserver import fixture_server
 
-UNIT_LOG = REPO_ROOT / "test-unit-last.log"
-UNIT_SUMMARY = REPO_ROOT / "test-unit-last-summary.log"
-INTEGRATION_LOG = REPO_ROOT / "test-integration-last.log"
-INTEGRATION_SUMMARY = REPO_ROOT / "test-integration-last-summary.log"
-API_LOG = REPO_ROOT / "test-api-last.log"
-API_SUMMARY = REPO_ROOT / "test-api-last-summary.log"
-SYSTEM_LOG = REPO_ROOT / "test-system-last.log"
-SYSTEM_SUMMARY = REPO_ROOT / "test-system-last-summary.log"
-GOLDEN_LOG = REPO_ROOT / "test-golden-last.log"
-GOLDEN_SUMMARY = REPO_ROOT / "test-golden-last-summary.log"
-UI_LOG = REPO_ROOT / "test-ui-last.log"
-UI_SUMMARY = REPO_ROOT / "test-ui-last-summary.log"
+UNIT_LOG = TEST_LOGS_DIR / "test-unit-last.log"
+UNIT_SUMMARY = TEST_LOGS_DIR / "test-unit-last-summary.log"
+INTEGRATION_LOG = TEST_LOGS_DIR / "test-integration-last.log"
+INTEGRATION_SUMMARY = TEST_LOGS_DIR / "test-integration-last-summary.log"
+API_LOG = TEST_LOGS_DIR / "test-api-last.log"
+API_SUMMARY = TEST_LOGS_DIR / "test-api-last-summary.log"
+SYSTEM_LOG = TEST_LOGS_DIR / "test-system-last.log"
+SYSTEM_SUMMARY = TEST_LOGS_DIR / "test-system-last-summary.log"
+GOLDEN_LOG = TEST_LOGS_DIR / "test-golden-last.log"
+GOLDEN_SUMMARY = TEST_LOGS_DIR / "test-golden-last-summary.log"
+UI_LOG = TEST_LOGS_DIR / "test-ui-last.log"
+UI_SUMMARY = TEST_LOGS_DIR / "test-ui-last-summary.log"
 UI_TESTS_DIR = REPO_ROOT / "tests" / "ui"
 SMOKE = "tests/ui/test_ui_smoke.py"
-UI_LOCK = REPO_ROOT / "test-ui.lock"
+UI_LOCK = TEST_LOGS_DIR / "test-ui.lock"
 LOCK_MAX_AGE_MIN = 15
 MAX_UI_WORKERS = 4
 
