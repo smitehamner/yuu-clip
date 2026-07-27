@@ -142,4 +142,39 @@ describe('appendLog', () => {
     expect(lines.firstElementChild.textContent).toMatch(/line 100$/);
     expect(lines.lastElementChild.textContent).toMatch(/line 599$/);
   });
+
+  it('does not style a benign line mentioning "error" as a plain word as an error', () => {
+    clearLog();
+    appendLog('Scored 3/3 clips, 0 errors');
+    const line = document.getElementById('log-lines').lastElementChild;
+    expect(line.className).not.toContain('err');
+  });
+
+  it('styles a [Error ...] marker line as an error', () => {
+    clearLog();
+    appendLog('[Error scoring clip 5: LLM scoring failed]');
+    const line = document.getElementById('log-lines').lastElementChild;
+    expect(line.className).toContain('err');
+  });
+
+  it('styles a [red]...[/red] Rich-markup line as an error', () => {
+    clearLog();
+    appendLog('  [red]  FAIL extraction: boom[/red]');
+    const line = document.getElementById('log-lines').lastElementChild;
+    expect(line.className).toContain('err');
+  });
+
+  it('styles a line as an error when the caller explicitly says so, even without the [Error marker', () => {
+    clearLog();
+    appendLog('[Connection lost - server disconnected]', true);
+    const line = document.getElementById('log-lines').lastElementChild;
+    expect(line.className).toContain('err');
+  });
+
+  it('does not style an unmarked message as an error by default', () => {
+    clearLog();
+    appendLog('[Connection lost - server disconnected]');
+    const line = document.getElementById('log-lines').lastElementChild;
+    expect(line.className).not.toContain('err');
+  });
 });

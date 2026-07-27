@@ -14,7 +14,7 @@ let _lastToastAt = 0;
 function _report(label, message, stack) {
   const detail = message || 'Unknown error';
   console.error(`[${label}]`, stack || detail);
-  appendLog(`[${label}] Error: ${detail}`);
+  appendLog(`[${label}] Error: ${detail}`, true);
   const signature = `${label}:${detail}`;
   const now = Date.now();
   // A looping error (e.g. thrown every render) would otherwise stack identical

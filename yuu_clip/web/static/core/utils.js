@@ -126,12 +126,18 @@ function _wireLogHeaderButtons() {
 // bounds the reflow cost; the full log always remains in .yuu-clip/yuu-clip.log.
 const _MAX_LOG_LINES = 500;
 
-export function appendLog(raw) {
+// isError: set by a caller that already knows the line is an error but doesn't
+// format it with the [Error ...] marker convention below (e.g. a connection-lost
+// message, or errorreporter.js's `[label] Error: detail` shape).
+export function appendLog(raw, isError = false) {
   const text = stripRichMarkup(raw);
   if (!text.trim()) return;
   const div = document.createElement('div');
   const isOk   = raw.includes(' OK') || raw.includes('[green]') || raw.includes('Done');
-  const isErr   = raw.includes('FAIL') || raw.includes('Error') || raw.includes('[red]') || raw.includes('error');
+  // Anchored to the established `[Error ...]` marker (see log_event(..., level="error")
+  // and hotwords.js's matching data.startsWith('[Error') check) rather than a bare
+  // 'error' substring - that loose match painted benign lines like "0 errors" red.
+  const isErr   = isError || raw.startsWith('[Error') || raw.includes('[red]');
   const isWarn  = raw.includes('[yellow]') || raw.includes('WARNING') || raw.includes('overlap');
   div.className = 'log-line' + (isOk ? ' ok' : isErr ? ' err' : isWarn ? ' warn' : '');
   div.style.display = 'flex';

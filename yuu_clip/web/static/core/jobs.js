@@ -586,7 +586,7 @@ function streamSSE(url, onDone, stepDefs, jobLabel, cancellable = false, onLine 
     },
     errMsg => {
       _clearActiveStream(handle);
-      appendLog(`[${errMsg}]`);
+      appendLog(`[${errMsg}]`, true);
       showToast(errMsg, 'error');
       SoundFx.play('error');
       if (stepDefs) endJobUI();

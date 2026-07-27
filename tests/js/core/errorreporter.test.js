@@ -50,7 +50,7 @@ describe('global error reporter', () => {
   it('logs and toasts an uncaught error, and mirrors it to the console', () => {
     fireError('boom');
 
-    expect(appendLog).toHaveBeenCalledWith('[Uncaught] Error: boom');
+    expect(appendLog).toHaveBeenCalledWith('[Uncaught] Error: boom', true);
     expect(showToast).toHaveBeenCalledTimes(1);
     expect(showToast.mock.calls[0][0]).toBe(
       'Something went wrong. Open the log panel to copy the details for a bug report.',
@@ -71,14 +71,14 @@ describe('global error reporter', () => {
   it('reports an unhandled promise rejection with the reason message', () => {
     fireRejection(new Error('async failed'));
 
-    expect(appendLog).toHaveBeenCalledWith('[Unhandled rejection] Error: async failed');
+    expect(appendLog).toHaveBeenCalledWith('[Unhandled rejection] Error: async failed', true);
     expect(showToast).toHaveBeenCalledTimes(1);
   });
 
   it('stringifies a non-Error rejection reason', () => {
     fireRejection('plain string reason');
 
-    expect(appendLog).toHaveBeenCalledWith('[Unhandled rejection] Error: plain string reason');
+    expect(appendLog).toHaveBeenCalledWith('[Unhandled rejection] Error: plain string reason', true);
   });
 
   it('logs every occurrence of a looping error but toasts only once per window', () => {
