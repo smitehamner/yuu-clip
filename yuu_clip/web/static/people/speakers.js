@@ -129,7 +129,9 @@ function _renderSpeakersCard(speakers) {
         `<span class="detail-card-title">Speakers</span>`, `
       <div class="speaker-list">${rows}</div>
       <div class="speaker-hint">Names show up in clip transcripts and captions. They stick even if you re-analyze this recording.</div>`,
-      { actions: `<button class="btn ghost speaker-new-btn"
+      { actions: `<button class="btn ghost" data-act="rediarize-video" data-job-blocked data-video-id="${_currentVideoId}"
+                title="Re-run speaker detection on the existing transcript. Clips and scores are kept; named speakers re-attach to matching voices.">Re-detect speakers</button>
+              <button class="btn ghost speaker-new-btn"
                 title="Add a speaker diarization missed or merged, then move lines onto it from the transcript.">+ New speaker</button>
               <button class="btn ghost speaker-suggest-btn"
                 title="Use the LLM to suggest names from how speakers address each other. Suggestions are never applied until you accept them.">Suggest names</button>` });

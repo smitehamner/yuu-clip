@@ -123,12 +123,29 @@ describe('renderVideoDetail card layout', () => {
     expect(cards()[0].textContent).toContain('clipped');
   });
 
-  it('the actions row keeps only Export Approved and Additional Actions', () => {
-    render({});
-    const buttons = detail().querySelectorAll('.vid-actions button');
-    expect(buttons).toHaveLength(2);
-    expect(buttons[0].textContent).toBe('Export Approved');
-    expect(buttons[1].textContent).toBe('Additional Actions');
+  it('the primary action bar leads with Re-score all clips when clips exist', () => {
+    render({ clip_count: 5 });
+    const buttons = [...detail().querySelectorAll('.vid-actions button')];
+    expect(buttons.map((b) => b.textContent)).toEqual([
+      'Re-score all clips', 'Export Approved', 'Additional Actions',
+    ]);
+    expect(buttons[0].getAttribute('data-act')).toBe('rescore-all');
+    expect(buttons[0].hasAttribute('data-job-blocked')).toBe(true);
+  });
+
+  it('omits Re-score all clips when the recording has no clips', () => {
+    render({ clip_count: 0 });
+    const buttons = [...detail().querySelectorAll('.vid-actions button')];
+    expect(buttons.map((b) => b.textContent)).toEqual([
+      'Export Approved', 'Additional Actions',
+    ]);
+  });
+
+  it('the Last-analysis strip sits inside the title card', () => {
+    render({ analyze_run: { elapsed_ms: 60000, device: { has_gpu: true }, stages: [], settings: {} } });
+    const titleCard = cards()[0];
+    expect(titleCard.querySelector('.run-meta-card')).not.toBeNull();
+    expect(titleCard.textContent).toContain('Last analysis');
   });
 
   it('the full transcript section is a card', () => {

@@ -621,6 +621,10 @@ kbd { background: var(--surface); border: 1px solid var(--border); border-radius
 
 /* ── analysis run metadata card ── */
 .run-meta-card { padding: 0; }
+/* When nested inside the recording title card, the Last-analysis details reads as an
+   inline strip (a top divider), not a second bordered card. */
+.detail-card > .run-meta-card { border: none; background: transparent; border-radius: 0; margin-top: 10px; border-top: 1px solid var(--border); }
+.detail-card > .run-meta-card .run-meta-summary { padding: 10px 0 0; }
 .run-meta-summary { cursor: pointer; padding: 12px 14px; font-size: 12px; color: var(--muted); list-style: none; display: flex; align-items: center; gap: 8px; }
 .run-meta-summary::-webkit-details-marker { display: none; }
 .run-meta-summary strong { color: var(--text); }

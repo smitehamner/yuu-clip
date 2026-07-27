@@ -570,6 +570,14 @@ function renderVideoDetail(video, savedTimeline) {
         <span>${video.duration_hms} &middot; ${video.clip_count} clips &middot; ${_msToHms(video.total_clip_ms)} clipped</span>
         ${AppState.canReveal ? `<button class="btn ghost" style="font-size:11px;padding:2px 8px" data-act="reveal-in-folder">Show in Folder</button>` : ''}
       </div>
+      <div class="vid-actions">
+        <div class="vid-actions-row">
+          ${video.clip_count > 0 ? `<button class="btn" data-act="rescore-all" data-job-blocked data-video-id="${video.id}">Re-score all clips</button>` : ''}
+          <button class="btn" data-act="open-batch-export" data-video-id="${video.id}">Export Approved</button>
+          <button class="btn ghost" data-act="open-video-actions" data-video-id="${video.id}">Additional Actions</button>
+        </div>
+      </div>
+      ${_renderRunMetaCard(video)}
       ${_renderImportedFromLine(video)}
     </div>
 
@@ -585,14 +593,6 @@ function renderVideoDetail(video, savedTimeline) {
           : `<button class="btn ghost" id="btn-summarize-video" data-act="summarize-video" data-job-blocked data-video-id="${video.id}">Generate Summary</button>`}` })}
 
     ${_isVideoBeingAnalyzed(video) ? _analysisLivePanelHTML() : ''}
-    ${_renderRunMetaCard(video)}
-
-    <div class="vid-actions">
-      <div class="vid-actions-row">
-        <button class="btn" data-act="open-batch-export" data-video-id="${video.id}">Export Approved</button>
-        <button class="btn ghost" data-act="open-video-actions" data-video-id="${video.id}">Additional Actions</button>
-      </div>
-    </div>
 
     <div id="speakers-section"></div>
 
@@ -602,6 +602,8 @@ function renderVideoDetail(video, savedTimeline) {
       <div id="video-transcript-view" class="transcript"></div>`,
       { defaultCollapsed: true, attrs: `id="video-transcript-details" data-video-id="${video.id}"`,
         actions: `<span style="display:flex;gap:6px">
+          <button class="btn ghost" style="font-size:11px;padding:3px 9px" title="Re-run speech-to-text for the whole recording. Clips are kept but flagged for a re-score."
+                  data-act="retranscribe-video" data-job-blocked data-video-id="${video.id}">Re-transcribe</button>
           <button class="btn ghost" style="font-size:11px;padding:3px 9px" title="Scan the transcript for mis-heard names (e.g. &quot;You&quot; for &quot;Yuu&quot;) and fix them"
                   data-act="open-name-corrections" data-video-id="${video.id}">Fix names</button>
           <button class="btn ghost" style="font-size:11px;padding:3px 9px" title="Pick a time range to create a clip by hand"
@@ -1192,6 +1194,9 @@ function _handleDetailClick(e) {
     case 'open-context-manager': openContextManager(); break;
     case 'rescore-clips': rescoreClips(videoId, el); break;
     case 'rescore-failed-clips': rescoreFailedClips(videoId, el); break;
+    case 'rescore-all': rescoreAllClips(videoId, el); break;
+    case 'rediarize-video': rediarizeVideo(videoId); break;
+    case 'retranscribe-video': retranscribeVideoRun(videoId); break;
     case 'install-local-model':
       openSettings();
       setTimeout(() => _scrollToSettingsSection('settings-sec-llm'), 120);
