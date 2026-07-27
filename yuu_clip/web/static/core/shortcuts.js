@@ -17,7 +17,7 @@ import {
   selectClip, setStatus, undoLastStatus, closeScoreOverrideModal, closeSimilarClipsModal,
   _applyFilters,
 } from '../clips/clips.js';
-import { exportClip, closeExportModal } from '../clips/clipexport.js';
+import { openExportEditor } from '../library/exporteditor.js';
 import { closeProfileManager, _isNewRecordingPanelOpen, closeNewRecordingPanel } from '../analyze/analyze.js';
 import { closeHighlightReelsModal, closeReelPreview, closeBatchExportModal } from '../analyze/reel.js';
 import { closeContextManager, closeAutoApproveModal, closeRetranscribeModal } from '../library/contexts.js';
@@ -49,7 +49,6 @@ const _modalEscapeClosers = {
   'retranscribe-modal':      () => closeRetranscribeModal(),
   'context-modal':           () => closeContextManager(),
   'batch-export-modal':      () => closeBatchExportModal(),
-  'export-settings-modal':   () => closeExportModal(),
   'timeline-interval-modal': () => closeTimelineIntervalModal(),
   'auto-approve-modal':      () => closeAutoApproveModal(),
   'similar-clips-modal':     () => closeSimilarClipsModal(),
@@ -180,7 +179,7 @@ function _handleGlobalKeydown(e) {
       break;
     case 'e': case 'E':
       e.preventDefault();
-      _actOnSubject(exportClip);
+      _actOnSubject(openExportEditor);
       break;
     case 'ArrowLeft':
     case 'ArrowUp':

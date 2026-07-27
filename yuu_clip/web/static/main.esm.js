@@ -49,9 +49,6 @@ import {
   _applyFilters, _renderClips,
   openClipActionsModal,
 } from './clips/clips.js';
-import {
-  closeExportModal,
-} from './clips/clipexport.js';
 import { openClipCreatePicker } from './clips/clipcreate.js';
 import {
   openReanalyzePanel,
@@ -156,8 +153,8 @@ import './core/boot.js';
 //    refreshModelCatalog, gateOnCapability, openPeopleView, openExportEditor,
 //    openClipCreatePicker, showUndoToast, openDiffModal (tests the modal's own
 //    generic dirty-check, decoupled from any one real caller on purpose);
-//    closeExportModal / openSettings (many tests jump straight to a modal state
-//    via page.evaluate rather than driving the real open->close click sequence).
+//    openSettings (many tests jump straight to a settings state via page.evaluate
+//    rather than driving the real open->close click sequence).
 //  * Job-machinery pokes (formerly the blanket Object.assign(window, jobs) spread,
 //    narrowed to just these 9 in the ui-shim-retirement follow-on): startJobUI,
 //    updateJobUI, endJobUI + the INGEST_STEPS/SCORE_STEPS step-defs drive the header
@@ -185,5 +182,5 @@ Object.assign(window, {
   SoundFx, commitSoundSettings,
   openPeopleView, openExportEditor,
   openSplitEditor, closeSplitEditor,
-  closeExportModal, openSettings,
+  openSettings,
 });

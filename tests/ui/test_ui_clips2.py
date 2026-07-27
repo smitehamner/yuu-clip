@@ -87,88 +87,41 @@ class TestExportStaleBadge:
 
 @skip_no_server
 class TestExportPresetPicker:
-    def _open_export_modal(self, page: Page):
+    """The export editor's preset picker (the quick-export modal was retired). A preset
+    dictates its own container and re-encodes, so choosing one locks the Output-format
+    select and the embed-captions option; the editor's visual trim/crop/preview live in
+    tests/ui/test_ui_exporteditor.py."""
+
+    def _open_editor(self, page: Page):
         select_first_video_and_clip(page)
         page.wait_for_selector("#detail .clip-badge", timeout=3000)
-        page.click(".op-actions [data-act='export-clip']")
-        page.wait_for_selector("#export-settings-modal.visible", timeout=3000)
+        page.click(".op-actions [data-act='open-export-editor']")
+        page.wait_for_selector("#ed-preset", timeout=5000)
+        page.wait_for_function(
+            "document.querySelectorAll('#ed-preset option').length > 1", timeout=3000,
+        )
 
     def test_picker_lists_original_quality_and_builtin_presets(self, page: Page):
-        self._open_export_modal(page)
-        page.wait_for_function(
-            "document.querySelectorAll('#export-preset option').length > 1", timeout=3000,
-        )
-        values = page.eval_on_selector_all("#export-preset option", "els => els.map(e => e.value)")
+        self._open_editor(page)
+        values = page.eval_on_selector_all("#ed-preset option", "els => els.map(e => e.value)")
         assert values[0] == ""
         assert "youtube-1080p" in values
         assert "discord-10mb" in values
-        page.evaluate("closeExportModal()")
 
-    def test_selecting_a_preset_disables_container_and_softsub(self, page: Page):
-        self._open_export_modal(page)
-        page.wait_for_function(
-            "document.querySelectorAll('#export-preset option').length > 1", timeout=3000,
-        )
-        page.select_option("#export-preset", "youtube-1080p")
-        expect(page.locator("#export-container")).to_be_disabled()
-        expect(page.locator("#export-captions option[value='softsub']")).to_be_disabled()
-        page.evaluate("closeExportModal()")
+    def test_selecting_a_preset_disables_container_and_embed(self, page: Page):
+        self._open_editor(page)
+        page.select_option("#ed-preset", "youtube-1080p")
+        expect(page.locator("#ed-container")).to_be_disabled()
+        # to_be_disabled() is documented for button/select/input, not <option>, so read
+        # the disabled property directly.
+        assert page.eval_on_selector("#ed-captions option[value='embed']", "el => el.disabled") is True
 
     def test_choosing_original_quality_re_enables_container(self, page: Page):
-        self._open_export_modal(page)
-        page.wait_for_function(
-            "document.querySelectorAll('#export-preset option').length > 1", timeout=3000,
-        )
-        page.select_option("#export-preset", "youtube-1080p")
-        page.select_option("#export-preset", "")
-        expect(page.locator("#export-container")).to_be_enabled()
-        expect(page.locator("#export-captions option[value='softsub']")).to_be_enabled()
-        page.evaluate("closeExportModal()")
-
-
-@skip_no_server
-class TestExportWordHighlight:
-    def _open_export_modal(self, page: Page):
-        select_first_video_and_clip(page)
-        page.wait_for_selector("#detail .clip-badge", timeout=3000)
-        page.click(".op-actions [data-act='export-clip']")
-        page.wait_for_selector("#export-settings-modal.visible", timeout=3000)
-        # The Caption style controls live in a collapsed <details>; open it so the
-        # word-highlight checkbox and chunk-size input are interactable.
-        page.evaluate("() => { document.getElementById('export-caption-style').open = true; }")
-
-    def test_word_highlight_controls_prefill_from_config(self, page: Page):
-        self._open_export_modal(page)
-        cfg = page.evaluate("() => fetch('/api/config').then(r => r.json())")
-        assert page.locator("#export-caption-word-highlight").is_checked() == bool(cfg["caption_word_highlight"])
-        assert page.locator("#export-caption-chunk-size").input_value() == str(cfg["caption_word_chunk_size"])
-        page.evaluate("closeExportModal()")
-
-    def test_chunk_size_enabled_only_when_word_highlight_on(self, page: Page):
-        self._open_export_modal(page)
-        page.locator("#export-caption-word-highlight").uncheck()
-        expect(page.locator("#export-caption-chunk-size")).to_be_disabled()
-        page.locator("#export-caption-word-highlight").check()
-        expect(page.locator("#export-caption-chunk-size")).to_be_enabled()
-        page.evaluate("closeExportModal()")
-
-    def test_word_highlight_params_sent_on_hardsub_export(self, page: Page):
-        self._open_export_modal(page)
-        page.select_option("#export-captions", "hardsub")
-        page.locator("#export-caption-word-highlight").check()
-        page.fill("#export-caption-chunk-size", "6")
-        clip_id = page.evaluate("() => AppState.activeClipId")
-        # Stub timing (confirmExport PATCHes it first) and the export SSE so nothing
-        # mutates the live project or spawns a real ffmpeg run.
-        page.route(f"**/api/clips/{clip_id}/timing",
-                   lambda route: route.fulfill(status=200, content_type="application/json", body="{}"))
-        page.route(f"**/api/clips/{clip_id}/export**",
-                   lambda route: route.fulfill(status=200, content_type="text/event-stream", body="data: done\n\n"))
-        with page.expect_request(f"**/api/clips/{clip_id}/export**") as req_info:
-            page.click("#export-confirm-btn")
-        url = req_info.value.url
-        assert "word_highlight=true" in url
-        assert "word_chunk_size=6" in url
+        self._open_editor(page)
+        page.select_option("#ed-preset", "youtube-1080p")
+        page.select_option("#ed-preset", "")
+        expect(page.locator("#ed-container")).to_be_enabled()
+        assert page.eval_on_selector("#ed-captions option[value='embed']", "el => el.disabled") is False
 
 
 @skip_no_server

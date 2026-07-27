@@ -46,7 +46,7 @@ class TestSmoke:
         page.wait_for_selector("#settings-panel.visible", timeout=3000)
         expect(page.locator("#btn-settings-save")).to_be_visible()
 
-    def test_export_modal_opens_for_a_clip(self, page: Page):
+    def test_export_editor_opens_for_a_clip(self, page: Page):
         select_first_video_and_clip(page)
-        page.click(".op-actions [data-act='export-clip']")
-        page.wait_for_selector("#export-settings-modal.visible", timeout=3000)
+        page.click(".op-actions [data-act='open-export-editor']")
+        page.wait_for_selector("#ed-export-btn", timeout=5000)

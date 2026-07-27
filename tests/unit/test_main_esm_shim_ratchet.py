@@ -69,7 +69,7 @@ _EXPECTED_GROUP2: frozenset[str] = frozenset({
     "SoundFx", "commitSoundSettings",
     "openPeopleView", "openExportEditor",
     "openSplitEditor", "closeSplitEditor",
-    "closeExportModal", "openSettings",
+    "openSettings",
 })
 
 # The ONLY source modules allowed to read a GROUP 1 assigned name off `window`. main.esm.js

@@ -23,26 +23,16 @@ vi.mock('../../../yuu_clip/web/static/core/ui.js', async (importActual) => {
   return { ...actual, showConfirm: vi.fn((t, b, l, onConfirm) => onConfirm()) };
 });
 
-// confirmExport reports a bad trim through showToast - spy on it without
-// disturbing the reveal/copy helpers the other cases in this file drive for real.
+// A couple of per-format actions surface an empty-state through showToast - spy on it
+// without disturbing the reveal/copy helpers the other cases here drive for real.
 vi.mock('../../../yuu_clip/web/static/core/utils.js', async (importActual) => {
   const actual = await importActual();
   return { ...actual, showToast: vi.fn() };
 });
 
-// _exportTightCapWarning reads a preset's cap through exportpresets.js's cache; stub
-// the lookup so the tight-cap heuristic math is what's under test, not the cache.
-let presetCapMb = null;
-vi.mock('../../../yuu_clip/web/static/library/exportpresets.js', async (importActual) => {
-  const actual = await importActual();
-  return { ...actual, exportPresetTargetSizeMb: vi.fn(() => presetCapMb) };
-});
-
 import { showConfirm } from '../../../yuu_clip/web/static/core/ui.js';
-import { showToast } from '../../../yuu_clip/web/static/core/utils.js';
 import {
   _revealClipExport, _copyClipExportPaths, _handleExportFormatAction,
-  trimInputError, confirmExport, _exportModeSummary, _exportTightCapWarning,
 } from '../../../yuu_clip/web/static/clips/clipexport.js';
 
 const exportFilesResponse = (files) => ({ ok: true, json: async () => ({ files }) });
@@ -128,134 +118,5 @@ describe('_handleExportFormatAction delete', () => {
 
     expect(showConfirm).toHaveBeenCalledTimes(1);
     expect(showConfirm.mock.calls[0][0]).toBe('Delete this format?');
-  });
-});
-
-describe('trimInputError', () => {
-  // The trim fields are free text. An unparseable value used to skip the timing
-  // save silently, so the clip exported with its previously-saved trim and the
-  // user was never told their typed value had been discarded.
-  beforeEach(() => { AppState.activeClipData = { start_ms: 60_000 }; });
-
-  it('accepts a blank field as "no trim"', () => {
-    expect(trimInputError('', '')).toBe('');
-  });
-
-  it('accepts signed-seconds offsets', () => {
-    expect(trimInputError('+2.5', '-1')).toBe('');
-  });
-
-  it('accepts an absolute M:SS timestamp', () => {
-    expect(trimInputError('1:05', '1:30')).toBe('');
-  });
-
-  it('names the Start field and echoes what was typed', () => {
-    expect(trimInputError('abc', '+0.0')).toBe(
-      'Start trim "abc" isn\'t a time - use +2.5, -1, or 1:23.',
-    );
-  });
-
-  it('names the End field when only that one is bad', () => {
-    expect(trimInputError('+0.0', 'two seconds')).toBe(
-      'End trim "two seconds" isn\'t a time - use +2.5, -1, or 1:23.',
-    );
-  });
-});
-
-describe('confirmExport with an unparseable trim', () => {
-  function seedExportModal(startValue, endValue) {
-    document.body.innerHTML = `
-      <select id="export-captions"><option value="softsub" selected>softsub</option></select>
-      <select id="export-container"><option value="" selected></option></select>
-      <select id="export-preset"><option value="" selected></option></select>
-      <input id="export-trim-start" value="${startValue}">
-      <input id="export-trim-end" value="${endValue}">
-      <input type="checkbox" id="export-retranscribe">
-      <select id="export-retranscribe-model"><option value="large-v3" selected>large-v3</option></select>
-      <input type="checkbox" id="export-speaker-labels" checked>
-      <input type="checkbox" id="export-title-card">
-      <div id="export-trim-error" role="alert" style="display:none"></div>
-      <div id="export-settings-modal" class="visible"></div>`;
-  }
-
-  it('tells the user inline instead of silently exporting the saved trim', async () => {
-    seedExportModal('abc', '+0.0');
-    const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
-
-    await confirmExport();
-
-    const err = document.getElementById('export-trim-error');
-    expect(err.textContent).toBe('Start trim "abc" isn\'t a time - use +2.5, -1, or 1:23.');
-    expect(err.style.display).not.toBe('none');
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it('leaves the dialog open so the bad field can be corrected', async () => {
-    seedExportModal('abc', '+0.0');
-    vi.stubGlobal('fetch', vi.fn());
-
-    await confirmExport();
-
-    expect(document.getElementById('export-settings-modal').classList.contains('visible')).toBe(true);
-  });
-});
-
-describe('_exportModeSummary', () => {
-  it('is a Quick (stream-copy) export when nothing forces a re-encode', () => {
-    const s = _exportModeSummary(false, false, false);
-    expect(s.precise).toBe(false);
-    expect(s.text).toContain('Quick export');
-    expect(s.text).toContain('~1 s off');
-  });
-
-  it('is Precise and names burned-in captions as the re-encode reason', () => {
-    const s = _exportModeSummary(true, false, false);
-    expect(s.precise).toBe(true);
-    expect(s.text).toBe('Precise export - re-encodes for burned-in captions (slower).');
-  });
-
-  it('joins both re-encode reasons when captions and a title card are on', () => {
-    const s = _exportModeSummary(true, true, false);
-    expect(s.text).toContain('burned-in captions and the title card');
-  });
-
-  it('appends the retranscribe note to either mode', () => {
-    expect(_exportModeSummary(false, false, true).text).toContain('Retranscribing runs first and adds time.');
-    expect(_exportModeSummary(true, false, true).text).toContain('Retranscribing runs first and adds time.');
-  });
-});
-
-describe('_exportTightCapWarning', () => {
-  const clip = (over = {}) => ({ start_ms: 0, end_ms: 240_000, kind: 'clip', ...over });
-
-  afterEach(() => { presetCapMb = null; });
-
-  it('warns when a long clip is squeezed under a small size cap', () => {
-    presetCapMb = 10;  // 10 MB over 4 min = ~341 kbps, under the 900 floor
-    expect(_exportTightCapWarning('discord-10mb', clip())).toBe(
-      'This 4-minute clip squeezed under a 10 MB cap will look rough (blocky). Consider a larger preset or a shorter selection.',
-    );
-  });
-
-  it('says "scene" for a scene-kind selection', () => {
-    presetCapMb = 10;
-    expect(_exportTightCapWarning('discord-10mb', clip({ kind: 'scene' }))).toContain('4-minute scene');
-  });
-
-  it('is silent when the per-second budget clears the floor', () => {
-    presetCapMb = 10;  // 10 MB over 30 s = ~2730 kbps, above the floor
-    expect(_exportTightCapWarning('discord-10mb', clip({ end_ms: 30_000 }))).toBe('');
-  });
-
-  it('is silent for a preset with no size cap', () => {
-    presetCapMb = null;
-    expect(_exportTightCapWarning('', clip())).toBe('');
-  });
-
-  it('is silent when the clip is missing or has no timing', () => {
-    presetCapMb = 10;
-    expect(_exportTightCapWarning('discord-10mb', null)).toBe('');
-    expect(_exportTightCapWarning('discord-10mb', { start_ms: null, end_ms: null })).toBe('');
   });
 });

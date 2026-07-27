@@ -24,7 +24,6 @@ import { openGettingStartedModal, initHelpModalsListeners } from './helpmodals.j
 import { initModelDownload, initModelPrefetch } from '../settings/modeldownload.js';
 import { _renderClips, _renderClipFilterCounts, _syncKindChips, initClipsListeners } from '../clips/clips.js';
 import { initClipBulkListeners } from '../clips/clipbulk.js';
-import { initClipExportListeners } from '../clips/clipexport.js';
 import { renderGpuWarningChip, renderSectionWarnings } from './gpustatus.js';
 import { initUpdateCheckOnLaunch, wireUpdateBanner } from './updatecheck.js';
 import { initSpeakerListeners } from '../people/speakers.js';
@@ -90,7 +89,6 @@ initVideosTimelineListeners();
 initSessionsListeners();
 initClipsListeners();
 initClipBulkListeners();
-initClipExportListeners();
 ensureHotwordsCache();
 initHotwordListeners();
 initSpeakerListeners();

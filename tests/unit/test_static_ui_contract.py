@@ -30,6 +30,10 @@ STATIC_DIR = Path(__file__).resolve().parents[2] / "yuu_clip" / "web" / "static"
 INDEX_HTML = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
 VIDEOS_JS = (STATIC_DIR / "videos" / "videos.js").read_text(encoding="utf-8")
 APP_CSS = (STATIC_DIR / "app.css").read_text(encoding="utf-8")
+# The clip export editor's retranscribe-model select is built from a template string in
+# this source module (the old modal's static-HTML select was retired), so its copy is
+# pinned against the same canonical whisper list here rather than in index.html.
+EXPORTEDITOR_JS = (STATIC_DIR / "library" / "exporteditor.js").read_text(encoding="utf-8")
 
 PARENTHETICAL_PLURAL = re.compile(
     r"\b(clip|segment|track|player|video|recording|error|file|entr\w*)\(s\)",
@@ -108,15 +112,14 @@ MODEL_SELECT_IDS = [
     "analyze-model",                # New Recording panel
     "batch-retranscribe-model",     # Batch Export modal
     "retranscribe-model",           # Retranscribe Clip modal
-    "export-retranscribe-model",    # Export Clip modal
 ]
 
 
-def _select_options(select_id: str) -> list[tuple[str, str, str]]:
+def _select_options(select_id: str, haystack: str = INDEX_HTML) -> list[tuple[str, str, str]]:
     select = re.search(
-        rf'<select[^>]*id="{select_id}"[^>]*>(.*?)</select>', INDEX_HTML, re.DOTALL
+        rf'<select[^>]*id="{select_id}"[^>]*>(.*?)</select>', haystack, re.DOTALL
     )
-    assert select, f"select #{select_id} not found in index.html"
+    assert select, f"select #{select_id} not found"
     return re.findall(r'<option value="([^"]*)"([^>]*)>\s*([^<]*?)\s*</option>', select.group(1))
 
 
@@ -124,6 +127,18 @@ def _select_options(select_id: str) -> list[tuple[str, str, str]]:
 def test_model_select_option_copy_is_canonical(select_id: str):
     options = {value: text for value, _, text in _select_options(select_id)}
     assert options == CANONICAL_MODEL_OPTIONS
+
+
+def test_export_editor_model_select_option_copy_is_canonical():
+    # The export editor builds its select in JS, not index.html - pin it to the same list.
+    options = {value: text for value, _, text in _select_options("ed-retranscribe-model", EXPORTEDITOR_JS)}
+    assert options == CANONICAL_MODEL_OPTIONS
+
+
+def test_export_editor_model_select_label_is_speech_to_text_model():
+    label = re.search(r'<label[^>]*\bfor="ed-retranscribe-model"[^>]*>([^<]*)</label>', EXPORTEDITOR_JS)
+    assert label, 'no <label for="ed-retranscribe-model"> in exporteditor.js'
+    assert label.group(1).strip() == "Speech-to-text model"
 
 
 def test_retranscribe_clip_model_default_is_large_v3():
@@ -142,7 +157,6 @@ def test_retranscribe_clip_model_default_is_large_v3():
         "analyze-model",
         "batch-retranscribe-model",
         "retranscribe-model",
-        "export-retranscribe-model",
     ],
 )
 def test_model_select_label_is_speech_to_text_model(select_id: str):

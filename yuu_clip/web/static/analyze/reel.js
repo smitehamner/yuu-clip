@@ -7,7 +7,7 @@ import { showConfirm } from '../core/ui.js';
 import { appendLog, showToast, revealInFolder, _exportRetranscribeDefault } from '../core/utils.js';
 import { streamSSE, setJobCancel, _blockedByAnalyze, BATCH_EXPORT_STEPS } from '../core/jobs.js';
 import { loadVideos } from '../videos/videos.js';
-import { _renderExportModeSummary } from '../clips/clipexport.js';
+import { _renderExportModeSummary } from '../library/exporteditor.js';
 import { releaseVideoRespectingPip } from '../core/preview.js';
 import { SoundFx } from '../library/sounds.js';
 

@@ -34,7 +34,7 @@ import {
 import { openClipCreatePicker } from './clipcreate.js';
 import { openExportEditor } from '../library/exporteditor.js';
 import {
-  exportClip, _handleExportFormatAction, _downloadClipExport, _copyClipExportPaths, _revealClipExport,
+  _handleExportFormatAction, _downloadClipExport, _copyClipExportPaths, _revealClipExport,
 } from './clipexport.js';
 import { _pruneClipSelection, _updateBulkToolbar, _toggleClipSelection, undoLastBulkStatus } from './clipbulk.js';
 
@@ -583,7 +583,7 @@ export function _exportFormatsHtml(clip) {
           </div>
         </div>`).join('')}
     </div>
-    <button class="btn-secondary" style="margin-top:8px" data-act="export-clip" data-clip-id="${clip.id}">+ Add another export</button>`;
+    <button class="btn-secondary" style="margin-top:8px" data-act="open-export-editor" data-clip-id="${clip.id}">+ Add another export</button>`;
 }
 
 // True when a clip's only one-liner is the transcript-derived template (tagged
@@ -663,7 +663,7 @@ function renderDetail(clip) {
             ${statusSeg('Rejected', 'rejected', 'Reject (press R)')}
           </div>
           <div class="op-actions">
-            <button class="btn highlight" data-act="export-clip" data-clip-id="${clip.id}" data-job-blocked>${clip.has_export ? 'Re-export' : 'Export'}</button>
+            <button class="btn highlight" data-act="open-export-editor" data-clip-id="${clip.id}" data-job-blocked>${clip.has_export ? 'Re-export' : 'Export'}</button>
             ${visionDoBtn}
             ${findSimilarBtn}
             <button class="btn ghost" data-act="open-clip-actions-modal" data-clip-id="${clip.id}">Additional Actions</button>
@@ -1063,7 +1063,6 @@ function _handleDetailClick(e) {
   if (!act) return;
   const clipId = Number(act.dataset.clipId);
   switch (act.dataset.act) {
-    case 'export-clip': exportClip(clipId); break;
     case 'open-llm-settings':
       openSettings();
       setTimeout(() => _scrollToSettingsSection('settings-sec-llm'), 120);

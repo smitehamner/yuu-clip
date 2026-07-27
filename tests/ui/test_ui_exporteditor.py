@@ -237,3 +237,82 @@ def _mock_export_endpoints(page: Page, video_id: int) -> None:
     page.route(f"**/api/clips/{_FAKE_CLIP_ID}/media_url", lambda route: route.fulfill(
         status=200, content_type="application/json",
         body=json.dumps({"url": None, "filename": None, "has_captions": False})))
+
+
+def _mock_retranscribe_status(page: Page, *, needs_retranscribe: bool, model: str = "large-v3") -> None:
+    page.route("**/api/videos/*/retranscribe-status*", lambda route: route.fulfill(
+        status=200, content_type="application/json",
+        body=json.dumps({"export_retranscribe_model": model, "needs_retranscribe": needs_retranscribe})))
+    page.route("**/api/install/speechbrain", lambda route: route.fulfill(
+        status=200, content_type="application/json", body=json.dumps({"installed": True})))
+
+
+@skip_no_server
+class TestExportEditorRetranscribe:
+    """The editor asks GET /api/videos/{id}/retranscribe-status when it opens and
+    defaults the "Retranscribe before export" checkbox + model from the response -
+    the smart default the retired modal used to own (B20)."""
+
+    def test_checked_and_model_set_when_stale(self, page: Page):
+        _mock_retranscribe_status(page, needs_retranscribe=True, model="small")
+        _open_editor(page)
+        expect(page.locator("#ed-retranscribe")).to_be_checked()
+        expect(page.locator("#ed-retranscribe-model")).to_be_enabled()
+        assert page.locator("#ed-retranscribe-model").input_value() == "small"
+
+    def test_unchecked_when_transcript_already_matches(self, page: Page):
+        _mock_retranscribe_status(page, needs_retranscribe=False, model="large-v3")
+        _open_editor(page)
+        expect(page.locator("#ed-retranscribe")).not_to_be_checked()
+        expect(page.locator("#ed-retranscribe-model")).to_be_disabled()
+
+
+@skip_no_server
+class TestExportEditorOptions:
+    def test_output_format_defaults_to_match_source(self, page: Page):
+        _open_editor(page)
+        assert page.locator("#ed-container").input_value() == ""
+
+    def test_mode_summary_flips_to_precise_for_burned_in_captions(self, page: Page):
+        _open_editor(page)
+        summary = page.locator("#ed-mode-summary")
+        expect(summary).to_contain_text("Quick export")
+        page.select_option("#ed-captions", "burn")
+        expect(summary).to_contain_text("Precise export")
+        expect(summary).to_contain_text("burned-in captions")
+
+
+@skip_no_server
+class TestExportEditorAutoFrame:
+    """Auto-frame on faces in the editor (ported from the retired modal). The button
+    only shows for a vertical preset; a 503 is a broken-install case (the detector
+    ships with the app), so the note points at reinstalling, not a Settings control."""
+
+    def _open_vertical(self, page: Page) -> None:
+        _open_editor(page)
+        page.select_option("#ed-preset", "tiktok-9x16")
+        expect(page.locator("#ed-autoframe-btn")).to_be_visible()
+
+    def _mock_suggest(self, page: Page, status: int, body: dict) -> None:
+        page.route(f"**/api/clips/{_FAKE_CLIP_ID}/suggest-framing", lambda route: route.fulfill(
+            status=status, content_type="application/json", body=json.dumps(body)))
+
+    def test_success_notes_framed_on_faces(self, page: Page):
+        self._open_vertical(page)
+        self._mock_suggest(page, 200, {"crop_x": 0.8})
+        page.click("#ed-autoframe-btn")
+        expect(page.locator("#ed-autoframe-note")).to_contain_text("Framed on faces")
+
+    def test_no_face_leaves_a_note(self, page: Page):
+        self._open_vertical(page)
+        self._mock_suggest(page, 200, {"crop_x": None})
+        page.click("#ed-autoframe-btn")
+        expect(page.locator("#ed-autoframe-note")).to_contain_text("No face found")
+
+    def test_503_points_at_reinstalling(self, page: Page):
+        self._open_vertical(page)
+        self._mock_suggest(page, 503, {"detail": "Auto-framing needs the MediaPipe package"})
+        page.click("#ed-autoframe-btn")
+        note = page.locator("#ed-autoframe-note")
+        expect(note).to_contain_text("isn't available")
+        expect(note).to_contain_text("reinstalling YuuClip")
