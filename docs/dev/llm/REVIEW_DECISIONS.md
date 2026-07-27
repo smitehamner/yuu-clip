@@ -25,6 +25,15 @@ narrowing it - can't cause an unwanted re-pause of an already-resumed job (the
 `note_resumed()` suppression is unaffected). Covered by
 `test_pause_rearms_when_autopause_enabled_after_streak_already_passed_threshold`.
 
+### Fixed: `yuu_clip/web/routes/scoring.py::_rescore_video_clips` provenance stamp on a fully-failed batch
+Was stamping `clips_scored_at`/`clips_scored_context_json` unconditionally after the
+per-clip loop, even when every clip in the batch hit `llm_error` - a fully-failed batch
+recorded "scored with `<context>` at `<now>`" as if it succeeded. Now tracks whether at
+least one clip scored without `outcome.error` and skips the stamp only when the batch is
+non-empty and 100% failed; an empty batch or a partial failure still stamps as before.
+Covered by `TestRescoreProvenanceStamp` (`test_fully_failed_batch_does_not_stamp_provenance`
+/ `test_successful_batch_stamps_provenance`) in `tests/integration/test_scoring_routes.py`.
+
 ## Follow-up fixes - full-app review punch list resolved (2026-07-26)
 
 A same-day follow-up pass worked through `REVIEW_OPEN_ITEMS.md`'s punch list from the
@@ -167,10 +176,11 @@ to the stage partition). `yuu-dev lint`/`typecheck`(`new: 0`)/`test-api` (3536 p
 
 ### Still open - needs an explicit human/product decision (see `REVIEW_OPEN_ITEMS.md`)
 Left in `REVIEW_OPEN_ITEMS.md`, not here, because nobody has decided yet:
-`thermal.py`'s pause-streak re-arm edge case, `scoring/routes.py::_rescore_video_clips`
-stamping provenance on a 100%-failed batch, `core/utils.js::appendLog`'s bare-substring
-`'error'` styling heuristic, and whether `TestThermalPollLoopIntegration`'s wall-clock
-timing tests should become clock-injectable.
+`core/utils.js::appendLog`'s bare-substring `'error'` styling heuristic, and whether
+`TestThermalPollLoopIntegration`'s wall-clock timing tests should become clock-injectable.
+(`thermal.py`'s pause-streak re-arm and `scoring.py::_rescore_video_clips`'s provenance
+stamp were resolved 2026-07-27 - see the "Follow-up fixes - review punch list batch"
+section above.)
 
 ---
 

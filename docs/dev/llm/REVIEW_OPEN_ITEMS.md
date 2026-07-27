@@ -23,19 +23,6 @@ deliberately deferred to a specific future pass.
 
 ## Needs a human decision
 
-- **`yuu_clip/web/routes/scoring.py::_rescore_video_clips`** (~lines 437-443) -
-  stamps `clips_scored_at` / `clips_scored_context_json` (the "Last scored with"
-  provenance) unconditionally after the per-clip loop, even when every clip in
-  the batch hit `llm_error`. A fully-failed batch therefore records "scored with
-  <context> at <now>", so staleness / related-clips checks think scoring
-  succeeded. **Recommendation:** track whether at least one clip in the batch
-  scored without `outcome.error` and skip the provenance stamp when the batch is
-  non-empty and 100% failed (an empty batch, or a partial failure, should still
-  stamp as today - the `llm_error` tags and the failed-clip re-score button
-  already surface which clips need a retry). Not applied because this changes
-  when a persisted field is written, which is a product call about what
-  "scored with X" should mean, not a pure bug fix.
-
 - **`yuu_clip/web/static/core/utils.js::appendLog`** - styles any log line
   containing the bare substring `'error'` (case-insensitive) as a red error
   line, so benign lines like "0 errors" paint red and could alarm a

@@ -232,6 +232,54 @@ class TestRescoreFullFlag:
 
 
 # ---------------------------------------------------------------------------
+# _rescore_video_clips - "Last scored with" provenance stamp
+# ---------------------------------------------------------------------------
+
+class TestRescoreProvenanceStamp:
+    """A fully-failed batch must not claim to be current with a context it never
+    successfully scored against; a partial or full success still stamps."""
+
+    def _spy(self, monkeypatch, *, fail: bool):
+        from unittest.mock import MagicMock
+
+        import yuu_clip.scoring.scorer_set as scorer_set
+        from yuu_clip.scoring.protocol import ScoreResult
+
+        def spy(config, *, context_text="", full=False):
+            fake = MagicMock()
+            fake.name = "llm"
+            fake.weight = 1.0
+            fake.is_available.return_value = True
+            if fail:
+                fake.score.return_value = ScoreResult(tags=["llm_error"])
+                fake.last_error = "LLM scoring failed"
+            else:
+                fake.score.return_value = ScoreResult()
+                fake.last_error = None
+            return [fake], (not full)
+
+        monkeypatch.setattr(scorer_set, "build_rescore_scorers", spy)
+
+    def _clips_scored_at(self, project_dir):
+        from yuu_clip.db.models import Video, make_session
+        session = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            return session.get(Video, 1).clips_scored_at
+        finally:
+            session.close()
+
+    def test_fully_failed_batch_does_not_stamp_provenance(self, client, project_dir, monkeypatch):
+        self._spy(monkeypatch, fail=True)
+        assert client.get("/api/videos/1/rescore-clips").status_code == 200
+        assert self._clips_scored_at(project_dir) is None
+
+    def test_successful_batch_stamps_provenance(self, client, project_dir, monkeypatch):
+        self._spy(monkeypatch, fail=False)
+        assert client.get("/api/videos/1/rescore-clips").status_code == 200
+        assert self._clips_scored_at(project_dir) is not None
+
+
+# ---------------------------------------------------------------------------
 # _config_with_context_weights
 # ---------------------------------------------------------------------------
 

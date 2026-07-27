@@ -420,6 +420,7 @@ def _rescore_video_clips(
                 hot_words=hot_words, sensitive_terms=sensitive_terms,
             )
 
+            any_scored = False
             for i, clip_id in enumerate(clip_ids, 1):
                 # Default rescore preserves the Visual/laugh axes it does not recompute;
                 # a full rescore (build_rescore_scorers full=True) rebuilds the analyze
@@ -432,17 +433,23 @@ def _rescore_video_clips(
                 if outcome.error:
                     yield log_event(f'[Error scoring clip {clip_id}: {outcome.error}]', level="error")
                 else:
+                    any_scored = True
                     yield log_event(f'Scored {i}/{total} clips')
 
-            prov_db = ctx.get_db()
-            try:
-                v = prov_db.get(Video, video_id)
-                if v:
-                    v.clips_scored_at = datetime.now(timezone.utc)
-                    v.clips_scored_context_json = json_lib.dumps(context_names)
-                    prov_db.commit()
-            finally:
-                prov_db.close()
+            # Skip the provenance stamp only when the batch was non-empty and every
+            # clip in it failed - a fully-failed batch never actually scored "with"
+            # this context, so it must not claim to be current. An empty batch, or a
+            # partial failure, still stamps as before.
+            if not clip_ids or any_scored:
+                prov_db = ctx.get_db()
+                try:
+                    v = prov_db.get(Video, video_id)
+                    if v:
+                        v.clips_scored_at = datetime.now(timezone.utc)
+                        v.clips_scored_context_json = json_lib.dumps(context_names)
+                        prov_db.commit()
+                finally:
+                    prov_db.close()
 
             yield done_event(OUTCOME_OK)
 
