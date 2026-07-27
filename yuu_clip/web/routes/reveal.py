@@ -59,7 +59,13 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         if not target.exists():
             _log.warning("Reveal target does not exist: %s", target)
             raise HTTPException(404, "File not found")
-        subprocess.Popen(["explorer", f"/select,{target}"])
+        # explorer needs the quotes around the PATH only (/select,"C:\a b\f.mp4").
+        # The argument-list form quotes the whole "/select,..." token, which explorer
+        # silently ignores when the path has a space - opening the default folder
+        # instead. Pass one command string so the quoting lands where explorer expects
+        # it. Injection-safe: target already passed _path_allowed + exists(), and a
+        # Windows path cannot contain the '"' that would break out of the quotes.
+        subprocess.Popen(f'explorer /select,"{target}"')
         return {"status": "ok"}
 
     return router

@@ -21,7 +21,22 @@ class TestReveal:
             r = client.post("/api/reveal", json={"path": str(target)})
         assert r.status_code == 200
         assert r.json() == {"status": "ok"}
-        mock_popen.assert_called_once_with(["explorer", f"/select,{target.resolve()}"])
+        mock_popen.assert_called_once_with(f'explorer /select,"{target.resolve()}"')
+
+    def test_spaced_path_quotes_the_path_not_the_select_token(self, client: TestClient):
+        """Regression: a path with a space must be quoted so explorer selects the
+        file instead of opening the default folder (the argument-list form quoted the
+        whole /select, token and explorer ignored it)."""
+        ctx = client.app.state.ctx
+        target = ctx.export_dir / "my clip file.mkv"
+        target.write_bytes(b"fake video")
+        with patch("yuu_clip.web.routes.reveal.sys.platform", "win32"), \
+                patch("yuu_clip.web.routes.reveal.subprocess.Popen") as mock_popen:
+            r = client.post("/api/reveal", json={"path": str(target)})
+        assert r.status_code == 200
+        cmd = mock_popen.call_args.args[0]
+        assert cmd == f'explorer /select,"{target.resolve()}"'
+        assert '/select,"' in cmd and cmd.endswith('.mkv"')
 
     def test_recording_directory_path_accepted(self, client: TestClient, project_dir):
         target = project_dir / "session.mkv"
