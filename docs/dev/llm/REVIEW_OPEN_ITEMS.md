@@ -23,16 +23,6 @@ deliberately deferred to a specific future pass.
 
 ## Needs a human decision
 
-- **`yuu_clip/analyze/thermal.py::ThermalTrigger.poll`** - pause-streak re-arm
-  edge case: if auto-pause is toggled ON mid-run while the GPU is already hot
-  for >3 consecutive samples, auto-pause may never re-fire (edge check is
-  `== _STREAK_THRESHOLD`, not `>=`). **Recommendation:** change the check to
-  `>=` so re-arming isn't strictly tied to catching the exact sample where the
-  streak first crosses the threshold - this widens when auto-pause can fire
-  without narrowing it, so it shouldn't cause an unwanted re-pause of an
-  already-resumed job. Not applied without an explicit go-ahead since the
-  review flagged the fix direction as ambiguous. Narrow/low-severity either way.
-
 - **`yuu_clip/web/routes/scoring.py::_rescore_video_clips`** (~lines 437-443) -
   stamps `clips_scored_at` / `clips_scored_context_json` (the "Last scored with"
   provenance) unconditionally after the per-clip loop, even when every clip in

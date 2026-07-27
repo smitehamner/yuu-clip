@@ -11,6 +11,20 @@ same thing without the context. Most recent first.
 
 ---
 
+## Follow-up fixes - review punch list batch (2026-07-27)
+
+Resolved the remaining human-decision items left in `REVIEW_OPEN_ITEMS.md` after the
+2026-07-26 pass, one commit + test each, gated by `yuu-dev lint` + `yuu-dev test-api`.
+
+### Fixed: `yuu_clip/analyze/thermal.py::ThermalTrigger.poll` pause-streak re-arm
+Changed the pause edge check from `== _STREAK_THRESHOLD` to `>=`, per the prior review's
+recommendation: toggling auto-pause ON mid-run while the GPU is already hot for more than
+3 consecutive samples now still fires on the next poll, instead of never re-arming because
+the exact crossing sample already passed. Widens when auto-pause can fire without
+narrowing it - can't cause an unwanted re-pause of an already-resumed job (the
+`note_resumed()` suppression is unaffected). Covered by
+`test_pause_rearms_when_autopause_enabled_after_streak_already_passed_threshold`.
+
 ## Follow-up fixes - full-app review punch list resolved (2026-07-26)
 
 A same-day follow-up pass worked through `REVIEW_OPEN_ITEMS.md`'s punch list from the

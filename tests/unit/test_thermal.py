@@ -201,6 +201,17 @@ class TestThermalTrigger:
         r10 = trigger.poll(85, 90, True)
         assert [r8.pause_triggered, r9.pause_triggered, r10.pause_triggered] == [False, False, True]
 
+    def test_pause_rearms_when_autopause_enabled_after_streak_already_passed_threshold(self):
+        """Auto-pause toggled ON mid-run while the GPU has already been hot for
+        more than 3 consecutive samples must still fire on the next poll, not
+        only on the exact sample where the streak first crossed the threshold."""
+        trigger = self._trigger([91.0, 91.0, 91.0, 91.0])
+        trigger.poll(85, 90, False)
+        trigger.poll(85, 90, False)
+        trigger.poll(85, 90, False)  # streak reaches 3 while autopause is off
+        result = trigger.poll(85, 90, True)  # streak now 4, autopause just enabled
+        assert result.pause_triggered is True
+
     def test_read_failure_mid_streak_does_not_reset_streak(self):
         """A transient read glitch (None) must be skipped, not treated as a
         cool sample that would erase real consecutive-hot-sample progress."""

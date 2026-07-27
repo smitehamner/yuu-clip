@@ -126,7 +126,7 @@ class ThermalTrigger:
         self._warn_streak = self._warn_streak + 1 if temp >= warn_c else 0
 
         warn_edge = self._warn_streak == _STREAK_THRESHOLD
-        pause_edge = self._pause_streak == _STREAK_THRESHOLD
+        pause_edge = self._pause_streak >= _STREAK_THRESHOLD
         pause_triggered = pause_edge and autopause_enabled and not self._suppress_autopause
 
         if self._pause_streak >= _STREAK_THRESHOLD:
