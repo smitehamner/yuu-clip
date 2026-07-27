@@ -92,3 +92,12 @@ class TestApplyProfile:
         ])
         result = self._apply(monkeypatch, tmp_path, "p", [_stream(0)])
         assert result[0]["do_transcribe"] is False
+
+    def test_out_of_range_stream_position_returns_none(self, tmp_path, monkeypatch):
+        # A hand-corrupted profiles.json can carry a stream_position that no longer
+        # fits the (matching-count) streams list - must fall back, not IndexError.
+        self._save(monkeypatch, tmp_path, "p", [
+            {"stream_position": 5, "label": "combined", "do_transcribe": True, "do_score": True},
+        ])
+        result = self._apply(monkeypatch, tmp_path, "p", [_stream(0)])
+        assert result is None

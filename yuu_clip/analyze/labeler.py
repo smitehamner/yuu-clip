@@ -249,6 +249,8 @@ def _apply_profile(name: str, streams) -> Optional[list[dict]]:
     assignments: list[dict] = []
     for pos_assign in profile["assignments"]:
         pos = pos_assign["stream_position"]
+        if pos < 0 or pos >= len(streams):
+            return None  # corrupted track layout - caller falls back to interactive
         s = streams[pos]
         label = pos_assign["label"]
         assignments.append({
