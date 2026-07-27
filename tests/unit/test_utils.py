@@ -393,6 +393,10 @@ class TestJobInFlight:
     def test_counted_job_makes_the_app_busy(self):
         assert self._fn(_FakeCtx(active_jobs=1)) is True
 
-    def test_proxy_generation_makes_the_app_busy(self):
-        assert self._fn(_FakeCtx(proxy_generating=True)) is True
+    def test_proxy_generation_alone_does_not_make_the_app_busy(self):
+        # Deliberately excluded (see job_in_flight's docstring): a proxy build is
+        # mostly CPU/GPU-bound with one quick DB commit at the end, not a sustained
+        # writer, and it never gates its own start - counting it here would only
+        # block unrelated reject_if_busy actions with no job pill to explain why.
+        assert self._fn(_FakeCtx(proxy_generating=True)) is False
 

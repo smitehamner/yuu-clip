@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import hashlib
 import subprocess
+import threading
 from collections import deque
 from pathlib import Path
 from typing import Callable, Optional
@@ -32,6 +33,12 @@ PROXY_HEIGHT = 720
 _NVENC_ENCODER = "h264_nvenc"
 
 _nvenc_cache: Optional[bool] = None
+
+
+class ProxyCancelled(Exception):
+    """Raised out of generate_proxy when cancel_event is set - lets the caller
+    tell a deliberate cancel apart from a genuine encode failure, and skips the
+    NVENC->libx264 fallback retry a real failure would otherwise trigger."""
 
 
 def proxy_file_for(source_path: Path, proxy_dir: Path) -> Path:
@@ -91,12 +98,17 @@ def build_proxy_cmd(ffmpeg: str, source: Path, out: Path, *, use_nvenc: bool,
 
 
 def _run_with_progress(cmd: list[str], duration_ms: Optional[int],
-                       progress_cb: Optional[Callable[[float], None]]) -> None:
+                       progress_cb: Optional[Callable[[float], None]], *,
+                       on_proc_started: Optional[Callable[[subprocess.Popen], None]] = None,
+                       cancel_event: Optional[threading.Event] = None) -> None:
     """Run an FFmpeg encode, reporting fractional progress via *progress_cb*.
 
     ``-progress pipe:1`` streams ``key=value`` lines to stdout; stderr is merged
     in (``-nostats`` keeps it quiet) and the last lines are kept for the error
-    message. Raises RuntimeError with that tail if FFmpeg exits non-zero.
+    message. Raises RuntimeError with that tail if FFmpeg exits non-zero, or
+    ProxyCancelled if *cancel_event* is set (checked after every line, and once
+    more after the process exits, so a kill delivered between reads is not
+    mistaken for an encode failure).
     """
     full = [cmd[0], "-progress", "pipe:1", "-nostats", *cmd[1:]]
     total_us = duration_ms * 1000 if duration_ms else None
@@ -105,9 +117,14 @@ def _run_with_progress(cmd: list[str], duration_ms: Optional[int],
         full, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         encoding="utf-8", errors="replace", bufsize=1,
     )
+    if on_proc_started:
+        on_proc_started(proc)
     assert proc.stdout is not None
     try:
         for raw in proc.stdout:
+            if cancel_event is not None and cancel_event.is_set():
+                proc.kill()
+                break
             line = raw.strip()
             if not line:
                 continue
@@ -126,18 +143,24 @@ def _run_with_progress(cmd: list[str], duration_ms: Optional[int],
             proc.wait()
         raise
     proc.wait()
+    if cancel_event is not None and cancel_event.is_set():
+        raise ProxyCancelled()
     if proc.returncode != 0:
         raise RuntimeError("\n".join(tail) or f"FFmpeg exited with code {proc.returncode}")
 
 
 def generate_proxy(source: Path, out: Path, *, duration_ms: Optional[int] = None,
                    progress_cb: Optional[Callable[[float], None]] = None,
-                   ffmpeg: Optional[str] = None) -> Path:
+                   ffmpeg: Optional[str] = None,
+                   on_proc_started: Optional[Callable[[subprocess.Popen], None]] = None,
+                   cancel_event: Optional[threading.Event] = None) -> Path:
     """Encode a 720p H.264 proxy of *source* to *out*, returning *out*.
 
     Tries NVENC first when the build supports it, then always falls back to
     libx264 (an NVENC encoder can be listed but fail with no usable GPU). Raises
-    RuntimeError if every attempt fails or FFmpeg is not installed.
+    RuntimeError if every attempt fails or FFmpeg is not installed, or
+    ProxyCancelled if *cancel_event* fires mid-encode (skips the fallback retry -
+    a deliberate cancel must not be treated as an NVENC failure to recover from).
     """
     ffmpeg = ffmpeg or find_ffmpeg()[0]
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -149,7 +172,10 @@ def generate_proxy(source: Path, out: Path, *, duration_ms: Optional[int] = None
         cmd = build_proxy_cmd(ffmpeg, source, out, use_nvenc=use_nvenc)
         try:
             _log.info("Generating 720p proxy (%s): %s -> %s", encoder, source.name, out.name)
-            _run_with_progress(cmd, duration_ms, progress_cb)
+            _run_with_progress(
+                cmd, duration_ms, progress_cb,
+                on_proc_started=on_proc_started, cancel_event=cancel_event,
+            )
             _log.info("Proxy ready (%s): %s", encoder, out.name)
             return out
         except RuntimeError as exc:

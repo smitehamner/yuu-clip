@@ -100,11 +100,20 @@ def analyze_in_flight(ctx) -> bool:
 
 
 def job_in_flight(ctx) -> bool:
-    """Whether ANY long-running op is active - the analyze subprocess, any counted
-    in-process/subprocess SSE job, or a proxy build. The single source of truth for
-    "is the app busy" that ``/api/status``'s ``any_running`` and the uniform busy
-    guard both read."""
-    return analyze_in_flight(ctx) or ctx.active_jobs > 0 or bool(ctx.proxy_generating)
+    """Whether ANY long-running op is active - the analyze subprocess or any counted
+    in-process/subprocess SSE job. The single source of truth for "is the app busy"
+    that ``/api/status``'s ``any_running`` and the uniform busy guard both read.
+
+    A 720p preview-proxy build (``ctx.proxy_generating``) deliberately does NOT
+    count here: it is mostly CPU/GPU-bound FFmpeg work with a single quick DB
+    commit only once it finishes, not a sustained writer, and it already never
+    calls ``reject_if_busy`` on itself (it can start alongside anything). Counting
+    it here without also gating its own start was inconsistent - it invisibly
+    blocked reject_if_busy-guarded actions (e.g. "Suggest names") with no job pill
+    to explain why. Its own ``proxy_generating`` membership still prevents a
+    second concurrent encode of the same source file.
+    """
+    return analyze_in_flight(ctx) or ctx.active_jobs > 0
 
 
 def reject_if_busy(ctx, action: str) -> None:

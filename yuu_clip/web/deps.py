@@ -7,6 +7,7 @@ session factory, so individual route modules never need to recompute paths.
 """
 from __future__ import annotations
 
+import threading
 from collections import OrderedDict
 from pathlib import Path
 
@@ -141,6 +142,17 @@ class ProjectContext:
         # Resolved source paths whose 720p preview proxy is currently being encoded,
         # so a second open of the same recording does not launch a duplicate encode.
         self.proxy_generating: set[str] = set()
+
+        # The FFmpeg subprocess.Popen currently encoding each source's proxy (see
+        # analyze/proxy.py's generate_proxy), keyed the same way as proxy_generating,
+        # so a cancel endpoint can terminate the in-flight encode. Absent between the
+        # NVENC and libx264 fallback attempts and once the encode ends.
+        self.proxy_procs: dict[str, object] = {}
+
+        # threading.Event signaling a cancel request for a source's in-flight proxy
+        # encode - checked inside generate_proxy so a killed encode raises
+        # ProxyCancelled instead of retrying the libx264 fallback.
+        self.proxy_cancel_events: dict[str, threading.Event] = {}
 
         # Shared "a required model is downloading right now" registry, keyed by a
         # logical model kind ("llm" for the background local-model handoff; Stage 6

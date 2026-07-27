@@ -231,6 +231,30 @@ Last confirmed: 2026-07-09.
 
 ## Config, CLI, and backend routes
 
+### `routes/videos.py::generate_video_proxy` has its own Cancel, deliberately not the shared job pill/`streamSSE`
+Decision: keep the 720p preview-proxy build on its own badge-scoped progress UI
+(`static/core/preview.js`'s Cancel pill, backed by `POST .../proxy/cancel` and
+`ctx.proxy_procs`/`proxy_cancel_events`), not `startJobUI`/`streamSSE`.
+Rationale: `streamSSE`'s `_supersedeActiveStream()` tears down whatever OTHER
+job's pill is currently showing - routing a proxy build through it would let
+building a preview for one recording silently end an unrelated live
+analyze/score/export progress UI (bug-hunt 2.3, which is why `_buildRecordingProxy`
+uses the raw `_openSSE` in the first place). The badge-scoped Cancel gives the
+same real abort (kills the FFmpeg child via `terminate_process_tree_async`,
+raises `ProxyCancelled` to skip the NVENC->libx264 fallback retry) without that
+risk. Also fixed alongside: `generate_video_proxy` never called `reject_if_busy`
+on itself, yet counted toward the shared `job_in_flight` gate (`ctx.active_jobs`/
+`ctx.proxy_generating`) - so a running proxy build silently 409'd unrelated
+actions like "Suggest names" with no job pill to explain why. `job_in_flight`
+(`routes/common.py`) no longer looks at `proxy_generating`; a proxy build is
+mostly CPU/GPU-bound FFmpeg work with one quick DB commit at the end, not a
+sustained writer, so it can safely run alongside another job. The two routes
+that rebind the whole `ProjectContext` (`projects.py::switch_project`,
+`backup.py`'s restore guard) keep their own separate, still-blocking
+`ctx.proxy_generating` check - correct, since those tear down the DB engine a
+still-running encode is writing into.
+Last confirmed: 2026-07-27.
+
 ### `routes/videos.py::_migrate_transcript_to_segments` deliberately does NOT copy the parent's `extracted_path` onto a migrated segment track
 Decision: Keep as-is - do not "fix" this back to inheriting the parent's path.
 Rationale: A migrated segment's transcript/clip times are 0-based within the

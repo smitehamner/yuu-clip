@@ -133,17 +133,25 @@ function _useRecordingProxy(videoEl, badgeEl, videoId, isCurrent, startS = null,
 
 export function _buildRecordingProxy(videoEl, badgeEl, videoId, isCurrent, startS = null) {
   if (!isCurrent()) return;
-  _setPreviewBadge(badgeEl, 'building');
   const retryBadge = () => _setPreviewBadge(badgeEl, 'original', null, () => _buildRecordingProxy(videoEl, badgeEl, videoId, isCurrent, startS));
+  // Cancel is scoped to this badge's own stream - it closes the local SSE handle
+  // and tells the server to stop the encode via proxy/cancel, but never touches
+  // the global job pill/cancelJob() (see the streamSSE note below for why).
+  const cancel = () => {
+    handle.close();
+    fetch(`/api/videos/${videoId}/proxy/cancel`, {method: 'POST'}).catch(() => {});
+    if (isCurrent()) retryBadge();
+  };
+  _setPreviewBadge(badgeEl, 'building', null, null, cancel);
   // Raw _openSSE, not streamSSE: this is a background convenience (no global job
   // pill), and streamSSE's _supersedeActiveStream() would tear down a live
   // analyze/score/export progress stream just because a preview proxy started
   // building alongside it (bug-hunt 2.3).
-  _openSSE(
+  const handle = _openSSE(
     `/api/videos/${videoId}/proxy/generate`,
     msg => {    // onLine: surface the encode percentage on the badge
       const m = typeof msg === 'string' ? /(\d+)%/.exec(msg) : null;
-      if (m && isCurrent()) _setPreviewBadge(badgeEl, 'building', m[1]);
+      if (m && isCurrent()) _setPreviewBadge(badgeEl, 'building', m[1], null, cancel);
     },
     async () => {
       if (!isCurrent()) return;
@@ -161,7 +169,7 @@ export function _buildRecordingProxy(videoEl, badgeEl, videoId, isCurrent, start
   );
 }
 
-function _setPreviewBadge(badgeEl, mode, pct, onBuild) {
+function _setPreviewBadge(badgeEl, mode, pct, onBuild, onCancel) {
   if (!badgeEl) return;
   // Reset to a non-interactive status indicator; the build affordance below
   // re-arms it as a button so role/tabindex never go stale between states.
@@ -178,8 +186,20 @@ function _setPreviewBadge(badgeEl, mode, pct, onBuild) {
     badgeEl.textContent = 'Preview quality (720p)';
     badgeEl.title = 'Playing a downscaled 720p preview for fast seeking - not full quality. Exports use the original.';
   } else if (mode === 'building') {
-    badgeEl.textContent = pct ? `Building 720p preview… ${pct}%` : 'Building 720p preview…';
+    badgeEl.textContent = pct ? `Building 720p preview… ${pct}% ` : 'Building 720p preview… ';
     badgeEl.title = 'Encoding a fast-seeking 720p preview from the source recording.';
+    if (onCancel) {
+      // The badge itself stays non-interactive (role=status); only this pill
+      // opts back into pointer events, matching the build-affordance pattern.
+      const cancelEl = document.createElement('span');
+      cancelEl.className = 'preview-badge-action preview-badge-cancel';
+      cancelEl.textContent = 'Cancel';
+      cancelEl.setAttribute('role', 'button');
+      cancelEl.tabIndex = 0;
+      cancelEl.onclick = (e) => { e.stopPropagation(); onCancel(); };
+      cancelEl.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onCancel(); } };
+      badgeEl.appendChild(cancelEl);
+    }
   } else if (onBuild) {
     // Render the action as a button-styled pill so it obviously invites a click.
     badgeEl.classList.add('preview-badge-build');

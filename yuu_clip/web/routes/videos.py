@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import json as json_lib
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -32,6 +33,7 @@ from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.file_deletion import delete_files, locked_files_error
 from yuu_clip.web.jobevents import (
+    OUTCOME_CANCELLED,
     OUTCOME_ERROR,
     OUTCOME_OK,
     done_event,
@@ -557,9 +559,13 @@ def _register_media_routes(router: APIRouter, ctx: ProjectContext) -> None:
         Idempotent: no-ops if a fresh proxy already exists, and never launches a
         second encode while one is already running for the same source. The encode
         runs in a worker thread that records its own metadata and clears the
-        in-flight flag even if the browser disconnects mid-encode.
+        in-flight flag even if the browser disconnects mid-encode. Cancelable via
+        POST .../proxy/cancel while it runs (see ctx.proxy_procs/proxy_cancel_events).
+        Deliberately does not call reject_if_busy and does not hold the app-wide
+        busy gate (see job_in_flight) - it can run alongside another job.
         """
         from yuu_clip.analyze.proxy import (
+            ProxyCancelled,
             generate_proxy,
             proxy_file_for,
             proxy_is_fresh,
@@ -584,69 +590,114 @@ def _register_media_routes(router: APIRouter, ctx: ProjectContext) -> None:
         source_key = str(source.resolve())
 
         async def event_stream():
-            async with active_job(ctx):
-                if already_fresh:
-                    yield log_event('[Preview already prepared]')
-                    yield done_event(OUTCOME_OK)
-                    return
-                if source_key in ctx.proxy_generating:
-                    yield log_event('[Preview is already being prepared…]')
-                    yield done_event(OUTCOME_OK)
-                    return
+            # Deliberately not wrapped in active_job(ctx)/reject_if_busy - a proxy
+            # build is mostly CPU/GPU-bound FFmpeg work with one quick DB commit at
+            # the end, not a sustained writer, so it must not hold the app-wide busy
+            # gate (see job_in_flight's docstring). ctx.proxy_generating still stops
+            # a second concurrent encode of this same source file.
+            if already_fresh:
+                yield log_event('[Preview already prepared]')
+                yield done_event(OUTCOME_OK)
+                return
+            if source_key in ctx.proxy_generating:
+                yield log_event('[Preview is already being prepared…]')
+                yield done_event(OUTCOME_OK)
+                return
 
-                ctx.proxy_generating.add(source_key)
-                ctx.proxy_dir.mkdir(parents=True, exist_ok=True)
-                queue: asyncio.Queue = asyncio.Queue()
-                loop = asyncio.get_running_loop()
+            ctx.proxy_generating.add(source_key)
+            ctx.proxy_dir.mkdir(parents=True, exist_ok=True)
+            queue: asyncio.Queue = asyncio.Queue()
+            loop = asyncio.get_running_loop()
+            cancel_event = threading.Event()
+            ctx.proxy_cancel_events[source_key] = cancel_event
 
-                def progress_cb(fraction: float) -> None:
-                    loop.call_soon_threadsafe(queue.put_nowait, ("progress", fraction))
+            def progress_cb(fraction: float) -> None:
+                loop.call_soon_threadsafe(queue.put_nowait, ("progress", fraction))
 
-                def run() -> None:
+            def register_proc(proc) -> None:
+                loop.call_soon_threadsafe(ctx.proxy_procs.__setitem__, source_key, proc)
+
+            def run() -> None:
+                try:
+                    generate_proxy(
+                        source, proxy_file, duration_ms=duration_ms, progress_cb=progress_cb,
+                        on_proc_started=register_proc, cancel_event=cancel_event,
+                    )
+                    rec_db = ctx.get_db()
                     try:
-                        generate_proxy(source, proxy_file, duration_ms=duration_ms, progress_cb=progress_cb)
-                        rec_db = ctx.get_db()
-                        try:
-                            rec_video = rec_db.get(Video, video_id)
-                            if rec_video:
-                                record_proxy_metadata(rec_db, rec_video, proxy_file)
-                                rec_db.commit()
-                        finally:
-                            rec_db.close()
-                        loop.call_soon_threadsafe(queue.put_nowait, ("done", None))
-                    except Exception as exc:
-                        _log.error("Proxy generation failed for video %d: %s", video_id, exc, exc_info=True)
-                        loop.call_soon_threadsafe(queue.put_nowait, ("error", str(exc)))
+                        rec_video = rec_db.get(Video, video_id)
+                        if rec_video:
+                            record_proxy_metadata(rec_db, rec_video, proxy_file)
+                            rec_db.commit()
                     finally:
-                        loop.call_soon_threadsafe(ctx.proxy_generating.discard, source_key)
+                        rec_db.close()
+                    loop.call_soon_threadsafe(queue.put_nowait, ("done", None))
+                except ProxyCancelled:
+                    loop.call_soon_threadsafe(queue.put_nowait, ("cancelled", None))
+                except Exception as exc:
+                    _log.error("Proxy generation failed for video %d: %s", video_id, exc, exc_info=True)
+                    loop.call_soon_threadsafe(queue.put_nowait, ("error", str(exc)))
+                finally:
+                    loop.call_soon_threadsafe(ctx.proxy_generating.discard, source_key)
+                    loop.call_soon_threadsafe(ctx.proxy_procs.pop, source_key, None)
+                    loop.call_soon_threadsafe(ctx.proxy_cancel_events.pop, source_key, None)
 
-                worker = loop.run_in_executor(None, run)
-                _PROXY_WORKERS.add(worker)
-                worker.add_done_callback(_PROXY_WORKERS.discard)
+            worker = loop.run_in_executor(None, run)
+            _PROXY_WORKERS.add(worker)
+            worker.add_done_callback(_PROXY_WORKERS.discard)
 
-                yield log_event('Building 720p preview…')
-                last_pct = -100
-                failure = None
-                while True:
-                    kind, payload = await queue.get()
-                    if kind == "progress":
-                        pct = int(payload * 100)
-                        if pct >= last_pct + 5:
-                            last_pct = pct
-                            yield log_event(f'Building 720p preview… {pct}%')
-                    elif kind == "done":
-                        yield log_event('720p preview ready')
-                        break
-                    else:  # error
-                        failure = str(payload)
-                        yield log_event(f'[Preview generation failed: {failure}]', level="error")
-                        break
-                if failure is None:
-                    yield done_event(OUTCOME_OK)
-                else:
-                    yield done_event(OUTCOME_ERROR, error=f"Preview generation failed: {failure}")
+            yield log_event('Building 720p preview…')
+            last_pct = -100
+            outcome, failure = OUTCOME_OK, None
+            while True:
+                kind, payload = await queue.get()
+                if kind == "progress":
+                    pct = int(payload * 100)
+                    if pct >= last_pct + 5:
+                        last_pct = pct
+                        yield log_event(f'Building 720p preview… {pct}%')
+                elif kind == "done":
+                    yield log_event('720p preview ready')
+                    break
+                elif kind == "cancelled":
+                    outcome = OUTCOME_CANCELLED
+                    yield log_event('[Preview generation cancelled]')
+                    break
+                else:  # error
+                    outcome = OUTCOME_ERROR
+                    failure = str(payload)
+                    yield log_event(f'[Preview generation failed: {failure}]', level="error")
+                    break
+            if outcome == OUTCOME_ERROR:
+                yield done_event(OUTCOME_ERROR, error=f"Preview generation failed: {failure}")
+            else:
+                yield done_event(outcome)
 
         return sse_response(event_stream())
+
+    @router.post("/api/videos/{video_id}/proxy/cancel")
+    async def cancel_video_proxy(video_id: int):
+        """Cancel an in-progress 720p preview-proxy encode for this recording, if any."""
+        from yuu_clip.web.sse import terminate_process_tree_async
+
+        db = ctx.get_db()
+        try:
+            video = db.get(Video, video_id)
+            if not video:
+                raise HTTPException(404, "Video not found")
+            source_key = str(Path(video.path).resolve())
+        finally:
+            db.close()
+
+        cancel_event = ctx.proxy_cancel_events.get(source_key)
+        if cancel_event is None:
+            return {"status": "not_running"}
+        cancel_event.set()
+        proc = ctx.proxy_procs.get(source_key)
+        if proc is not None:
+            _log.info("Preview proxy generation cancelled by user for video %d", video_id)
+            await terminate_process_tree_async(proc)
+        return {"status": "cancelled"}
 
 
 def _register_video_data_routes(router: APIRouter, ctx: ProjectContext) -> None:

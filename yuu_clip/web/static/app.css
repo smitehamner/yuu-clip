@@ -236,6 +236,16 @@ button.section-toggle-btn:not(.active):hover { color: var(--text); background: v
 .preview-badge-build:hover .preview-badge-action { filter: brightness(1.12); }
 .preview-badge-build:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
+/* Cancel pill shown on the badge while a preview proxy is encoding - a distinct
+   red outline (not the accent fill the build affordance uses) so it reads as a
+   stop action, not another "start" button. */
+.preview-badge-cancel {
+  pointer-events: auto; cursor: pointer;
+  background: transparent; border: 1px solid var(--red); color: var(--red);
+}
+.preview-badge-cancel:hover { background: color-mix(in srgb, var(--red) 15%, transparent); }
+.preview-badge-cancel:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+
 .clip-header { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .clip-header h2 { font-size: 17px; font-weight: 600; }
 .clip-header .time { color: var(--muted); font-size: 13px; }

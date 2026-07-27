@@ -191,6 +191,45 @@ describe('_buildRecordingProxy', () => {
 
     expect(badge.classList.contains('preview-badge-proxy')).toBe(true);
   });
+
+  it('renders a Cancel pill on the badge while building', () => {
+    _openSSE.mockReturnValue({ close: vi.fn() });
+    const badge = document.createElement('div');
+    _buildRecordingProxy(document.createElement('video'), badge, 7, () => true);
+
+    const cancelEl = badge.querySelector('.preview-badge-cancel');
+    expect(cancelEl).not.toBeNull();
+    expect(cancelEl.textContent).toBe('Cancel');
+  });
+
+  it('Cancel closes the local stream, posts to proxy/cancel, and resets the badge to a retry button', () => {
+    const closeSpy = vi.fn();
+    _openSSE.mockReturnValue({ close: closeSpy });
+    const fetchSpy = vi.fn(() => Promise.resolve({ ok: true }));
+    vi.stubGlobal('fetch', fetchSpy);
+    const badge = document.createElement('div');
+    _buildRecordingProxy(document.createElement('video'), badge, 7, () => true);
+
+    badge.querySelector('.preview-badge-cancel').click();
+
+    expect(closeSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).toHaveBeenCalledWith('/api/videos/7/proxy/cancel', { method: 'POST' });
+    expect(badge.classList.contains('preview-badge-build')).toBe(true);
+  });
+
+  // Cancel must never route through the global job pill/cancelJob() - it would
+  // then compete with (and could tear down) an unrelated running job's pill,
+  // reintroducing the exact bug-hunt 2.3 failure mode this file avoids above.
+  it('Cancel never touches streamSSE/the global job pill', () => {
+    _openSSE.mockReturnValue({ close: vi.fn() });
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: true })));
+    const badge = document.createElement('div');
+    _buildRecordingProxy(document.createElement('video'), badge, 7, () => true);
+
+    badge.querySelector('.preview-badge-cancel').click();
+
+    expect(_openSSE).toHaveBeenCalledTimes(1); // no second (superseding) stream opened
+  });
 });
 
 // chaos-test finding 2026-07-26: attaching a captions <track> unconditionally

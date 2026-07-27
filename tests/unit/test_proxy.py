@@ -6,6 +6,7 @@ deterministically.
 """
 from __future__ import annotations
 
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -120,6 +121,80 @@ class TestRunWithProgressHappyPath:
             proxy._run_with_progress(["ffmpeg"], duration_ms=None, progress_cb=None)
 
 
+# ── cancellation ─────────────────────────────────────────────────────────────────
+
+class TestRunWithProgressCancellation:
+    class _FakeProc:
+        def __init__(self, lines, returncode=0):
+            self.stdout = iter(lines)
+            self.returncode = returncode
+            self.killed = False
+
+        def kill(self):
+            self.killed = True
+
+        def wait(self):
+            return self.returncode
+
+    def test_cancel_event_set_kills_the_process_and_raises_proxy_cancelled(self, monkeypatch):
+        fake = self._FakeProc(["out_time_us=100\n", "out_time_us=200\n"], returncode=0)
+        monkeypatch.setattr(proxy.subprocess, "Popen", lambda *a, **k: fake)
+        cancel_event = threading.Event()
+        cancel_event.set()
+        with pytest.raises(proxy.ProxyCancelled):
+            proxy._run_with_progress(["ffmpeg"], duration_ms=None, progress_cb=None, cancel_event=cancel_event)
+        assert fake.killed, "a cancelled encode must kill the still-running FFmpeg child"
+
+    def test_unset_cancel_event_does_not_mask_a_real_failure(self, monkeypatch):
+        fake = self._FakeProc(["boom\n"], returncode=1)
+        monkeypatch.setattr(proxy.subprocess, "Popen", lambda *a, **k: fake)
+        cancel_event = threading.Event()  # never set
+        with pytest.raises(RuntimeError, match="boom"):
+            proxy._run_with_progress(["ffmpeg"], duration_ms=None, progress_cb=None, cancel_event=cancel_event)
+
+    def test_on_proc_started_receives_the_process(self, monkeypatch):
+        fake = self._FakeProc(["out_time_us=100\n"], returncode=0)
+        monkeypatch.setattr(proxy.subprocess, "Popen", lambda *a, **k: fake)
+        received = []
+        proxy._run_with_progress(
+            ["ffmpeg"], duration_ms=None, progress_cb=None, on_proc_started=received.append,
+        )
+        assert received == [fake]
+
+
+class TestGenerateProxyCancellation:
+    def test_cancelled_mid_nvenc_attempt_does_not_retry_libx264(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(proxy, "nvenc_available", lambda ffmpeg=None: True)
+        runs: list[bool] = []
+
+        def fake_run(cmd, d, cb, **kwargs):
+            runs.append("h264_nvenc" in cmd)
+            raise proxy.ProxyCancelled()
+
+        monkeypatch.setattr(proxy, "_run_with_progress", fake_run)
+        with pytest.raises(proxy.ProxyCancelled):
+            proxy.generate_proxy(Path("in.mkv"), tmp_path / "out.mp4", ffmpeg="ffmpeg")
+        assert runs == [True]  # never fell back to libx264 after a deliberate cancel
+
+    def test_on_proc_started_and_cancel_event_forwarded_to_run_with_progress(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(proxy, "nvenc_available", lambda ffmpeg=None: False)
+        captured = {}
+
+        def fake_run(cmd, d, cb, on_proc_started=None, cancel_event=None):
+            captured["on_proc_started"] = on_proc_started
+            captured["cancel_event"] = cancel_event
+
+        monkeypatch.setattr(proxy, "_run_with_progress", fake_run)
+        sentinel_cb = lambda proc: None  # noqa: E731
+        sentinel_event = threading.Event()
+        proxy.generate_proxy(
+            Path("in.mkv"), tmp_path / "out.mp4", ffmpeg="ffmpeg",
+            on_proc_started=sentinel_cb, cancel_event=sentinel_event,
+        )
+        assert captured["on_proc_started"] is sentinel_cb
+        assert captured["cancel_event"] is sentinel_event
+
+
 # ── fallback behaviour ──────────────────────────────────────────────────────────
 
 class TestGenerateProxyFallback:
@@ -127,7 +202,7 @@ class TestGenerateProxyFallback:
         monkeypatch.setattr(proxy, "nvenc_available", lambda ffmpeg=None: True)
         runs: list[bool] = []
 
-        def fake_run(cmd, duration_ms, progress_cb):
+        def fake_run(cmd, duration_ms, progress_cb, **kwargs):
             used_nvenc = "h264_nvenc" in cmd
             runs.append(used_nvenc)
             if used_nvenc:
@@ -145,14 +220,14 @@ class TestGenerateProxyFallback:
         monkeypatch.setattr(proxy, "nvenc_available", lambda ffmpeg=None: False)
         runs: list[bool] = []
         monkeypatch.setattr(proxy, "_run_with_progress",
-                            lambda cmd, d, cb: runs.append("h264_nvenc" in cmd))
+                            lambda cmd, d, cb, **kwargs: runs.append("h264_nvenc" in cmd))
         proxy.generate_proxy(Path("in.mkv"), tmp_path / "out.mp4", ffmpeg="ffmpeg")
         assert runs == [False]
 
     def test_raises_when_all_attempts_fail(self, tmp_path, monkeypatch):
         monkeypatch.setattr(proxy, "nvenc_available", lambda ffmpeg=None: True)
 
-        def always_fail(cmd, d, cb):
+        def always_fail(cmd, d, cb, **kwargs):
             raise RuntimeError("boom")
 
         monkeypatch.setattr(proxy, "_run_with_progress", always_fail)

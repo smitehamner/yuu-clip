@@ -2953,7 +2953,7 @@ class TestVideoProxy:
         (project_dir / "session.mkv").write_bytes(b"source-bytes" * 64)
 
     def _stub_generate(self, monkeypatch):
-        def fake_generate(source, out, *, duration_ms=None, progress_cb=None, ffmpeg=None):
+        def fake_generate(source, out, *, duration_ms=None, progress_cb=None, ffmpeg=None, **kwargs):
             out.parent.mkdir(parents=True, exist_ok=True)
             out.write_bytes(b"proxy-bytes")
             if progress_cb:
@@ -2998,7 +2998,7 @@ class TestVideoProxy:
     def test_generate_records_and_then_serves(self, client, project_dir, monkeypatch):
         self._write_source(project_dir)
 
-        def fake_generate(source, out, *, duration_ms=None, progress_cb=None, ffmpeg=None):
+        def fake_generate(source, out, *, duration_ms=None, progress_cb=None, ffmpeg=None, **kwargs):
             out.parent.mkdir(parents=True, exist_ok=True)
             out.write_bytes(b"proxy-bytes")
             if progress_cb:
@@ -3025,7 +3025,7 @@ class TestVideoProxy:
 
         self._write_source(project_dir)
 
-        def boom(source, out, *, duration_ms=None, progress_cb=None, ffmpeg=None):
+        def boom(source, out, *, duration_ms=None, progress_cb=None, ffmpeg=None, **kwargs):
             raise RuntimeError("encoder exploded")
 
         monkeypatch.setattr("yuu_clip.analyze.proxy.generate_proxy", boom)
@@ -3042,6 +3042,25 @@ class TestVideoProxy:
             "error": "Preview generation failed: encoder exploded",
         }
         assert client.get("/api/videos/1/proxy-status").json()["available"] is False
+
+    def test_generate_reports_cancelled_outcome_when_proxy_cancelled_is_raised(self, client, project_dir, monkeypatch):
+        import json
+
+        self._write_source(project_dir)
+
+        def cancelled(source, out, *, duration_ms=None, progress_cb=None, ffmpeg=None, **kwargs):
+            from yuu_clip.analyze.proxy import ProxyCancelled
+            raise ProxyCancelled()
+
+        monkeypatch.setattr("yuu_clip.analyze.proxy.generate_proxy", cancelled)
+
+        stream = client.get("/api/videos/1/proxy/generate").text
+        assert "[Preview generation cancelled]" in stream
+        lines = [line for line in stream.splitlines() if line.startswith("data: ")]
+        done = json.loads(lines[-1][len("data: "):])
+        assert done == {"v": 1, "type": "done", "outcome": "cancelled"}
+        # The busy-gate bookkeeping must be released, not left latched by a cancel.
+        assert client.app.state.ctx.proxy_generating == set()
 
     def test_split_segments_inherit_proxy_pointer(self, client, project_dir, monkeypatch):
         self._write_source(project_dir)
@@ -3076,3 +3095,51 @@ class TestVideoProxy:
         # Parent and the other segment still reference the file - keep the proxy.
         assert client.delete(f"/api/videos/{seg_ids[0]}").status_code == 200
         assert proxy_file.exists()
+
+
+class TestVideoProxyCancel:
+    """POST /api/videos/{id}/proxy/cancel - abort an in-flight proxy encode.
+
+    Drives the route's ctx.proxy_procs/proxy_cancel_events wiring directly
+    (same pattern as the analyze-cancel tests injecting ctx.analyze_proc)
+    rather than orchestrating a real concurrent encode through the synchronous
+    TestClient.
+    """
+
+    def _write_source(self, project_dir):
+        (project_dir / "session.mkv").write_bytes(b"source-bytes" * 64)
+
+    def test_404_for_missing_video(self, client):
+        r = client.post("/api/videos/9999/proxy/cancel")
+        assert r.status_code == 404
+
+    def test_no_op_when_nothing_is_generating(self, client, project_dir):
+        self._write_source(project_dir)
+        r = client.post("/api/videos/1/proxy/cancel")
+        assert r.status_code == 200
+        assert r.json() == {"status": "not_running"}
+
+    def test_sets_the_cancel_event_and_terminates_the_registered_process(self, client, project_dir, monkeypatch):
+        import threading
+        from types import SimpleNamespace
+
+        self._write_source(project_dir)
+        source_key = str((project_dir / "session.mkv").resolve())
+        ctx = client.app.state.ctx
+        cancel_event = threading.Event()
+        ctx.proxy_cancel_events[source_key] = cancel_event
+        fake_proc = SimpleNamespace(returncode=None, pid=12345)
+        ctx.proxy_procs[source_key] = fake_proc
+
+        terminated = []
+
+        async def fake_terminate(proc):
+            terminated.append(proc)
+
+        monkeypatch.setattr("yuu_clip.web.sse.terminate_process_tree_async", fake_terminate)
+
+        r = client.post("/api/videos/1/proxy/cancel")
+        assert r.status_code == 200
+        assert r.json() == {"status": "cancelled"}
+        assert cancel_event.is_set()
+        assert terminated == [fake_proc]
