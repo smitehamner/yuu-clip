@@ -191,9 +191,10 @@ function _doBulkExportClips(ids) {
   let skippedCount = 0;
   streamSSE(
     `/api/clips/bulk-export?${qs}`,
-    async () => {
+    async outcome => {
       await _reloadClipList(AppState.activeVideoId);
       loadVideos();
+      if (outcome === 'cancelled') return;
       const base = exportedCount != null
         ? `Exported ${plural(exportedCount, 'clip')}`
         : 'Export finished';
