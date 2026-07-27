@@ -23,16 +23,6 @@ deliberately deferred to a specific future pass.
 
 ## Needs a human decision
 
-- **`yuu_clip/web/static/core/utils.js::appendLog`** - styles any log line
-  containing the bare substring `'error'` (case-insensitive) as a red error
-  line, so benign lines like "0 errors" paint red and could alarm a
-  non-technical user. **Recommendation:** narrow the match to a line that
-  *starts* with an error marker (e.g. the existing `[Error ...]`/`level="error"`
-  event convention) rather than a bare substring anywhere in the line - but this
-  needs a check across every log line this function currently receives, since
-  narrowing risks under-matching a real error that doesn't use that convention.
-  Not applied without that verification.
-
 - **`tests/integration/test_analyze.py::TestThermalPollLoopIntegration`**
   (`test_hot_reading_warns_then_auto_pauses` / `test_cool_reading_never_warns_or_pauses`)
   - real wall-clock timing tests (1.0s sleep, 0.01s poll interval, needs 3
