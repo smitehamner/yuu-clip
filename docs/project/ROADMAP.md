@@ -56,19 +56,6 @@ except the two items below).
   real marker channel for this instead of a one-off regex hack. Detail in the private
   planning workspace, `UX-BUG-HUNT-2026-07-19.md` B14.
 
-- [x] **Full-recording transcript panel still renders every page in the DOM
-  (virtualize instead of just paginate)** - a real lag report on a 3+ hour
-  recording (~7000 transcript lines) traced to `loadVideoTranscript` in
-  `static/analyze/transcript.js` building the *entire* transcript's HTML in one
-  `innerHTML` write (tens of thousands of DOM nodes in a single paint). **Fixed
-  2026-07-27** (panel-layout-v2, `d50d30e`): the append-forever "Show more"
-  pager was replaced with a bounded WINDOW - the full transcript now renders one
-  fixed-size (300-line) window at a time inside a scroll box, and paging swaps
-  (replaces, never appends) the window, so the DOM stays capped regardless of
-  recording length. A sticky toolbar adds within-recording search
-  (highlight/next-prev/counter) and jump-to-time over the full in-memory line
-  array. Closes the unbounded-memory-growth gap this item was tracking.
-
 - [ ] **Video list (sidebar) has the same unbounded-DOM-rebuild shape** - audited
   2026-07-20 alongside the transcript fix: `videos.js`'s `_renderVideoList` ->
   `_renderGroupedVideoItems` -> `_videoItemLi` rebuilds the *entire* video list from
@@ -102,17 +89,6 @@ except the two items below).
   entirely per owner request, so only the manual "Build 720p preview" build remains), and the
   YouTube/Twitch download percentage now streams live (it was block-buffered in the raw-`print` import
   subprocess). Apply the same elapsed-time-minimum when wiring the remaining event-loop jobs above.
-
-- [x] **CUDA libs (opt-in transcription GPU acceleration) survive an app upgrade**
-  - fixed 2026-07-26. Every version bump re-extracts the whole prebuilt venv
-  (`prebuilt-env.js` `decidePrebuiltEnvAction` -> `extract`), which used to wipe the
-  `nvidia-cublas-cu12`/`nvidia-cudnn-cu12` libs the "Enable GPU acceleration" flow
-  pip-installs inside it - so anyone who opted in re-paid a ~1 GB download every
-  release. Now `extractPrebuiltEnv` (`electron/main.js`) probes for the libs before
-  the wipe and `restoreVenvExtrasAfterExtract` reinstalls them into the fresh venv
-  with visible progress; a network failure falls back to the existing Setup Warnings
-  chip rather than blocking launch. Still needs one real packaged-upgrade run to
-  field-confirm (build over a cuda-enabled install).
 
 - [ ] **Hoist repeated inline `style="..."` in the index.html partials into `app.css`
   classes (opportunistic)** - the WS-E split made `index.html` a stitch of
@@ -157,38 +133,12 @@ except the two items below).
 
 Wanted before distributing beyond friends/trusted users.
 
-- [x] **Verify FFmpeg source-hosting URLs resolve once the repo is public** - the
-  GPL-compliance story ships the FFmpeg + libx264 source archives *side-by-side* with each
-  installer, and the matching archives are also attached to the `third-party-source_0.1.0`
-  GitHub Release as a durable public mirror. **Verified 2026-07-26**: repo flipped to public,
-  URLs confirmed to resolve for a logged-out visitor (checked in a private/incognito window).
-  See `docs/dev/THIRD-PARTY-NOTICES-FFMPEG.md` and `HOW-TO-RELEASE.md § Bundled FFmpeg`.
-
-- [x] **Enable private vulnerability reporting** (Settings -> Security). `SECURITY.md`
-  already points reporters at the "Report a vulnerability" flow. **Enabled 2026-07-26**
-  after the public flip.
-
-- [x] **Confirm branch protection on `main` takes effect once public** - the rule is
-  configured but GitHub does not enforce protected-branch rules on a private repo on the
-  Free plan. **Confirmed 2026-07-26**: a direct push to `main` was rejected post-flip,
-  confirming enforcement is active.
-
-- [x] **Verify the in-app Help & Guides links resolve for a logged-out visitor after the
-  public flip** - the Help & Guides modal links user docs on GitHub; the pre-public polish
-  pass (WS-C) bundles those docs in-app so help works offline, but the per-doc "View online"
-  GitHub fallback links remain. **Verified 2026-07-26**: links resolve for a logged-out
-  visitor.
-
 - [ ] **Opportunistic: extract remaining inline styles in the partials into `app.css`
   classes.** The `index.html` build-time stitch (`static/index.src.html` + `partials/*`
   via `yuu-dev bundle`) already shipped; the paired inline-style extraction was deferred as
   opportunistic cleanup (the ~100 remaining inline styles are valid `var(--token)`/layout
   styles, and the color-literal guard already globs the partials, so there is no safety
   gap). Do it when a region is being edited anyway, not as a blind sweep.
-
-- [x] **Retire the "wipe the DB freely" schema convention and add real migrations.**
-  **Shipped** (`bfe0fc4`) - Alembic + startup auto-migrate with a timestamped
-  pre-migration backup. See UC-G05 in `docs/dev/USE_CASES.md`.
 
 ---
 
