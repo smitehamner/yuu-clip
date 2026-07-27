@@ -276,6 +276,21 @@ button.section-toggle-btn:not(.active):hover { color: var(--text); background: v
 /* Review actions row */
 .review-actions { display: flex; gap: 8px; }
 .review-actions .btn { flex: 1; justify-content: center; }
+/* Segmented review-status control (Unreviewed | Approved | Rejected) */
+.status-seg-group { display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.status-seg { flex: 1; border: none; border-right: 1px solid var(--border); background: transparent; color: var(--muted); padding: 8px 10px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.status-seg:last-child { border-right: none; }
+.status-seg:hover:not(:disabled):not(.active) { background: color-mix(in srgb, var(--text) 7%, transparent); color: var(--text); }
+.status-seg:disabled { cursor: default; opacity: .6; }
+.status-seg.active[data-seg-status="pending"]  { background: color-mix(in srgb, var(--text) 14%, transparent); color: var(--text); }
+.status-seg.active[data-seg-status="approved"] { background: var(--green); color: var(--on-green); }
+.status-seg.active[data-seg-status="rejected"] { background: var(--red); color: var(--on-red); }
+/* Full-description disclosure inside the merged Description card */
+.desc-full { margin-top: 4px; }
+.desc-full > summary { cursor: pointer; font-size: 12px; color: var(--accent); list-style: none; padding: 4px 0; }
+.desc-full > summary::-webkit-details-marker { display: none; }
+.desc-full > summary::before { content: "\25B8 "; }
+.desc-full[open] > summary::before { content: "\25BE "; }
 /* Operations row */
 .op-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 /* Danger zone - separated with a faint red-tinted border-top */

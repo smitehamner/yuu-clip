@@ -547,7 +547,7 @@ export function _exportFormatsHtml(clip) {
   const rows = (clip.exports || []).filter(r => r.exists);
   if (!rows.length) {
     return `
-      <div style="margin-top:8px;margin-bottom:4px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px">Exported</div>
+      <div style="margin-bottom:4px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--muted)">Exported files</div>
       <div style="display:flex;gap:12px;flex-wrap:wrap">
         ${clip.exported_container ? `<span>Container: <strong style="color:var(--text)">${escHtml(clip.exported_container.toUpperCase())}</strong></span>` : ''}
         <span>Captions: <strong style="color:var(--text)">${
@@ -560,7 +560,7 @@ export function _exportFormatsHtml(clip) {
       ${clip.export_stale ? `<div class="transcript-stale-note" style="margin-top:8px">&#9888; Stale - re-export to update (${escHtml((clip.export_stale_reasons || []).join(', '))})</div>` : ''}`;
   }
   return `
-    <div style="margin-top:8px;margin-bottom:4px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px">Exports</div>
+    <div style="margin-bottom:4px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--muted)">Exported files</div>
     <div style="display:flex;flex-direction:column;gap:8px">
       ${rows.map(row => `
         <div class="export-format-row" data-clip-id="${clip.id}" data-export-id="${row.id}" data-preset-name="${escHtml(row.preset_name)}"
@@ -637,19 +637,41 @@ export function _basicDescChipHTML(clip) {
 function renderDetail(clip) {
   const eb = (isEdited) => isEdited ? `<span class="edited-badge">edited</span>` : '';
 
-  const trimExportHtml = `
-    <div style="font-size:12px;color:var(--muted)">
-      <div style="margin-bottom:4px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px">Trim</div>
-      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
-        <span>Start <strong style="color:var(--text);font-family:monospace">${_fmtOffset(clip.start_offset)}</strong></span>
-        <span>End <strong style="color:var(--text);font-family:monospace">${_fmtOffset(clip.end_offset)}</strong></span>
-        <span style="font-size:11px">(edit in Export)</span>
-      </div>
-      ${_exportFormatsHtml(clip)}
-    </div>`;
+  // Segmented review-status control: one button per state, the active one filled.
+  // Clicking a segment sets that state directly (no toggle) - the same set-status
+  // path the A/R/U keyboard shortcuts use.
+  const statusSeg = (label, status, hint) => {
+    const active = clip.status === status;
+    return `<button type="button" class="status-seg${active ? ' active' : ''}" data-act="set-status" data-clip-id="${clip.id}" data-status="${status}" data-seg-status="${status}" aria-pressed="${active}" title="${hint}">${label}</button>`;
+  };
 
-  const scoringActionsHtml = `
-    <div class="detail-cards-row">
+  // "Do" row: Export is the single export entry; Analyze frames + Find similar are
+  // surfaced here (they used to be menu-only) so a reviewer reaches for them without
+  // opening Additional Actions. Capped at three visible + the overflow menu.
+  const visionDoBtn = window._visionEnabled ? _visionActionButton(clip) : '';
+  const findSimilarBtn = (clip.description_long || clip.description)
+    ? `<button class="btn ghost" data-act="open-similar-clips-modal" data-clip-id="${clip.id}" data-job-blocked>Find similar</button>`
+    : '';
+
+  const actionsCardHtml = `
+      <div class="detail-card">
+        <div class="detail-card-header"><span class="detail-card-title">Actions</span></div>
+        <div class="clip-actions">
+          <div class="status-seg-group" role="group" aria-label="Review status">
+            ${statusSeg('Unreviewed', 'pending', 'Mark as Unreviewed (press U)')}
+            ${statusSeg('Approved', 'approved', 'Approve (press A)')}
+            ${statusSeg('Rejected', 'rejected', 'Reject (press R)')}
+          </div>
+          <div class="op-actions">
+            <button class="btn highlight" data-act="export-clip" data-clip-id="${clip.id}" data-job-blocked>${clip.has_export ? 'Re-export' : 'Export'}</button>
+            ${visionDoBtn}
+            ${findSimilarBtn}
+            <button class="btn ghost" data-act="open-clip-actions-modal" data-clip-id="${clip.id}">Additional Actions</button>
+          </div>
+        </div>
+      </div>`;
+
+  const scoringCardHtml = `
       <div class="detail-card">
         <div class="detail-card-header">
           <span class="detail-card-title">Scoring</span>
@@ -670,21 +692,13 @@ function renderDetail(clip) {
           ${clip.scored_at ? scoreRow('Visual',   clip.score_visual || 0, 'visual') : ''}
           ${clip.scored_at && clip.score_laugh != null ? scoreRow('Laughs', clip.score_laugh, 'laugh') : ''}
         </div>
-      </div>
-      <div class="detail-card">
-        <div class="detail-card-header"><span class="detail-card-title">Actions</span></div>
-        <div class="clip-actions">
-          <div class="review-actions">
-            <button class="btn approve ${clip.status==='approved'?'active':''}" data-act="set-status" data-clip-id="${clip.id}" data-status="${clip.status==='approved'?'pending':'approved'}" title="Approve (press A)">Approve</button>
-            <button class="btn reject  ${clip.status==='rejected'?'active':''}" data-act="set-status" data-clip-id="${clip.id}" data-status="${clip.status==='rejected'?'pending':'rejected'}" title="Reject (press R)">Reject</button>
-            <button class="btn ${clip.status==='pending'?'active':''}" data-act="set-status" data-clip-id="${clip.id}" data-status="pending" title="Mark as Unreviewed (press U)">Unreviewed</button>
-          </div>
-          <div class="op-actions">
-            <button class="btn highlight" data-act="export-clip" data-clip-id="${clip.id}">${clip.has_export ? 'Re-export' : 'Export'}</button>
-            <button class="btn ghost" data-act="open-clip-actions-modal" data-clip-id="${clip.id}">Additional Actions</button>
-          </div>
-        </div>
-      </div>
+      </div>`;
+
+  // Actions first (left), Scoring second (right): the review decision reads first.
+  const scoringActionsHtml = `
+    <div class="detail-cards-row">
+      ${actionsCardHtml}
+      ${scoringCardHtml}
     </div>`;
 
   document.getElementById('detail').innerHTML = `
@@ -704,12 +718,14 @@ function renderDetail(clip) {
       ${_clipDescriptionHTML(clip)}
 
       ${clip.description_long ? `
-        <hr class="detail-card-divider">
-        <div class="detail-card-header">
-          <span class="detail-card-title">Full Description${eb(clip.description_long_is_edited)}</span>
-          <button class="kebab-btn" title="Edit or regenerate long description" aria-label="Edit or regenerate long description" data-act="open-desc-long-kebab" data-clip-id="${clip.id}">&#8942;</button>
-        </div>
-        <div class="description-long">${escHtml(clip.description_long)}</div>` : ''}
+        <details class="desc-full">
+          <summary>Full description${clip.description_long_is_edited ? ' (edited)' : ''}</summary>
+          <div class="detail-card-header" style="margin-top:8px">
+            <span class="detail-card-title">Full Description${eb(clip.description_long_is_edited)}</span>
+            <button class="kebab-btn" title="Edit or regenerate long description" aria-label="Edit or regenerate long description" data-act="open-desc-long-kebab" data-clip-id="${clip.id}">&#8942;</button>
+          </div>
+          <div class="description-long">${escHtml(clip.description_long)}</div>
+        </details>` : ''}
 
       <hr class="detail-card-divider">
       <div class="detail-card-header"><span class="detail-card-title">Tags</span></div>
@@ -728,13 +744,7 @@ function renderDetail(clip) {
     ${_hotwordDetailHTML(clip)}
     ${_sensitiveDetailHTML(clip)}
 
-    <div class="detail-card">
-      <div class="detail-card-header">
-        <span class="detail-card-title">Export</span>
-        <button class="btn ghost" style="font-size:12px;padding:2px 10px" data-act="open-export-editor" data-clip-id="${clip.id}" title="Trim, frame vertical, preview captions, then export">Edit &amp; export</button>
-      </div>
-      ${trimExportHtml}
-    </div>
+    ${clip.has_export ? `<div class="detail-card">${_exportFormatsHtml(clip)}</div>` : ''}
 
     ${(clip.related_clips || _findingSimilarClipId === clip.id) ? collapsibleCard('clip-related',
           `<span class="detail-card-title">Related Clips</span>`, `
@@ -775,7 +785,10 @@ export function _transcriptCardHTML(clip) {
         `<span class="detail-card-title">Transcript</span>`, `
       ${clip.transcript_stale ? `<div class="transcript-stale-note">&#9888; Captions edited since last scoring - <button class="btn ghost" style="font-size:11px;padding:2px 8px" data-act="rescore-clip" data-clip-id="${clip.id}">Re-score</button> to refresh.</div>` : ''}
       <div id="clip-transcript-view" class="transcript">${escHtml(clip.transcript_excerpt)}</div>`,
-      { actions: `<button class="btn ghost" style="font-size:11px;padding:3px 9px" title="Copy transcript" aria-label="Copy transcript" data-copy="transcript">Copy</button>` });
+      { actions: `<div style="display:flex;gap:6px">
+          <button class="btn ghost" style="font-size:11px;padding:3px 9px" title="Re-run transcription for just this clip's time range" data-act="open-retranscribe" data-clip-id="${clip.id}" data-job-blocked>Re-transcribe</button>
+          <button class="btn ghost" style="font-size:11px;padding:3px 9px" title="Copy transcript" aria-label="Copy transcript" data-copy="transcript">Copy</button>
+        </div>` });
   }
   const isNoSpeech = (clip.tags || []).includes('no_speech');
   const visualPct = Math.round((clip.score_visual || 0) * 100);
@@ -796,30 +809,30 @@ function _visionSpinnerButton() {
     + `Analyzing frames...</button>`;
 }
 
+// The Analyze-frames trigger, rendered in the Actions "do" row so it is reachable
+// mid-review without opening a card. Keeps id="analyze-frames-btn" (gateOnCapability
+// + _paintVisionInFlight find it by id) and swaps to the spinner while a job for THIS
+// clip is in flight, sourced from AppState.clipJobs so it survives a renderDetail
+// rebuild. Only called when window._visionEnabled.
+export function _visionActionButton(clip) {
+  const inFlight = AppState.clipJobs[clip.id] && AppState.clipJobs[clip.id].op === 'analyze-frames';
+  if (inFlight) return _visionSpinnerButton();
+  const label = clip.vision_summary ? 'Re-analyze frames' : 'Analyze frames';
+  return `<button class="btn ghost" id="analyze-frames-btn" data-job-blocked
+            data-act="analyze-frames" data-clip-id="${clip.id}"
+            title="Sample frames from this clip and describe what's on screen">${label}</button>`;
+}
+
+// The "What's on screen" card is now result-only: the trigger lives in the Actions
+// do-row (_visionActionButton). Renders nothing until a vision summary exists.
 export function _visionDetailHTML(clip) {
-  // Master switch (Settings → Image analysis). On by default; the button itself is
-  // still gated on a vision-capable model being configured (gateOnCapability above).
-  // window._visionEnabled is seeded at boot and on settings save.
   if (!window._visionEnabled) return '';
   const summary = clip.vision_summary;
-  const btnLabel = summary ? 'Re-analyze frames' : 'Analyze frames';
-  const body = summary
-    ? `<div class="description-long">${escHtml(summary)}</div>
-       <div style="font-size:11px;color:var(--muted);margin-top:4px">Analyzed ${_fmtAgo(clip.vision_analyzed_at)}</div>`
-    : `<div style="color:var(--muted);font-size:13px">Sample frames from this clip and describe what's on screen - it enriches the description and gives scoring visual context.</div>`;
-  // If an analyze-frames job for THIS clip is in flight, render the spinner from
-  // AppState.clipJobs (not a captured DOM node) so the indicator survives a
-  // renderDetail rebuild or a clip switch-away-and-back. Otherwise the normal
-  // button, tagged data-job-blocked so it disables while some OTHER job runs.
-  const inFlight = AppState.clipJobs[clip.id] && AppState.clipJobs[clip.id].op === 'analyze-frames';
-  const buttonHtml = inFlight
-    ? _visionSpinnerButton()
-    : `<button class="btn ghost" id="analyze-frames-btn" data-job-blocked style="font-size:12px;padding:3px 10px"
-                data-act="analyze-frames" data-clip-id="${clip.id}">${btnLabel}</button>`;
+  if (!summary) return '';
   return collapsibleCard('clip-vision',
     `<span class="detail-card-title">What's on screen</span>`, `
-      ${body}
-      <div style="margin-top:8px">${buttonHtml}</div>`);
+      <div class="description-long">${escHtml(summary)}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">Analyzed ${_fmtAgo(clip.vision_analyzed_at)}</div>`);
 }
 
 // Optimistic immediate repaint of the button on start; durable in-flight state
@@ -1062,6 +1075,8 @@ function _handleDetailClick(e) {
     case 'open-desc-long-kebab': openDescLongKebab(clipId, act); break;
     case 'open-desc-kebab': openDescKebab(clipId, act); break;
     case 'open-export-editor': openExportEditor(clipId); break;
+    case 'open-similar-clips-modal': openSimilarClipsModal(clipId); break;
+    case 'open-retranscribe': openRetranscribeModal(clipId); break;
     case 'select-related-clip': e.preventDefault(); selectClip(clipId); break;
     case 'rescore-clip': rescoreClip(clipId); break;
     case 'analyze-frames': analyzeFrames(clipId); break;
@@ -1132,6 +1147,10 @@ function openClipActionsModal(clipId) {
       { label: 'Find Similar', description: 'Search other recordings for clips with a similar description.', action: () => openSimilarClipsModal(clipId) },
     ]});
   }
+
+  groups.push({ heading: 'Export', rows: [
+    { label: 'Open export editor', description: 'Visual trim, vertical framing, and caption preview before exporting.', action: () => openExportEditor(clipId) },
+  ]});
 
   if (clip.has_export) {
     const multiFormat = (clip.exports || []).filter(e => e.exists).length > 1;
@@ -1401,7 +1420,7 @@ async function setStatus(id, status) {
   // buttons exist in the DOM; a keyboard-shortcut call already selected its clip
   // first, so this still finds them.
   const statusButtons = id === AppState.activeClipId
-    ? [...document.querySelectorAll('.review-actions [data-act="set-status"]')]
+    ? [...document.querySelectorAll('.status-seg-group [data-act="set-status"]')]
     : [];
   statusButtons.forEach(btn => { btn.disabled = true; });
   try {

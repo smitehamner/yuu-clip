@@ -41,28 +41,28 @@ class TestClipReview:
     def test_approve_button_exists(self, page: Page):
         select_first_video_and_clip(page)
         page.wait_for_selector(".clip-actions", timeout=5000)
-        expect(page.locator("button.approve")).to_be_visible()
+        expect(page.locator(".status-seg[data-seg-status='approved']")).to_be_visible()
 
     def test_reject_button_exists(self, page: Page):
         select_first_video_and_clip(page)
         page.wait_for_selector(".clip-actions", timeout=5000)
-        expect(page.locator("button.reject")).to_be_visible()
+        expect(page.locator(".status-seg[data-seg-status='rejected']")).to_be_visible()
 
     def test_review_buttons_disabled_while_status_update_is_in_flight(self, page: Page):
         # B7: a slow with_write_retry (DB locked while analysis runs) must read as
-        # "working", not "stuck" - setStatus disables the review buttons for the
-        # duration of the request.
+        # "working", not "stuck" - setStatus disables the review-status segments for
+        # the duration of the request.
         select_first_video_and_clip(page)
         page.wait_for_selector(".clip-actions", timeout=5000)
 
         def _assert_disabled_then_continue(route):
-            expect(page.locator("button.approve")).to_be_disabled()
-            expect(page.locator("button.reject")).to_be_disabled()
+            expect(page.locator(".status-seg[data-seg-status='approved']")).to_be_disabled()
+            expect(page.locator(".status-seg[data-seg-status='rejected']")).to_be_disabled()
             route.continue_()
 
         page.route(re.compile(r".*/api/clips/\d+/status$"), _assert_disabled_then_continue)
-        page.locator("button.approve").click()
-        expect(page.locator("button.approve")).to_be_enabled()
+        page.locator(".status-seg[data-seg-status='approved']").click()
+        expect(page.locator(".status-seg[data-seg-status='approved']")).to_be_enabled()
 
     def test_retranscribe_button_exists(self, page: Page):
         select_first_video_and_clip(page)

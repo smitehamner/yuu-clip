@@ -9,7 +9,7 @@ import {
   _hotwordPillsHTML, _clipTagPillsHTML, scoreRow, scoreRowOverride,
   _hotwordDetailHTML, _sensitiveDetailHTML, clipListEmptyStateKind,
   _clipDescriptionHTML, _basicDescChipHTML,
-  _transcriptCardHTML, _duplicateNoticeHTML, _visionDetailHTML,
+  _transcriptCardHTML, _duplicateNoticeHTML, _visionDetailHTML, _visionActionButton,
 } from '../../../yuu_clip/web/static/clips/clips.js';
 
 describe('_parseTimingOffset', () => {
@@ -371,7 +371,7 @@ describe('_exportFormatsHtml', () => {
     });
     expect(html).toContain('data-export-id="1"');
     expect(html).not.toContain('data-export-id="2"');  // exists:false is filtered out
-    expect(html).toContain('Exports');
+    expect(html).toContain('Exported files');
   });
 
   it('falls back to the legacy single-block display when has_export but no rows', () => {
@@ -601,29 +601,43 @@ describe('_visionDetailHTML', () => {
 
   it('blank when the Image analysis feature is off', () => {
     window._visionEnabled = false;
+    expect(_visionDetailHTML({ id: 1, vision_summary: 'x' })).toBe('');
+  });
+
+  it('blank until a vision summary exists (the trigger lives in the Actions row)', () => {
+    window._visionEnabled = true;
     expect(_visionDetailHTML({ id: 1 })).toBe('');
   });
 
-  it('offers "Analyze frames" for a clip with no vision summary yet', () => {
+  it('renders the result card once a summary exists, with no trigger button', () => {
     window._visionEnabled = true;
+    const html = _visionDetailHTML({ id: 1, vision_summary: 'A tense standoff.', vision_analyzed_at: '2026-07-13T00:00:00+00:00' });
+    expect(html).toContain("What's on screen");
+    expect(html).toContain('A tense standoff.');
+    expect(html).not.toContain('data-act="analyze-frames"');
+  });
+});
+
+describe('_visionActionButton', () => {
+  afterEach(() => { AppState.clipJobs = {}; });
+
+  it('offers "Analyze frames" for a clip with no vision summary yet', () => {
     AppState.clipJobs = {};
-    const html = _visionDetailHTML({ id: 1 });
+    const html = _visionActionButton({ id: 1 });
     expect(html).toContain('Analyze frames');
     expect(html).not.toContain('Re-analyze frames');
+    expect(html).toContain('data-act="analyze-frames"');
   });
 
   it('offers "Re-analyze frames" once a summary exists', () => {
-    window._visionEnabled = true;
     AppState.clipJobs = {};
-    const html = _visionDetailHTML({ id: 1, vision_summary: 'A tense standoff.', vision_analyzed_at: '2026-07-13T00:00:00+00:00' });
+    const html = _visionActionButton({ id: 1, vision_summary: 'A tense standoff.' });
     expect(html).toContain('Re-analyze frames');
-    expect(html).toContain('A tense standoff.');
   });
 
   it('shows the in-flight spinner when this clip has an analyze-frames job running', () => {
-    window._visionEnabled = true;
     AppState.clipJobs = { 1: { op: 'analyze-frames' } };
-    const html = _visionDetailHTML({ id: 1 });
+    const html = _visionActionButton({ id: 1 });
     expect(html).toContain('Analyzing frames...');
     expect(html).not.toContain('data-act="analyze-frames"');
   });
