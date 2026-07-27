@@ -335,6 +335,8 @@ def summarize_session(
         {"role": "user",   "content": f"Recordings:\n\"\"\"\n{blocks[:12000]}\n\"\"\"\nJSON:"},
     ]
     data = _call_llm_json(messages, config, temperature=0.2)
+    if not isinstance(data, dict):
+        raise ValueError(f"Expected a JSON object, got {type(data).__name__}")
     return str(data.get("title", "")), str(data.get("summary", ""))
 
 
@@ -361,6 +363,8 @@ def summarize_transcript(text: str, config: "Config", context_text: str = "") ->
         {"role": "user",   "content": f"Transcript:\n\"\"\"\n{excerpt}\n\"\"\"\nJSON:"},
     ]
     data = _call_llm_json(messages, config, temperature=0.2)
+    if not isinstance(data, dict):
+        raise ValueError(f"Expected a JSON object, got {type(data).__name__}")
     return str(data.get("title", "")), str(data.get("summary", ""))
 
 
@@ -421,7 +425,9 @@ def find_related_clips(
     """Find clips similar to the reference based on description_long.
 
     Returns a list of {"id": int, "reason": str} dicts ordered by similarity.
-    Raises on LLM failure.
+    Malformed individual items are skipped, matching request_scene_boundaries and
+    scan_hotwords_semantic; raises (fail loud) only if the whole response can't be
+    parsed as a JSON list.
     """
     candidate_lines = "\n".join(
         f'{c["id"]}: {c["description"]}' for c in candidates
@@ -438,7 +444,15 @@ def find_related_clips(
     results = _call_llm_json(messages, config, temperature=0.1)
     if not isinstance(results, list):
         raise ValueError(f"Expected list, got {type(results)}")
-    return [{"id": int(r["id"]), "reason": str(r.get("reason", ""))} for r in results]
+    related: list[dict] = []
+    for r in results:
+        if not isinstance(r, dict) or "id" not in r:
+            continue
+        try:
+            related.append({"id": int(r["id"]), "reason": str(r.get("reason", ""))})
+        except (TypeError, ValueError):
+            continue
+    return related
 
 
 _SPEAKER_NAME_SYSTEM = """\
@@ -546,6 +560,8 @@ def describe_clip(
             excerpt=transcript, visual=_visual_block(vision_summary))},
     ]
     data = _call_llm_json(messages, config, temperature=0.1)
+    if not isinstance(data, dict):
+        raise ValueError(f"Expected a JSON object, got {type(data).__name__}")
     return str(data.get("description", "")), str(data.get("description_long", ""))
 
 

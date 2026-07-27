@@ -49,11 +49,10 @@ class TestVisualBlock:
         assert "Visual context" in captured["user"]
         assert "players open a vault door" in captured["user"]
 
-    def test_describe_clip_non_dict_response_raises_attribute_error(self):
-        """Pins a known gap: describe_clip calls .get() on the parsed reply with no
-        isinstance(dict) guard, unlike find_related_clips/request_scene_boundaries -
-        a model that replies with a JSON array degrades to a raw AttributeError
-        instead of a clean, actionable error."""
+    def test_describe_clip_non_dict_response_raises_value_error(self):
+        """describe_clip validates isinstance(dict) before calling .get(), matching
+        find_related_clips/request_scene_boundaries's list-shape guards - a model
+        that replies with a JSON array gets a clean ValueError, not AttributeError."""
         import json
         import unittest.mock as mock
 
@@ -61,7 +60,7 @@ class TestVisualBlock:
 
         from yuu_clip.scoring.llm import describe_clip
         with mock.patch("yuu_clip.scoring.llm._call_client", return_value=json.dumps([1, 2])):
-            with pytest.raises(AttributeError):
+            with pytest.raises(ValueError):
                 describe_clip("transcript", _cfg())
 
     def test_scorer_feeds_vision_summary_into_prompt(self):

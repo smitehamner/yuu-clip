@@ -700,12 +700,10 @@ class TestSummarizeTranscript:
         assert title == ""
         assert summary == ""
 
-    def test_non_dict_response_raises_attribute_error(self):
-        """Pins a known gap (unlike find_related_clips/request_scene_boundaries,
-        which validate isinstance(..., list) before use): summarize_transcript
-        calls .get() on the parsed reply with no isinstance(dict) guard, so a model
-        that replies with a JSON array degrades to a raw AttributeError instead of
-        a clean, actionable error."""
+    def test_non_dict_response_raises_value_error(self):
+        """summarize_transcript now validates isinstance(dict) before calling .get(),
+        matching find_related_clips/request_scene_boundaries's list-shape guards - a
+        model that replies with a JSON array gets a clean ValueError, not AttributeError."""
         import json
         import unittest.mock as mock
 
@@ -713,7 +711,7 @@ class TestSummarizeTranscript:
 
         from yuu_clip.scoring.llm import summarize_transcript
         with mock.patch("yuu_clip.scoring.llm._call_client", return_value=json.dumps([1, 2])):
-            with pytest.raises(AttributeError):
+            with pytest.raises(ValueError):
                 summarize_transcript("text", self._cfg())
 
 
@@ -781,8 +779,8 @@ class TestSummarizeSession:
         user_content = captured["messages"][1]["content"]
         assert len(user_content) < 14_000
 
-    def test_non_dict_response_raises_attribute_error(self):
-        """Same known gap as summarize_transcript - no isinstance(dict) guard."""
+    def test_non_dict_response_raises_value_error(self):
+        """Same isinstance(dict) guard as summarize_transcript."""
         import json
         import unittest.mock as mock
 
@@ -790,7 +788,7 @@ class TestSummarizeSession:
 
         from yuu_clip.scoring.llm import summarize_session
         with mock.patch("yuu_clip.scoring.llm._call_client", return_value=json.dumps([1, 2])):
-            with pytest.raises(AttributeError):
+            with pytest.raises(ValueError):
                 summarize_session([("Rec", "s")], self._cfg())
 
 # ---------------------------------------------------------------------------
@@ -1009,21 +1007,45 @@ class TestFindRelatedClips:
             result = find_related_clips("ref", [], self._cfg())
         assert result == []
 
-    def test_one_malformed_item_raises_instead_of_being_skipped(self):
-        """Pins current behavior: unlike request_scene_boundaries (which skips a
-        malformed item via try/except continue), find_related_clips has no such
-        guard - a single item missing "id" aborts the whole call with a raw
-        KeyError rather than returning the other, well-formed items."""
+    def test_one_malformed_item_is_skipped_not_fatal(self):
+        """find_related_clips now matches request_scene_boundaries/scan_hotwords_semantic:
+        a single item missing "id" is skipped, not fatal to the whole batch."""
+        import json
+        import unittest.mock as mock
+
+        from yuu_clip.scoring.llm import find_related_clips
+        payload = json.dumps([{"id": 7, "reason": "ok"}, {"reason": "missing id"}])
+        with mock.patch("yuu_clip.scoring.llm._call_client", return_value=payload):
+            result = find_related_clips("ref", [{"id": 7, "description": "d"}], self._cfg())
+        assert result == [{"id": 7, "reason": "ok"}]
+
+
+class TestDescribeClip:
+    def _cfg(self):
+        from yuu_clip.config import Config
+        return Config()
+
+    def test_returns_description_and_long(self):
+        import json
+        import unittest.mock as mock
+
+        from yuu_clip.scoring.llm import describe_clip
+        payload = json.dumps({"description": "short", "description_long": "longer version"})
+        with mock.patch("yuu_clip.scoring.llm._call_client", return_value=payload):
+            description, description_long = describe_clip("transcript", self._cfg())
+        assert description == "short"
+        assert description_long == "longer version"
+
+    def test_non_dict_response_raises_value_error(self):
         import json
         import unittest.mock as mock
 
         import pytest
 
-        from yuu_clip.scoring.llm import find_related_clips
-        payload = json.dumps([{"id": 7, "reason": "ok"}, {"reason": "missing id"}])
-        with mock.patch("yuu_clip.scoring.llm._call_client", return_value=payload):
-            with pytest.raises(KeyError):
-                find_related_clips("ref", [{"id": 7, "description": "d"}], self._cfg())
+        from yuu_clip.scoring.llm import describe_clip
+        with mock.patch("yuu_clip.scoring.llm._call_client", return_value=json.dumps([1, 2])):
+            with pytest.raises(ValueError):
+                describe_clip("transcript", self._cfg())
 
 
 class TestNullLLMClientVision:
