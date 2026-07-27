@@ -153,46 +153,22 @@ the skill lists this repo's exact gaps and the converge-until-clean pass loop.
 
 ## Frontend build (three committed bundles: web ESM + wizard ESM + stitched index.html)
 
-The UI is real ESM modules (`import`/`export`), the strangler migration off the
-original all-`window`-globals architecture now complete. `yuu-dev bundle` builds the
-committed artifacts the app loads (`scripts/build-esm.mjs` builds BOTH esbuild bundles
-in one run):
+The UI is real ESM modules; `yuu-dev bundle` builds the three committed artifacts
+the app loads (never hand-edit any of them - edit sources, then rebundle):
 
-- **`bundle.esm.js`** - the whole web app, bundled by **esbuild** from the graph rooted at
-  `static/main.esm.js`. Rebuilding needs Node + `npm install` (esbuild is a pinned
-  dev-only dep; `scripts/build-esm.mjs` is the single home for its flags). The committed
-  bundle is what ships - Node is never needed to *run* the app. Drift-guarded by
-  `tests/unit/test_bundle_drift.py`; the guard skips when the JS toolchain is absent so
-  `test-api` still passes offline. (The old classic `bundle.js` + `bundle.manifest` are
-  retired - `test_bundle_drift.py` guards they do not creep back.)
-- **`electron/setup.bundle.js`** - the setup-wizard renderer, a SECOND esbuild entry
-  rooted at `electron/setup-renderer.js` (the wizard's script was de-inlined out of
-  `setup.html`). It imports the shared modules under `static/shared/` (`escHtml`, the
-  language-option builder) - the same ones the web app uses - plus the generated
-  `electron/shared/catalog-data.json`, all inlined at build time. **Edit
-  `electron/setup-renderer.js`, never `setup.html`'s script** (setup.html is markup +
-  `<script src="setup.bundle.js">`), and run `yuu-dev bundle` after; drift-guarded by the
-  same `test_bundle_drift.py`.
-- **`index.html`** - **stitched** from `static/index.src.html` (the page shell, a
-  readable table-of-contents of `<!-- @@include ... -->` markers) + `static/partials/*.html`
-  (one file per modal/region: `regions/header.html`, `regions/settings-panel.html`,
-  `regions/sidebar.html`, `regions/main-panel.html`, `regions/split-editor.html`, and
-  `modals/*.html`). The stitch (`yuu_clip/dev/htmlstitch.py`) is byte-exact and pure
-  Python - no Node - so its guard `tests/unit/test_index_html_drift.py` always runs.
-  **Edit the partials or `index.src.html`, never the committed `index.html`** - it is
-  overwritten on the next stitch, exactly like `bundle.esm.js`. Adding a region: create
-  the partial, add an `<!-- @@include path -->` marker in `index.src.html`, run
-  `yuu-dev bundle`.
+- **`bundle.esm.js`** - the web app, esbuild-bundled from the graph rooted at
+  `static/main.esm.js`.
+- **`electron/setup.bundle.js`** - the setup wizard renderer, a second esbuild entry
+  rooted at `electron/setup-renderer.js`.
+- **`index.html`** - stitched from `static/index.src.html` + `static/partials/*.html`.
+
+Full build mechanics (shared-data generation, the drift guards, the residual
+`window.X` shim, the wizard/Settings split) are in `docs/dev/ARCHITECTURE.md`
+landmines #1 and #2 - read them before non-trivial frontend build work.
 
 **Adding/editing a module:** each `static/*.js` is a normal ESM module - `export` its
-public surface and `import` what it needs from sibling modules. `main.esm.js` is the
-entry point: it `import`s the graph and holds a shrinking **residual `window.X = X`
-shim**. A name stays on that shim only while (1) another module still reads it as
-`window.foo` instead of importing it, or (2) a Playwright `page.evaluate` pokes it.
-Prefer `import` over `window.foo` for new cross-module references. `boot.js` is imported
-last (first-paint entry). After any `static/*.js` edit run `yuu-dev bundle`. Retiring the
-shim entirely is the deferred vitest follow-on (convert the remaining `window.*` reads to
-imports; delete the `page.evaluate` internal pokes).
+public surface and `import` what it needs from sibling modules. `boot.js` is imported
+last (first-paint entry). Run `yuu-dev bundle` after any `static/*.js` edit.
 
 **HARD RULE - no DOM side effects at module scope (enforced).** A module must not wire
 listeners when it is imported: no top-level `document.getElementById(...).addEventListener`,
@@ -206,8 +182,8 @@ unit tier. `boot.js` is the one exempt module (it is the side-effect entry point
 **Do NOT defer a cross-module `import` because it looks like a cycle.** esbuild bundles the
 graph into one scope and hoists function declarations, so a mutual import is fine as long as
 the imported name is used inside a function body (which is true of essentially every handler
-/ render call here) rather than at module-evaluation time. Verified empirically 2026-07-21.
-The one real exception is `core/jobs.js` and `core/format.js`'s reads of `videos.js`/
+/ render call here) rather than at module-evaluation time. The one real exception is
+`core/jobs.js` and `core/format.js`'s reads of `videos.js`/
 `clips.js` render functions: a direct `jobs.js -> videos/clips` (or `format.js -> videos`)
 import adds an edge that esbuild bundles fine but that breaks vitest's
 `vi.mock`/`importActual` resolution (the real `streamSSE` runs instead of the mock). These
@@ -234,21 +210,9 @@ move. Orientation summary only:
 
 ## Running tests
 
-The Python suite has three tiers by directory: **unit** (state-independent, runs
-anywhere), **integration** (seeded DB / in-process TestClient), and **ui** (live
-Playwright server). `yuu-dev test-api` runs unit + integration; `yuu-dev test-ui` runs ui.
-Alongside them a fourth, non-Python tier - **js** (`tests/js/`, vitest + happy-dom) -
-holds the web UI's pure module logic and runs via `yuu-dev test-js` with no browser or
-server. Prefer it for any pure/DOM-shell JS helper (formatters, filters, parse/score
-math, the job-pill state machine driven through the public API); keep in Playwright
-only what genuinely needs a real browser (navigation, SSE, focus traps, live
-getComputedStyle / real geometry).
-
-Each tier has its own first-class command; `test-api` is the convenience combo of the
-two Python tiers. **Cadence** (see "after any Python change" above): the fast tiers -
-`yuu-dev test-js` and `yuu-dev test-unit` - are the frequent inner-loop check. Full
-`yuu-dev test-api` (adding integration) is the gate before reporting a backend change
-done, not an every-edit command.
+Tier definitions (what each of unit/integration/ui/js needs, and when to use each)
+are in `docs/dev/ARCHITECTURE.md`'s "Test tiers" section - this is just the command
+reference:
 
 ```powershell
 yuu-dev test-js             # JS unit layer (tests/js/**/*.test.js); no browser, ~6s, skips if Node absent
@@ -263,123 +227,19 @@ yuu-dev test-system         # full-stack system tier (tests/system, -m "not gold
 yuu-dev test-golden         # opt-in real-models path only (tests/system, -m golden); real Whisper + real LLM, env-gated
 ```
 
-### System tier (`tests/system/`) - full-stack use-case tests
-
-A fifth tier drives the **real** analyze pipeline (`pipeline.analyze_one`, the CLI's
-`_analyze_one`/`_run_scoring` path) against a tiny ffmpeg-generated fixture video, then
-exercises the rest of a use case through the FastAPI `TestClient` - one test per
-automatable use case in `docs/dev/USE_CASES.md`. Only two seams are stubbed
-(`transcribe/whisper_runner.transcribe_track` and the `scoring.llm_client` backend);
-energy/scenes/laugh/visual scoring, the DB, routes, ffmpeg cut/encode, and SRT sidecars
-all run for real. It needs ffmpeg on PATH (guard-skips otherwise) and no live server.
-
-- Run it with `yuu-dev test-system` (writes `test-system-last.log` +
-  `-summary.log`, mirroring test-api). It is a **pre-release gate, not a per-edit
-  check**, and is deliberately excluded from `test-api`'s default selection (which stays
-  ~1 min). `scripts/test-system.ps1` is a thin wrapper over the same command.
-- Determinism: no real models/network, generated (not committed) fixture video, fixed
-  transcript, exact-match assertions on what we control (durations, file existence, flag
-  booleans, sidecar contents). The stubs and fixture live in `tests/system/conftest.py`
-  and `tests/system/_stubs.py`.
-- **Golden path (opt-in, real models).** `tests/system/test_golden_path.py` (marked
-  `golden`) is the one test that runs **real** faster-whisper `tiny` + a **real** local
-  LLM end to end - the wiring proof behind UC-B01 / UC-B05 the stubbed tier can't give.
-  It is **excluded from every default run** (`test-system` runs `-m "not golden"`); run it
-  with `yuu-dev test-golden` / `scripts/test-golden.ps1`. It is env-gated
-  (`YUU_GOLDEN_CLIP` = a short spoken clip, `YUU_GOLDEN_LLM_MODEL` = a real text `.gguf`)
-  and **skips - never fails** - when an input, ffmpeg, the Whisper model, or a runnable
-  local llama-server is missing. A skip means the real models did NOT run, so
-  `yuu-dev test-golden` prints a loud banner with the skip reason; do not read a skip as a
-  pass. It asserts structure only (a clip exists, transcript non-empty, a description is
-  present, an export file lands), never exact model output.
-
-### Adding or changing a user-facing feature (use-case catalog)
-
-Any new user-facing feature must (1) add or update a use case in `docs/dev/USE_CASES.md`
-with an `Automation` tag, (2) for an `automated`/`golden` use case, add or update a
-`tests/system/` test (or another real test) and end the `Coverage` line with an
-`Automated by <pytest node id>` reference, or justify `manual-only`, and (3) add its row
-to `docs/dev/testing/installed-app-checklist.md`. `tests/unit/test_use_case_catalog.py`
-enforces those links - it fails if an automated use case cites no real pytest node id or
-a cited node id no longer exists.
-
-Run `yuu-dev test-js` after editing any `static/*.js` that has (or should have) a
-`tests/js/` counterpart. A JS helper's pure logic belongs in `tests/js/` (import the
-module, assert directly); a case that pokes module state via a Playwright
-`page.evaluate` window global should, where practical, be rewritten to drive the
-public API under vitest fake timers rather than kept in the ui tier.
-
-**Isolated fixture server (determinism).** `yuu-dev test-ui` stands up its own
-disposable server for the run: a freshly-seeded fixture project
-(`build_fixture_project`, force-rebuilt each run) served on a free port with an
-isolated global config (`YUU_CONFIG_DIR` -> a temp dir, so pure `Config`
-defaults), then torn down (`yuu_clip/dev/uiserver.py`). It never touches - or
-requires - the interactive `yuu-dev serve` :8080 server, so the suite is
-deterministic regardless of your real project's data/config. Consequences for
-writing ui tests: never assert a value that comes from your personal config -
-derive it from `/api/config` or the known fixture seed (3 clips / 2 scenes with
-fixed scores + statuses); and resolve on-disk project paths (reels, exports) via
-`served_project_dir(page)` (conftest), never the repo root.
-
-`yuu-dev test-ui` (full) runs 4 pytest-xdist workers by default (~711 tests, ~2.7 min,
-plus a few seconds to build + warm the fixture server); targeted
-runs scale workers down to the selected file count (a single file runs
-in-process). Pass `--sequential` only when debugging suspected worker-parallelism
-flakes. `--changed` calls `scripts/select_ui_tests.py`, which maps changed source
-files to their test files (fuzzy stem match, e.g. `videos.js` -> `test_ui_video`)
-and always includes `tests/ui/test_ui_smoke.py`. The session `browser` fixture
-override in `tests/ui/conftest.py` guards the Playwright teardown hang - see the
-comment there before touching the teardown watchdogs. If the suite (or the app)
-feels slow, check the server isn't degraded first: `curl` `/api/status` should
-answer in ~3ms, and the serve process should sit near 0% CPU when idle.
-
-The tiers are split by **directory**, not markers. `pytest.ini` registers no
-custom markers. A test that needs real installed packages / HF cache /
-OS state belongs in `tests/integration`, never `tests/unit`. A unit test that
-references `project_dir`/`client` fails at collection (no such fixture in the
-unit tier) - move it to `tests/integration`, splitting the file if it mixes pure
-and seeded tests. `tests/unit` must pass offline regardless of machine state.
+The `system`/`golden` tiers (full-stack use-case tests against a real pipeline),
+the Electron wrapper suite, and the isolated fixture server's determinism
+guarantees are documented in `docs/dev/TESTING.md` - read it before touching
+`tests/system/`, `electron/test/`, or `tests/ui/conftest.py`'s fixture server.
 
 Run at least `yuu-dev test-api` before reporting a backend fix as done.
 
-### Electron wrapper tests (only when touching `electron/`)
-
-The desktop wrapper has its own Node test suite, separate from the pytest
-suites above (they don't cover `electron/`, and this doesn't cover them):
-
-```powershell
-cd electron; npm test        # node --test, no dependencies, ~0.2s
-```
-
-Run it only after changing files under `electron/` (e.g. `main.js`,
-`gpu-detect.js`) - skip it for pure Python/web-UI changes.
-
-Almost all of these are pure-unit (import a module, assert its logic). The one
-exception is **`electron/test/smoke.test.js`** (e2e-use-cases Stage 5 / UC-G03): it
-boots the **real** desktop shell (`electron main.js`) against a throwaway userData,
-waits for the embedded server on `/api/status`, confirms the UI document loads with a
-known root control, then asks the app to quit and asserts it leaves **no orphan
-`python.exe`** - the packaging failure mode the pytest suites can't see. It is heavy
-(a real Electron + Python boot, ~10 s) and **opt-in**: it skips unless `YUU_SMOKE=1`,
-so plain `npm test` stays ~0.2 s. When enabled it also skips (with a clear reason) off
-Windows, without the Electron runtime, without a python that can import `yuu_clip`, or
-when port 8080 is already busy (stop any dev server first). It relies on main.js's
-`YUU_SMOKE_BACKEND_PYTHON` seam: with that env var set, `ensureVenv()` is skipped and
-the backend spawns with the supplied interpreter - the only way to boot the shell from
-an unpackaged dev checkout (and handy for running the desktop shell against a dev venv
-without building an installer). Run it with `YUU_SMOKE=1 npm test` (ensure
-`ELECTRON_RUN_AS_NODE` is not set in your shell).
-
 ## Current focus
 
-**Pre-public flip, then use-case validation.** The pipeline and web UI are complete and
-in regular use. The pre-public high-polish pass shipped 2026-07-17 (docs-truth sweep,
-wizard/Settings dedup, maintainable `index.html`, merged Clips+Scenes view, mypy gate,
-in-app help). What remains before flipping the repo public is owner-only, run against a
-real packaged build: the installed-app release checklist
-(`docs/dev/testing/installed-app-checklist.md`), one more friend/VM install, and the
-four public-only checks in ROADMAP section 2. After the flip, the `e2e-use-cases` plan
-validates each use case through the app.
+The pipeline and web UI are complete, in regular use, and the repo is public.
+Open work is tracked in `docs/project/ROADMAP.md` - read it for what's currently
+open (verification/known-issue debt in section 1, larger/speculative features
+further down) rather than relying on this file, which doesn't track status.
 
 When fixing a UI bug, the loop is still:
 
@@ -522,21 +382,20 @@ faster-whisper, `speaker_*` for diarization) rather than renaming them generic.
   disables every tagged element while a job is active, with a why-tooltip, so the user
   sees a disabled button instead of a 409 after clicking. This applies whether the
   button is in static partial HTML or built into a template string at render time - the
-  attribute is enough, no JS wiring needed per-button. Found 2026-07-25: the Export,
-  Batch Export, and Retranscribe confirm buttons all launch `reject_if_busy`-guarded
-  endpoints but weren't tagged, unlike the URL-import Download button and "Analyze
-  frames" that were - add the tag for every new job-launching button from the start.
+  attribute is enough, no JS wiring needed per-button. Add the tag for every new
+  job-launching button from the start - it's easy to add a confirm-dialog button that
+  launches a `reject_if_busy`-guarded endpoint without tagging it.
 - **`streamSSE`'s `onDone` callback receives the typed `outcome`
   (`"success"`/`"cancelled"`/`"error"`) - branch on it before showing a success
   toast/sound.** `onDone(outcome) { if (outcome === 'cancelled') return; showToast(...) }`
   is the pattern; skipping the branch shows a false "complete!" toast right after the
-  user cancelled (found 2026-07-25, fixed across ~9 call sites - see `jobs.js`'s
-  `streamSSE` and any `videos.js`/`clipexport.js`/`reel.js` job starter for the pattern).
+  user cancelled. Apply it in every `jobs.js`-`streamSSE` consumer, including any
+  `videos.js`/`clipexport.js`/`reel.js` job starter, not just the obvious ones.
 - **A confirm-dialog's button label must name the actual action being confirmed**, not a
   generic "Cancel" - e.g. "Cancel Re-detection", "Stop Export", not a bare "Cancel" that
   reads as confirming the dialog itself rather than the destructive action. Copy-pasting
-  a confirm-dialog config across call sites is exactly how this drifts (found 2026-07-25:
-  4 sites in `videos.js` all reused the literal `confirm: 'Cancel'`).
+  a confirm-dialog config across call sites is exactly how this drifts - never reuse a
+  literal `confirm: 'Cancel'` across different call sites.
 - **Panel flows**: a multi-step flow (Split Editor, manual-clip picker, etc.) must take
   over the main detail panel via `PanelNav.open()` (`panelnav.js`), not a modal. Tabs are only
   for navigation *within* a single view. `PanelNav.open({id, title, render, isDirty, onClose})`
@@ -548,116 +407,20 @@ faster-whisper, `speaker_*` for diarization) rather than renaming them generic.
 
 ## Known patterns and pitfalls
 
-### SQLite locking
-SQLite allows only one concurrent writer. The web server and the ingest subprocess are
-separate processes. Fixes already in place:
-- `NullPool` on all engines - connections close immediately
-- `PRAGMA busy_timeout=30000` - subprocess waits 30 s before giving up
-- Explicit `db.close()` in every route handler via `try/finally`
-
-If you see `OperationalError: database is locked`:
-- Most likely: a zombie ingest subprocess is still running. Check with
-  `Get-WmiObject Win32_Process -Filter "name='python.exe'"` and kill any stale
-  ingest processes before restarting the server.
-- Less likely: a route handler is leaking a session (missing `try/finally: db.close()`).
-- Also check: the server was not restarted after a Python change.
-
-### Interactive labeling
-`label_tracks()` must never be called interactively from the web UI. The CLI analyze
-command always receives `--no-interact`; this causes `_label_non_interactive()` to
-use track 0 as combined and mark the rest unlabeled without prompting.
-
-### Subprocess cancellation
-`POST /api/analyze/cancel` calls `job.cancel()` on `ctx.analyze_job`, which sets
-`job.cancelled = True` and terminates the process tree; the job's pump emits a typed
-`done{outcome=cancelled}` to SSE subscribers after the process exits. The
-`ctx.analyze_proc` path (export/score/retranscribe/stage re-runs) is also terminated,
-and its job accounting released synchronously via `release_counted_job`.
-
-Cancellation is keyed to the **process instance**, not a server-scoped flag: a cancel
-endpoint adds the proc it kills to `ctx.cancelled_procs` (a set, maintained like
-`subprocess_procs` / `counted_procs`), and `subprocess_sse`'s tail checks
-`proc in ctx.cancelled_procs` (then discards) to report `outcome="cancelled"`. Because
-membership is identity-keyed, a stale entry from a prior job can never mark a later,
-different proc as cancelled, so **every** subprocess job can carry a typed cancel - the
-old "jobs with no cancel button pass no `cancel_flag_attr`" foot-gun is gone (the SSE
-typed-event migration, stage 3, replaced the ctx-scoped booleans). Jobs whose stream
-survives the cancel (URL import, frame analysis) surface the `done{cancelled}`; for
-jobs whose stream the frontend closes on cancel it is dropped on the floor, and the
-entry is discarded in the generator's `finally` so the set never grows. The leak
-guarantee is pinned by `test_score_after_a_cancel_does_not_report_itself_as_cancelled`.
-
-### SpeechBrain poisons transformers.pipeline (import order)
-Importing `speechbrain` before `transformers.pipeline` is first resolved makes that
-resolution force-load speechbrain's k2_fsa integration, which hard-imports the
-unbundled `k2` package → `ModuleNotFoundError: k2`. In the analyze subprocess
-diarization (speechbrain) runs before scoring (transformers), so audio-event/laugh
-scoring would silently die. `_analyze_one` pre-warms via
-`prewarm_transformers_pipeline()` (audio_event.py) before diarization; keep that call
-ahead of any speechbrain import if you reorder the pipeline. Only surfaces with the
-real packages installed - the pytest venv mocks both, so re-verify against a real
-offline install (see the packaging-strategy overhaul Wave 5).
-
-### HTML safety
-`escHtml` in `utils.js` escapes `& < > "`. Always run track layout names, context
-names, and filenames through it before embedding in HTML attributes.
+Narrow-scope gotchas (SQLite single-writer discipline, SpeechBrain import order, the
+wizard/Settings parallel-stack split, interactive labeling, subprocess cancellation,
+PowerShell script encoding) live in **`docs/dev/ARCHITECTURE.md`**'s landmines
+section - read the relevant one before touching that area; keep that file (not this
+one) up to date when a landmine's mechanics change.
 
 ### Local-only: no remote/hosted AI backend (Claude removed)
 yuu-clip runs all inference on-device; there is no remote/hosted LLM backend and no
 "send my transcript to an API" path. The Claude/Anthropic backend, its distribution
-gate (`remote_ai_enabled` / `YUU_REMOTE_AI`), the `remote_ok` AI-privacy mode, and the
-`anthropic` dependency were all removed (see `docs/project/DECISIONS.md`). A local-only
-surface is a deliberate positioning choice - do NOT re-add a remote backend without an
-explicit product decision.
+gate, and the `remote_ok` AI-privacy mode were all removed (see
+`docs/project/DECISIONS.md`). A local-only surface is a deliberate positioning
+choice - do NOT re-add a remote backend without an explicit product decision.
 
-- `ai_privacy_mode` is now just `none` (no generative AI) | `local_only` (default);
-  `resolve_ai_permissions` is the single choke point. The `LLMClient` seam keeps its ABC
-  + `make_client` factory (one real backend, `llamacpp`, plus the `NullLLMClient`
-  fallback) so a future *local* backend stays a registration, not a rewrite.
-
-### Wizard and Settings are parallel model-selection stacks (layout differs; data is generated)
-**Policy (locked): the wizard's scope does not grow toward Settings parity.** The wizard
-stays minimum-viable first-run - pick/download ONE text model and write `config.json`;
-everything else is finished in Settings. New model-selection/config surfaces go in Settings,
-not the wizard. The two stacks are independent *behavior* (two downloaders with their own
-retry/resume/verify) that the `catalog-data.json` drift guard cannot see - holding wizard
-scope down is the mitigation the guard can't provide. Any wizard scope expansion is a
-deliberate, separately-reviewed decision. Rationale + the ARCH-policy record are in
-`docs/dev/llm/REVIEW_DECISIONS.md`.
-
-Model selection lives in two runtimes that CANNOT share runtime code - different runtimes
-(browser vs Electron main/Node) and the wizard runs BEFORE the Python server exists, so it
-can't call the server endpoints Settings depends on:
-- **Settings** (in-app): browser JS (`web/static/settings/settings.js`,
-  `settings/modelcatalog.js`, `index.html`) -> HTTP -> Python `model_catalog.py` +
-  `cli/models.py download-gguf`.
-- **Setup wizard** (Electron): renderer (`electron/setup.html`) -> IPC -> `electron/main.js`
-  `setup:download-gguf-model`, which downloads `DEFAULT_LLAMACPP_MODEL`
-  (`electron/constants.js`) with Node and writes `config.json` directly.
-
-The *data* both stacks read is no longer hand-synced: `yuu-dev shared-data`
-(`yuu_clip/dev/shareddata.py`) generates `catalog-data.json` from the Python sources of
-truth (`model_catalog.py`, `config.ALLOWED_WHISPER_LANGUAGES`, `content_presets.py`,
-`whisper_catalog.py`) into TWO committed copies - `yuu_clip/web/static/shared/` (web) and
-`electron/shared/` (wizard: `constants.js`/`recommend-model.js` `require()` it, and the
-wizard renderer `setup-renderer.js` imports it at build time into `setup.bundle.js`).
-`yuu-dev bundle` already regenerates this too (it runs shared-data before building the
-ESM bundles), so the normal after-edit `yuu-dev bundle` habit covers a source-module edit
-as well - **run `yuu-dev shared-data` directly only for a data-only edit where nothing
-else needs rebundling.** `tests/unit/test_shared_data_drift.py` fails until either is run.
-Consequences to respect:
-- `DEFAULT_LLAMACPP_MODEL` and `recommend-model.js` are now lookups into the JSON's
-  `recommended_model` (= `model_catalog.text_models()[0]`), not literals - don't re-hardcode.
-- LLM model config is split by function: text scoring uses `llm_model_path`; image analysis
-  uses `llm_vision_model_path` + `llm_mmproj_path` (see the per-function-llm-models plan).
-  The wizard only ever sets the TEXT model, so `recommended_model` must stay a text
-  (non-vision) model (enforced in `test_shared_data_drift.py`). If the wizard ever gains
-  vision-model selection, it must write `llm_vision_model_path`, never `llm_model_path`.
-
-### PowerShell script encoding
-Any `.ps1` file containing non-ASCII (em-dash, box-drawing `─`, smart quotes)
-**must** be saved with a UTF-8 BOM. Without one, Windows PowerShell 5.1 decodes the
-file as cp1252, turning those bytes into a `”` that it treats as a string delimiter -
-producing "missing terminator" parse errors far from the actual character. The `Write`
-tool does not add a BOM; prepend `EF BB BF` after writing. `tests/unit/test_ps1_bom.py`
-enforces this for `scripts/*.ps1` (ASCII-only scripts don't need a BOM).
+`ai_privacy_mode` is just `none` (no generative AI) | `local_only` (default);
+`resolve_ai_permissions` is the single choke point. The `LLMClient` seam keeps its
+ABC + `make_client` factory (one real backend, `llamacpp`, plus the `NullLLMClient`
+fallback) so a future *local* backend stays a registration, not a rewrite.

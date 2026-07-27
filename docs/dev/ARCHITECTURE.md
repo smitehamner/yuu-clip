@@ -12,6 +12,8 @@ Where this sits in the docs:
 - **This file** - the mental model plus the top landmines, in prose you read once.
 - **[LAYOUT.md](LAYOUT.md)** - the authoritative file-by-file map. When this doc says
   "see the layout map", it means that file.
+- **[TESTING.md](TESTING.md)** - the system/golden/Electron test tiers and the
+  isolated fixture server, past what the "Test tiers" section below covers.
 - **[CLAUDE.md](../../CLAUDE.md)** - the exhaustive assistant-context file, carrying
   every convention. Do not expect to read all of it to get oriented - that is what
   this file is for.
@@ -386,6 +388,39 @@ schema. The schema is versioned by **Alembic** ([yuu_clip/db/migrations/](../../
   **review** the generated script (SQLite needs batch ops for anything but an add-column;
   autogenerate output is never blindly trusted), and commit the model + revision together.
   See [CONTRIBUTING.md](../../CONTRIBUTING.md) "Changing the database schema".
+
+### 6. Interactive labeling never runs from the web UI
+
+[`label_tracks()`](../../yuu_clip/analyze/labeler.py#L32) prompts on stdin when a
+recording's audio tracks are ambiguous - fine for a human running the CLI directly,
+fatal for a subprocess launched by the web server (it would hang forever with no
+TTY). The CLI's `analyze` command always passes `--no-interact`, which routes
+through [`_label_non_interactive()`](../../yuu_clip/analyze/labeler.py#L91) instead:
+it uses track 0 as the combined track and leaves the rest unlabeled without
+prompting. Never call `label_tracks()` interactively from a web-triggered code path.
+
+### 7. Subprocess cancellation is proc-identity-keyed, not a flag
+
+Every cancel endpoint (`/api/analyze/cancel` and the export/score/retranscribe/
+stage-rerun equivalents) adds the process it kills to `ctx.cancelled_procs` (a set,
+maintained the same way as `subprocess_procs`/`counted_procs` - see
+[web/sse.py](../../yuu_clip/web/sse.py)); `subprocess_sse`'s tail checks
+`proc in ctx.cancelled_procs` (then discards the entry) to report
+`outcome="cancelled"` over SSE. Because membership is identity-keyed, a stale entry
+from a prior job can never mark a later, different process as cancelled - every
+subprocess job carries a typed cancel with no per-job opt-in required. The leak
+guarantee (entries are discarded in the generator's `finally`, so the set never
+grows) is pinned by `test_score_after_a_cancel_does_not_report_itself_as_cancelled`.
+
+### 8. `.ps1` files with non-ASCII need a UTF-8 BOM
+
+Windows PowerShell 5.1 decodes a `.ps1` file with no BOM as the OS legacy codepage
+(cp1252), not UTF-8. A stray em-dash, box-drawing character, or smart quote then
+decodes into a byte PowerShell reads as a string delimiter, producing a "missing
+terminator" parse error far from the actual character. A UTF-8 BOM (`EF BB BF`)
+forces correct decoding and prevents this; ASCII-only scripts don't need one.
+[tests/unit/test_ps1_bom.py](../../tests/unit/test_ps1_bom.py) enforces it for
+`scripts/*.ps1`.
 
 ---
 
