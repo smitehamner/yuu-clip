@@ -30,6 +30,7 @@ from sqlalchemy import (
     LargeBinary,
     String,
     Text,
+    UniqueConstraint,
     create_engine,
     event,
 )
@@ -510,23 +511,19 @@ class ProjectVoice(Base):
     color: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     confirmed: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
-    # Optional overlay link to a world-context Character (lore + score boost fed to the
-    # LLM scorer). NULL = no link, the default and primary mode - a Person's name and
-    # voiceprint identity are fully usable with no Character. Plain Integer, not a FK, on
-    # purpose: the additive-migration guard adds this via ALTER TABLE ADD COLUMN (SQLite
-    # can't attach a FK that way), so a create_all-ed schema stays identical to a migrated
-    # one. Cleanup on Character/context delete nulls this in code, same as global_voice_id.
-    character_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     exemplars: Mapped[List["VoiceExemplar"]] = relationship(
         back_populates="project_voice", cascade="all, delete-orphan"
     )
-    # Explicit join (character_id is a plain Integer, not a declared FK - see above).
-    character: Mapped[Optional["Character"]] = relationship(
-        "Character",
-        primaryjoin="ProjectVoice.character_id == Character.id",
-        foreign_keys="ProjectVoice.character_id",
-        viewonly=True,
+    # Optional overlay links to world-context Characters (lore + score boost fed to the LLM
+    # scorer) - at most one per world context, since the same voice can play a different
+    # character in a different context ("aliases"). Empty = no link, the default and primary
+    # mode - a Person's name and voiceprint identity are fully usable with no Character.
+    # Scoring resolves only the alias whose context is active for the clip's recording - see
+    # scoring/llm.py::_characters_in_clip.
+    character_links: Mapped[List["PersonCharacterLink"]] = relationship(
+        back_populates="project_voice", cascade="all, delete-orphan",
+        order_by="PersonCharacterLink.created_at",
     )
 
     @property
@@ -566,6 +563,31 @@ class VoiceExemplar(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     project_voice: Mapped["ProjectVoice"] = relationship(back_populates="exemplars")
+
+
+class PersonCharacterLink(Base):
+    """One Person-to-Character alias link, scoped to the Character's world context.
+
+    A Person may hold at most one link per world context (enforced in route code, since
+    context_slug lives on Character, not here) - the mechanism for "same voice, different
+    character depending on context". A brand-new table, so unlike the legacy
+    ProjectVoice.character_id column it replaces, both FKs are real and CASCADE: deleting
+    either parent auto-removes its links.
+    """
+    __tablename__ = "person_characters"
+    __table_args__ = (UniqueConstraint("project_voice_id", "character_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_voice_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("project_voices.id", ondelete="CASCADE"), nullable=False
+    )
+    character_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("characters.id", ondelete="CASCADE"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    project_voice: Mapped["ProjectVoice"] = relationship(back_populates="character_links")
+    character: Mapped["Character"] = relationship("Character")
 
 
 class Character(Base):

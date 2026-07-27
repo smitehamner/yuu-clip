@@ -25,7 +25,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from yuu_clip.contexts import known_context_ids, load_contexts
-from yuu_clip.db.models import Character, ProjectVoice
+from yuu_clip.db.models import Character, PersonCharacterLink
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
 
@@ -130,9 +130,9 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             if not char:
                 raise HTTPException(404, "Character not found")
             unlinked = (
-                db.query(ProjectVoice)
-                .filter(ProjectVoice.character_id == character_id)
-                .update({"character_id": None}, synchronize_session=False)
+                db.query(PersonCharacterLink)
+                .filter(PersonCharacterLink.character_id == character_id)
+                .delete(synchronize_session=False)
             )
             db.delete(char)
             db.commit()

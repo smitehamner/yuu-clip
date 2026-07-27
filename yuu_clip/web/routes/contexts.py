@@ -104,13 +104,13 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
 
 def _delete_context_characters(ctx: ProjectContext, context_id: str) -> None:
-    """Delete a context's structured Characters and null any Person linked to them.
+    """Delete a context's structured Characters and any Person alias linked to them.
 
     Characters are an overlay keyed to this context by slug; a context deletion must
-    remove them and clear ProjectVoice.character_id so no link dangles. It never touches
+    remove them and their person_characters alias links so none dangle. It never touches
     a Person's own name or voiceprint (the link is the only thing that goes away).
     """
-    from yuu_clip.db.models import Character, ProjectVoice
+    from yuu_clip.db.models import Character, PersonCharacterLink
 
     db = ctx.get_db()
     try:
@@ -120,8 +120,8 @@ def _delete_context_characters(ctx: ProjectContext, context_id: str) -> None:
         ]
         if not char_ids:
             return
-        db.query(ProjectVoice).filter(ProjectVoice.character_id.in_(char_ids)).update(
-            {"character_id": None}, synchronize_session=False)
+        db.query(PersonCharacterLink).filter(PersonCharacterLink.character_id.in_(char_ids)).delete(
+            synchronize_session=False)
         db.query(Character).filter(Character.id.in_(char_ids)).delete(synchronize_session=False)
         db.commit()
         _log.info("Deleted %d character(s) with context %s", len(char_ids), context_id)

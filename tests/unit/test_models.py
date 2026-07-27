@@ -115,8 +115,8 @@ class TestCharacterModel:
     def test_lore_is_optional(self):
         assert Character(context_slug="fantasy-rp", name="Alara").lore is None
 
-    def test_project_voice_character_id_defaults_none(self):
-        assert ProjectVoice(display_index=1).character_id is None
+    def test_project_voice_character_links_defaults_empty(self):
+        assert ProjectVoice(display_index=1).character_links == []
 
     def test_score_boost_persists_default_zero(self):
         from sqlalchemy import create_engine

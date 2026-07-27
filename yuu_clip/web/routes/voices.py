@@ -22,7 +22,15 @@ from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import joinedload
 
-from yuu_clip.db.models import Character, ClipCandidate, ProjectVoice, Speaker, Video, VoiceExemplar
+from yuu_clip.db.models import (
+    Character,
+    ClipCandidate,
+    PersonCharacterLink,
+    ProjectVoice,
+    Speaker,
+    Video,
+    VoiceExemplar,
+)
 from yuu_clip.log import get_logger
 from yuu_clip.transcribe.project_voice import cluster_speakers_into_voices
 from yuu_clip.web.deps import ProjectContext
@@ -49,8 +57,9 @@ class VoiceSplit(BaseModel):
     mint_new: bool = False  # also give the detached Speaker its own fresh Person
 
 
-class VoiceCharacter(BaseModel):
-    character_id: Optional[int] = None  # None clears the link (default, no-op scoring)
+class VoiceCharacterLink(BaseModel):
+    context_slug: str
+    character_id: Optional[int] = None  # None clears this context's link (default, no-op scoring)
 
 
 def make_router(ctx: ProjectContext) -> APIRouter:
@@ -62,7 +71,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         try:
             voices = (
                 db.query(ProjectVoice)
-                .options(joinedload(ProjectVoice.character))
+                .options(joinedload(ProjectVoice.character_links).joinedload(PersonCharacterLink.character))
                 .order_by(ProjectVoice.display_index)
                 .all()
             )
@@ -157,9 +166,12 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 synchronize_session=False)
             db.query(VoiceExemplar).filter_by(project_voice_id=source.id).update(
                 {"project_voice_id": target.id}, synchronize_session=False)
+            _transfer_character_links(db, source.id, target.id)
             # Bulk-delete the now-empty source row (its exemplars are already repointed,
             # so this must not go through the ORM delete-orphan cascade). Expunge the
             # stale ORM instance so expire_on_commit doesn't try to refresh a gone row.
+            # Any of the source's alias links left unrepointed (target already had one in
+            # that context) are cleaned up by person_characters' ON DELETE CASCADE.
             db.query(ProjectVoice).filter_by(id=source.id).delete(synchronize_session=False)
             db.expunge(source)
             db.flush()
@@ -287,24 +299,40 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         finally:
             db.close()
 
-    @router.post("/api/voices/{voice_id}/character")
-    def set_voice_character(voice_id: int, body: VoiceCharacter):
-        """Link this Person to a world-context Character, or clear the link (None).
+    @router.post("/api/voices/{voice_id}/characters")
+    def set_voice_character(voice_id: int, body: VoiceCharacterLink):
+        """Link this Person to a Character in one world context (an alias), or clear that
+        context's link (character_id=None). A Person may hold at most one alias per world
+        context - the same voice playing a different character in a different context -
+        so setting a new link for a context replaces any existing one there.
 
-        A pure overlay: the link feeds the Character's lore + score boost to the scorer
-        but never changes the Person's name or voiceprint. Clearing it restores the
-        default no-op behavior.
+        A pure overlay: a link feeds its Character's lore + score boost to the scorer only
+        for clips whose recording is tagged with that context, and never changes the
+        Person's name or voiceprint. Clearing it restores the default no-op behavior.
         """
         db = ctx.get_db()
         try:
             voice = db.get(ProjectVoice, voice_id)
             if not voice:
                 raise HTTPException(404, "Person not found")
-            if body.character_id is not None and not db.get(Character, body.character_id):
-                raise HTTPException(404, "Character not found")
-            voice.character_id = body.character_id
+            character = None
+            if body.character_id is not None:
+                character = db.get(Character, body.character_id)
+                if not character:
+                    raise HTTPException(404, "Character not found")
+                if character.context_slug != body.context_slug:
+                    raise HTTPException(400, "Character does not belong to that world context")
+            db.query(PersonCharacterLink).filter(
+                PersonCharacterLink.project_voice_id == voice_id,
+                PersonCharacterLink.character_id.in_(
+                    db.query(Character.id).filter(Character.context_slug == body.context_slug)
+                ),
+            ).delete(synchronize_session=False)
+            if character is not None:
+                db.add(PersonCharacterLink(project_voice_id=voice_id, character_id=character.id))
             db.commit()
-            _log.info("Person %d character link set to %s", voice_id, body.character_id)
+            _log.info("Person %d character link in context %s set to %s",
+                       voice_id, body.context_slug, body.character_id)
             return _voice_dict(voice, _members_of(db, voice_id), _suggestions_of(db, voice_id))
         finally:
             db.close()
@@ -337,6 +365,35 @@ def _backfill_voice_from_group(db, members: list[Speaker]) -> ProjectVoice:
         _seed_exemplar(db, voice, speaker)
         speaker.global_voice_id = voice.id
     return voice
+
+
+def _transfer_character_links(db, source_id: int, target_id: int) -> None:
+    """Move the merging-away source Person's Character aliases onto the target.
+
+    An alias whose context the target already holds an alias in is left on the source
+    row and dropped along with it (via person_characters' ON DELETE CASCADE) rather than
+    silently overwriting the target's own choice for that context.
+    """
+    target_context_slugs = {
+        slug for (slug,) in db.query(Character.context_slug)
+        .join(PersonCharacterLink, PersonCharacterLink.character_id == Character.id)
+        .filter(PersonCharacterLink.project_voice_id == target_id)
+        .all()
+    }
+    source_links = (
+        db.query(PersonCharacterLink.character_id, Character.context_slug)
+        .join(Character, Character.id == PersonCharacterLink.character_id)
+        .filter(PersonCharacterLink.project_voice_id == source_id)
+        .all()
+    )
+    transferable_ids = [
+        cid for cid, context_slug in source_links if context_slug not in target_context_slugs
+    ]
+    if transferable_ids:
+        db.query(PersonCharacterLink).filter(
+            PersonCharacterLink.project_voice_id == source_id,
+            PersonCharacterLink.character_id.in_(transferable_ids),
+        ).update({"project_voice_id": target_id}, synchronize_session=False)
 
 
 def _seed_exemplar(db, voice: ProjectVoice, speaker: Speaker) -> None:
@@ -477,13 +534,18 @@ def _voice_dict(voice: ProjectVoice, members: list[dict], suggestions: list[dict
         "members": members,
         "suggestion_count": len(suggestions),
         "suggestions": suggestions,
-        "character": _character_link(voice.character),
+        "characters": _character_links(voice.character_links),
     }
 
 
-def _character_link(character: Optional[Character]) -> Optional[dict]:
-    """Compact view of a Person's linked Character for the People-view picker. The UI
-    resolves the context's display name from its own loaded contexts by context_slug."""
-    if character is None:
-        return None
-    return {"id": character.id, "name": character.name, "context_slug": character.context_slug}
+def _character_links(links: list[PersonCharacterLink]) -> list[dict]:
+    """Compact view of a Person's linked Character aliases for the People-view picker -
+    at most one per world context. The UI resolves each context's display name from its
+    own loaded contexts by context_slug."""
+    return sorted(
+        (
+            {"id": link.character.id, "name": link.character.name, "context_slug": link.character.context_slug}
+            for link in links
+        ),
+        key=lambda c: (c["context_slug"], c["name"]),
+    )

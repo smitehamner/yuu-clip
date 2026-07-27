@@ -504,10 +504,13 @@ speakers you've already named into people to review. How sure the app must be be
 suggesting a match is the **"Same person across recordings"** control in Settings -> Speaker
 labels (higher = fewer wrong matches).
 
-Each person also has an optional **Character** picker: link a person to a character you
-defined in a world context to feed that character's lore and a scoring boost into the LLM
-whenever they speak. It's a pure add-on - a person's name and voice work with no character
-linked, and unlinking never touches them.
+Each person also has an optional **Character** picker, one per world context: link a person
+to a character you defined in a context to feed that character's lore and a scoring boost
+into the LLM whenever they speak in a recording tagged with that context. The same person can
+be linked to a different character in a different context - useful when the same voice plays
+a different role from campaign to campaign - and each link only ever affects scoring for
+clips from that context. It's a pure add-on - a person's name and voice work with no
+character linked, and unlinking never touches them.
 
 **Fixing speakers from the transcript**
 

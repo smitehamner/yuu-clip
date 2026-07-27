@@ -2,14 +2,15 @@
 
 A Character is a structured world-context lore entity (name, lore, 0.0-1.0 score_boost)
 keyed to a JSON context by context_slug. It is an optional overlay: deleting a Character
-(or its whole context) nulls any linking Person's character_id but never touches the
-Person's own name or voiceprint.
+(or its whole context) removes any linking Person's alias link (person_characters) but
+never touches the Person's own name or voiceprint. A Person may hold at most one alias
+per world context - the "same voice, different character" mechanism.
 """
 from __future__ import annotations
 
 from pathlib import Path
 
-from yuu_clip.db.models import Character, ProjectVoice, make_session
+from yuu_clip.db.models import Character, PersonCharacterLink, ProjectVoice, make_session
 
 
 class _Fixtures:
@@ -111,11 +112,11 @@ class TestDeleteCharacter(_Fixtures):
     def test_delete_missing_404(self, client):
         assert client.delete("/api/characters/9999").status_code == 404
 
-    def test_delete_nulls_linked_person(self, client, project_dir):
+    def test_delete_removes_linked_persons_alias(self, client, project_dir):
         cid = client.post("/api/contexts/fantasy-rp/characters", json={"name": "Alara"}).json()["id"]
         db = self._db(project_dir)
         voice = self._mint_person(db)
-        voice.character_id = cid
+        db.add(PersonCharacterLink(project_voice_id=voice.id, character_id=cid))
         db.commit()
         voice_id = voice.id
         db.close()
@@ -125,10 +126,9 @@ class TestDeleteCharacter(_Fixtures):
 
         db = self._db(project_dir)
         try:
-            reloaded = db.get(ProjectVoice, voice_id)
-            assert reloaded.character_id is None
+            assert db.query(PersonCharacterLink).filter_by(project_voice_id=voice_id).count() == 0
             # The Person's own identity is untouched.
-            assert reloaded.name == "Alex"
+            assert db.get(ProjectVoice, voice_id).name == "Alex"
         finally:
             db.close()
 
@@ -142,8 +142,8 @@ class TestListAllCharacters(_Fixtures):
 
 
 class TestLinkPersonToCharacter(_Fixtures):
-    def _person_and_character(self, client, project_dir):
-        cid = client.post("/api/contexts/fantasy-rp/characters", json={"name": "Alara"}).json()["id"]
+    def _person_and_character(self, client, project_dir, context_slug="fantasy-rp", name="Alara"):
+        cid = client.post(f"/api/contexts/{context_slug}/characters", json={"name": name}).json()["id"]
         db = self._db(project_dir)
         voice = self._mint_person(db)
         db.commit()
@@ -151,54 +151,89 @@ class TestLinkPersonToCharacter(_Fixtures):
         db.close()
         return voice_id, cid
 
+    def _links(self, db, voice_id):
+        return db.query(PersonCharacterLink).filter_by(project_voice_id=voice_id).all()
+
     def test_link_sets_character(self, client, project_dir):
         voice_id, cid = self._person_and_character(client, project_dir)
-        resp = client.post(f"/api/voices/{voice_id}/character", json={"character_id": cid})
+        resp = client.post(f"/api/voices/{voice_id}/characters",
+                            json={"context_slug": "fantasy-rp", "character_id": cid})
         assert resp.status_code == 200
-        assert resp.json()["character"] == {"id": cid, "name": "Alara", "context_slug": "fantasy-rp"}
+        assert resp.json()["characters"] == [{"id": cid, "name": "Alara", "context_slug": "fantasy-rp"}]
 
         db = self._db(project_dir)
         try:
-            assert db.get(ProjectVoice, voice_id).character_id == cid
+            links = self._links(db, voice_id)
+            assert [link.character_id for link in links] == [cid]
         finally:
             db.close()
 
     def test_link_shows_in_voice_list(self, client, project_dir):
         voice_id, cid = self._person_and_character(client, project_dir)
-        client.post(f"/api/voices/{voice_id}/character", json={"character_id": cid})
+        client.post(f"/api/voices/{voice_id}/characters", json={"context_slug": "fantasy-rp", "character_id": cid})
         voices = client.get("/api/voices").json()
         linked = next(v for v in voices if v["id"] == voice_id)
-        assert linked["character"]["name"] == "Alara"
+        assert linked["characters"][0]["name"] == "Alara"
 
     def test_clear_link(self, client, project_dir):
         voice_id, cid = self._person_and_character(client, project_dir)
-        client.post(f"/api/voices/{voice_id}/character", json={"character_id": cid})
-        resp = client.post(f"/api/voices/{voice_id}/character", json={"character_id": None})
+        client.post(f"/api/voices/{voice_id}/characters", json={"context_slug": "fantasy-rp", "character_id": cid})
+        resp = client.post(f"/api/voices/{voice_id}/characters",
+                            json={"context_slug": "fantasy-rp", "character_id": None})
         assert resp.status_code == 200
-        assert resp.json()["character"] is None
+        assert resp.json()["characters"] == []
 
         db = self._db(project_dir)
         try:
-            reloaded = db.get(ProjectVoice, voice_id)
-            assert reloaded.character_id is None
-            assert reloaded.name == "Alex"  # identity untouched
+            assert self._links(db, voice_id) == []
+            assert db.get(ProjectVoice, voice_id).name == "Alex"  # identity untouched
         finally:
             db.close()
 
+    def test_linking_a_second_context_adds_a_second_alias(self, client, project_dir):
+        voice_id, fantasy_cid = self._person_and_character(client, project_dir, "fantasy-rp", "Alara")
+        self._make_context(client, "scifi-rp")
+        scifi_cid = client.post("/api/contexts/scifi-rp/characters", json={"name": "Vex"}).json()["id"]
+        client.post(f"/api/voices/{voice_id}/characters",
+                    json={"context_slug": "fantasy-rp", "character_id": fantasy_cid})
+        resp = client.post(f"/api/voices/{voice_id}/characters",
+                            json={"context_slug": "scifi-rp", "character_id": scifi_cid})
+        assert resp.status_code == 200
+        names = {c["name"] for c in resp.json()["characters"]}
+        assert names == {"Alara", "Vex"}
+
+    def test_relinking_within_the_same_context_replaces_not_adds(self, client, project_dir):
+        voice_id, first_cid = self._person_and_character(client, project_dir, "fantasy-rp", "Alara")
+        second_cid = client.post("/api/contexts/fantasy-rp/characters", json={"name": "Rin"}).json()["id"]
+        client.post(f"/api/voices/{voice_id}/characters",
+                    json={"context_slug": "fantasy-rp", "character_id": first_cid})
+        resp = client.post(f"/api/voices/{voice_id}/characters",
+                            json={"context_slug": "fantasy-rp", "character_id": second_cid})
+        assert [c["name"] for c in resp.json()["characters"]] == ["Rin"]
+
+    def test_link_character_from_wrong_context_400(self, client, project_dir):
+        voice_id, cid = self._person_and_character(client, project_dir, "fantasy-rp", "Alara")
+        resp = client.post(f"/api/voices/{voice_id}/characters",
+                            json={"context_slug": "scifi-rp", "character_id": cid})
+        assert resp.status_code == 400
+
     def test_link_unknown_character_404(self, client, project_dir):
         voice_id, _ = self._person_and_character(client, project_dir)
-        assert client.post(f"/api/voices/{voice_id}/character", json={"character_id": 9999}).status_code == 404
+        resp = client.post(f"/api/voices/{voice_id}/characters",
+                            json={"context_slug": "fantasy-rp", "character_id": 9999})
+        assert resp.status_code == 404
 
     def test_link_unknown_person_404(self, client):
-        assert client.post("/api/voices/9999/character", json={"character_id": None}).status_code == 404
+        resp = client.post("/api/voices/9999/characters", json={"context_slug": "fantasy-rp", "character_id": None})
+        assert resp.status_code == 404
 
-    def test_person_with_no_link_reports_null_character(self, client, project_dir):
+    def test_person_with_no_link_reports_empty_characters(self, client, project_dir):
         db = self._db(project_dir)
         self._mint_person(db)
         db.commit()
         db.close()
         voices = client.get("/api/voices").json()
-        assert voices[0]["character"] is None
+        assert voices[0]["characters"] == []
 
 
 class TestContextDeleteCascade(_Fixtures):
@@ -207,7 +242,7 @@ class TestContextDeleteCascade(_Fixtures):
         cid = client.post(f"/api/contexts/{slug}/characters", json={"name": "Alara"}).json()["id"]
         db = self._db(project_dir)
         voice = self._mint_person(db)
-        voice.character_id = cid
+        db.add(PersonCharacterLink(project_voice_id=voice.id, character_id=cid))
         db.commit()
         voice_id = voice.id
         db.close()
@@ -217,6 +252,6 @@ class TestContextDeleteCascade(_Fixtures):
         db = self._db(project_dir)
         try:
             assert db.get(Character, cid) is None
-            assert db.get(ProjectVoice, voice_id).character_id is None
+            assert db.query(PersonCharacterLink).filter_by(project_voice_id=voice_id).count() == 0
         finally:
             db.close()

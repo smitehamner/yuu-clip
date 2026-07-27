@@ -143,7 +143,7 @@ the Python byte-pump. This path does not exist in browser-dev mode.
 
 | UC | Pri | Check | Pass |
 |----|-----|-------|------|
-| [UC-F01](../USE_CASES.md#uc-f01---world-contexts-create-assign-re-score-and-characters) | P1 | Create a context (+ optional Character); assign it; staleness warning shows; re-score (LLM only vs Full) injects it; a linked person's boost applies only where they speak. | [ ] |
+| [UC-F01](../USE_CASES.md#uc-f01---world-contexts-create-assign-re-score-and-characters) | P1 | Create a context (+ optional Character); assign it; staleness warning shows; re-score (LLM only vs Full) injects it; a linked person's boost applies only where they speak AND the recording is tagged with that character's context (a different context's alias for the same person does not leak in). | [ ] |
 | [UC-F02](../USE_CASES.md#uc-f02---track-layouts-create-edit-delete) | P2 | Create/edit/delete a track layout (delete confirms); a new layout is selectable in the analyze dropdown. | [ ] |
 | [UC-F03](../USE_CASES.md#uc-f03---scoring-configuration-content-presets-weights-hot-words-sensitive-terms) | P2 | Apply a content preset (confirm dialog spells out the change); Exact hot-word auto-applies + Meaning via Scan; sensitive term rescans instantly and only warns (Flagged chip). | [ ] |
 | [UC-F04](../USE_CASES.md#uc-f04---vertical--shorts-export-with-auto-framing) | P1 | 9:16 preset exports 1080x1920; framing choice saved on the clip; narrower sources letterboxed; Auto-frame suggests a crop you confirm. | [ ] |

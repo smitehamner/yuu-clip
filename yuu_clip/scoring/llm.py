@@ -705,25 +705,33 @@ def _active_model_id(config: "Config") -> str | None:
 def _characters_in_clip(clip: "ClipCandidate") -> list[dict]:
     """The DISTINCT world-context Characters that speak in this clip.
 
-    Resolves segment -> Speaker -> Person (global_voice) -> Character over the clip's
-    window, deduped by character. Returns [] when no speaking Person is linked to a
-    Character - the common case, which keeps the scoring prompt unchanged. Reuses
+    Resolves segment -> Speaker -> Person (global_voice) -> Character alias over the
+    clip's window, deduped by character. A Person may hold an alias per world context (the
+    same voice playing a different character in a different context); only the alias whose
+    context is active for THIS clip's recording is surfaced, so a Person's alias from an
+    unrelated context never leaks into this prompt. Returns [] when no speaking Person has
+    a matching alias - the common case, which keeps the scoring prompt unchanged. Reuses
     clip_window_segments so it reads the same segments the excerpt was built from.
     """
+    from yuu_clip.scoring.term_scope import video_context_ids
     from yuu_clip.segments.windower import clip_window_segments
 
+    active_contexts = video_context_ids(clip.video)
     by_character: dict[int, dict] = {}
     for seg in clip_window_segments(clip.video, clip.start_ms, clip.end_ms):
         speaker = seg.speaker
         voice = speaker.global_voice if speaker is not None else None
-        character = voice.character if voice is not None else None
-        if character is None or character.id in by_character:
+        if voice is None:
             continue
-        by_character[character.id] = {
-            "name": character.name,
-            "lore": character.lore or "",
-            "score_boost": character.score_boost or 0.0,
-        }
+        for link in voice.character_links:
+            character = link.character
+            if character.id in by_character or character.context_slug not in active_contexts:
+                continue
+            by_character[character.id] = {
+                "name": character.name,
+                "lore": character.lore or "",
+                "score_boost": character.score_boost or 0.0,
+            }
     return list(by_character.values())
 
 

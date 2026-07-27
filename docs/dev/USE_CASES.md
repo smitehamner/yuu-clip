@@ -321,10 +321,12 @@ A one-glance "what to walk before public" list is in the final section.
   2. Add optional structured Characters (name, lore, 0-100% boost).
   3. Assign the context on the video detail (context chips).
   4. Re-score with context; choose LLM only or Full re-score.
-  5. Link a Person to a Character (see UC-D02).
-- **Expected:** a staleness warning shows when clips were last scored with different contexts; re-score injects the context and averages assigned-context weight overrides; a linked character's lore and boost feed scoring only for clips where that person speaks; "Last scored with" reflects the contexts used.
+  5. Link a Person to a Character in that context (see UC-D02); a Person may hold a
+     separate Character alias per world context (the same voice playing a different
+     character in a different context).
+- **Expected:** a staleness warning shows when clips were last scored with different contexts; re-score injects the context and averages assigned-context weight overrides; a linked character's lore and boost feed scoring only for clips where that person speaks AND the clip's recording is tagged with that character's own world context (an alias from a context the recording isn't tagged with never leaks into scoring); "Last scored with" reflects the contexts used.
 - **Automation:** automated (assign + re-score reads the context back; stubbed LLM).
-- **Coverage:** integration context/character tests. Automated by tests/system/test_uc_context_rescore.py::test_assign_context_then_rescore_injects_context.
+- **Coverage:** integration context/character tests (including the alias cross-context isolation and crossover-session cases in tests/integration/test_scoring_characters.py). Automated by tests/system/test_uc_context_rescore.py::test_assign_context_then_rescore_injects_context.
 - **Pre-release priority:** P1 - the main quality lever; the re-score-mode and staleness behavior is easy to get subtly wrong.
 
 ### UC-F02 - Track layouts: create, edit, delete

@@ -95,43 +95,57 @@ function _personCardHtml(voice) {
     </div>`;
 }
 
-// Optional overlay: link this Person to a world-context Character (lore + scoring
-// boost). A project with no characters and no existing link shows no picker at all,
+// Optional overlay: link this Person to a Character in a world context - an alias. A
+// Person may hold at most one alias per context (the same voice playing a different
+// character in a different context), so this renders one row per context rather than
+// one picker. A project with no characters anywhere and no existing link shows nothing,
 // so a zero-context workflow is visually unchanged.
 function _characterControlHtml(voice) {
-  const linkedId = voice.character ? voice.character.id : null;
-  if (!_charactersCache.length && linkedId == null) return '';
-  return `
-    <div class="person-character">
-      <label class="person-character-label" for="voice-char-${voice.id}">Character</label>
-      <select class="voice-character-select" id="voice-char-${voice.id}" data-voice-id="${voice.id}"
-              aria-label="World-context character for ${escHtml(voice.display_name)}">
-        ${_characterOptions(voice.character)}
-      </select>
-    </div>`;
+  const linkedBySlug = new Map((voice.characters || []).map(c => [c.context_slug, c]));
+  const byContext = _charactersGroupedBySlug();
+  const slugs = new Set([...byContext.keys(), ...linkedBySlug.keys()]);
+  if (!slugs.size) return '';
+  const rows = [...slugs].sort().map(slug => {
+    const group = byContext.get(slug);
+    const contextName = group ? group.name : slug;
+    return _characterRowHtml(voice, slug, contextName, group ? group.chars : [], linkedBySlug.get(slug));
+  }).join('');
+  return `<div class="person-characters">
+    <div class="person-characters-label">Character</div>
+    ${rows}
+  </div>`;
 }
 
-function _characterOptions(linked) {
-  const selectedId = linked ? linked.id : null;
+function _charactersGroupedBySlug() {
   const byContext = new Map();
   for (const c of _charactersCache) {
-    const key = c.context_name || c.context_slug;
-    if (!byContext.has(key)) byContext.set(key, []);
-    byContext.get(key).push(c);
+    if (!byContext.has(c.context_slug)) {
+      byContext.set(c.context_slug, {name: c.context_name || c.context_slug, chars: []});
+    }
+    byContext.get(c.context_slug).chars.push(c);
   }
-  let html = `<option value="">No character</option>`;
+  return byContext;
+}
+
+function _characterRowHtml(voice, contextSlug, contextName, chars, linked) {
+  const selectedId = linked ? linked.id : null;
+  let options = `<option value="">No character</option>`;
   // If the linked character isn't in the loaded list (e.g. /api/characters failed to
   // load), still render it as the selected option from the Person's own data - otherwise
   // an existing link shows as "No character", which a subsequent save would clear.
-  if (selectedId != null && !_charactersCache.some(c => c.id === selectedId)) {
-    html += `<option value="${selectedId}" selected>${escHtml(linked.name || 'Linked character')}</option>`;
+  if (selectedId != null && !chars.some(c => c.id === selectedId)) {
+    options += `<option value="${selectedId}" selected>${escHtml(linked.name || 'Linked character')}</option>`;
   }
-  for (const [ctxName, chars] of byContext) {
-    html += `<optgroup label="${escHtml(ctxName)}">`
-          + chars.map(c => `<option value="${c.id}"${c.id === selectedId ? ' selected' : ''}>${escHtml(c.name)}</option>`).join('')
-          + `</optgroup>`;
-  }
-  return html;
+  options += chars.map(c => `<option value="${c.id}"${c.id === selectedId ? ' selected' : ''}>${escHtml(c.name)}</option>`).join('');
+  return `
+    <div class="person-character-row">
+      <label class="person-character-label" for="voice-char-${voice.id}-${escHtml(contextSlug)}">${escHtml(contextName)}</label>
+      <select class="voice-character-select" id="voice-char-${voice.id}-${escHtml(contextSlug)}"
+              data-voice-id="${voice.id}" data-context-slug="${escHtml(contextSlug)}"
+              aria-label="${escHtml(contextName)} character for ${escHtml(voice.display_name)}">
+        ${options}
+      </select>
+    </div>`;
 }
 
 function _mergeControlHtml(voice) {
@@ -224,23 +238,29 @@ function _onPeopleChange(e) {
   }
   const charSelect = e.target.closest('.voice-character-select');
   if (charSelect) {
-    _setPersonCharacter(parseInt(charSelect.dataset.voiceId, 10),
+    _setPersonCharacter(parseInt(charSelect.dataset.voiceId, 10), charSelect.dataset.contextSlug,
       charSelect.value ? parseInt(charSelect.value, 10) : null);
   }
 }
 
-async function _setPersonCharacter(voiceId, characterId) {
+async function _setPersonCharacter(voiceId, contextSlug, characterId) {
   try {
-    const res = await fetch(`/api/voices/${voiceId}/character`, {
+    const res = await fetch(`/api/voices/${voiceId}/characters`, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({character_id: characterId}),
+      body: JSON.stringify({context_slug: contextSlug, character_id: characterId}),
     });
     if (!res.ok) throw new Error(formatApiError(await res.json().catch(() => ({}))));
-    showToast(characterId ? 'Character linked' : 'Character unlinked');
+    const contextName = _contextDisplayName(contextSlug);
+    showToast(characterId ? `Linked in ${contextName}` : `Unlinked from ${contextName}`);
     await _loadPeople();
   } catch (err) {
     showToast(`Could not update: ${err.message}`, 'error');
   }
+}
+
+function _contextDisplayName(contextSlug) {
+  const match = _charactersCache.find(c => c.context_slug === contextSlug);
+  return match ? (match.context_name || contextSlug) : contextSlug;
 }
 
 async function _saveVoice(voiceId, body) {

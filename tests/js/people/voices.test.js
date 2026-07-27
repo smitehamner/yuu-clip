@@ -32,7 +32,7 @@ const errJson = (body = {}) => Promise.resolve({ ok: false, json: async () => bo
 
 const ONE_VOICE = [{
   id: 1, display_name: 'Yuu', name: 'Yuu', color: '#4fc3f7', member_count: 2,
-  character: null,
+  characters: [],
   members: [
     { speaker_id: 10, display_name: 'Speaker 1', video_filename: 'session1.mkv' },
     { speaker_id: 11, display_name: 'Speaker 1', video_filename: 'session2.mkv' },
@@ -44,7 +44,7 @@ const TWO_VOICES = [
   ...ONE_VOICE,
   {
     id: 2, display_name: 'Mara', name: 'Mara', color: '#f0803c', member_count: 1,
-    character: null, members: [], suggestions: [],
+    characters: [], members: [], suggestions: [],
   },
 ];
 
@@ -115,7 +115,7 @@ describe('openPeopleView', () => {
     expect(document.querySelector('.voice-character-select')).toBe(null);
   });
 
-  it('shows the character picker grouped by context when characters exist', async () => {
+  it('shows one picker per context, listing only that context\'s characters', async () => {
     await openPanel({
       voices: ONE_VOICE,
       characters: [
@@ -123,15 +123,30 @@ describe('openPeopleView', () => {
         { id: 6, name: 'Kai', context_slug: 'fantasy', context_name: 'Fantasy World' },
       ],
     });
-    const select = document.querySelector('.voice-character-select');
-    expect(select).not.toBe(null);
-    expect(select.querySelectorAll('optgroup')).toHaveLength(1);
-    expect(select.querySelectorAll('option')).toHaveLength(3); // "No character" + 2
+    const selects = document.querySelectorAll('.voice-character-select');
+    expect(selects).toHaveLength(1); // one context -> one row
+    expect(selects[0].querySelectorAll('option')).toHaveLength(3); // "No character" + 2
+  });
+
+  it('renders an independent picker per context when the Person spans several', async () => {
+    await openPanel({
+      voices: [{ ...ONE_VOICE[0], characters: [{ id: 5, name: 'Aldric', context_slug: 'fantasy' }] }],
+      characters: [
+        { id: 5, name: 'Aldric', context_slug: 'fantasy', context_name: 'Fantasy World' },
+        { id: 7, name: 'Vex', context_slug: 'scifi', context_name: 'Sci-Fi World' },
+      ],
+    });
+    const selects = document.querySelectorAll('.voice-character-select');
+    expect(selects).toHaveLength(2);
+    const fantasySelect = document.querySelector('[data-context-slug="fantasy"]');
+    const scifiSelect = document.querySelector('[data-context-slug="scifi"]');
+    expect(fantasySelect.value).toBe('5');
+    expect(scifiSelect.value).toBe(''); // no alias in this context yet
   });
 
   it('still shows a linked character as selected even when /api/characters fails to load', async () => {
     await openPanel({
-      voices: [{ ...ONE_VOICE[0], character: { id: 99, name: 'Ghost Link' } }],
+      voices: [{ ...ONE_VOICE[0], characters: [{ id: 99, name: 'Ghost Link', context_slug: 'ghost-ctx' }] }],
       characters: [],
     });
     const select = document.querySelector('.voice-character-select');
@@ -217,10 +232,10 @@ describe('People card actions', () => {
     expect(showToast).toHaveBeenCalledWith('Recording removed from this person');
   });
 
-  it('linking a character POSTs the character id', async () => {
+  it('linking a character POSTs the context slug and character id', async () => {
     await openPanel({ voices: ONE_VOICE, characters: [{ id: 5, name: 'Rin', context_slug: 'w', context_name: 'World' }] });
     const fetchMock = vi.fn((url) => {
-      if (String(url) === '/api/voices/1/character') return okJson({});
+      if (String(url) === '/api/voices/1/characters') return okJson({});
       return okJson(ONE_VOICE);
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -230,19 +245,20 @@ describe('People card actions', () => {
     select.dispatchEvent(new Event('change', { bubbles: true }));
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
 
-    expect(fetchMock).toHaveBeenCalledWith('/api/voices/1/character', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ character_id: 5 }),
+    expect(fetchMock).toHaveBeenCalledWith('/api/voices/1/characters', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ context_slug: 'w', character_id: 5 }),
     });
-    expect(showToast).toHaveBeenCalledWith('Character linked');
+    expect(showToast).toHaveBeenCalledWith('Linked in World');
   });
 
-  it('unlinking a character POSTs a null character id', async () => {
+  it('unlinking a character POSTs a null character id for that context', async () => {
     await openPanel({
-      voices: [{ ...ONE_VOICE[0], character: { id: 5, name: 'Rin' } }],
+      voices: [{ ...ONE_VOICE[0], characters: [{ id: 5, name: 'Rin', context_slug: 'w' }] }],
       characters: [{ id: 5, name: 'Rin', context_slug: 'w', context_name: 'World' }],
     });
     const fetchMock = vi.fn((url) => {
-      if (String(url) === '/api/voices/1/character') return okJson({});
+      if (String(url) === '/api/voices/1/characters') return okJson({});
       return okJson(ONE_VOICE);
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -252,10 +268,11 @@ describe('People card actions', () => {
     select.dispatchEvent(new Event('change', { bubbles: true }));
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
 
-    expect(fetchMock).toHaveBeenCalledWith('/api/voices/1/character', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ character_id: null }),
+    expect(fetchMock).toHaveBeenCalledWith('/api/voices/1/characters', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ context_slug: 'w', character_id: null }),
     });
-    expect(showToast).toHaveBeenCalledWith('Character unlinked');
+    expect(showToast).toHaveBeenCalledWith('Unlinked from World');
   });
 
   it('shows the server error detail when a save fails', async () => {

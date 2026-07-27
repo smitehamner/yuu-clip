@@ -117,6 +117,8 @@ class TestPeopleView:
 
 _CHARACTER = {"id": 77, "context_slug": "fantasy-rp", "name": "Alara",
               "lore": "elf", "score_boost": 0.3, "context_name": "Fantasy RP"}
+_CHARACTER_2 = {"id": 78, "context_slug": "scifi-rp", "name": "Vex",
+                "lore": "captain", "score_boost": 0.0, "context_name": "Sci-Fi RP"}
 
 
 @skip_no_server
@@ -128,7 +130,7 @@ class TestCharacterPicker:
         page.evaluate("openPeopleView()")
 
     def test_picker_shows_when_characters_exist(self, page: Page):
-        _route_json(page, "**/api/voices", [{**_VOICE, "character": None}])
+        _route_json(page, "**/api/voices", [{**_VOICE, "characters": []}])
         self._open(page, [_CHARACTER])
         select = page.locator(".voice-character-select")
         expect(select).to_have_count(1)
@@ -136,22 +138,54 @@ class TestCharacterPicker:
         assert select.input_value() == ""  # "No character" selected
 
     def test_picker_hidden_with_no_characters_and_no_link(self, page: Page):
-        _route_json(page, "**/api/voices", [{**_VOICE, "character": None}])
+        _route_json(page, "**/api/voices", [{**_VOICE, "characters": []}])
         self._open(page, [])
         expect(page.locator(".voice-character-select")).to_have_count(0)
 
     def test_preselects_linked_character(self, page: Page):
         _route_json(page, "**/api/voices",
-                    [{**_VOICE, "character": {"id": 77, "name": "Alara", "context_slug": "fantasy-rp"}}])
+                    [{**_VOICE, "characters": [{"id": 77, "name": "Alara", "context_slug": "fantasy-rp"}]}])
         self._open(page, [_CHARACTER])
         assert page.locator(".voice-character-select").input_value() == "77"
 
-    def test_selecting_character_posts_link(self, page: Page):
-        _route_json(page, "**/api/voices", [{**_VOICE, "character": None}])
-        _route_json(page, "**/api/voices/*/character", {**_VOICE, "character": _CHARACTER})
+    def test_selecting_character_posts_context_and_link(self, page: Page):
+        _route_json(page, "**/api/voices", [{**_VOICE, "characters": []}])
+        _route_json(page, "**/api/voices/*/characters", {**_VOICE, "characters": [_CHARACTER]})
         self._open(page, [_CHARACTER])
         with page.expect_request(
-            lambda r: r.url.endswith("/character") and r.method == "POST"
+            lambda r: r.url.endswith("/characters") and r.method == "POST"
         ) as req_info:
             page.locator(".voice-character-select").select_option("77")
-        assert json.loads(req_info.value.post_data)["character_id"] == 77
+        body = json.loads(req_info.value.post_data)
+        assert body == {"context_slug": "fantasy-rp", "character_id": 77}
+
+    def test_two_contexts_render_independent_pickers(self, page: Page):
+        """A Person aliased in one context but not the other shows two selects, one per
+        world context, each scoped to only that context's characters."""
+        _route_json(page, "**/api/voices",
+                    [{**_VOICE, "characters": [{"id": 77, "name": "Alara", "context_slug": "fantasy-rp"}]}])
+        self._open(page, [_CHARACTER, _CHARACTER_2])
+        selects = page.locator(".voice-character-select")
+        expect(selects).to_have_count(2)
+        fantasy = page.locator('[data-context-slug="fantasy-rp"]')
+        scifi = page.locator('[data-context-slug="scifi-rp"]')
+        assert fantasy.input_value() == "77"
+        assert scifi.input_value() == ""
+
+    def test_changing_one_context_does_not_touch_the_other(self, page: Page):
+        _route_json(page, "**/api/voices",
+                    [{**_VOICE, "characters": [{"id": 77, "name": "Alara", "context_slug": "fantasy-rp"}]}])
+        _route_json(page, "**/api/voices/*/characters", {
+            **_VOICE,
+            "characters": [
+                {"id": 77, "name": "Alara", "context_slug": "fantasy-rp"},
+                {"id": 78, "name": "Vex", "context_slug": "scifi-rp"},
+            ],
+        })
+        self._open(page, [_CHARACTER, _CHARACTER_2])
+        with page.expect_request(
+            lambda r: r.url.endswith("/characters") and r.method == "POST"
+        ) as req_info:
+            page.locator('[data-context-slug="scifi-rp"]').select_option("78")
+        body = json.loads(req_info.value.post_data)
+        assert body == {"context_slug": "scifi-rp", "character_id": 78}

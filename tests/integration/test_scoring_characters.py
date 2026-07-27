@@ -15,6 +15,7 @@ from yuu_clip.db.models import (
     AudioTrack,
     Character,
     ClipCandidate,
+    PersonCharacterLink,
     ProjectVoice,
     Speaker,
     Transcript,
@@ -39,25 +40,33 @@ class _RecordingClient:
         })
 
 
-def _seed_clip(db, *, link_character: bool, boost: float = 0.4) -> int:
-    video = Video(path="/x/a.mkv", filename="a.mkv", status="done", duration_ms=60_000)
+def _seed_clip(db, *, characters: list[tuple[str, str, str, float]] | None = None,
+               video_contexts: list[str] | None = None) -> int:
+    """characters: (context_slug, name, lore, score_boost) tuples to create and alias
+    the speaking Person to, one alias per world context. video_contexts: the world
+    contexts active on the video (defaults to every character's own context, so a
+    single-alias test doesn't need to state it twice)."""
+    if video_contexts is None:
+        video_contexts = [c[0] for c in (characters or [])]
+
+    video = Video(path="/x/a.mkv", filename="a.mkv", status="done", duration_ms=60_000,
+                  context_names_json=json.dumps(video_contexts))
     db.add(video)
     db.flush()
     track = AudioTrack(video_id=video.id, stream_index=1, label="combined", do_transcribe=True)
     db.add(track)
     db.flush()
 
-    character_id = None
-    if link_character:
-        char = Character(context_slug="fantasy-rp", name="Alara",
-                         lore="A rogue elf, party leader.", score_boost=boost)
-        db.add(char)
-        db.flush()
-        character_id = char.id
-
-    voice = ProjectVoice(name="Alex", display_index=1, confirmed=True, character_id=character_id)
+    voice = ProjectVoice(name="Alex", display_index=1, confirmed=True)
     db.add(voice)
     db.flush()
+    for context_slug, name, lore, boost in (characters or []):
+        char = Character(context_slug=context_slug, name=name, lore=lore, score_boost=boost)
+        db.add(char)
+        db.flush()
+        db.add(PersonCharacterLink(project_voice_id=voice.id, character_id=char.id))
+    db.flush()
+
     speaker = Speaker(video_id=video.id, display_index=1, name="Alex", confirmed=True,
                       global_voice_id=voice.id)
     db.add(speaker)
@@ -93,7 +102,9 @@ class TestCharacterPrompt:
     def test_linked_boosted_character_injects_lore_and_boost(self, project_dir):
         db = self._db(project_dir)
         try:
-            clip_id = _seed_clip(db, link_character=True, boost=0.4)
+            clip_id = _seed_clip(db, characters=[
+                ("fantasy-rp", "Alara", "A rogue elf, party leader.", 0.4),
+            ])
             system = _run_scorer(db, clip_id, context_text="WORLD-CTX-SENTINEL")
         finally:
             db.close()
@@ -107,7 +118,9 @@ class TestCharacterPrompt:
     def test_zero_boost_character_injects_lore_only(self, project_dir):
         db = self._db(project_dir)
         try:
-            clip_id = _seed_clip(db, link_character=True, boost=0.0)
+            clip_id = _seed_clip(db, characters=[
+                ("fantasy-rp", "Alara", "A rogue elf, party leader.", 0.0),
+            ])
             system = _run_scorer(db, clip_id)
         finally:
             db.close()
@@ -119,7 +132,7 @@ class TestCharacterPrompt:
         produces exactly the prompt a project that never defined a character would."""
         db = self._db(project_dir)
         try:
-            clip_id = _seed_clip(db, link_character=False)
+            clip_id = _seed_clip(db)
             system = _run_scorer(db, clip_id, context_text="WORLD-CTX-SENTINEL")
         finally:
             db.close()
@@ -130,8 +143,49 @@ class TestCharacterPrompt:
     def test_no_context_no_character_is_plain_baseline(self, project_dir):
         db = self._db(project_dir)
         try:
-            clip_id = _seed_clip(db, link_character=False)
+            clip_id = _seed_clip(db)
             system = _run_scorer(db, clip_id, context_text="")
         finally:
             db.close()
         assert system == _compose_system(_SYSTEM_PROMPT, "", Config())
+
+    def test_alias_from_an_inactive_context_does_not_leak_in(self, project_dir):
+        """The bug this alias mechanism fixes: a Person aliased to Character A in
+        context "fantasy-rp" and Character B in context "scifi-rp" - scoring a clip on a
+        video tagged only with "scifi-rp" must surface only B, never A."""
+        db = self._db(project_dir)
+        try:
+            clip_id = _seed_clip(
+                db,
+                characters=[
+                    ("fantasy-rp", "Aldric", "A stoic paladin.", 0.0),
+                    ("scifi-rp", "Vex", "A rogue starship captain.", 0.0),
+                ],
+                video_contexts=["scifi-rp"],
+            )
+            system = _run_scorer(db, clip_id)
+        finally:
+            db.close()
+        assert "Vex" in system
+        assert "rogue starship captain" in system
+        assert "Aldric" not in system
+        assert "stoic paladin" not in system
+
+    def test_video_tagged_with_both_contexts_surfaces_both_aliases(self, project_dir):
+        """A crossover session tagged with both world contexts (already supported for
+        hot words/sensitive terms) surfaces both of the Person's aliases for that clip."""
+        db = self._db(project_dir)
+        try:
+            clip_id = _seed_clip(
+                db,
+                characters=[
+                    ("fantasy-rp", "Aldric", "A stoic paladin.", 0.0),
+                    ("scifi-rp", "Vex", "A rogue starship captain.", 0.0),
+                ],
+                video_contexts=["fantasy-rp", "scifi-rp"],
+            )
+            system = _run_scorer(db, clip_id)
+        finally:
+            db.close()
+        assert "Aldric" in system
+        assert "Vex" in system

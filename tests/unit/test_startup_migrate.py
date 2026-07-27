@@ -15,6 +15,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import sessionmaker
 
@@ -52,10 +53,18 @@ def _column_names(db_path: Path, table: str) -> set[str]:
         engine.dispose()
 
 
-def _clone_migrations_with_extra(tmp_path: Path, revision_body: str) -> Path:
+def _real_head() -> str:
+    """The actual current head of the packaged migrations, read before any
+    monkeypatching - so the synthetic revision below always chains onto whatever
+    revision is really latest, not a number frozen at the time this test was written."""
+    return ScriptDirectory(str(migrate._MIGRATIONS_DIR)).get_current_head()
+
+
+def _clone_migrations_with_extra(tmp_path: Path, revision_body_template: str) -> Path:
     cloned = tmp_path / "migrations"
     shutil.copytree(migrate._MIGRATIONS_DIR, cloned)
-    (cloned / "versions" / "0002_extra.py").write_text(revision_body, encoding="utf-8")
+    body = revision_body_template.format(down_revision=_real_head())
+    (cloned / "versions" / "0002_extra.py").write_text(body, encoding="utf-8")
     return cloned
 
 
@@ -65,7 +74,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = "0002_extra"
-down_revision = "0001_baseline"
+down_revision = "{down_revision}"
 branch_labels = None
 depends_on = None
 
@@ -82,7 +91,7 @@ from __future__ import annotations
 from alembic import op
 
 revision = "0002_extra"
-down_revision = "0001_baseline"
+down_revision = "{down_revision}"
 branch_labels = None
 depends_on = None
 
@@ -126,7 +135,7 @@ def test_pending_migration_backs_up_then_upgrades(tmp_path: Path, monkeypatch) -
     db_path = tmp_path / ".yuu-clip" / "project.db"
     db_path.parent.mkdir(parents=True)
     _seed_pre_alembic_db(db_path)
-    run_startup_migrations(db_path, _ENABLED, now=_FIXED_CLOCK)  # adopt at 0001_baseline
+    run_startup_migrations(db_path, _ENABLED, now=_FIXED_CLOCK)  # adopt at the real head
 
     monkeypatch.setattr(migrate, "_MIGRATIONS_DIR", _clone_migrations_with_extra(tmp_path, _ADD_COLUMN_REVISION))
 
@@ -148,7 +157,8 @@ def test_failed_upgrade_raises_and_keeps_backup(tmp_path: Path, monkeypatch) -> 
     db_path = tmp_path / ".yuu-clip" / "project.db"
     db_path.parent.mkdir(parents=True)
     _seed_pre_alembic_db(db_path)
-    run_startup_migrations(db_path, _ENABLED, now=_FIXED_CLOCK)  # adopt at 0001_baseline
+    real_head = _real_head()
+    run_startup_migrations(db_path, _ENABLED, now=_FIXED_CLOCK)  # adopt at the real head
 
     monkeypatch.setattr(migrate, "_MIGRATIONS_DIR", _clone_migrations_with_extra(tmp_path, _FAILING_REVISION))
 
@@ -159,7 +169,7 @@ def test_failed_upgrade_raises_and_keeps_backup(tmp_path: Path, monkeypatch) -> 
     assert backup.is_file()
     assert str(backup) in str(excinfo.value)
     # The DB was not advanced past the last-good revision.
-    assert database_revision(db_path) == "0001_baseline"
+    assert database_revision(db_path) == real_head
 
 
 def test_opt_out_skips_migration_entirely(tmp_path: Path) -> None:

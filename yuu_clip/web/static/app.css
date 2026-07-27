@@ -375,8 +375,10 @@ button.section-toggle-btn:not(.active):hover { color: var(--text); background: v
 .person-member-file { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 1 auto; min-width: 0; }
 .person-empty { margin-top: 8px; font-size: 12px; color: var(--muted); }
 .voice-detach-btn { flex-shrink: 0; font-size: 12px; padding: 2px 10px; }
-.person-character { margin-top: 10px; display: flex; align-items: center; gap: 8px; font-size: 13px; }
-.person-character-label { color: var(--muted); font-size: 12px; }
+.person-characters { margin-top: 10px; }
+.person-characters-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin-bottom: 6px; }
+.person-character-row { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-top: 4px; }
+.person-character-label { color: var(--muted); font-size: 12px; min-width: 90px; }
 .voice-character-select { flex: 0 1 auto; max-width: 260px; }
 .person-suggestions { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
 .person-suggestions-head { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin-bottom: 6px; }
