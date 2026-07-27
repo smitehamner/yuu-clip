@@ -146,7 +146,7 @@ A one-glance "what to walk before public" list is in the final section.
 - **Actor goal:** produce the final video file for one clip and confirm it.
 - **Preconditions:** an approved (or any) clip; the source file still at its analyzed path.
 - **Steps:**
-  1. Press `E` (or Export on the detail panel).
+  1. Press `E` (or Export on the detail panel) to open the export editor, then click Export.
   2. Watch the SSE progress stream in the header.
   3. When it finishes, the player appears in the detail panel; press Space to play.
 - **Expected:** Quick export (no re-encode) finishes in about 1-5 s; a real MKV lands in `.yuu-clip/exports/` with an SRT sidecar alongside; the player plays it (in the packaged app via the `yuu-media://` protocol) and shows captions.

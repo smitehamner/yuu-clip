@@ -221,10 +221,13 @@ what was added (including the one real bug it turned up, a `plural()` grammar mi
 `voices.js`, and a documented import-cycle gotcha for testing this module cluster).
 
 Not a gap (checked, ruled out): the DOM-heavy `library/*.js` modules
-(`contexts.js`, `exporteditor.js`, `sounds.js`) look thin in `tests/js/` but their
-behavior is deliberately covered in `tests/ui/test_ui_{contexts,exporteditor,sounds}.py`
-instead, per those modules' own file-header comments - working as intended, not
-a coverage hole.
+(`contexts.js`, `sounds.js`) look thin in `tests/js/` but their behavior is deliberately
+covered in `tests/ui/test_ui_{contexts,sounds}.py` instead, per those modules' own
+file-header comments - working as intended, not a coverage hole. (`exporteditor.js` now
+also carries real `tests/js/` unit coverage for its pure helpers - crop fraction, the
+export-query builder incl. container/retranscribe, the trim-boundary guard, and the
+quick/precise + tight-cap advisories moved there when the export modal was retired -
+2026-07-27, panel-layout-v2 2b.)
 
 Also resolved as non-issues while reading this section's tests (no code or test
 change needed):

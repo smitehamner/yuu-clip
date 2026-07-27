@@ -224,6 +224,16 @@ Wanted before distributing beyond friends/trusted users.
   `rediarizeVideo` in `videos/videos.js`); and `+ New speaker` is the least-used of the
   three, so it should not get equal header prominence with Suggest names/Re-detect - lower
   it (e.g. behind a kebab, or visually deprioritized) when this pass happens.
+  **SHIPPED (2026-07-27, panel-layout-v2 Follow-up A + B):** the Speakers-card rethink
+  landed - each speaker is now one fixed identity line (play / name / colour / merge), a
+  suggested name sits inside the name field as a ghost value with inline accept/dismiss,
+  and the LLM name-guess + cross-recording voice match collapse into one "Also X" line
+  instead of two stacked banners; the three header buttons are now uniformly styled and a
+  **Re-detect speakers** shortcut sits on the card. Long-transcript navigation also
+  shipped (windowed paging + within-recording search + jump-to-time + bounded scroll box),
+  covering part of the deferred per-line/whole-recording polish. **Still open:** lowering
+  `+ New speaker`'s header prominence (it kept equal weight with Suggest names / Re-detect),
+  and the remaining per-line menu / caption-fix polish - scope fresh when next touched.
 
 - [ ] **Sidebar grouping for split segments** *(speculative)* - a collapsible parent row
   "session.mkv (3 segments)" with indented children, as an alternative to the flat list.
