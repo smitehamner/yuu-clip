@@ -67,8 +67,10 @@ Tests: `tests/unit/test_frames.py`, `test_framing.py`, `test_proxy.py`,
 
 - `transcribe/whisper_runner.py` - Whisper transcription
 - `transcribe/diarization_client.py` - speaker diarization (SpeechBrain)
+- `transcribe/transcriber.py` - Transcriber backend seam (ABC + `make_transcriber` factory)
 - `transcribe/align.py` - forced word alignment (WAV2VEC2) for word-highlight captions
 - `transcribe/project_voice.py` - project-wide voice identity ("People")
+- `transcribe/speaker_attach.py` - post-diarization speaker-name reattachment
 - `subtitles.py` - SRT / caption generation
 
 Tests: `tests/unit/test_whisper_runner.py`, `test_whisper_fallback.py`,
@@ -126,6 +128,7 @@ Tests: `tests/integration/test_segments.py`, `test_clip_create.py`
 - `export/naming.py` - filename stem
 - `export/presets.py` - preset definitions + size-cap math
 - `export/paths.py` - on-disk export/sidecar path resolution + query validation
+- `export/window.py` - clip export time-window resolution
 - `reel.py` - highlight-reel assembly
 
 Tests: `tests/integration/test_export.py`, `test_reel.py`, `tests/unit/test_export_naming.py`,
@@ -163,7 +166,9 @@ Tests: `tests/integration/test_cli.py`
 The `yuu-dev` developer tooling (not shipped to users).
 
 - `dev/serve.py`, `tests.py`, `lint.py`, `logs.py`, `status.py`, `procs.py`,
-  `_summary.py`, `_base.py`
+  `_summary.py`, `_base.py`, `bundle.py`, `chaos.py`, `deps.py`, `fixture.py`,
+  `helpdocs.py`, `htmlstitch.py`, `migrate.py`, `notices.py`, `shareddata.py`,
+  `testjs.py`, `typecheck.py`, `uiserver.py`
 
 Tests: `tests/unit/test_dev_cli.py`, `test_dev_summary.py`
 
@@ -191,9 +196,18 @@ Tests: `tests/ui/test_ui_sse.py`, `tests/unit/test_route_db_hygiene.py`
 - `hf_cache.py` - network-free "model already downloaded?" check
 - `url_import.py` - Twitch/YouTube import (yt-dlp wrapper)
 - `project_archive.py` - backup / restore + path re-point engine
+- `ffmpeg_tools.py` - shared ffmpeg/ffprobe subprocess helper (`run_ffmpeg`, `find_ffmpeg`)
+- `appversion.py` - `app_version()` (shared package-version lookup)
+- `pathsafety.py` - `is_within()` (shared path-traversal-guard predicate)
+- `track_labels.py` - track-layout ("profile") save/load persistence
+- `recent_projects.py` - recently-opened-project list persistence
+- `update_check.py` - GitHub release update check (notify-only)
+- `whisper_catalog.py` - Whisper model catalog (sizes, languages)
 
 Tests: `tests/unit/test_log_redact.py`, `test_hf_cache.py`, `test_url_import.py`,
-`tests/integration/test_url_import_routes.py`, `test_backup.py`, `test_restore.py`
+`tests/integration/test_url_import_routes.py`, `test_backup.py`, `test_restore.py`,
+`tests/unit/test_run_ffmpeg.py`, `test_appversion.py`, `test_pathsafety.py`,
+`test_update_check.py`, `test_whisper_catalog.py`, `tests/integration/test_projects.py`
 
 ---
 

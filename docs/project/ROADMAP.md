@@ -124,6 +124,33 @@ except the two items below).
   class. Extract opportunistically when touching a partial, verifying with full `test-ui`;
   not a public-flip blocker.
 
+- [ ] **Decide whether per-video/per-project local files deserve atomic writes**
+  *(surfaced 2026-07-26, full-app quality review)* - `project_archive.py`'s restore
+  path was hardened to validate a backup's integrity before touching the live
+  project (a real data-loss bug: a corrupt archive could half-overwrite the live
+  DB). Several *other* local writers use plain non-atomic `write_text` and were
+  judged a deliberate simplicity tradeoff at the time, not fixed alongside: global
+  config (`config.py::_overlay_layer`), world-context storage
+  (`contexts.py::save_contexts`), per-video track layouts (`track_labels.py`), and
+  the backup file itself on the *write* side (`project_archive.py::build_backup`,
+  as opposed to the now-hardened *restore* side). An interrupted write to any of
+  these can leave a truncated/corrupt file; config and contexts already recover
+  gracefully (backs up to `.corrupt.bak`, reverts to defaults), but per-video track
+  layouts do not have that fallback and may be more precious than global settings.
+  Needs an owner call: harden all of these to atomic-write + backup-on-corrupt
+  (mirroring the pattern `project_archive.py`'s restore side now uses), or
+  document why the current behavior is acceptable. Detail:
+  `docs/dev/llm/REVIEW_OPEN_ITEMS.md` Section 7.
+
+- [ ] **`electron/main.js` has no `app.requestSingleInstanceLock()`**
+  *(surfaced 2026-07-26, full-app quality review)* - two rapid first-run launches
+  (e.g. a user double-clicking the app icon twice) can race on venv extraction
+  (`VENV_DIR`/`.incoming`). A second launch *after* setup is already caught by the
+  port-8080 duplicate-server dialog, so this is first-run-only. The standard fix
+  (acquire the lock, focus the existing window on a second launch attempt) changes
+  current dialog-based behavior - needs an owner call on the desired UX before
+  implementing. Detail: `docs/dev/llm/REVIEW_OPEN_ITEMS.md` Section 11.
+
 ---
 
 ## 2 - Pre-distribution blockers
