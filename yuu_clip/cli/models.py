@@ -164,10 +164,15 @@ def _stream_to_file(response, part: Path, total: int, display_name: str) -> None
 
 
 def _verify_complete(part: Path, total: int) -> None:
-    if total > 0 and part.stat().st_size != total:
-        actual = part.stat().st_size
+    actual = part.stat().st_size
+    if total > 0 and actual != total:
         part.unlink(missing_ok=True)
         raise ValueError(f"incomplete download ({actual} of {total} bytes)")
+    if total == 0 and actual == 0:
+        # No Content-Length to check against, but an empty file is never a valid
+        # model download regardless.
+        part.unlink(missing_ok=True)
+        raise ValueError("download produced an empty file")
 
 
 def _download_gguf(url: str, dest: Path, display_name: str) -> None:

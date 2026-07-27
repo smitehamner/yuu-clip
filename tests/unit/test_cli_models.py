@@ -106,8 +106,17 @@ class TestVerifyComplete:
             _verify_complete(part, 999)
         assert not part.exists()
 
-    def test_unknown_total_is_not_verified(self, tmp_path):
+    def test_unknown_total_with_nonempty_file_is_not_size_verified(self, tmp_path):
         part = tmp_path / "model.gguf.part"
         part.write_bytes(b"abcd")
-        _verify_complete(part, 0)  # no raise, kept
+        _verify_complete(part, 0)  # can't check size against a total we never got, but not empty either
         assert part.exists()
+
+    def test_unknown_total_with_empty_file_raises_and_removes_partial(self, tmp_path):
+        # No Content-Length to check size against, but a zero-byte download is
+        # never a valid model regardless.
+        part = tmp_path / "model.gguf.part"
+        part.write_bytes(b"")
+        with pytest.raises(ValueError, match="empty file"):
+            _verify_complete(part, 0)
+        assert not part.exists()
