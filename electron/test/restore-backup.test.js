@@ -65,7 +65,7 @@ test('setup-preload exposes restoreBackup', () => {
 // process failing to spawn at all (found in the logging-coverage pass 2026-07-26).
 test('main.js logs the restore failure detail, not just the exit code', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
-  const fnMatch = src.match(/function runRestore\([\s\S]*?\n}\n/);
+  const fnMatch = src.match(/function runRestore\([\s\S]*?\r?\n}\r?\n/);
   assert.ok(fnMatch, 'runRestore function not found in main.js');
   const fnSrc = fnMatch[0];
   assert.match(fnSrc, /logSetup\(`Restore failed to spawn: \$\{err\.message\}`\)/);

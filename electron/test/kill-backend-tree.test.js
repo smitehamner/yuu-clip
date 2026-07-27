@@ -13,7 +13,7 @@ const path = require('path');
 // the electron runtime), so assert on its source the same way restore-backup/
 // rerun-reload tests do (found in the logging-coverage pass 2026-07-26).
 const SRC = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
-const FN_SRC = SRC.match(/function killBackendTree\(\)[\s\S]*?\n}\n/)[0];
+const FN_SRC = SRC.match(/function killBackendTree\(\)[\s\S]*?\r?\n}\r?\n/)[0];
 
 test('killBackendTree logs when both the tree-kill and the fallback kill fail', () => {
   assert.match(FN_SRC, /logSetup\(`Failed to kill backend process tree/);
