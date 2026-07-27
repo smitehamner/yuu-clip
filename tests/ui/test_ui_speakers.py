@@ -187,9 +187,9 @@ class TestSpeakerNaming:
 
         chip = page.locator("#speakers-section .speaker-voicematch")
         expect(chip).to_have_count(1)  # only the borderline speaker shows one
-        expect(chip).to_contain_text("Might be")
+        expect(chip).to_contain_text("Same voice as")
         expect(chip).to_contain_text("Yuu")
-        expect(chip).to_contain_text("70% voice match")
+        expect(chip).to_contain_text("70%")
 
         page.locator(".speaker-samevoice").click()
         expect(page.locator("#toast-container")).to_contain_text("Merged into Yuu")
@@ -278,8 +278,8 @@ class TestSpeakerPersonControls:
         )
         self._select_first_video(page)
 
-        chip = page.locator("#speakers-section .speaker-voicematch")
-        expect(chip).to_contain_text("85% voice match")
+        chip = page.locator("#speakers-section .speaker-personmatch")
+        expect(chip).to_contain_text("85% match")
         with page.expect_request(
             lambda r: "/confirm-voice" in r.url and r.method == "POST"
         ):

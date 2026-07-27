@@ -58,71 +58,78 @@ function _renderSpeakersCard(speakers) {
     const sample = s.sample_text
       ? `<span class="speaker-sample" title="${escHtml(s.sample_text)}">&ldquo;${escHtml(truncate(s.sample_text, 60))}&rdquo;</span>`
       : '';
-    // An unconfirmed suggestion keeps the input empty (so it doesn't look accepted)
-    // and shows an Accept/Dismiss prompt instead.
-    const inputValue = _isSuggestion(s) ? '' : escHtml(s.name || '');
-    const suggestion = _isSuggestion(s)
-      ? `<span class="speaker-suggestion" title="Suggested from how others address this voice - accept to apply it">
-           Suggested: <strong>${escHtml(s.name)}</strong>
-           <button class="speaker-accept" data-speaker-id="${s.id}" data-name="${escHtml(s.name)}"
-                   title="Use this name">Accept</button>
-           <button class="speaker-dismiss" data-speaker-id="${s.id}"
-                   title="Discard this suggestion">Dismiss</button>
-         </span>`
-      : '';
-    // A borderline voiceprint near-miss: this new voice was close to an existing
-    // speaker but under the re-attach threshold, so we ask instead of guessing.
-    const voiceMatch = (s.suggested_match_id && s.suggested_match_name)
-      ? `<span class="speaker-voicematch" title="This voice is close to an existing speaker - confirm if it's the same person">
-           Might be <strong>${escHtml(s.suggested_match_name)}</strong>
-           (${Math.round((s.suggested_match_score || 0) * 100)}% voice match)
-           <button class="speaker-samevoice" data-speaker-id="${s.id}" data-match-name="${escHtml(s.suggested_match_name)}"
-                   title="Merge into ${escHtml(s.suggested_match_name)}">Same voice</button>
-           <button class="speaker-diffvoice" data-speaker-id="${s.id}"
-                   title="Keep as a separate speaker">Different voice</button>
-         </span>`
-      : '';
-    // Project-wide identity (Person). A confirmed link shows a read-only line into the
-    // People view; a named-but-unlinked speaker can be promoted; a cross-recording
-    // near-miss offers a confirm/dismiss chip (mirrors the same-recording voiceMatch).
-    // Promote only a CONFIRMED name: an unconfirmed inferred suggestion (s.name set,
-    // s.confirmed false) would mint an unnamed Person, since the server carries only a
-    // confirmed name across. Accept the suggestion first.
-    const person = s.global_voice_id
-      ? `<span class="speaker-person" title="This voice is part of a Person - one name across recordings">
-           Person: <strong>${escHtml(s.person_name)}</strong>
-           <button class="speaker-open-people" title="Manage people">Manage</button>
-         </span>`
-      : ((s.name && s.confirmed)
-          ? `<button class="btn ghost speaker-promote" data-speaker-id="${s.id}"
-                     title="Use this name across every recording of this voice">Promote to Person</button>`
-          : '');
-    const personMatch = (s.suggested_voice_id && s.suggested_voice_name)
-      ? `<span class="speaker-voicematch" title="This voice matches a person from another recording - confirm if it's the same person">
-           Might be <strong>${escHtml(s.suggested_voice_name)}</strong> from another recording
-           (${Math.round((s.suggested_voice_score || 0) * 100)}% voice match)
-           <button class="speaker-sameperson" data-speaker-id="${s.id}" data-match-name="${escHtml(s.suggested_voice_name)}"
-                   title="Confirm this is the same person">Same person</button>
-           <button class="speaker-diffperson" data-speaker-id="${s.id}"
-                   title="Keep as a separate person">Not them</button>
-         </span>`
-      : '';
+    // An LLM name suggestion (unconfirmed) is shown as a ghost value INSIDE the name
+    // field with inline accept (check) / dismiss (cross), rather than a separate banner
+    // beside an empty field. The value stays empty (so it never looks accepted); the
+    // suggested name is the placeholder. Wrapped in .speaker-suggestion so the manual-
+    // rename cleanup (_saveSpeakerName) can still drop a stale chip.
+    const isSug = _isSuggestion(s);
+    const inputValue = isSug ? '' : escHtml(s.name || '');
+    const namePlaceholder = isSug ? escHtml(s.name) : 'Add a name&hellip;';
+    const nameArea = `
+      <div class="speaker-name-wrap">
+        <input class="speaker-name-input${isSug ? ' is-suggested' : ''}" type="text" data-speaker-id="${s.id}"
+               value="${inputValue}" placeholder="${namePlaceholder}"
+               aria-label="Name for Speaker ${s.display_index}" maxlength="60">
+        ${isSug ? `<span class="speaker-suggestion">
+          <button class="speaker-accept" data-speaker-id="${s.id}" data-name="${escHtml(s.name)}"
+                  title="Use the suggested name ${escHtml(s.name)}" aria-label="Accept suggested name ${escHtml(s.name)}">&#10003;</button>
+          <button class="speaker-dismiss" data-speaker-id="${s.id}"
+                  title="Dismiss suggestion" aria-label="Dismiss suggested name">&#10005;</button>
+        </span>` : ''}
+      </div>`;
+
+    // Second-line status chips - each a distinct, consistently-styled pill, shown only
+    // when present. A within-recording voiceprint near-miss ("same voice?") and a
+    // cross-recording person near-miss ("same person?") stay visually separate.
+    const chips = [];
+    if (s.suggested_match_id && s.suggested_match_name) {
+      chips.push(`<span class="speaker-chip speaker-voicematch" title="This voice is close to another speaker in this recording - confirm if it's the same person">
+        Same voice as <strong>${escHtml(s.suggested_match_name)}</strong>? (${Math.round((s.suggested_match_score || 0) * 100)}%)
+        <button class="speaker-samevoice" data-speaker-id="${s.id}" data-match-name="${escHtml(s.suggested_match_name)}" title="Merge into ${escHtml(s.suggested_match_name)}">Same voice</button>
+        <button class="speaker-diffvoice" data-speaker-id="${s.id}" title="Keep as a separate speaker">Different</button>
+      </span>`);
+    }
+    if (s.suggested_voice_id && s.suggested_voice_name) {
+      // When the LLM name suggestion and this cross-recording match name the same
+      // person, reframe so the two don't read as duplicate "X" banners.
+      const agrees = isSug && s.name === s.suggested_voice_name;
+      const lead = agrees
+        ? `Also <strong>${escHtml(s.suggested_voice_name)}</strong> from another recording (${Math.round((s.suggested_voice_score || 0) * 100)}% match)`
+        : `Might be <strong>${escHtml(s.suggested_voice_name)}</strong> from another recording (${Math.round((s.suggested_voice_score || 0) * 100)}% match)`;
+      chips.push(`<span class="speaker-chip speaker-personmatch" title="This voice matches a person from another recording - confirm if it's the same person">
+        ${lead}
+        <button class="speaker-sameperson" data-speaker-id="${s.id}" data-match-name="${escHtml(s.suggested_voice_name)}" title="Confirm this is the same person">Same person</button>
+        <button class="speaker-diffperson" data-speaker-id="${s.id}" title="Keep as a separate person">Not them</button>
+      </span>`);
+    }
+    // Project-wide identity: a confirmed Person link, or a Promote action for a
+    // confirmed-but-unlinked name. Promote only a CONFIRMED name (an unconfirmed
+    // suggestion would mint an unnamed Person - accept it first).
+    if (s.global_voice_id) {
+      chips.push(`<span class="speaker-chip speaker-person" title="This voice is part of a Person - one name across recordings">
+        Person: <strong>${escHtml(s.person_name)}</strong>
+        <button class="speaker-open-people" title="Manage people">Manage</button>
+      </span>`);
+    } else if (s.name && s.confirmed) {
+      chips.push(`<button class="btn ghost speaker-promote" data-speaker-id="${s.id}"
+                   title="Use this name across every recording of this voice">Promote to Person</button>`);
+    }
+    const statusLine = chips.length ? `<div class="speaker-status">${chips.join('')}</div>` : '';
+
     return `
       <div class="speaker-row">
-        ${play}
-        <span class="speaker-tag">Speaker ${s.display_index}</span>
-        <input class="speaker-color-input" type="color" data-speaker-id="${s.id}"
-               value="${escHtml(s.color)}" title="Caption color for this speaker"
-               aria-label="Caption color for Speaker ${s.display_index}">
-        <input class="speaker-name-input" type="text" data-speaker-id="${s.id}"
-               value="${inputValue}" placeholder="Add a name&hellip;"
-               aria-label="Name for Speaker ${s.display_index}" maxlength="60">
-        ${_speakerMergeHtml(s, speakers)}
-        ${suggestion}
-        ${voiceMatch}
-        ${person}
-        ${personMatch}
-        ${sample}
+        <div class="speaker-identity">
+          ${play}
+          <span class="speaker-tag">Speaker ${s.display_index}</span>
+          <input class="speaker-color-input" type="color" data-speaker-id="${s.id}"
+                 value="${escHtml(s.color)}" title="Caption color for this speaker"
+                 aria-label="Caption color for Speaker ${s.display_index}">
+          ${nameArea}
+          ${_speakerMergeHtml(s, speakers)}
+          ${sample}
+        </div>
+        ${statusLine}
       </div>`;
   }).join('');
   return collapsibleCard('speakers',

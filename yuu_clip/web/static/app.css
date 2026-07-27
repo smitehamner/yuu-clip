@@ -317,40 +317,37 @@ button.section-toggle-btn:not(.active):hover { color: var(--text); background: v
 .chip-x { cursor: pointer; color: var(--muted); line-height: 1; background: none; border: none; padding: 0; font-size: inherit; }
 .chip-x:hover { color: var(--red); }
 /* speakers card */
-.speaker-list { display: flex; flex-direction: column; gap: 8px; }
-.speaker-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.speaker-list { display: flex; flex-direction: column; gap: 10px; }
+/* Two-line speaker row: a fixed identity line, then an optional status line of chips. */
+.speaker-row { display: flex; flex-direction: column; gap: 6px; }
+.speaker-identity { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .speaker-play { flex-shrink: 0; width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; padding: 0; font-size: 10px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface); color: var(--accent); cursor: pointer; transition: background .12s; }
 .speaker-play:hover { background: var(--border); }
 .speaker-tag { flex-shrink: 0; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); min-width: 72px; }
+.speaker-name-wrap { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
 .speaker-name-input { flex: 0 0 160px; padding: 5px 9px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 13px; }
 .speaker-name-input:focus { outline: none; border-color: var(--accent); }
+/* A pending LLM name suggestion shows as a ghost placeholder in the field itself. */
+.speaker-name-input.is-suggested { border-style: dashed; border-color: var(--accent); }
+.speaker-name-input.is-suggested::placeholder { color: var(--accent-text); opacity: .9; font-style: italic; }
 .speaker-sample { flex: 1 1 120px; min-width: 0; color: var(--muted); font-size: 12px; font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .speaker-hint { margin-top: 8px; font-size: 11px; color: var(--muted); }
-.speaker-suggestion { flex: 1 1 100%; display: inline-flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-left: 82px; font-size: 12px; color: var(--muted); }
-.speaker-suggestion strong { color: var(--text); }
-.speaker-accept, .speaker-dismiss { padding: 2px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface); cursor: pointer; font-size: 12px; }
+/* Inline accept/dismiss for the ghost name suggestion (icon buttons beside the field). */
+.speaker-suggestion { display: inline-flex; gap: 4px; flex-shrink: 0; }
+.speaker-accept, .speaker-dismiss { width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface); cursor: pointer; font-size: 12px; }
 .speaker-accept { border-color: var(--green); color: var(--green); }
 .speaker-accept:hover { background: color-mix(in srgb, var(--green) 15%, transparent); }
 .speaker-dismiss { color: var(--muted); }
 .speaker-dismiss:hover { background: var(--border); color: var(--text); }
-.speaker-voicematch { flex: 1 1 100%; display: inline-flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-left: 82px; font-size: 12px; color: var(--muted); }
-.speaker-voicematch strong { color: var(--text); }
-.speaker-samevoice, .speaker-diffvoice { padding: 2px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface); cursor: pointer; font-size: 12px; }
-.speaker-samevoice { border-color: var(--accent); color: var(--accent); }
-.speaker-samevoice:hover { background: color-mix(in srgb, var(--accent) 15%, transparent); }
-.speaker-diffvoice { color: var(--muted); }
-.speaker-diffvoice:hover { background: var(--border); color: var(--text); }
-/* project-wide identity (Person) on the per-recording Speakers card */
-.speaker-person { flex: 1 1 100%; margin-left: 82px; font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.speaker-person strong { color: var(--text); }
-.speaker-open-people { padding: 2px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface); cursor: pointer; font-size: 12px; color: var(--accent); }
-.speaker-open-people:hover { background: color-mix(in srgb, var(--accent) 15%, transparent); }
+/* Status line: one consistent pill per pending decision, indented under the identity. */
+.speaker-status { display: flex; flex-wrap: wrap; gap: 8px; margin-left: 36px; }
+.speaker-chip { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); font-size: 12px; color: var(--muted); }
+.speaker-chip strong { color: var(--text); }
+.speaker-samevoice, .speaker-diffvoice, .speaker-sameperson, .speaker-diffperson, .speaker-open-people { padding: 2px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg); cursor: pointer; font-size: 12px; color: var(--muted); }
+.speaker-samevoice, .speaker-sameperson, .speaker-open-people { border-color: var(--accent); color: var(--accent); }
+.speaker-samevoice:hover, .speaker-sameperson:hover, .speaker-open-people:hover { background: color-mix(in srgb, var(--accent) 15%, transparent); }
+.speaker-diffvoice:hover, .speaker-diffperson:hover { background: var(--border); color: var(--text); }
 .speaker-promote { font-size: 12px; }
-.speaker-sameperson, .speaker-diffperson { padding: 2px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface); cursor: pointer; font-size: 12px; }
-.speaker-sameperson { border-color: var(--accent); color: var(--accent); }
-.speaker-sameperson:hover { background: color-mix(in srgb, var(--accent) 15%, transparent); }
-.speaker-diffperson { color: var(--muted); }
-.speaker-diffperson:hover { background: var(--border); color: var(--text); }
 /* People view (project-wide speaker identity) */
 .people-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 8px; }
 .people-header .btn { flex-shrink: 0; }
