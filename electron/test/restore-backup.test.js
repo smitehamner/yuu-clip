@@ -58,3 +58,16 @@ test('setup-preload exposes restoreBackup', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'setup-preload.js'), 'utf8');
   assert.match(src, /restoreBackup:.*setup:restore-backup/);
 });
+
+// A restore failure's stderr detail (parseRestoreExit's `result.error`) must reach the
+// setup log, not just the bare exit code - otherwise a "restore failed" bug report has
+// no way to say why. Guard both failure surfaces: the process exiting non-zero, and the
+// process failing to spawn at all (found in the logging-coverage pass 2026-07-26).
+test('main.js logs the restore failure detail, not just the exit code', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  const fnMatch = src.match(/function runRestore\([\s\S]*?\n}\n/);
+  assert.ok(fnMatch, 'runRestore function not found in main.js');
+  const fnSrc = fnMatch[0];
+  assert.match(fnSrc, /logSetup\(`Restore failed to spawn: \$\{err\.message\}`\)/);
+  assert.match(fnSrc, /logSetup\(`Restore failed \(code \$\{code\}\): \$\{tail\}`\)/);
+});

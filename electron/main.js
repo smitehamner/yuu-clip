@@ -539,7 +539,7 @@ function loadingScreenUrl(frameless = false) {
   const chromeScript = frameless
     ? `<script>var b=document.getElementById('minBtn');if(b)b.onclick=function(){if(window.venvAPI&&window.venvAPI.minimize)window.venvAPI.minimize();};</script>`
     : '';
-  const loadingHtml = `<!DOCTYPE html><html><head>${chromeStyle}</head><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:#12121e;color:#d8d8e8;text-align:center"><style>@keyframes spin{to{transform:rotate(360deg)}}</style>${chromeMarkup}<div><div style="width:32px;height:32px;border:3px solid #1e1e30;border-top-color:#5b8ef0;border-radius:50%;animation:spin 0.65s linear infinite;margin:0 auto 14px"></div><h3 style="margin:0 0 6px;font-size:14px;color:#e8e8f8">Starting YuuClip…</h3><p id="status" style="margin:0;color:#9090a8;font-size:12px">Waiting for backend</p></div>${chromeScript}</body></html>`;
+  const loadingHtml = `<!DOCTYPE html><html lang="en"><head>${chromeStyle}</head><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:#12121e;color:#d8d8e8;text-align:center"><style>@keyframes spin{to{transform:rotate(360deg)}}</style>${chromeMarkup}<div><div style="width:32px;height:32px;border:3px solid #1e1e30;border-top-color:#5b8ef0;border-radius:50%;animation:spin 0.65s linear infinite;margin:0 auto 14px"></div><h3 style="margin:0 0 6px;font-size:14px;color:#e8e8f8">Starting YuuClip…</h3><p id="status" style="margin:0;color:#9090a8;font-size:12px">Waiting for backend</p></div>${chromeScript}</body></html>`;
   return `data:text/html;charset=utf-8,${encodeURIComponent(loadingHtml)}`;
 }
 
@@ -548,6 +548,19 @@ function loadingScreenUrl(frameless = false) {
 function showWizardLoadingScreen(win) {
   win.loadURL(loadingScreenUrl());
   wizardWin = win;
+}
+
+// Wire a frameless loading/setup window's custom minimize button (these windows
+// have no native titlebar, so the button posts over venv-preload's venvAPI).
+// Only one such window is ever open at a time, so the single global
+// 'venv:minimize' channel is rebound to the current window and torn down when it
+// closes.
+function wireVenvMinimize(win) {
+  ipcMain.removeAllListeners('venv:minimize');
+  ipcMain.on('venv:minimize', () => {
+    if (!win.isDestroyed()) win.minimize();
+  });
+  win.on('closed', () => ipcMain.removeAllListeners('venv:minimize'));
 }
 
 // A standalone loading window for launch paths with no wizard to repurpose, so
@@ -563,11 +576,7 @@ function showStartupLoadingWindow() {
       preload: path.join(__dirname, 'venv-preload.js'),
     },
   });
-  ipcMain.removeAllListeners('venv:minimize');
-  ipcMain.on('venv:minimize', () => {
-    if (!win.isDestroyed()) win.minimize();
-  });
-  win.on('closed', () => ipcMain.removeAllListeners('venv:minimize'));
+  wireVenvMinimize(win);
   win.loadURL(loadingScreenUrl(true));
   wizardWin = win;
   return win;
@@ -733,12 +742,8 @@ function showVenvSetupWindow(stepLabel, note) {
       preload: path.join(__dirname, 'venv-preload.js'),
     },
   });
-  ipcMain.removeAllListeners('venv:minimize');
-  ipcMain.on('venv:minimize', () => {
-    if (!win.isDestroyed()) win.minimize();
-  });
-  win.on('closed', () => ipcMain.removeAllListeners('venv:minimize'));
-  const html = `<!DOCTYPE html><html><head><style>
+  wireVenvMinimize(win);
+  const html = `<!DOCTYPE html><html lang="en"><head><style>
     @keyframes spin{to{transform:rotate(360deg)}}
     @keyframes indeterminate-slide{0%{left:-30%}100%{left:100%}}
     body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:#12121e;color:#d8d8e8;text-align:center}
@@ -1113,10 +1118,21 @@ function runRestore(archive, project, overwrite) {
     let stderr = '';
     const proc = spawn(VENV_PYTHON, args, { windowsHide: true, env });
     proc.stderr.on('data', d => { stderr += d.toString(); });
-    proc.on('error', err => resolve({ ok: false, error: err.message }));
+    proc.on('error', err => {
+      logSetup(`Restore failed to spawn: ${err.message}`);
+      resolve({ ok: false, error: err.message });
+    });
     proc.on('exit', code => {
-      logSetup(`Restore exited with code ${code}`);
-      resolve(parseRestoreExit(code, stderr));
+      const result = parseRestoreExit(code, stderr);
+      if (result.ok) {
+        logSetup('Restore exited with code 0 (success)');
+      } else if (result.code === 'project_exists') {
+        logSetup(`Restore exited with code ${code} (target folder already has a project)`);
+      } else {
+        const tail = result.error.split(/\r?\n/).filter(Boolean).slice(-3).join('\n');
+        logSetup(`Restore failed (code ${code}): ${tail}`);
+      }
+      resolve(result);
     });
   });
 }
@@ -1426,7 +1442,11 @@ function killBackendTree() {
     }
   } catch (_) {
     // taskkill exits non-zero if the tree is already gone - fall back to a plain kill.
-    try { pyProc.kill(); } catch (_) {}
+    try { pyProc.kill(); } catch (killErr) {
+      // Both the tree-kill and the plain kill failed - the backend (and any ffmpeg
+      // child) may now be orphaned. Log it so a stray python.exe report is traceable.
+      logSetup(`Failed to kill backend process tree (pid ${pid}): ${killErr.message}`);
+    }
   }
   pyProc = null;
 }

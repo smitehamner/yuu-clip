@@ -11,7 +11,343 @@ same thing without the context. Most recent first.
 
 ---
 
-## Phase 7 UX/UI - full-app review section 10, app shell & core plumbing (2026-07-26)
+## Phase 7 UX/UI - full-app review section 11, Electron wrapper first-run surface (2026-07-26)
+
+First (and only planned) UX/UI walk of the desktop-native first-run surface: the setup
+wizard (`setup.html` + `setup-renderer.js`), the venv/prebuilt-env setup window and the
+"Starting YuuClip" loading window (`main.js` boot HTML), the native install/error/fatal
+dialogs, and the plain-English failure mapping (`install-error.js`). The 2026-07-08 and
+2026-07-23 UX passes touched the wizard's model-selection restructure but never walked the
+install/loading/boot screens; this pass did. Assessed against the non-developer first-run
+lens with extra weight (intimidating multi-GB downloads, Python-env setup, GPU detection).
+
+### Applied (the one concrete conformance defect)
+`main.js`'s two generated boot-window HTML documents (`loadingScreenUrl`,
+`showVenvSetupWindow`) shipped `<html>` with no `lang` attribute - a WCAG 3.1.1
+(Language of Page, Level A) gap on the very first windows a new user sees. Added
+`lang="en"` to both. (The anchored "inline hex literals in main.js boot HTML are
+out of scope" call below is about *colour*, not `lang` - unrelated.) 204/1 electron
+tests unchanged.
+
+### Verified good, do NOT re-flag - this surface is exemplary first-run UX
+- **State/progress feedback.** Venv setup window: determinate pip bar with a
+  high-water-mark (never goes backward), a 3.5s watchdog that reverts to an
+  indeterminate "working..." bar so a stalled step never looks frozen, and a live
+  elapsed timer. Extract-path copy preempts the classic antivirus-scan slowdown
+  ("The first time can take a little longer while your antivirus scans the new files").
+  GGUF download shows a determinate bar + `Downloading... X% (Y.Y of Z GB)`.
+- **Error quality.** Every install/download failure is routed through
+  `install-error.js`'s `describeInstallFailure`/`describeDownloadFailure` (network /
+  disk / antivirus-lock / no-wheel / CUDA classes -> honest plain-English next step);
+  raw stderr/system-error text is logged, never shown. The fatal-startup dialog is a
+  single dead-end-free "Try again / Open log folder / Quit" with the technical detail
+  in the log only. GPU absence degrades to a calm "analysis runs on the CPU (slower,
+  but works)" line, never a cryptic error.
+- **Informed consent for the multi-GB download.** The recommended path (radio) downloads
+  in the background *after* launch ("start using YuuClip right away") and sets
+  `pending_local_model`; the in-wizard "Download recommended model" button is under the
+  Advanced disclosure with an explicit size heads-up. Lightweight mode is a first-class,
+  clearly-explained alternative (not confirmshamed).
+- **Recoverability.** Quitting mid-download confirms first (renderer `window.confirm` +
+  the OS-close guard dialog in `main.js`); a failed restore resets the button so the user
+  can pick another file; "Check again" / "Restart app" recover from out-of-band installs.
+- **Colour-not-alone + contrast.** Wizard status rows pair an icon shape (check / cross /
+  circle) with a token colour and a text title. The boot windows' hardcoded palette
+  (anchored out-of-scope for the colour-token rule) was contrast-checked anyway: the
+  muted greys `#9090a8`/`#87879f` and the accent `#5b8ef0` on `#12121e` all clear WCAG AA
+  (>=5:1) for normal text.
+
+### Low, deferred (not fixed - note only)
+- The frameless boot/setup windows' minimize control is a `<div>` with an onclick, not a
+  focusable `<button>` - no keyboard path to minimize. Consistent with the anchored
+  "pointer-only accepted for a mouse-first single-user desktop tool" call (Low 29,
+  2026-07-23). Transient windows; do not re-flag without an actual AT user need.
+- The in-wizard GGUF download has no stall watchdog / "still working" cue like the venv
+  window has (a determinate bar that stops moving looks frozen), and shows no speed/ETA.
+  It has a moving %/GB bar and a Cancel button, so it clears the "at least an active
+  indicator" floor; adding a watchdog/ETA is a feature-add, left for a future pass.
+- The venv window's `working...` / `elapsed 0:00` micro-labels are lowercase where the
+  rest of the app title-cases; cosmetic, not worth a churn edit.
+
+### Wizard scope is LOCKED minimum-viable - not a UX finding
+Per the ARCH-policy entry below and CLAUDE.md, the wizard deliberately configures ONE
+text model + writes config.json and nothing more. This pass evaluated whether the
+*existing minimal flow* is well-executed (it is), NOT whether it should do more. Do not
+raise "the wizard should also configure X" as a UX finding.
+
+---
+
+## Phase 6 docs and comments - full-app review section 11, Electron wrapper (2026-07-26)
+
+Grepped every comment line across all 25 in-scope files (main.js in full, plus every
+split-out helper) and walked each against the governing rule. No restatement, obsolete,
+or reactive comments found; no aging TODO/FIXME/HACK anywhere in scope. Zero changes
+made - this directory's Phase 4 "already exemplary" call holds through the docs lens too.
+
+Specifically verified the three prior-phase changes carry appropriate (or appropriately
+absent) comments:
+- `logging.js` `redactPaths()` (Phase 2's privacy fix): the WHY comment already covers
+  the fix rationale in full (spaces are part of the name, so the segment runs to the
+  next path separator not the next space; newlines still terminate so redaction can't
+  swallow a following line) and matches the current regex exactly. Nothing to add.
+- `main.js` `wireVenvMinimize()` (Phase 4's extraction): has its own WHY comment
+  explaining the non-obvious invariant (single global IPC channel rebound to the
+  current window, torn down on close) - the name alone wouldn't convey that. Correctly
+  kept, not a restatement.
+- `main.js`'s two Phase 5 log lines (`runRestore`'s parsed-stderr logging,
+  `killBackendTree`'s double-failure log): both left uncommented, correctly - the log
+  messages themselves are self-explanatory, and the surrounding code already carries the
+  WHY comments (the `killBackendTree` double-failure branch sits right under the
+  existing "taskkill exits non-zero if the tree is already gone" comment). No comment
+  needed per the "message is already clear" rule.
+
+### Terminology check (first pass over electron/ against docs/dev/llm/GLOSSARY.md)
+Scanned every user-facing string this scope actually builds (wizard status text in
+`setup-renderer.js`, dialog titles/messages in `main.js`, the plain-English sentences in
+`install-error.js`). Clean - no drift found. Where scope code touches a glossary term it
+already matches the user-facing form ("LLM scoring" in the GPU-detection note, not "AI
+scoring"; the `content-preset-sel`/`aiPrivacyMode` identifiers are code names only, the
+actual visible labels come from the generated catalog data / `setup.html`, both out of
+scope for this pass). No case of a wrong/old term (`ingest`, `probe`, `profile`,
+`RP context`, `clip candidate`, `demo reel`, `subtitle`, `segmentation`, `provenance`)
+appearing as user-facing text - the handful of textual hits for those words are all code
+identifiers (`slug` as an internal package id, unrelated to the glossary's Context-ID
+"slug"; `subtitle` as a DOM element id for the wizard's page subtitle; "profile folder"
+meaning a Windows user-account folder) or prose in comments, not shown to the user.
+
+### Reviewed and deliberately left as-is (do NOT re-flag without new evidence)
+- **Curly apostrophes/real ellipsis (`'`/`…`) throughout Electron-rendered user text**
+  (`main.js` dialog strings, `install-error.js` sentences, `setup-renderer.js` status
+  text, the inline loading-screen HTML): extends the existing 2026-07-09 "ellipsis in
+  browser DOM text is fine" decision. The rationale (no cp1252 risk - the crash mode is
+  console/log stdout, not UTF-8-rendered markup) applies identically here: every one of
+  these strings renders either inside a Chromium `BrowserWindow` (same as the web app's
+  DOM) or a native OS dialog box (`dialog.showMessageBox`), neither of which goes through
+  the legacy Windows console. Consistent and intentional across the scope - not swept.
+- **`main.js`'s two literal `working...` strings (lines ~779, ~800, the venv-setup
+  loading screen)**: the one stray ASCII-dots outlier against the real-ellipsis
+  convention used everywhere else in the same scope. Matches the precedent's own
+  "inert outlier, not worth sweeping" call on `modelcatalog.js`'s two stray literals -
+  same category, harmless, left alone rather than churning a one-off style fix.
+
+## Phase 5 logging coverage - full-app review section 11, Electron wrapper (2026-07-26)
+
+Surveyed logging across all 25 in-scope files. Architecture confirmed: the 23 pure
+helper modules (`venv-setup.js`, `prebuilt-env.js`, `install.js`, `pip-progress.js`,
+`restore-backup.js`, etc.) never call `logSetup` themselves - `main.js` is the sole
+writer, catching each helper's thrown error/rejection and logging it with context.
+That pattern holds consistently; the gaps found were both inside `main.js`, at the
+boundary where a helper's result crossed into a log line.
+
+### Fixed
+- `main.js` `runRestore()` (the wizard's "Restore from a backup" path) logged only
+  `Restore exited with code ${code}` on failure - the actual `parseRestoreExit`
+  detail (the Python restore CLI's stderr, which is exactly what the dialog shows
+  the user) never reached the log file. A user reporting "restore failed" gave a
+  bug report with the exit code and nothing else. Now logs the parsed error (last 3
+  stderr lines) on a real failure, and distinguishes the `project_exists` retry
+  code from a genuine failure so the log line matches what actually happened. Also
+  added a `logSetup` call to the previously-silent `proc.on('error', ...)` spawn
+  path (e.g. a moved/missing venv python.exe) - that failure mode logged nothing at
+  all before. Covered by two new source-text assertions in
+  `electron/test/restore-backup.test.js`.
+- `main.js` `killBackendTree()` - called from every shutdown path including
+  `process.on('exit')` - silently dropped the case where both the Windows
+  `taskkill /T` tree-kill AND the plain `pyProc.kill()` fallback throw, which is
+  exactly the orphaned-`python.exe` scenario the VM finding (2026-07-25) that added
+  this function was chasing. The common case (taskkill exits non-zero because the
+  tree is already gone) stays silent by design - only the genuine double-failure now
+  logs, so it doesn't spam a line on every normal close. Covered by
+  `electron/test/kill-backend-tree.test.js`.
+
+Gate: `cd electron; npm test` - 204 pass / 1 opt-in skip (was 201/1) after both fixes
+and their 3 new tests.
+
+### Reviewed and deliberately left as-is (do NOT re-flag without new evidence)
+- **`pip-progress.js` / `install.js`'s `makePipLineHandler`/`pipStatusReporter`**: no
+  log-spam risk. The per-line callback only sends IPC status to the setup renderer
+  (already deduped so repeated identical pip lines produce one send, not one per
+  tick) and never calls `logSetup` itself; on failure the *caller* logs the full
+  accumulated `err.stdout`/`err.stderr` once. So a successful install writes zero
+  pip-progress noise to the log, and a failed one writes the transcript exactly
+  once - the right tradeoff already in place.
+- **`electron-config.js` `loadElectronConfig()`'s corrupt-JSON-to-`{}` fallback**:
+  considered logging this (a corrupted `electron-config.json` silently resets
+  `projectDir` to the default with no trace of *why*), but left it unlogged.
+  `electron-config.js` is deliberately Electron-free pure I/O (Phase 3 test
+  coverage note), the corruption path requires a crash mid-write with no atomic
+  write in place (a separate, lower-priority bug-hunt-shaped concern, not a
+  logging one), and `main.js` already logs the resulting `Project dir: ${projectDir}`
+  unconditionally right after load - so the *effect* is traceable even though the
+  *cause* isn't. Revisit only if a real corrupted-config report surfaces.
+- **`registry-path.js` / `refreshPathFromRegistry`'s per-hive `try/catch` around
+  `reg query`**: left silent. A missing `HKCU`/`HKLM` `Path` value is the expected,
+  common case (most machines only set one), not an error - logging it would add a
+  line to the setup log on every single "Check again" click and every restart for
+  no diagnostic gain.
+- **`main.js` Python-subprocess-crash logging (the "orphaned Python process" and
+  "backend crashed" scenarios in the phase brief)**: already sufficient, no change.
+  Every stdout/stderr line from `pyProc` is streamed to the log continuously via
+  `pyProc.stderr.on('data', ...)` (prefixed `[backend]`) as it happens, so the exit
+  line `Backend exited unexpectedly (code ${code})` always has the real stderr
+  immediately above it in the log - equivalent to an explicit "stderr tail" without
+  needing to buffer and re-append one.
+
+## Phase 4 refactor for quality - full-app review section 11, Electron wrapper (2026-07-26)
+
+Structural survey (function-length heat map) + full read of all 25 in-scope files
+(`main.js` 1563 lines in full, plus every split-out helper). The directory is already
+exemplary: 23 small single-concern helper modules with strong WHY comments, one
+orchestrator (`main.js`). Only ONE genuine refactor landed.
+
+### Refactored
+- `main.js`: extracted `wireVenvMinimize(win)` - the identical 4-line frameless-window
+  minimize wiring (`removeAllListeners` + `ipcMain.on('venv:minimize', ...)` +
+  `win.on('closed', teardown)`) was duplicated verbatim in `showStartupLoadingWindow`
+  and `showVenvSetupWindow`. It encodes one non-obvious invariant (a single global
+  channel rebound to the current window and torn down on close), so a helper is the
+  right home. Behavior identical; `ipcMain.on('venv:minimize'` literal preserved so
+  `venv-preload.test.js`'s source-text assertion still passes. 201 pass / 1 skip.
+
+### Reviewed and deliberately left as-is (do NOT re-flag without new evidence)
+- **`showSetupWizard` (~132 lines, the largest function)**: Keep inline. It is a
+  Promise executor whose five `ipcMain.once` handlers (`setup:complete/quit/close/skip`)
+  and the `closed` handler all share `resolve`/`reject`/`win`/`mode`/`rerun` through the
+  closure. Extracting any handler forces threading `resolve`/`reject` + window state out
+  as parameters, producing more coupling and confusion than the length costs (the exact
+  case the refactor skill says to leave inline). The distinct lifecycle branches are
+  already individually commented.
+- **The three preload files (`preload.js`/`venv-preload.js`/`setup-preload.js`)**: Keep
+  separate. The task hypothesis of "duplicated `contextBridge.exposeInMainWorld`
+  boilerplate" does not hold - each exposes a distinct bridge (`electronAPI`/`venvAPI`/
+  `setupAPI`) with entirely different channels for a different window/preload target.
+  There is no shared knowledge to extract; the single `exposeInMainWorld` line each is
+  irreducible.
+- **`try { <webContents>.send(ch, payload) } catch (_) {}` "safe-send" idiom (~8 sites)**:
+  Keep as-is. Every site is already wrapped in a locally-named closure (`send`,
+  `sendStatus`, `progress`, `reportStatus`) that centralizes the guard per context, and
+  the payload shape/channel differs at each. A generic `safeSend(webContents, ch, payload)`
+  would add cross-cutting churn to the critical boot path for a one-line-each gain. The
+  two identical `progress` closures (`runPrebuiltEnvSetup`/`runPipVenvSetup`) are the only
+  true duplicate pair - rule-of-two, one line, left alone.
+- **`setup:pick-folder` vs `project:pick-folder` folder pickers**: Keep separate. Same
+  dialog options but different target window (`wizardWin` vs `mainWindow`) and different
+  IPC-registration lifecycle (`registerWizardIPC` vs `registerProjectIPC`); coincidental
+  similarity, not shared knowledge.
+- **`gpu-detect.js` / `recommend-model.js` thresholds vs the Python side**: No
+  cross-language constant drift. The electron-side VRAM/disk thresholds
+  (`STRONG_VRAM_MB`, `recommendWhisperModel` bands) are wizard-recommendation heuristics
+  that live only here; the recommended *model* itself is read from the generated
+  `shared/catalog-data.json` (the anti-drift seam), not a hand-copied literal.
+- **Inline loading-screen HTML colour literals (`loadingScreenUrl`,
+  `showVenvSetupWindow`)**: Out of scope for the no-hardcoded-colour rule, which the
+  project scopes to `static/*` CSS/JS and the wizard `<style>` (enforced by
+  `test_static_theme_colors.py`). These are throwaway data:-URL boot splashes in the
+  Electron main process, not themed app chrome. Not touched.
+
+## Phase 3 test coverage - full-app review section 11, Electron wrapper (2026-07-26)
+
+Closed the Phase 1 gap: `electron-config.js`, `preload.js`, `venv-preload.js` had no
+dedicated test file. Added 27 tests across 4 new files (202 tests total, 201 pass + 1
+opt-in skip).
+
+- `electron-config.js` is a plain `fs`/`path` module (no Electron import) - directly
+  `require`-able under `node --test`. Added `test/electron-config.test.js`: real fs I/O
+  against a temp `APPDATA` dir (matches `constants.js`'s "derived from env at load time"
+  contract - the override happens before the first `require` of `constants`/
+  `electron-config`, and `node --test`'s default one-process-per-file isolation keeps it
+  from leaking into other test files). Covers `loadElectronConfig` (missing file, corrupt
+  JSON -> `{}`), `saveElectronConfig` (create, merge, overwrite), `writeProjectConfig`
+  (create, merge, overwrite, corrupt-existing-starts-fresh).
+- `preload.js` and `venv-preload.js` are Electron preload scripts: `require('electron')`
+  only resolves to the real module inside a running Electron process, so they cannot be
+  `require`-d under plain `node --test` (confirmed by reading them - both are
+  `contextBridge.exposeInMainWorld` calls with zero-logic one-line forwarders, nothing
+  to unit-test in isolation even if they could be loaded). Used the project's own
+  established pattern for this exact situation - `restore-backup.test.js`'s "main.js
+  can't be required directly, assert on its source" comment - and applied it here too:
+  `test/preload.test.js` and `test/venv-preload.test.js` assert via regex against the
+  preload source AND cross-check `main.js`'s source for the matching `ipcMain.on`/
+  `.handle`/`webContents.send`, so a future edit that drops or renames either side of an
+  IPC channel breaks a test instead of silently going stale.
+- Given the Phase 2 `redactPaths()` bug (a redaction function), audited the rest of
+  `logging.js` and `install-error.js` for other privacy-sensitive logic. Found none in
+  `install-error.js` (it classifies stderr text into user-facing hints; no redaction, and
+  its own comment already states the raw message is logged by the caller, never shown).
+  `logging.js`'s `rotateLogs`/`logSetup` had no test file at all (only `redactPaths` was
+  covered, in `log-redact.test.js`) - added `test/logging.test.js`: ring-buffer rotation
+  (no-op, single shift, full-ring shift-and-drop-oldest), BOM-on-fresh-log (written once,
+  not re-written on append), append-not-overwrite with timestamps, and one integration
+  test pinning that `logSetup` actually runs its message through `redactPaths` before
+  writing to disk (the two units were previously tested in isolation from each other).
+
+## Phase 2 bug hunt - full-app review section 11, Electron wrapper (2026-07-26)
+
+Read all 25 in-scope source files (main.js in full, plus every split-out helper)
+with the bug-hunt categories in mind. Only ONE real bug surfaced; the rest of the
+process-management/path-safety code is already hardened (atomic .incoming extract +
+version-marker gating, taskkill /T tree-kill on Windows with a POSIX start_new_session
+comment, AbortController download-cancel race handling, http/https-guarded openExternal,
+contextIsolation preloads exposing a minimal bridge, `--n-gpu-layers` never hardcoded).
+
+### Fixed
+- `logging.js` `redactPaths()` excluded whitespace from the username char class, so a
+  Windows local-account profile folder with a space (`C:\Users\John Doe\...`) redacted
+  only to `C:\Users\<user> Doe\...` - leaking the surname in a shared log, defeating the
+  function's whole purpose. Changed the segment to run to the next path separator (still
+  terminated by `\r\n` so redaction can't swallow a following log line). Locked in by
+  three new cases in `test/log-redact.test.js` (spaced username, macOS spaced home,
+  end-of-line non-swallow).
+
+### Deferred - NEEDS HUMAN DECISION, do not "fix" unilaterally
+- No `app.requestSingleInstanceLock()` in `main.js`. Two rapid first-run launches (double
+  double-click, before the server binds a port) both enter `ensureVenv()` and race on the
+  same `VENV_DIR` / `.incoming` (concurrent `rmSync` + tar extract → possible corruption).
+  On a *second* launch after setup, `resolvePort()`'s "YuuClip already using 8080" dialog
+  already catches the duplicate, so the window is first-run-only. Adding the standard
+  single-instance lock would strictly improve robustness but changes second-launch
+  behavior (focus existing window vs the current port dialog) - a lifecycle-design call,
+  flagged rather than made.
+
+### Verified good, do NOT re-flag
+- `media-serve.js` path-traversal guard (`isPathInside` via `path.relative`) + the
+  main.js allowlist (proxies-root containment OR exact backend-confirmed path) is the
+  intended two-tier check; `parseRange` returning 416 for a suffix range larger than the
+  file is a deliberate, low-stakes deviation (`<video>` never emits it - see the comment).
+- `restore-backup.js` validates via the Python restore CLI's exit codes (2 = project
+  exists → offered "Replace" with a pre-restore DB safety copy) before any live overwrite;
+  it does not itself mutate the installation, so the Section 7 validate-before-mutate class
+  of bug does not apply here.
+- `install.js` `downloadFileWithProgress` closes the write stream before unlinking the
+  `.part` on every failure path (Windows EPERM landmine), caps redirects, and checks
+  content-length truncation - resource-leak-clean on the exception path.
+
+## Phase 1 test integrity - full-app review section 11, Electron wrapper (2026-07-26)
+
+### Verified good, do NOT re-flag - `electron/test/*.js` suite is clean, no changes made
+
+Read all 24 test files (173 tests, 172 pass + 1 opt-in skip) against the 25 in-scope
+source files. Every test name already reads as a behavior sentence ("recommends
+large-v3 at 6 GB+ VRAM", "an empty registryPath leaves the current PATH unchanged"),
+boundary conditions are tested explicitly (VRAM/disk thresholds, range-header edges),
+stubs are minimal and swap only the real OS/process call (`existsSyncStub`, the
+`nvidia-smi` callback in `gpu-detect.test.js`), and there is no snapshot testing,
+sleep-based timing assertion, hidden inter-test coupling, or tautological mock.
+Nothing needed a rewrite.
+
+Two things worth recording so a later pass doesn't waste time re-deciding them:
+- `main.js` cannot be `require()`d directly (needs the Electron runtime), so
+  `restore-backup.test.js`, `rerun-reload.test.js`, and
+  `startup-loading-status.test.js` assert against `main.js`'s source text
+  (`ipcMain.handle(...)`, branch-scoped regex slices) instead of calling exported
+  functions. Each file carries its own comment explaining why. This is a deliberate,
+  consistently-applied pattern for this one file, not drift - keep it.
+- `electron-config.js`, `preload.js`, and `venv-preload.js` have no direct
+  `electron/test/*.js` file (only referenced indirectly, e.g. via the smoke test or
+  not at all). That's a coverage gap, not a test-integrity defect - it belongs to a
+  future `shqr-test-coverage-review` pass over `electron/`, not this one.
+
+
 
 UX/UI walk over the shared app chrome every screen renders inside of: the header/nav,
 sidebar, all 22 modals + their shared confirm/alert pattern, toast/job-pill feedback,

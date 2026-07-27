@@ -352,3 +352,65 @@ settled by the 2026-07-23/24 full-surface UX review - single document-level
 focus trap + boot-time modal a11y stamping, consistent danger/primary confirm
 styling, `:focus-visible` + `prefers-reduced-motion` support, and a genuinely
 welcoming onboarding flow all hold up.
+
+## Section 11 - Electron wrapper (Phases 1-3 done; one item needs a human decision)
+
+Phase 1 (test integrity) found the whole section's 173-test Node suite
+already clean - no fixes needed. One coverage gap noted for Phase 3:
+`electron-config.js`, `preload.js`, `venv-preload.js` have no dedicated test
+file.
+
+Phase 2 (bug hunt) found and fixed a real privacy bug plus deferred one
+lifecycle-design question:
+- **RESOLVED (fixed):** `electron/logging.js::redactPaths()` - the username
+  char class in its Windows/macOS home-path redaction excluded whitespace, so
+  a spaced profile folder (`C:\Users\John Doe\...`) redacted only to
+  `C:\Users\<user> Doe\...`, leaking the surname into shared/uploaded logs.
+  Fixed to run to the next path separator (still terminated by `\r\n`).
+- **`electron/main.js`** - no `app.requestSingleInstanceLock()`, so two rapid
+  first-run launches can race on `VENV_DIR`/`.incoming` extraction (a second
+  launch after setup is already caught by the port-8080 duplicate dialog, so
+  this is first-run-only). Deferred as a human-decision item: the standard
+  fix (focus the existing window on a second launch) changes current
+  behavior, which is a lifecycle-design call, not a clear-cut bug fix.
+
+Phase 3 (test coverage) closed the Phase 1 gap: added `test/electron-config.test.js`
+(real fs I/O, directly `require`-able), and `test/preload.test.js` /
+`test/venv-preload.test.js` (source-text assertions cross-checked against `main.js`'s
+IPC wiring, the same pattern `restore-backup.test.js` already uses for `main.js` itself
+- the two preload scripts can't be `require`-d outside a running Electron process, and
+are zero-logic `contextBridge` forwarders regardless). Also added
+`test/logging.test.js` for `rotateLogs`/`logSetup`, which had no coverage of their own
+(only `redactPaths` was tested), including one test pinning that `logSetup` redacts
+before writing to disk. 202 tests total, 201 pass + 1 opt-in skip. See
+`REVIEW_DECISIONS.md`'s "Phase 3 test coverage" entry for the full rationale.
+
+Still open: the `app.requestSingleInstanceLock()` lifecycle-design call above.
+
+Phase 4 (refactor): extracted `wireVenvMinimize()` in `main.js` (deduped
+identical frameless-window minimize wiring). Phase 5 (logging): a failed
+restore now logs the actual cause, and the "both taskkill and kill() failed"
+orphaned-process scenario now logs instead of failing silently. Phase 6
+(docs): clean - no comment/terminology issues found; this was the first
+terminology check of electron/'s user-facing strings against GLOSSARY.md, no
+drift found.
+
+Phase 7 (UX/UI) - the first UX review of this surface (the 2026-07-23/24
+full-surface review was scoped to the browser web UI, not the desktop
+wizard/install flow). Fixed a real WCAG 3.1.1 gap (missing `lang="en"` on the
+two generated boot-window HTML documents - the very first windows a new user
+sees). Confirmed the first-run experience is otherwise exemplary (reassuring
+progress feedback with a stall watchdog, honest plain-English error recovery
+with no dead ends, well-handled informed consent for the multi-GB model
+download). Three Low findings deferred:
+- **Frameless boot/setup windows' minimize control** is a `<div>`+onclick,
+  not a focusable `<button>` (no keyboard minimize). Consistent with this
+  project's accepted pointer-only-input calls for a mouse-first desktop tool;
+  these are transient windows.
+- **The in-wizard GGUF download** (the Advanced-disclosure "download now"
+  path) has no stall watchdog or speed/ETA, unlike the venv-setup window's
+  watchdog - it still shows a moving %/GB bar + Cancel, clearing the "active
+  indicator" floor. Adding a watchdog/ETA would be a feature addition, not a
+  bug fix.
+- **Cosmetic:** `working...` / `elapsed 0:00` micro-labels are lowercase
+  where the rest of the app title-cases. Not worth the churn on its own.

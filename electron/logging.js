@@ -12,11 +12,15 @@ const MAX_LOG_FILES = 5;
 
 // Strip the account-name segment from home paths (\Users\<name>, /Users/<name>,
 // /home/<name>) so a shared log doesn't leak the user's OS username. Everything
-// after the name (the app subpaths) is kept so the log stays diagnosable.
+// after the name (the app subpaths) is kept so the log stays diagnosable. Spaces
+// are part of the name (Windows local accounts like "John Doe" have a spaced
+// profile folder), so the segment runs to the next path separator, not the next
+// space - stopping at a space would leak the rest of the name. Newlines still
+// terminate it so redaction can't swallow a following log line.
 function redactPaths(text) {
   return String(text)
-    .replace(/([A-Za-z]:[\\/]Users[\\/])([^\\/\s"'<>|)]+)/gi, '$1<user>')
-    .replace(/(\/(?:home|Users)\/)([^/\s"'<>|)]+)/g, '$1<user>');
+    .replace(/([A-Za-z]:[\\/]Users[\\/])([^\\/"'<>|)\r\n]+)/gi, '$1<user>')
+    .replace(/(\/(?:home|Users)\/)([^/"'<>|)\r\n]+)/g, '$1<user>');
 }
 
 function rotateLogs() {
