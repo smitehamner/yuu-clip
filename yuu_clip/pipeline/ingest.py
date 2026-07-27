@@ -59,9 +59,12 @@ def _parse_srt(text: str) -> list[tuple[int, int, str]]:
         )
         if not m:
             continue
-        g = [int(x) for x in m.groups()]
-        start_ms = (g[0] * 3600 + g[1] * 60 + g[2]) * 1000 + g[3]
-        end_ms   = (g[4] * 3600 + g[5] * 60 + g[6]) * 1000 + g[7]
+        raw = m.groups()
+        g = [int(x) for x in raw]
+        start_frac_ms = int(raw[3].ljust(3, "0")[:3])
+        end_frac_ms = int(raw[7].ljust(3, "0")[:3])
+        start_ms = (g[0] * 3600 + g[1] * 60 + g[2]) * 1000 + start_frac_ms
+        end_ms   = (g[4] * 3600 + g[5] * 60 + g[6]) * 1000 + end_frac_ms
         text_body = " ".join(lines[2:]).strip()
         if text_body:
             segments.append((start_ms, end_ms, text_body))
@@ -678,7 +681,9 @@ def _transcribe_and_check_overlap(
             )
             continue
         if not track.extracted_path:
+            transcribe_done += 1
             console.print(f"  [yellow]  Track {idx} of {total_tracks} - no extracted audio, skipping[/yellow]")
+            emit_progress(Stage.TRANSCRIBE, done=transcribe_done, total=transcribe_total)
             continue
 
         transcribe_done += 1

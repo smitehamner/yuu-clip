@@ -3481,6 +3481,12 @@ class TestParseSrt:
         srt = "1\nnot a timestamp\ntext here\n\n2\n00:00:01,000 --> 00:00:02,000\nok"
         assert self._parse(srt) == [(1000, 2000, "ok")]
 
+    def test_non_three_digit_fraction_scaled_to_milliseconds(self):
+        # "5" is a tenths digit (500ms), "50" is hundredths (500ms), "500" is
+        # already milliseconds - all three represent the same instant.
+        assert self._parse("1\n00:00:01,5 --> 00:00:02,50\nx")[0] == (1500, 2500, "x")
+        assert self._parse("1\n00:00:01,500 --> 00:00:02,5000\nx")[0] == (1500, 2500, "x")
+
 
 class TestFfmpegStderrTail:
     def _tail(self, stderr, **kw):
