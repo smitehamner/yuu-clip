@@ -13,6 +13,8 @@ import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
+from yuu_clip.atomicwrite import atomic_write_text, read_json_object_or_backup_corrupt
+
 _log = logging.getLogger(__name__)
 
 _CONTEXTS_FILE = "contexts.json"
@@ -154,7 +156,8 @@ def seed_builtin_contexts(project_dir: Path) -> None:
 def save_contexts(project_dir: Path, contexts: dict) -> None:
     p = _path(project_dir)
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(contexts, indent=2, ensure_ascii=False), encoding="utf-8")
+    read_json_object_or_backup_corrupt(p, _log, "contexts.json")  # preserve corrupt bytes before overwrite
+    atomic_write_text(p, json.dumps(contexts, indent=2, ensure_ascii=False))
 
 
 WEIGHT_FIELDS = ("score_funny_weight", "score_dramatic_weight", "score_action_weight")

@@ -8,9 +8,13 @@ against one), stored in the global config dir alongside config.json.
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 from yuu_clip import config as _config
+from yuu_clip.atomicwrite import atomic_write_text, read_json_object_or_backup_corrupt
+
+_log = logging.getLogger(__name__)
 
 TRACK_LABELS = ["player_voice", "ingame_voicechat", "game_sounds", "combined", "unlabeled"]
 
@@ -56,7 +60,8 @@ def load_profiles() -> dict:
 def _write_profiles(profiles: dict) -> None:
     p = _profiles_path()
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(profiles, indent=2), encoding="utf-8")
+    read_json_object_or_backup_corrupt(p, _log, "profiles.json")  # preserve corrupt bytes before overwrite
+    atomic_write_text(p, json.dumps(profiles, indent=2))
 
 
 def save_profile(name: str, assignments: list[dict]) -> None:

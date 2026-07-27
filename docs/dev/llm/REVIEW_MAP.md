@@ -100,6 +100,7 @@ The largest area - review in three sub-passes.
 
 ### 4c - Aggregation & post-scoring
 - `scoring/engine.py` - combines scorer results into overall (Visual axis / 3.5 denom)
+- `scoring/scorer_set.py` - single-registration Scorer assembly (no per-scorer branches)
 - `scoring/dedup.py` - duplicate-clip detection
 - `scoring/similarity.py` - embedding similarity (bge-small)
 - `scoring/term_scope.py` - context-scoped term filtering
@@ -107,7 +108,7 @@ The largest area - review in three sub-passes.
 Tests: `tests/unit/test_scoring_*.py`, `test_scoring_llm.py`, `test_llamacpp_server.py`,
 `test_dedup.py`, `test_similarity.py`, `test_term_scope.py`, `test_describe_basic.py`,
 `test_privacy_modes.py`, `test_preflight_llm.py`, `tests/integration/test_llm.py`,
-`test_vision.py`, `test_scoring_routes.py`, `test_dedup_route.py`
+`test_vision.py`, `test_scoring_routes.py`, `test_dedup_route.py`, `test_scorer_set.py`
 
 ---
 
@@ -181,11 +182,16 @@ The server scaffolding beneath the already-mapped routes.
 - `web/app.py` - FastAPI factory + lifespan (graceful shutdown)
 - `web/deps.py` - `ProjectContext` shared state
 - `web/sse.py` - subprocess -> SSE streaming
+- `web/jobevents.py` - typed SSE job-event protocol (v1): event/outcome names, progress
+  stage registry, frame builders, `parse_event` (mirrored by `static/core/jobevents.js`)
+- `web/security.py` - `LoopbackGuardMiddleware` + host-policy binding (localhost threat model)
 - `web/analyze_job.py` - in-process analyze-job tracking (`AnalyzeJob`)
 - `web/media.py` - video/media streaming helpers
 - `web/file_deletion.py` - resilient deletion + Windows file-lock diagnosis
 
-Tests: `tests/ui/test_ui_sse.py`, `tests/unit/test_route_db_hygiene.py`
+Tests: `tests/ui/test_ui_sse.py`, `tests/unit/test_route_db_hygiene.py`,
+`tests/unit/test_jobevents.py`, `tests/unit/test_security.py`,
+`tests/integration/test_security_middleware.py`
 
 ---
 
@@ -199,6 +205,9 @@ Tests: `tests/ui/test_ui_sse.py`, `tests/unit/test_route_db_hygiene.py`
 - `ffmpeg_tools.py` - shared ffmpeg/ffprobe subprocess helper (`run_ffmpeg`, `find_ffmpeg`)
 - `appversion.py` - `app_version()` (shared package-version lookup)
 - `pathsafety.py` - `is_within()` (shared path-traversal-guard predicate)
+- `atomicwrite.py` - `atomic_write_text()` / `read_json_object_or_backup_corrupt()`
+  (shared atomic-write + corrupt-file-preservation for config.json/contexts.json/
+  profiles.json), used by `config.py`, `contexts.py`, `track_labels.py`
 - `track_labels.py` - track-layout ("profile") save/load persistence
 - `recent_projects.py` - recently-opened-project list persistence
 - `update_check.py` - GitHub release update check (notify-only)
@@ -207,7 +216,8 @@ Tests: `tests/ui/test_ui_sse.py`, `tests/unit/test_route_db_hygiene.py`
 Tests: `tests/unit/test_log_redact.py`, `test_hf_cache.py`, `test_url_import.py`,
 `tests/integration/test_url_import_routes.py`, `test_backup.py`, `test_restore.py`,
 `tests/unit/test_run_ffmpeg.py`, `test_appversion.py`, `test_pathsafety.py`,
-`test_update_check.py`, `test_whisper_catalog.py`, `tests/integration/test_projects.py`
+`test_atomicwrite.py`, `test_update_check.py`, `test_whisper_catalog.py`,
+`tests/integration/test_projects.py`
 
 ---
 

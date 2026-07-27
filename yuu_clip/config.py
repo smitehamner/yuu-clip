@@ -21,6 +21,7 @@ from typing import Iterable, Optional
 
 from platformdirs import user_config_dir, user_data_dir
 
+from yuu_clip.atomicwrite import atomic_write_text, read_json_object_or_backup_corrupt
 from yuu_clip.export.naming import (  # noqa: F401 (re-exported for routes/config.py)
     DEFAULT_EXPORT_NAME_TEMPLATE,
     validate_export_name_template,
@@ -199,21 +200,7 @@ def _read_layer_for_overlay(path: Path) -> dict:
     destroyed. If a .corrupt.bak already exists it is overwritten - the older
     backup was already a dead artifact (single-user tool; keep it simple).
     """
-    if not path.exists():
-        return {}
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-        if not isinstance(data, dict):
-            raise ValueError("top-level config is not an object")
-        return data
-    except (ValueError, OSError):
-        backup = path.with_name(path.name + ".corrupt.bak")
-        path.replace(backup)
-        _log.warning(
-            "config.json at %s was unreadable - backed up to %s and rewritten",
-            path, backup,
-        )
-        return {}
+    return read_json_object_or_backup_corrupt(path, _log, "config.json")
 
 
 def _overlay_layer(path: Path, config: "Config", keys: Iterable[str]) -> None:
@@ -221,7 +208,7 @@ def _overlay_layer(path: Path, config: "Config", keys: Iterable[str]) -> None:
     on_disk = _read_layer_for_overlay(path)
     snapshot = asdict(config)
     on_disk.update({key: snapshot[key] for key in keys})
-    path.write_text(json.dumps(on_disk, indent=2), encoding="utf-8")
+    atomic_write_text(path, json.dumps(on_disk, indent=2))
 
 
 # Keys owned solely by the GLOBAL layer. Used only by the one-time cleanup
@@ -249,7 +236,7 @@ def strip_global_only_keys_from_project(project_dir: Path) -> bool:
         return False
     for key in frozen:
         del data[key]
-    cfg_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    atomic_write_text(cfg_path, json.dumps(data, indent=2))
     _log.warning(
         "Config: removed global-only key(s) %s frozen into %s by an older save",
         sorted(frozen), cfg_path,
