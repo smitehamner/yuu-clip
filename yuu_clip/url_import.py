@@ -373,6 +373,16 @@ def download_video(url: str, output_dir: Path, *, progress_line_cb=print) -> Pat
     _log.info("Using ffmpeg for merge: %s (exists=%s)", ffmpeg_exe, Path(ffmpeg_exe).is_file())
     ydl_opts = {
         "quiet": True,
+        # quiet alone does not stop yt-dlp's own \r-based progress-bar renderer -
+        # it kept writing "[download]  NN.N% of ..." straight to the same pipe our
+        # progress_hooks-driven print() uses, with no trailing \n between the two.
+        # The web UI's line reader then saw both halves glued into one string, so
+        # its anchored ^[Download] regex never matched and the progress widget
+        # stayed frozen even though the raw log panel (which just echoes the whole
+        # line) visibly showed numbers changing (found 2026-07-28, local release
+        # test w/ a longer video). noprogress explicitly disables that renderer -
+        # progress_hooks is our only source of progress lines.
+        "noprogress": True,
         "no_warnings": True,
         "noplaylist": True,
         "format": FORMAT_SELECTOR,

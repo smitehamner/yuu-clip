@@ -416,6 +416,16 @@ class TestDownloadVideo:
         monkeypatch.setattr("yt_dlp.YoutubeDL", fake_ydl)
         return mod
 
+    def test_disables_yt_dlps_own_progress_bar(self, tmp_path, monkeypatch):
+        """noprogress must be set - without it yt-dlp's own \\r-terminated progress
+        text lands on the same pipe as our progress_hooks print() with no newline
+        between them, so the browser's anchored ^[Download] regex never matches a
+        concatenated line and the progress widget stays stuck (found 2026-07-28)."""
+        fake_ydl = _FakeYDL("mkv")
+        mod = self._patch_common(monkeypatch, fake_ydl)
+        mod.download_video("https://youtu.be/vid123", tmp_path)
+        assert fake_ydl._opts["noprogress"] is True
+
     def test_points_yt_dlp_at_the_resolved_ffmpeg_directory(self, tmp_path, monkeypatch):
         """yt-dlp defaults to searching PATH for ffmpeg/ffprobe - on a machine with
         no system FFmpeg (the packaged app's baseline), an unset ffmpeg_location
