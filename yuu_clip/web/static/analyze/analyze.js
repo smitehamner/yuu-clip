@@ -632,11 +632,12 @@ async function _doStartAnalyze() {
 function _streamAnalyzeEvents(filename) {
   streamSSE(
     '/api/analyze/events',
-    async () => {
+    async outcome => {
       await loadVideos();
       const v = AppState.videos.find(x => x.filename === filename);
       AppState.analyzeFilename = null;
       _rerenderActiveVideoDetail();
+      if (outcome === 'cancelled') return;
       _showAnalysisToast(v);
       _surfaceAnalyzeWarnings(v);
       SoundFx.play('analysis');
