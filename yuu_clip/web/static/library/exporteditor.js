@@ -23,9 +23,10 @@ import { ensureExportPresetsCache, exportPresetIsVertical, exportPresetTargetSiz
 // does (no new timing model, no new encode path) and, on Export, runs the exact
 // single-clip export SSE the dialog uses.
 //
-// Own inline preview <video>: PanelNav's panel visually covers #player-area
-// (known coverage bug), so the editor never relies on the main player - it
-// embeds its own, proxy-preferred, exactly like the manual-clip picker.
+// Own inline preview <video>: PanelNav's panel takes over the detail pane,
+// covering #player-area (by design - see panelnav.js), so the editor never
+// relies on the main player - it embeds its own, proxy-preferred, exactly
+// like the manual-clip picker.
 
 let _edClipId       = null;
 let _edClip         = null;   // saved baseline (start_offset/end_offset/crop_x)
@@ -161,20 +162,33 @@ function _edMount(container) {
       <span id="ed-badge" role="status"
             style="display:none;position:absolute;top:8px;left:8px;background:rgba(0,0,0,.7);color:var(--on-scrim);font-size:11px;padding:3px 8px;border-radius:4px"></span>
     </div>
+    <div id="ed-trim-bar" role="group" aria-label="Clip trim range - drag the handles or use arrow keys"
+         style="position:relative;height:34px;margin-top:2px;background:var(--surface-2);border:1px solid var(--border);border-radius:6px"></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:-4px">
+      <button class="btn ghost" id="ed-reset-trim" style="font-size:11px;padding:2px 8px" title="Restore both the start and end to the originally detected clip window">&#8634; Reset to original</button>
+    </div>
     <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center">
-      <button class="btn ghost" id="ed-play-btn" title="Play the trimmed clip on a loop">&#9654; Play selection</button>
-      <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)">Start
+      <div style="display:flex;gap:8px">
+        <button class="btn ghost" id="ed-play-btn" title="Play from the start of the selection">&#9654; Play selection</button>
+        <button class="btn ghost" id="ed-play-end-btn" title="Play the last 3 seconds of the selection - useful for checking where it cuts off">&#9654; Play last 3s</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);border-left:1px solid var(--border);padding-left:14px">Start
         <button class="btn ghost ed-nudge" data-edge="start" data-delta="-0.5" title="Start 0.5s earlier">&minus;0.5s</button>
-        <strong id="ed-start-read" style="color:var(--text);font-family:monospace;min-width:70px;text-align:center"></strong>
+        <span style="display:flex;flex-direction:column;align-items:center;min-width:140px;line-height:1.3">
+          <strong id="ed-start-delta" style="color:var(--text)"></strong>
+          <span id="ed-start-read" style="font-family:monospace;font-size:10px;color:var(--muted)"></span>
+        </span>
         <button class="btn ghost ed-nudge" data-edge="start" data-delta="0.5" title="Start 0.5s later">+0.5s</button>
       </div>
-      <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)">End
+      <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);border-left:1px solid var(--border);padding-left:14px">End
         <button class="btn ghost ed-nudge" data-edge="end" data-delta="-0.5" title="End 0.5s earlier">&minus;0.5s</button>
-        <strong id="ed-end-read" style="color:var(--text);font-family:monospace;min-width:70px;text-align:center"></strong>
+        <span style="display:flex;flex-direction:column;align-items:center;min-width:140px;line-height:1.3">
+          <strong id="ed-end-delta" style="color:var(--text)"></strong>
+          <span id="ed-end-read" style="font-family:monospace;font-size:10px;color:var(--muted)"></span>
+        </span>
         <button class="btn ghost ed-nudge" data-edge="end" data-delta="0.5" title="End 0.5s later">+0.5s</button>
       </div>
-      <div style="font-size:13px;font-weight:600;color:var(--text)">Duration <span id="ed-duration" style="font-family:monospace"></span></div>
-      <button class="btn ghost" id="ed-reset-trim" style="font-size:12px" title="Reset the trim to the original clip window">Reset trim</button>
+      <div style="font-size:13px;font-weight:600;color:var(--text);border-left:1px solid var(--border);padding-left:14px">Duration <span id="ed-duration" style="font-family:monospace"></span></div>
     </div>
     <div style="font-size:11px;color:var(--muted)">Click a line's <strong>&#8676;</strong> to start the clip there or <strong>&#8677;</strong> to end it. Highlighted lines are inside the clip.</div>
     <div id="ed-transcript" class="transcript" style="max-height:24vh;overflow-y:auto"><div class="transcript-empty">Loading transcript…</div></div>
@@ -229,10 +243,10 @@ function _edMount(container) {
         </div>
       </div>
       <div id="ed-mode-summary" style="font-size:12px"></div>
-      <div style="display:flex;gap:8px;justify-content:flex-end">
-        <button class="btn ghost" id="ed-cancel-btn">Cancel</button>
-        <button class="btn primary" id="ed-export-btn" data-job-blocked>Export</button>
-      </div>
+    </div>
+    <div style="position:sticky;bottom:0;z-index:1;background:var(--bg);border-top:1px solid var(--border);padding:10px 0 2px;display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn ghost" id="ed-cancel-btn">Cancel</button>
+      <button class="btn primary" id="ed-export-btn" data-job-blocked>Export</button>
     </div>`;
 
   _edWire(container);
@@ -243,7 +257,8 @@ function _edMount(container) {
 }
 
 function _edWire(container) {
-  document.getElementById('ed-play-btn').onclick   = _edPlaySelection;
+  document.getElementById('ed-play-btn').onclick     = _edPlaySelection;
+  document.getElementById('ed-play-end-btn').onclick = _edPlayEnding;
   document.getElementById('ed-reset-trim').onclick = _edResetTrim;
   document.getElementById('ed-cancel-btn').onclick = () => PanelNav.close();
   document.getElementById('ed-export-btn').onclick = _edExport;
@@ -355,7 +370,15 @@ function _edSetupPreview() {
     videoEl,
     document.getElementById('ed-badge'),
     _edVideo.id,
-    { autoBuild: true, isCurrent: () => _edVideo && _edClipId != null, sourcePath: _edVideo.source_path },
+    {
+      autoBuild: true, isCurrent: () => _edVideo && _edClipId != null, sourcePath: _edVideo.source_path,
+      // Without startS, a proxy-quality swap that resolves before _edOnMetadata's
+      // own seek has landed resumes at t=0 instead of the clip start (preview.js's
+      // own resumeAt fallback needs this to survive that race - see its comment on
+      // _useRecordingProxy). Found 2026-07-28: the preview stayed at 0:00 on open
+      // but seeked correctly once a trim handle was moved.
+      startS: _edSeekOffsetS + _edEffStartMs() / 1000,
+    },
   );
   videoEl.addEventListener('loadedmetadata', _edOnMetadata);
   videoEl.addEventListener('timeupdate', _edOnTimeUpdate);
@@ -451,6 +474,32 @@ function _edSetBoundaryToLine(edge, ms) {
   else                  _edApplyEndMs(ms);
 }
 
+// ── trim bar (pure math, DOM-free so it's directly unit-testable) ──────────────
+
+// The bar's visible domain: the same ±_ED_PAD_S context the transcript loads,
+// widened further if a boundary has been nudged past that padding so the
+// current selection is always fully on-screen.
+export function trimBarSpan(clipStartMs, clipEndMs, effStartMs, effEndMs, padMs) {
+  const startMs = Math.max(0, Math.min(clipStartMs - padMs, effStartMs));
+  const endMs = Math.max(clipEndMs + padMs, effEndMs);
+  return { startMs, endMs };
+}
+
+export function trimBarPercent(ms, spanStartMs, spanEndMs) {
+  const span = Math.max(1, spanEndMs - spanStartMs);
+  return (ms - spanStartMs) / span * 100;
+}
+
+// Same label for both edges: negative offset = boundary moved earlier than the
+// detected mark, positive = later. Verified against computeTrimBoundary's sign
+// convention for both 'start' and 'end' (a start offset is (startMs-clipStartMs),
+// an end offset is (requestedMs-clipEndMs) - both negative-is-earlier).
+export function formatOffsetDelta(offsetS) {
+  if (Math.abs(offsetS) < 0.05) return 'at the detected mark';
+  const abs = Math.abs(offsetS).toFixed(1).replace(/\.0$/, '');
+  return offsetS < 0 ? `${abs}s earlier than detected` : `${abs}s later than detected`;
+}
+
 function _edBoundaryCtx() {
   return {
     clipStartMs: _edClip.start_ms, clipEndMs: _edClip.end_ms,
@@ -492,10 +541,96 @@ function _edAfterBoundaryChange() {
 function _edRenderReadouts() {
   const startEl = document.getElementById('ed-start-read');
   const endEl   = document.getElementById('ed-end-read');
+  const startDeltaEl = document.getElementById('ed-start-delta');
+  const endDeltaEl   = document.getElementById('ed-end-delta');
   const durEl   = document.getElementById('ed-duration');
   if (startEl) startEl.textContent = fmtClock(_edEffStartMs());
   if (endEl)   endEl.textContent   = fmtClock(_edEffEndMs());
-  if (durEl)   durEl.textContent   = `${((_edEffEndMs() - _edEffStartMs()) / 1000).toFixed(1)}s`;
+  if (startDeltaEl) startDeltaEl.textContent = formatOffsetDelta(_edStartOffset);
+  if (endDeltaEl)   endDeltaEl.textContent   = formatOffsetDelta(_edEndOffset);
+  if (durEl) {
+    const durationS = (_edEffEndMs() - _edEffStartMs()) / 1000;
+    const deltaS = _edEndOffset - _edStartOffset;
+    durEl.textContent = Math.abs(deltaS) < 0.05
+      ? `${durationS.toFixed(1)}s`
+      : `${durationS.toFixed(1)}s (${deltaS > 0 ? '+' : ''}${deltaS.toFixed(1)}s)`;
+  }
+  _edRenderTrimBar();
+}
+
+// ── trim bar (DOM) ──────────────────────────────────────────────────────────────
+
+let _edFocusedTrimEdge = null;  // preserves keyboard focus across the bar's re-renders
+
+function _edRenderTrimBar() {
+  const bar = document.getElementById('ed-trim-bar');
+  if (!bar) return;
+  const { startMs, endMs } = trimBarSpan(_edClip.start_ms, _edClip.end_ms, _edEffStartMs(), _edEffEndMs(), _ED_PAD_S * 1000);
+  const effStart = _edEffStartMs(), effEnd = _edEffEndMs();
+  const pct = ms => trimBarPercent(ms, startMs, endMs).toFixed(3);
+  const startPct = pct(effStart), endPct = pct(effEnd);
+
+  bar.innerHTML = `
+    <div style="position:absolute;top:0;bottom:0;left:${startPct}%;width:${(endPct - startPct).toFixed(3)}%;background:color-mix(in srgb, var(--accent) 30%, transparent)"></div>
+    <div id="ed-trim-playhead" style="position:absolute;top:0;bottom:0;width:2px;background:var(--text);opacity:.6;pointer-events:none"></div>
+    <div class="ed-trim-handle" data-edge="start" role="slider" tabindex="0"
+         aria-label="Clip start" aria-valuemin="${Math.round(startMs)}" aria-valuemax="${Math.round(endMs)}" aria-valuenow="${Math.round(effStart)}"
+         title="Drag to move the clip start, or focus and use the arrow keys"
+         style="position:absolute;top:0;bottom:0;left:${startPct}%;width:12px;transform:translateX(-50%);cursor:ew-resize;background:var(--accent);border-radius:3px"></div>
+    <div class="ed-trim-handle" data-edge="end" role="slider" tabindex="0"
+         aria-label="Clip end" aria-valuemin="${Math.round(startMs)}" aria-valuemax="${Math.round(endMs)}" aria-valuenow="${Math.round(effEnd)}"
+         title="Drag to move the clip end, or focus and use the arrow keys"
+         style="position:absolute;top:0;bottom:0;left:${endPct}%;width:12px;transform:translateX(-50%);cursor:ew-resize;background:var(--accent);border-radius:3px"></div>`;
+
+  bar.querySelectorAll('.ed-trim-handle').forEach(handle => {
+    const edge = handle.dataset.edge;
+    handle.addEventListener('pointerdown', e => _edTrimHandlePointerDown(e, edge));
+    handle.addEventListener('keydown', e => _edTrimHandleKeydown(e, edge));
+    handle.addEventListener('focus', () => { _edFocusedTrimEdge = edge; });
+    handle.addEventListener('blur',  () => { if (_edFocusedTrimEdge === edge) _edFocusedTrimEdge = null; });
+    if (_edFocusedTrimEdge === edge) handle.focus();
+  });
+  _edUpdateTrimPlayhead();
+}
+
+function _edUpdateTrimPlayhead() {
+  const bar  = document.getElementById('ed-trim-bar');
+  const line = document.getElementById('ed-trim-playhead');
+  if (!bar || !line) return;
+  const { startMs, endMs } = trimBarSpan(_edClip.start_ms, _edClip.end_ms, _edEffStartMs(), _edEffEndMs(), _ED_PAD_S * 1000);
+  const pct = Math.max(0, Math.min(100, trimBarPercent(_edCurrentRecordingMs(), startMs, endMs)));
+  line.style.left = `${pct.toFixed(3)}%`;
+}
+
+// Window-level listeners (not on the handle itself) so a drag survives the
+// handle's own DOM node being replaced mid-drag when _edRenderTrimBar()
+// rebuilds the bar on every boundary change - same pattern as split.js's
+// _splitMarkerPointerDown.
+function _edTrimHandlePointerDown(e, edge) {
+  e.stopPropagation();
+  e.preventDefault();
+  const bar = document.getElementById('ed-trim-bar');
+  if (!bar) return;
+
+  function onMove(ev) {
+    const rect = bar.getBoundingClientRect();
+    const frac = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width));
+    const { startMs, endMs } = trimBarSpan(_edClip.start_ms, _edClip.end_ms, _edEffStartMs(), _edEffEndMs(), _ED_PAD_S * 1000);
+    const ms = startMs + frac * (endMs - startMs);
+    if (edge === 'start') _edApplyStartMs(ms);
+    else                  _edApplyEndMs(ms);
+  }
+  function onUp() {
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+  }
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+}
+
+function _edTrimHandleKeydown(e, edge) {
+  if (e.key === 'ArrowLeft')       { e.preventDefault(); _edNudge(edge, -0.5); }
+  else if (e.key === 'ArrowRight') { e.preventDefault(); _edNudge(edge, 0.5); }
 }
 
 // ── preview playback ──────────────────────────────────────────────────────────
@@ -518,6 +653,7 @@ function _edOnTimeUpdate() {
   const videoEl = document.getElementById('ed-video');
   if (!videoEl) return;
   _edUpdateCaptionOverlay(_edCurrentRecordingMs());
+  _edUpdateTrimPlayhead();
   if (!videoEl.paused) {
     const endParent = _edSeekOffsetS + _edEffEndMs() / 1000;
     if (videoEl.currentTime >= endParent - 0.03) {
@@ -542,6 +678,16 @@ function _edSeekMs(recordingMs, play) {
 
 function _edPlaySelection() {
   _edSeekMs(_edEffStartMs(), true);
+}
+
+// Judging where a clip cuts off is hard from "Play selection" alone on anything
+// longer than a few seconds, since it always starts from the top (found 2026-07-28,
+// owner UX feedback).
+const _ED_END_PREVIEW_S = 3;
+
+function _edPlayEnding() {
+  const previewStartMs = Math.max(_edEffStartMs(), _edEffEndMs() - _ED_END_PREVIEW_S * 1000);
+  _edSeekMs(previewStartMs, true);
 }
 
 // ── caption overlay (preview approximation) ───────────────────────────────────
@@ -712,6 +858,14 @@ async function _edExport() {
   btn.disabled = true;
   if (!await _edSaveEdits()) { btn.disabled = false; return; }
 
+  // Close the panel now rather than waiting for the job to finish: the trim/crop
+  // edits are already saved server-side, so nothing is lost, and closing now
+  // uncovers the header's job-status strip (progress + Cancel) instead of
+  // leaving the user staring at a greyed-out Export button with no visible
+  // progress for the whole run (found 2026-07-28, owner UX feedback - see the
+  // export-flow design review).
+  PanelNav.forceClose();
+
   const params = buildExportParams({
     captionMode: _edCaptionMode, preset: _edPreset, container: _edContainer,
     titleCard: _edTitleCard, retranscribe: _edRetranscribe, retxModel: _edRetxModel,
@@ -728,21 +882,15 @@ async function _edExport() {
         fetch(`/api/clips/${id}`).then(r => r.json()),
         fetch(`/api/clips/${id}/media_url`).then(r => r.json()),
       ]);
-      // Only jump the view to the exported clip if the user is still on its
-      // recording - switching recordings doesn't close this panel, so a
-      // background export finishing would otherwise yank them away from
-      // wherever they'd since navigated to (found 2026-07-28, owner UX
-      // feedback: sidebar didn't match the clip shown after export completed
-      // while browsing a different recording).
+      // Only refresh the player/detail in place if the user is still on this
+      // clip's recording - switching recordings while the export ran shouldn't
+      // yank them back (found 2026-07-28, owner UX feedback).
       if (clip.video_id === AppState.activeVideoId) {
         AppState.activeClipData = clip;
         AppState.activeMediaFilename = media.filename;
-        PanelNav.forceClose();
         const captionsUrl = media.has_captions ? `/api/clips/${id}/captions.vtt` : null;
         renderPlayer(media.url, captionsUrl, id);
         renderDetail(clip);
-      } else {
-        PanelNav.forceClose();
       }
       await _reloadClipList(AppState.activeVideoId);
       loadVideos();

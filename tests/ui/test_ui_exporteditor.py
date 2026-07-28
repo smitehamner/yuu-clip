@@ -101,17 +101,17 @@ class TestExportEditorTrim:
         # First context line starts at 2_000ms → extends clip start earlier.
         page.locator("#ed-transcript .tline").nth(0).locator(".ed-bound[data-edge='start']").click()
         expect(page.locator("#ed-start-read")).to_have_text("0:02")
-        expect(page.locator("#ed-duration")).to_have_text("6.0s")
+        expect(page.locator("#ed-duration")).to_have_text("6.0s (+4.0s)")
 
     def test_end_nudge_shortens_clip(self, page: Page):
         _open_editor(page)
         page.locator(".ed-nudge[data-edge='end'][data-delta='-0.5']").click()
-        expect(page.locator("#ed-duration")).to_have_text("1.5s")
+        expect(page.locator("#ed-duration")).to_have_text("1.5s (-0.5s)")
 
     def test_reset_trim_restores_original_window(self, page: Page):
         _open_editor(page)
         page.locator(".ed-nudge[data-edge='start'][data-delta='-0.5']").click()
-        expect(page.locator("#ed-duration")).to_have_text("2.5s")
+        expect(page.locator("#ed-duration")).to_have_text("2.5s (+0.5s)")
         page.click("#ed-reset-trim")
         expect(page.locator("#ed-duration")).to_have_text("2.0s")
 
@@ -121,10 +121,10 @@ class TestExportEditorTrim:
         end_nudge = page.locator(".ed-nudge[data-edge='end'][data-delta='-0.5']")
         end_nudge.click()
         end_nudge.click()
-        expect(page.locator("#ed-duration")).to_have_text("1.0s")
+        expect(page.locator("#ed-duration")).to_have_text("1.0s (-1.0s)")
         end_nudge.click()
         expect(page.locator(".toast.warning")).to_be_visible(timeout=2000)
-        expect(page.locator("#ed-duration")).to_have_text("1.0s")
+        expect(page.locator("#ed-duration")).to_have_text("1.0s (-1.0s)")
 
 
 @skip_no_server

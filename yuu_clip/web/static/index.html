@@ -1214,7 +1214,7 @@
 
   <div class="resize-handle resize-handle-h" id="sidebar-resize-handle" title="Drag to resize sidebar" role="separator" aria-orientation="vertical" aria-label="Resize sidebar"></div>
 
-  <!-- Main panel -->
+  <!-- Main panel (includes the panel-nav takeover - see main-panel.html) -->
   <div class="main">
     <div class="player-area" id="player-area"></div>
     <div class="resize-handle resize-handle-v" id="player-resize-handle" title="Drag to resize player" role="separator" aria-orientation="horizontal" aria-label="Resize player"></div>
@@ -1346,14 +1346,18 @@
         <div id="log-lines"></div>
       </div>
     </div>
-  </div>
-</div>
 
-<!-- Panel navigation takeover (breadcrumb + stacked panel content) - replaces
-     main content for multi-step flows like the Split Editor. See panelnav.js. -->
-<div id="panelnav-root" style="display:none;position:absolute;inset:0;min-height:480px;background:var(--bg);z-index:10;flex-direction:column;overflow-y:auto">
-  <div id="panelnav-breadcrumb" style="display:flex;align-items:center;gap:10px;padding:20px 24px 0;flex-shrink:0"></div>
-  <div id="panelnav-content" style="padding:16px 24px 20px"></div>
+    <!-- Panel navigation takeover (breadcrumb + stacked panel content) - replaces
+         this pane's content for multi-step flows like the Split Editor. See panelnav.js.
+         Lives inside .main (position:relative) so inset:0 resolves against the detail
+         pane, not the whole viewport - previously a direct <body> child with no
+         positioned ancestor, so it covered the header, job-status strip (incl. Cancel),
+         and sidebar too (found 2026-07-28, via a design-review pass on the export flow). -->
+    <div id="panelnav-root" style="display:none;position:absolute;inset:0;min-height:480px;background:var(--bg);z-index:10;flex-direction:column;overflow-y:auto">
+      <div id="panelnav-breadcrumb" style="display:flex;align-items:center;gap:10px;padding:20px 24px 0;flex-shrink:0"></div>
+      <div id="panelnav-content" style="padding:16px 24px 20px"></div>
+    </div>
+  </div>
 </div>
 
 <!-- Split Editor panel content - mounted into #panelnav-content by split.js -->

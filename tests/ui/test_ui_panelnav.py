@@ -41,6 +41,30 @@ class TestPanelBreadcrumb:
 
 
 @skip_no_server
+class TestPanelGeometry:
+    """#panelnav-root must be scoped to the detail pane (position:relative .main),
+    not the whole viewport - it was previously a direct <body> child with no
+    positioned ancestor, so its inset:0 resolved against the initial containing
+    block and covered the header, the job-status strip (incl. Cancel), and the
+    sidebar too (found 2026-07-28, via a design review of the export flow)."""
+
+    def test_panel_does_not_cover_header_or_sidebar(self, split_editor: Page):
+        # #job-status is only visible while a job runs (not the case here), so
+        # assert against the always-visible <header> landmark instead - the
+        # same containing-block bug covered it too.
+        panel = split_editor.locator("#panelnav-root").bounding_box()
+        header = split_editor.locator("header").bounding_box()
+        sidebar = split_editor.locator(".sidebar").bounding_box()
+        assert panel is not None and header is not None and sidebar is not None
+        # The panel must start at or below the bottom of the header - i.e. it
+        # never overlaps the header chrome (brand, job-status strip, Cancel).
+        assert panel["y"] >= header["y"] + header["height"]
+        # The panel must start at or to the right of the sidebar's right edge -
+        # i.e. it never overlaps the sidebar clip list beside it.
+        assert panel["x"] >= sidebar["x"] + sidebar["width"]
+
+
+@skip_no_server
 class TestPanelDirtyGuard:
     def test_discard_closes_panel_and_drops_points(self, split_editor: Page):
         _place_split_point(split_editor)

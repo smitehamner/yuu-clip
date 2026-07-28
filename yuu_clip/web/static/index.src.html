@@ -74,15 +74,8 @@
   <!-- @@include regions/sidebar.html -->
   <div class="resize-handle resize-handle-h" id="sidebar-resize-handle" title="Drag to resize sidebar" role="separator" aria-orientation="vertical" aria-label="Resize sidebar"></div>
 
-  <!-- Main panel -->
+  <!-- Main panel (includes the panel-nav takeover - see main-panel.html) -->
   <!-- @@include regions/main-panel.html -->
-</div>
-
-<!-- Panel navigation takeover (breadcrumb + stacked panel content) - replaces
-     main content for multi-step flows like the Split Editor. See panelnav.js. -->
-<div id="panelnav-root" style="display:none;position:absolute;inset:0;min-height:480px;background:var(--bg);z-index:10;flex-direction:column;overflow-y:auto">
-  <div id="panelnav-breadcrumb" style="display:flex;align-items:center;gap:10px;padding:20px 24px 0;flex-shrink:0"></div>
-  <div id="panelnav-content" style="padding:16px 24px 20px"></div>
 </div>
 
 <!-- Split Editor panel content - mounted into #panelnav-content by split.js -->

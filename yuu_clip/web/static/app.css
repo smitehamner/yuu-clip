@@ -568,7 +568,14 @@ mark.tx-hit { background: color-mix(in srgb, var(--warning) 40%, transparent); c
 .field input, .field select { width: 100%; padding: 8px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); font-size: 13px; }
 .path-row { display: flex; gap: 6px; }
 .path-row input { flex: 1; }
-.modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+/* Sticky to the modal's own scroll viewport (.modal has max-height:90vh;
+   overflow-y:auto) so Cancel/whatever-confirms stays reachable without
+   scrolling past a long body - a long clip list or transcript otherwise buries
+   it below the fold (found 2026-07-28; #reel-tab-build had already worked
+   around this one modal at a time, generalized here to cover all of them).
+   The negative margin bleeds it to .modal's own edges (padding: 24px above),
+   the matching padding re-indents the buttons back to the content's edge. */
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; position: sticky; bottom: -24px; z-index: 1; margin: 0 -24px -24px; padding: 12px 24px; background: var(--surface); border-top: 1px solid var(--border); }
 
 /* advanced options disclosure in analyze modal, and Settings' demoted advanced
    controls (e.g. Pyannote setup) - a distinct class from .advanced so the two
@@ -960,10 +967,8 @@ details summary:focus-visible { outline: 2px solid var(--accent); outline-offset
 .reel-tab-btn:hover:not(.active) { color: var(--text); }
 
 /* ── reel builder ── */
-/* Pin the action row to the modal's bottom edge so Build Reel stays reachable
-   without scrolling when the clip list is long (negative margins bleed over the
-   modal's 24px padding; bottom offset cancels padding-bottom). */
-#reel-tab-build .modal-actions { position: sticky; bottom: -24px; z-index: 1; margin: 0 -24px -24px; padding: 12px 24px; background: var(--surface); border-top: 1px solid var(--border); }
+/* .modal-actions is sticky-to-bottom by default now (see its definition above) -
+   this used to be a #reel-tab-build-only override; kept generic. */
 .reel-clip-list { display: flex; flex-direction: column; gap: 4px; max-height: 300px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 4px; background: var(--bg); }
 .reel-clip-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 4px; background: var(--surface); }
 .reel-clip-row.excluded { opacity: .4; }

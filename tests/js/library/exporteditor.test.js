@@ -15,6 +15,7 @@ vi.mock('../../../yuu_clip/web/static/library/exportpresets.js', async (importAc
 import {
   cropWidthFraction, buildExportParams, computeTrimBoundary,
   _exportModeSummary, _exportTightCapWarning,
+  trimBarSpan, trimBarPercent, formatOffsetDelta,
 } from '../../../yuu_clip/web/static/library/exporteditor.js';
 
 describe('cropWidthFraction', () => {
@@ -185,5 +186,57 @@ describe('computeTrimBoundary', () => {
 
   it('rounds the offset to 3 decimals', () => {
     expect(computeTrimBoundary('start', 11_234.6, ctx()).offset).toBe(1.235);
+  });
+});
+
+describe('trimBarSpan', () => {
+  it('is the clip window padded on both sides when nothing has been nudged', () => {
+    // clip [10s, 20s], effective == saved, 30s padding.
+    expect(trimBarSpan(10_000, 20_000, 10_000, 20_000, 30_000)).toEqual({
+      startMs: 0,  // clamped at 0 (10s - 30s would be negative)
+      endMs: 50_000,
+    });
+  });
+
+  it('widens past the padding when a boundary has been nudged further out', () => {
+    // Start pulled back to 45s before the clip - past the 30s pad.
+    expect(trimBarSpan(60_000, 70_000, 15_000, 70_000, 30_000)).toEqual({
+      startMs: 15_000, endMs: 100_000,
+    });
+  });
+
+  it('never goes negative even with a small clip start and large padding', () => {
+    expect(trimBarSpan(2_000, 5_000, 2_000, 5_000, 30_000).startMs).toBe(0);
+  });
+});
+
+describe('trimBarPercent', () => {
+  it('maps the span start/end to 0/100', () => {
+    expect(trimBarPercent(0, 0, 50_000)).toBe(0);
+    expect(trimBarPercent(50_000, 0, 50_000)).toBe(100);
+  });
+
+  it('maps a midpoint to 50', () => {
+    expect(trimBarPercent(25_000, 0, 50_000)).toBe(50);
+  });
+
+  it('does not divide by zero for a degenerate zero-width span', () => {
+    expect(Number.isFinite(trimBarPercent(0, 10_000, 10_000))).toBe(true);
+  });
+});
+
+describe('formatOffsetDelta', () => {
+  it('reads "at the detected mark" for a negligible offset', () => {
+    expect(formatOffsetDelta(0)).toBe('at the detected mark');
+    expect(formatOffsetDelta(0.03)).toBe('at the detected mark');
+  });
+
+  it('reads earlier for a negative offset, later for a positive one', () => {
+    expect(formatOffsetDelta(-1.5)).toBe('1.5s earlier than detected');
+    expect(formatOffsetDelta(2)).toBe('2s later than detected');
+  });
+
+  it('drops a trailing .0', () => {
+    expect(formatOffsetDelta(-3)).toBe('3s earlier than detected');
   });
 });
