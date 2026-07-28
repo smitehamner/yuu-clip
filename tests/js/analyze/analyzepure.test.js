@@ -65,6 +65,18 @@ describe('parseImportProgressLine', () => {
   it('is null for a non-matching line', () => {
     expect(parseImportProgressLine('[Imported] video.mp4')).toBeNull();
   });
+
+  it('captures the stream label for a video-only pass', () => {
+    expect(parseImportProgressLine('[Download] Video 42.5% of video.mp4')).toEqual({
+      stream: 'Video', pct: 42.5, speedPart: '', etaPart: '',
+    });
+  });
+
+  it('captures the stream label for an audio-only pass', () => {
+    expect(parseImportProgressLine('[Download] Audio 10% of audio.m4a at 2.3MiB/s, ETA 00:05')).toEqual({
+      stream: 'Audio', pct: 10, speedPart: ' at 2.3MiB/s', etaPart: ' (~00:05 left)',
+    });
+  });
 });
 
 describe('_segmentChainAbortMessage', () => {

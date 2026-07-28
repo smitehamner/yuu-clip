@@ -965,7 +965,7 @@ function _renderImportUrlDownloadProgress() {
   if (!actions) return;
   actions.innerHTML = `
     <div class="estimate-row" id="import-url-progress-row">
-      <span class="estimate-step">Downloading</span>
+      <span class="estimate-step" id="import-url-progress-step">Downloading</span>
       <span class="estimate-note" id="import-url-progress-note"></span>
       <span class="estimate-time" id="import-url-progress-pct">0%</span>
     </div>`;
@@ -984,7 +984,7 @@ function _resetImportUrlActionsButton() {
 
 // Mirrors url_import.py's format_progress_line/parse_progress_line - keep the
 // three in sync if that format ever changes.
-const _IMPORT_PROGRESS_RE = /^\[Download\] ([\d.]+)% of (\S+)(?: at (\S+)\/s)?(?:, ETA (\S+))?$/;
+const _IMPORT_PROGRESS_RE = /^\[Download\] (?:(Video|Audio) )?([\d.]+)% of (\S+)(?: at (\S+)\/s)?(?:, ETA (\S+))?$/;
 const _IMPORT_DONE_RE     = /^\[Imported\] (.+)$/;
 
 let _lastImportedPath = null;
@@ -1000,9 +1000,10 @@ export function parseImportProgressLine(line) {
   const m = _IMPORT_PROGRESS_RE.exec(line);
   if (!m) return null;
   return {
-    pct: parseFloat(m[1]),
-    speedPart: m[3] ? ` at ${m[3]}/s` : '',
-    etaPart: m[4] ? ` (~${m[4]} left)` : '',
+    stream: m[1],
+    pct: parseFloat(m[2]),
+    speedPart: m[4] ? ` at ${m[4]}/s` : '',
+    etaPart: m[5] ? ` (~${m[5]} left)` : '',
   };
 }
 
@@ -1012,11 +1013,16 @@ function _onImportUrlLine(line) {
 
   const parsed = parseImportProgressLine(line);
   if (!parsed) return;
-  const {pct, speedPart, etaPart} = parsed;
+  const {stream, pct, speedPart, etaPart} = parsed;
+  // yt-dlp downloads video and audio as two separate passes when it needs to mux
+  // them (see FORMAT_SELECTOR) - each pass runs 0->100% independently, so without
+  // naming which stream is active the percent appears to inexplicably jump back
+  // to 0% partway through (found 2026-07-28, owner UX feedback).
+  const label = stream ? `Downloading ${stream.toLowerCase()}` : 'Downloading';
 
   const stepEl = document.getElementById('step-0');
   if (stepEl) {
-    stepEl.textContent = `Download · ${pct.toFixed(0)}%${speedPart}${etaPart}`;
+    stepEl.textContent = `${label} · ${pct.toFixed(0)}%${speedPart}${etaPart}`;
     stepEl.style.backgroundImage = `linear-gradient(to right, var(--green) ${pct}%, var(--accent) ${pct}%)`;
   }
 
@@ -1024,6 +1030,8 @@ function _onImportUrlLine(line) {
   if (row) {
     row.style.backgroundImage =
       `linear-gradient(to right, color-mix(in srgb, var(--accent) 16%, transparent) ${pct}%, transparent ${pct}%)`;
+    const stepLabelEl = document.getElementById('import-url-progress-step');
+    if (stepLabelEl) stepLabelEl.textContent = label;
     document.getElementById('import-url-progress-note').textContent = `${speedPart}${etaPart}`.trim();
     document.getElementById('import-url-progress-pct').textContent = `${pct.toFixed(0)}%`;
   }

@@ -241,6 +241,25 @@ def _human_eta(seconds: Optional[float]) -> Optional[str]:
     return f"{h:02d}:{m:02d}:{s:02d}" if h else f"{m:02d}:{s:02d}"
 
 
+def _stream_label(hook_data: dict) -> Optional[str]:
+    """"Video" / "Audio" when this hook call is reporting one half of a
+    bestvideo+bestaudio download that will be muxed together (see
+    FORMAT_SELECTOR) - None for a single progressive stream.
+
+    Surfaced in the progress line so the browser can show "Downloading audio"
+    once "Downloading video" finishes, instead of the percent silently
+    resetting to 0% with no explanation (found 2026-07-28, owner UX feedback).
+    """
+    info = hook_data.get("info_dict") or {}
+    has_video = info.get("vcodec") not in (None, "none")
+    has_audio = info.get("acodec") not in (None, "none")
+    if has_video and not has_audio:
+        return "Video"
+    if has_audio and not has_video:
+        return "Audio"
+    return None
+
+
 def format_progress_line(hook_data: dict) -> str:
     """Build a stable, parseable progress line from a yt-dlp progress_hook dict.
 
@@ -252,12 +271,14 @@ def format_progress_line(hook_data: dict) -> str:
     total = hook_data.get("total_bytes") or hook_data.get("total_bytes_estimate")
     speed = hook_data.get("speed")
     eta = hook_data.get("eta")
+    stream = _stream_label(hook_data)
+    prefix = f"{stream} " if stream else ""
 
     if total:
         percent = downloaded / total * 100
-        line = f"[Download] {percent:.1f}% of {_human_bytes(total)}"
+        line = f"[Download] {prefix}{percent:.1f}% of {_human_bytes(total)}"
     else:
-        line = f"[Download] {_human_bytes(downloaded) or '0B'} downloaded (size unknown)"
+        line = f"[Download] {prefix}{_human_bytes(downloaded) or '0B'} downloaded (size unknown)"
 
     speed_human = _human_bytes(speed)
     if speed_human:
@@ -271,10 +292,10 @@ def format_progress_line(hook_data: dict) -> str:
 
 
 _PROGRESS_KNOWN_SIZE_RE = re.compile(
-    r"^\[Download\] ([\d.]+)% of (\S+)(?: at (\S+)/s)?(?:, ETA (\S+))?$"
+    r"^\[Download\] (?:(Video|Audio) )?([\d.]+)% of (\S+)(?: at (\S+)/s)?(?:, ETA (\S+))?$"
 )
 _PROGRESS_UNKNOWN_SIZE_RE = re.compile(
-    r"^\[Download\] (\S+) downloaded \(size unknown\)(?: at (\S+)/s)?(?:, ETA (\S+))?$"
+    r"^\[Download\] (?:(Video|Audio) )?(\S+) downloaded \(size unknown\)(?: at (\S+)/s)?(?:, ETA (\S+))?$"
 )
 
 
@@ -287,18 +308,20 @@ def parse_progress_line(line: str) -> Optional[dict]:
     m = _PROGRESS_KNOWN_SIZE_RE.match(line.strip())
     if m:
         return {
-            "percent":    float(m.group(1)),
-            "total_size": m.group(2),
-            "speed":      m.group(3),
-            "eta":        m.group(4),
+            "stream":     m.group(1),
+            "percent":    float(m.group(2)),
+            "total_size": m.group(3),
+            "speed":      m.group(4),
+            "eta":        m.group(5),
         }
     m = _PROGRESS_UNKNOWN_SIZE_RE.match(line.strip())
     if m:
         return {
+            "stream":     m.group(1),
             "percent":    None,
-            "downloaded": m.group(1),
-            "speed":      m.group(2),
-            "eta":        m.group(3),
+            "downloaded": m.group(2),
+            "speed":      m.group(3),
+            "eta":        m.group(4),
         }
     return None
 

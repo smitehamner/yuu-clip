@@ -240,6 +240,25 @@ class TestProgressLineParsing:
         from yuu_clip.url_import import parse_progress_line
         assert parse_progress_line("Assigning tracks...") is None
 
+    @pytest.mark.parametrize("vcodec,acodec,expected", [
+        ("vp9", "none", "Video"),
+        ("none", "opus", "Audio"),
+        ("avc1", "mp4a", None),  # progressive stream - both present, no label
+        (None, None, None),     # info_dict absent/empty
+    ])
+    def test_stream_label_identifies_video_vs_audio_only_streams(self, vcodec, acodec, expected):
+        """FORMAT_SELECTOR downloads video and audio as two separate passes when
+        muxing is needed - each resets to 0% independently, so the label is what
+        tells the browser this isn't a stall/glitch (found 2026-07-28)."""
+        from yuu_clip.url_import import format_progress_line, parse_progress_line
+        line = format_progress_line({
+            "downloaded_bytes": 50, "total_bytes": 100, "speed": None, "eta": None,
+            "info_dict": {"vcodec": vcodec, "acodec": acodec},
+        })
+        parsed = parse_progress_line(line)
+        assert parsed is not None
+        assert parsed["stream"] == expected
+
 
 # ---------------------------------------------------------------------------
 # Filename sanitization
