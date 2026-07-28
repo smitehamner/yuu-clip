@@ -156,7 +156,7 @@ function _mergeControlHtml(voice) {
   return `
     <select class="voice-merge-select" data-voice-id="${voice.id}"
             aria-label="Merge another person into ${escHtml(voice.display_name)}">
-      <option value="">Merge in&hellip;</option>${opts}
+      <option value="">Merge another person in&hellip;</option>${opts}
     </select>`;
 }
 

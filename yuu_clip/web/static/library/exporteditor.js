@@ -728,12 +728,22 @@ async function _edExport() {
         fetch(`/api/clips/${id}`).then(r => r.json()),
         fetch(`/api/clips/${id}/media_url`).then(r => r.json()),
       ]);
-      AppState.activeClipData = clip;
-      AppState.activeMediaFilename = media.filename;
-      PanelNav.forceClose();
-      const captionsUrl = media.has_captions ? `/api/clips/${id}/captions.vtt` : null;
-      renderPlayer(media.url, captionsUrl, id);
-      renderDetail(clip);
+      // Only jump the view to the exported clip if the user is still on its
+      // recording - switching recordings doesn't close this panel, so a
+      // background export finishing would otherwise yank them away from
+      // wherever they'd since navigated to (found 2026-07-28, owner UX
+      // feedback: sidebar didn't match the clip shown after export completed
+      // while browsing a different recording).
+      if (clip.video_id === AppState.activeVideoId) {
+        AppState.activeClipData = clip;
+        AppState.activeMediaFilename = media.filename;
+        PanelNav.forceClose();
+        const captionsUrl = media.has_captions ? `/api/clips/${id}/captions.vtt` : null;
+        renderPlayer(media.url, captionsUrl, id);
+        renderDetail(clip);
+      } else {
+        PanelNav.forceClose();
+      }
       await _reloadClipList(AppState.activeVideoId);
       loadVideos();
       if (outcome === 'cancelled') return;
