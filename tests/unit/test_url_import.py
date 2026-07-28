@@ -412,8 +412,19 @@ class TestDownloadVideo:
         import yuu_clip.url_import as mod
         monkeypatch.setattr(mod, "inspect_url", lambda url: dict(self._INFO))
         monkeypatch.setattr(mod, "check_disk_space", lambda *a, **k: None)
+        monkeypatch.setattr(mod, "find_ffmpeg", lambda: ("/opt/ffmpeg/ffmpeg", "/opt/ffmpeg/ffprobe"))
         monkeypatch.setattr("yt_dlp.YoutubeDL", fake_ydl)
         return mod
+
+    def test_points_yt_dlp_at_the_resolved_ffmpeg_directory(self, tmp_path, monkeypatch):
+        """yt-dlp defaults to searching PATH for ffmpeg/ffprobe - on a machine with
+        no system FFmpeg (the packaged app's baseline), an unset ffmpeg_location
+        means merging audio+video silently fails. Must use the same bundled binary
+        find_ffmpeg() resolves everywhere else in the app."""
+        fake_ydl = _FakeYDL("mkv")
+        mod = self._patch_common(monkeypatch, fake_ydl)
+        mod.download_video("https://youtu.be/vid123", tmp_path)
+        assert fake_ydl._opts["ffmpeg_location"] == str(Path("/opt/ffmpeg"))
 
     def test_returns_merged_mkv_path_and_writes_sidecar(self, tmp_path, monkeypatch):
         mod = self._patch_common(monkeypatch, _FakeYDL("mkv"))

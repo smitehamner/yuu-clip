@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Optional
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
+from yuu_clip.ffmpeg_tools import find_ffmpeg
 from yuu_clip.log import get_logger
 
 _log = get_logger(__name__)
@@ -368,6 +369,7 @@ def download_video(url: str, output_dir: Path, *, progress_line_cb=print) -> Pat
             progress_line_cb("[Download] Merging audio and video...")
 
     import yt_dlp
+    ffmpeg_exe, _ = find_ffmpeg()
     ydl_opts = {
         "quiet": True,
         "no_warnings": True,
@@ -376,6 +378,11 @@ def download_video(url: str, output_dir: Path, *, progress_line_cb=print) -> Pat
         "merge_output_format": "mkv",
         "outtmpl": str(output_dir / f"{stem}.%(ext)s"),
         "progress_hooks": [_hook],
+        # yt-dlp defaults to searching PATH for ffmpeg/ffprobe, which finds nothing
+        # on a machine with no system FFmpeg - point it at the same bundled binary
+        # the rest of the app uses (find_ffmpeg() resolves YUU_CLIP_FFMPEG_DIR in
+        # packaged builds).
+        "ffmpeg_location": str(Path(ffmpeg_exe).parent),
     }
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
