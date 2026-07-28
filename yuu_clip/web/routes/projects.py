@@ -25,6 +25,24 @@ from yuu_clip.web.routes.common import analyze_in_flight
 _log = get_logger(__name__)
 
 
+def _seed_default_llm_model(ctx: ProjectContext, project_dir: Path) -> None:
+    """A brand-new project starts with no llm_model_path - if a recommended text
+    model is already downloaded (from an earlier project's setup), point this
+    project at it too instead of leaving LLM scoring unconfigured until the user
+    visits Settings by hand. Never overwrites an existing choice."""
+    if ctx.config.llm_model_path:
+        return
+    from yuu_clip.config import models_dir
+    from yuu_clip.web.routes.llm import default_text_model_path
+
+    default_path = default_text_model_path(models_dir())
+    if default_path is None:
+        return
+    ctx.config.llm_model_path = str(default_path)
+    ctx.config.save_project(project_dir, keys=["llm_model_path"])
+    _log.info("Seeded llm_model_path for new project from an already-downloaded model: %s", default_path)
+
+
 class SwitchRequest(BaseModel):
     path: str
 
@@ -78,6 +96,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         redirect_logging(new_dir)
         from yuu_clip.web.app import prepare_project
         prepare_project(ctx)
+        if created:
+            _seed_default_llm_model(ctx, new_dir)
         record_known_project(new_dir)
         _log.info("Switched project to %s (generation %d)", new_dir, ctx.project_generation)
         return {"current": str(new_dir), "project_generation": ctx.project_generation, "created": created}

@@ -21,6 +21,7 @@ import os
 import shutil
 import sys
 from pathlib import Path
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 
@@ -359,6 +360,19 @@ def _entry_installed(entry, models_dir: Path) -> bool:
     if entry.mmproj_filename and not (models_dir / entry.mmproj_filename).exists():
         return False
     return True
+
+
+def default_text_model_path(models_dir: Path) -> Optional[Path]:
+    """The already-downloaded recommended text model's .gguf path, if any -
+    catalog order, first match wins (mirrors the wizard's own default pick).
+
+    Used to seed a brand-new project's llm_model_path (routes/projects.py) so a
+    model downloaded for an earlier project doesn't have to be pointed at again
+    by hand in Settings for every project after the first."""
+    for entry in model_catalog.text_models():
+        if entry.gguf_filename and _entry_installed(entry, models_dir):
+            return models_dir / entry.gguf_filename
+    return None
 
 
 def _entry_active(entry, cfg) -> bool:

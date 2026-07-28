@@ -238,3 +238,62 @@ class TestProjectSwitch:
         finally:
             client.app.state.ctx.proxy_generating = set()
         assert res.status_code == 409
+
+
+class TestSeedDefaultLlmModel:
+    """A brand-new project starts with no llm_model_path - if a recommended text
+    model is already downloaded (from an earlier project's setup), the new project
+    should be pointed at it automatically instead of leaving LLM scoring
+    unconfigured until a manual Settings visit."""
+
+    def test_created_project_inherits_already_downloaded_text_model(self, client, tmp_path, monkeypatch):
+        from yuu_clip import model_catalog
+        from yuu_clip.config import Config
+
+        models_dir = tmp_path / "models"
+        models_dir.mkdir()
+        entry = model_catalog.text_models()[0]
+        gguf_path = models_dir / entry.gguf_filename
+        gguf_path.write_bytes(b"fake weights")
+        monkeypatch.setattr("yuu_clip.config.models_dir", lambda: models_dir)
+
+        target = tmp_path / "brand-new-with-model"
+        res = client.post("/api/projects/switch", json={"path": str(target)})
+        assert res.status_code == 200
+        assert res.json()["created"] is True
+
+        loaded = Config.load(target)
+        assert loaded.llm_model_path == str(gguf_path)
+
+    def test_created_project_leaves_llm_unset_when_nothing_downloaded(self, client, tmp_path, monkeypatch):
+        empty_models_dir = tmp_path / "no-models-here"
+        empty_models_dir.mkdir()
+        monkeypatch.setattr("yuu_clip.config.models_dir", lambda: empty_models_dir)
+
+        target = tmp_path / "brand-new-without-model"
+        res = client.post("/api/projects/switch", json={"path": str(target)})
+        assert res.status_code == 200
+        assert res.json()["created"] is True
+
+        from yuu_clip.config import Config
+        assert Config.load(target).llm_model_path == ""
+
+    def test_reopening_existing_project_does_not_overwrite_its_own_choice(self, client, tmp_path, monkeypatch):
+        from yuu_clip import model_catalog
+
+        models_dir = tmp_path / "models"
+        models_dir.mkdir()
+        entry = model_catalog.text_models()[0]
+        (models_dir / entry.gguf_filename).write_bytes(b"fake weights")
+        monkeypatch.setattr("yuu_clip.config.models_dir", lambda: models_dir)
+
+        other = _seed_project(tmp_path / "already-configured", "already.mkv")
+        from yuu_clip.config import Config
+        cfg = Config.load(other)
+        cfg.llm_model_path = "/some/deliberately/chosen/model.gguf"
+        cfg.save_project(other, keys=["llm_model_path"])
+
+        res = client.post("/api/projects/switch", json={"path": str(other)})
+        assert res.status_code == 200
+        assert res.json()["created"] is False
+        assert Config.load(other).llm_model_path == "/some/deliberately/chosen/model.gguf"
