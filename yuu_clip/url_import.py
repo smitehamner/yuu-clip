@@ -370,6 +370,7 @@ def download_video(url: str, output_dir: Path, *, progress_line_cb=print) -> Pat
 
     import yt_dlp
     ffmpeg_exe, _ = find_ffmpeg()
+    _log.info("Using ffmpeg for merge: %s (exists=%s)", ffmpeg_exe, Path(ffmpeg_exe).is_file())
     ydl_opts = {
         "quiet": True,
         "no_warnings": True,
