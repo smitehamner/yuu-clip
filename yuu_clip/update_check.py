@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from yuu_clip.log import get_logger
+from yuu_clip.net import urlopen_verified
 
 _log = get_logger(__name__)
 
@@ -59,7 +60,7 @@ def _fetch_latest_release(repo: str) -> dict:
         "User-Agent": "yuu-clip",
         "Accept": "application/vnd.github+json",
     })
-    with urllib.request.urlopen(request, timeout=_TIMEOUT_S) as response:
+    with urlopen_verified(request, timeout=_TIMEOUT_S) as response:
         return json.loads(response.read())
 
 

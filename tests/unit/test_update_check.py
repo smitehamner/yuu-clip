@@ -1,6 +1,6 @@
 """Unit tests for the GitHub update check (yuu_clip/update_check.py).
 
-The HTTP call is mocked (urllib.request.urlopen) - see test_framing.py for the
+The HTTP call is mocked (urlopen_verified) - see test_framing.py for the
 same pattern used elsewhere in this repo. No real network access.
 """
 from __future__ import annotations
@@ -40,7 +40,7 @@ class TestParseVersion:
 class TestCheckForUpdate:
     def test_reports_update_available_when_latest_is_newer(self, monkeypatch):
         monkeypatch.setattr(
-            update_check.urllib.request, "urlopen",
+            update_check, "urlopen_verified",
             _fake_response({"tag_name": "v0.2.0", "html_url": "https://example.test/releases/v0.2.0"}),
         )
         result = update_check.check_for_update("0.1.28")
@@ -51,7 +51,7 @@ class TestCheckForUpdate:
 
     def test_reports_up_to_date_when_versions_match(self, monkeypatch):
         monkeypatch.setattr(
-            update_check.urllib.request, "urlopen",
+            update_check, "urlopen_verified",
             _fake_response({"tag_name": "v0.1.28", "html_url": "https://example.test/releases/v0.1.28"}),
         )
         result = update_check.check_for_update("0.1.28")
@@ -61,7 +61,7 @@ class TestCheckForUpdate:
     def test_reports_up_to_date_when_current_is_newer_than_latest_release(self, monkeypatch):
         # e.g. a dev build ahead of the last tagged release.
         monkeypatch.setattr(
-            update_check.urllib.request, "urlopen",
+            update_check, "urlopen_verified",
             _fake_response({"tag_name": "v0.1.0", "html_url": "https://example.test/releases/v0.1.0"}),
         )
         result = update_check.check_for_update("0.2.0")
@@ -71,7 +71,7 @@ class TestCheckForUpdate:
         def _boom(request, timeout=None):
             raise urllib.error.URLError("no internet")
 
-        monkeypatch.setattr(update_check.urllib.request, "urlopen", _boom)
+        monkeypatch.setattr(update_check, "urlopen_verified", _boom)
         result = update_check.check_for_update("0.1.28")
         assert result.error is not None
         assert result.update_available is False
@@ -82,7 +82,7 @@ class TestCheckForUpdate:
         def _boom(request, timeout=None):
             raise urllib.error.HTTPError("url", 404, "Not Found", {}, None)
 
-        monkeypatch.setattr(update_check.urllib.request, "urlopen", _boom)
+        monkeypatch.setattr(update_check, "urlopen_verified", _boom)
         result = update_check.check_for_update("0.1.28")
         assert result.error is not None
 
@@ -91,7 +91,7 @@ class TestCheckForUpdate:
         def _urlopen(request, timeout=None):
             yield io.BytesIO(b"not json")
 
-        monkeypatch.setattr(update_check.urllib.request, "urlopen", _urlopen)
+        monkeypatch.setattr(update_check, "urlopen_verified", _urlopen)
         result = update_check.check_for_update("0.1.28")
         assert result.error is not None
 
@@ -105,7 +105,7 @@ class TestCheckForUpdate:
             def _urlopen(request, timeout=None, _body=body):
                 yield io.BytesIO(_body)
 
-            monkeypatch.setattr(update_check.urllib.request, "urlopen", _urlopen)
+            monkeypatch.setattr(update_check, "urlopen_verified", _urlopen)
             result = update_check.check_for_update("0.1.28")
             assert result.error is not None, f"body {body!r} should yield an error result"
             assert result.update_available is False
@@ -113,7 +113,7 @@ class TestCheckForUpdate:
 
     def test_missing_tag_name_returns_error_not_exception(self, monkeypatch):
         monkeypatch.setattr(
-            update_check.urllib.request, "urlopen",
+            update_check, "urlopen_verified",
             _fake_response({"html_url": "https://example.test"}),
         )
         result = update_check.check_for_update("0.1.28")
@@ -121,7 +121,7 @@ class TestCheckForUpdate:
 
     def test_current_version_is_always_echoed_back(self, monkeypatch):
         monkeypatch.setattr(
-            update_check.urllib.request, "urlopen",
+            update_check, "urlopen_verified",
             _fake_response({"tag_name": "v0.1.28", "html_url": "https://example.test"}),
         )
         result = update_check.check_for_update("0.1.28")

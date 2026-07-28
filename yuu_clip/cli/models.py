@@ -14,6 +14,7 @@ from typing import Optional
 import typer
 
 from yuu_clip.cli._base import _project_dir, app, console
+from yuu_clip.net import urlopen_verified
 
 # slug -> friendly description, shown before the download starts.
 _PREFETCH_DESCRIPTIONS: dict[str, str] = {
@@ -186,7 +187,7 @@ def _download_gguf(url: str, dest: Path, display_name: str) -> None:
     request = urllib.request.Request(url, headers={"User-Agent": "yuu-clip"})
     # Socket timeout so a mid-download network stall fails the SSE job instead
     # of blocking response.read() forever with a stuck progress line.
-    with urllib.request.urlopen(request, timeout=30) as response:
+    with urlopen_verified(request, timeout=30) as response:
         total = int(response.headers.get("Content-Length") or 0)
         _stream_to_file(response, part, total, display_name)
     _verify_complete(part, total)

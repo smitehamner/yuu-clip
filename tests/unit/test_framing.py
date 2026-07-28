@@ -119,7 +119,7 @@ class TestEnsureFaceModel:
         def _boom(*a, **k):
             raise AssertionError("should not download when cached")
 
-        monkeypatch.setattr(framing_mod.urllib.request, "urlopen", _boom)
+        monkeypatch.setattr(framing_mod, "urlopen_verified", _boom)
         assert framing_mod._ensure_face_model() == model_path
 
     def test_downloads_with_timeout_then_renames(self, monkeypatch, tmp_path):
@@ -134,7 +134,7 @@ class TestEnsureFaceModel:
             captured["timeout"] = timeout
             yield io.BytesIO(b"model-bytes")
 
-        monkeypatch.setattr(framing_mod.urllib.request, "urlopen", _fake_urlopen)
+        monkeypatch.setattr(framing_mod, "urlopen_verified", _fake_urlopen)
         result = framing_mod._ensure_face_model()
 
         assert result == model_path
@@ -152,7 +152,7 @@ class TestEnsureFaceModel:
             raise TimeoutError("connection stalled")
             yield  # pragma: no cover
 
-        monkeypatch.setattr(framing_mod.urllib.request, "urlopen", _stalling_urlopen)
+        monkeypatch.setattr(framing_mod, "urlopen_verified", _stalling_urlopen)
         with pytest.raises(TimeoutError, match="stalled"):
             framing_mod._ensure_face_model()
 

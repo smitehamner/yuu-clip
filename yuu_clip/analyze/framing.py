@@ -23,12 +23,12 @@ import shutil
 import statistics
 import subprocess
 import tempfile
-import urllib.request
 from pathlib import Path
 from typing import Optional
 
 from yuu_clip.ffmpeg_tools import find_ffmpeg
 from yuu_clip.log import get_logger
+from yuu_clip.net import urlopen_verified
 
 _log = get_logger(__name__)
 
@@ -113,7 +113,7 @@ def _ensure_face_model() -> Path:
     try:
         # urlretrieve has no socket timeout, so a stalled CDN would hang the worker
         # forever; stream through urlopen with a bounded timeout instead.
-        with urllib.request.urlopen(_MODEL_URL, timeout=_DOWNLOAD_TIMEOUT_S) as resp, \
+        with urlopen_verified(_MODEL_URL, timeout=_DOWNLOAD_TIMEOUT_S) as resp, \
                 open(tmp, "wb") as out:
             shutil.copyfileobj(resp, out)
         tmp.replace(path)

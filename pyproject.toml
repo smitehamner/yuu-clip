@@ -30,6 +30,11 @@ dependencies = [
     # Cross-platform config/data dirs (AppData on Windows, ~/.config on Linux).
     "platformdirs>=4.0,<6.0",
 
+    # CA bundle for yuu_clip/net.py's direct urllib downloads (update check, GGUF
+    # model fetch, face-detector model fetch) - was already a transitive dep via
+    # requests/huggingface_hub; made direct because those modules import it.
+    "certifi>=2024.0",
+
     # Phase 2: scene cut detection. Pulls opencv-python transitively (scenedetect
     # 0.7 dropped the [opencv-headless] extra and depends on the full build). Fine
     # here: yuu-clip is a desktop app with a display, not a headless server.
