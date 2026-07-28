@@ -232,6 +232,30 @@ class TestSplit(_Fixtures):
         finally:
             db.close()
 
+    def test_split_clears_identity_override(self, client, project_dir):
+        """Leaving a Person clears any per-recording name/color override - it was scoped
+        to this link and must not resurface if this Speaker is linked again later."""
+        db = self._db(project_dir)
+        video = self._add_video(db, "a.mkv")
+        speaker = self._add_speaker(db, video.id, [1.0, 0.0], name="Alex")
+        db.commit()
+        speaker_id = speaker.id
+        db.close()
+
+        voice = client.post("/api/voices", json={"speaker_id": speaker_id}).json()
+        client.put(f"/api/speakers/{speaker_id}", json={"name": "Overridden Name"})
+        db = self._db(project_dir)
+        assert db.get(Speaker, speaker_id).identity_override is True
+        db.close()
+
+        client.post(f"/api/voices/{voice['id']}/split", json={"speaker_id": speaker_id})
+
+        db = self._db(project_dir)
+        try:
+            assert db.get(Speaker, speaker_id).identity_override is False
+        finally:
+            db.close()
+
     def test_split_with_mint_new_creates_person(self, client, project_dir):
         db = self._db(project_dir)
         video = self._add_video(db, "a.mkv")

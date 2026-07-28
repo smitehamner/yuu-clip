@@ -206,6 +206,11 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                     name = (body.name or "").strip()
                     speaker.name = name or None
                     speaker.confirmed = True
+                    if speaker.global_voice_id is not None:
+                        # A non-blank name is an explicit per-recording override of the
+                        # linked Person's name; clearing it reverts to following the
+                        # Person. See Speaker.identity_override / display_name.
+                        speaker.identity_override = bool(name)
                     db.flush()
                     refreshed = rebuild_video_excerpts(db, speaker.video_id)
                     edited_at = datetime.now(timezone.utc)
@@ -538,6 +543,7 @@ def _speaker_dict(speaker: Speaker, sample: Optional[dict],
         # suggested_voice_* is an unconfirmed cross-recording match awaiting confirm-voice.
         "global_voice_id": speaker.global_voice_id,
         "person_name": voice.display_name if voice is not None else None,
+        "identity_override": speaker.identity_override,
         "suggested_voice_id": speaker.suggested_voice_id,
         "suggested_voice_score": speaker.suggested_voice_score,
         "suggested_voice_name": suggested_voice_name,

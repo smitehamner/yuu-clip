@@ -82,6 +82,13 @@ class TestSpeakerDisplayNameResolvesThroughVoice:
     def test_no_voice_no_name_uses_fallback(self):
         assert Speaker(display_index=7).display_name == "Speaker 7"
 
+    def test_identity_override_shows_speakers_own_name_for_this_recording(self):
+        # A per-recording override: the same voice plays a different role just here.
+        voice = ProjectVoice(name="Jordan", display_index=1)
+        speaker = Speaker(display_index=5, name="Alt Name", confirmed=True, identity_override=True)
+        speaker.global_voice = voice
+        assert speaker.display_name == "Alt Name"
+
 
 class TestSpeakerDisplayColorResolvesThroughVoice:
     def test_linked_speaker_takes_person_color(self):
@@ -103,6 +110,12 @@ class TestSpeakerDisplayColorResolvesThroughVoice:
 
     def test_unlinked_unset_uses_speaker_palette(self):
         assert Speaker(display_index=3).display_color == SPEAKER_COLOR_PALETTE[2]
+
+    def test_identity_override_keeps_speakers_own_color(self):
+        voice = ProjectVoice(display_index=1, color="#123456")
+        speaker = Speaker(display_index=5, color="#abcdef", identity_override=True)
+        speaker.global_voice = voice
+        assert speaker.display_color == "#abcdef"
 
 
 class TestCharacterModel:

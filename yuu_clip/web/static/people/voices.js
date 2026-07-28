@@ -359,6 +359,13 @@ function _syncOpenRecording() {
   if (AppState.activeClipId != null) selectClip(AppState.activeClipId);
 }
 
+// Called by speakers.js after an action there changes Person data (e.g. unlinking a
+// speaker) so an already-open People view doesn't show stale members/links until the
+// user reopens it. A no-op when the panel isn't open.
+function refreshPeopleViewIfOpen() {
+  if (isPeopleOpen()) _loadPeople();
+}
+
 // Static index.html nav button (fixed element, never recreated - one load-time listener).
 // Called once from boot.js at first paint (see initHotwordListeners in hotwords.js for
 // the reference pattern) so importing this module has no DOM side effect.
@@ -366,4 +373,4 @@ function initVoicesListeners() {
   document.getElementById('btn-people')?.addEventListener('click', () => openPeopleView());
 }
 
-export { openPeopleView, isPeopleOpen, initVoicesListeners };
+export { openPeopleView, isPeopleOpen, refreshPeopleViewIfOpen, initVoicesListeners };

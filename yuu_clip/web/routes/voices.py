@@ -194,6 +194,10 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             db.query(VoiceExemplar).filter_by(
                 project_voice_id=voice_id, source_speaker_id=speaker.id
             ).delete(synchronize_session=False)
+            # Leaving this Person clears any per-recording name/color override - it was
+            # scoped to this link, and a stale True must not resurface if this Speaker
+            # gets linked to a (possibly different, possibly unnamed) Person later.
+            speaker.identity_override = False
             new_voice = None
             if body.mint_new:
                 new_voice = _mint_voice(db, name=None, color=speaker.color)

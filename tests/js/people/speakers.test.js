@@ -12,6 +12,7 @@ import { showConfirm } from '../../../yuu_clip/web/static/core/ui.js';
 import {
   _isSuggestion, loadSpeakers, _saveSpeakerName, _saveSpeakerColor, _resolveSuggestion,
   _resolveVoiceMatch, _createSpeaker, _mergeSpeakerInto, _promoteToPerson, _resolvePersonMatch,
+  _unlinkSpeaker,
 } from '../../../yuu_clip/web/static/people/speakers.js';
 
 describe('_isSuggestion', () => {
@@ -162,5 +163,52 @@ describe('Speakers card actions', () => {
     globalThis.fetch = vi.fn(() => okJson({}));
     await _resolvePersonMatch(1, false);
     expect(globalThis.fetch).toHaveBeenCalledWith('/api/speakers/1/reject-voice', { method: 'POST' });
+  });
+
+  it('_unlinkSpeaker POSTs a split to the linked Person', async () => {
+    // The confirm dialog lives in the click handler (mirrors voices.js's _splitPerson) -
+    // this covers only the request _unlinkSpeaker itself sends once confirmed.
+    await seedCurrentVideo();
+    globalThis.fetch = vi.fn(() => okJson({}));
+    await _unlinkSpeaker(1, 5, 'Hamner');
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/voices/5/split', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ speaker_id: 1 }),
+    });
+  });
+});
+
+describe('Speakers card - Person link chip', () => {
+  const okJson = (body = {}) => Promise.resolve({ ok: true, json: async () => body });
+
+  beforeEach(() => {
+    document.getElementById('detail').innerHTML = '<div id="speakers-section"></div>';
+  });
+
+  it('shows an Unlink button for a speaker linked to a Person', async () => {
+    globalThis.fetch = vi.fn(() => okJson([
+      { id: 1, display_index: 1, color: '#4fc3f7', global_voice_id: 5, person_name: 'Hamner', identity_override: false },
+    ]));
+    await loadSpeakers(7);
+    const btn = document.querySelector('.speaker-unlink-btn');
+    expect(btn).not.toBe(null);
+    expect(btn.dataset.speakerId).toBe('1');
+    expect(btn.dataset.voiceId).toBe('5');
+    expect(document.querySelector('.speaker-override-note')).toBe(null);
+  });
+
+  it('shows the override note only when identity_override is true', async () => {
+    globalThis.fetch = vi.fn(() => okJson([
+      { id: 1, display_index: 1, color: '#4fc3f7', global_voice_id: 5, person_name: 'Hamner', identity_override: true },
+    ]));
+    await loadSpeakers(7);
+    expect(document.querySelector('.speaker-override-note')).not.toBe(null);
+  });
+
+  it('omits the Unlink button and Person chip when not linked to a Person', async () => {
+    globalThis.fetch = vi.fn(() => okJson([
+      { id: 1, display_index: 1, color: '#4fc3f7', global_voice_id: null },
+    ]));
+    await loadSpeakers(7);
+    expect(document.querySelector('.speaker-unlink-btn')).toBe(null);
   });
 });

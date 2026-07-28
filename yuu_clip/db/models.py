@@ -411,6 +411,14 @@ class Speaker(Base):
     # auto-assigned default - see display_color.
     color: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
+    # When linked to a Person (global_voice_id set), this Speaker's own name/color
+    # normally stay dormant in favor of the Person's (see display_name/display_color) -
+    # naming the Person is what "applies everywhere" means. Editing this Speaker's own
+    # name while linked (rename_speaker) flips this on: an explicit per-recording
+    # override, for a voice that plays a different role in just this one recording. A
+    # blank name reverts it (back to following the Person). Irrelevant while unlinked.
+    identity_override: Mapped[bool] = mapped_column(Boolean, default=False)
+
     # Borderline voiceprint match recorded at diarization time: this freshly-minted
     # Speaker's voice landed just below the re-attach threshold of an existing
     # Speaker, so instead of silently re-attaching or minting in silence we record
@@ -449,14 +457,16 @@ class Speaker(Base):
         """Effective display name, resolved in ONE place so captions/excerpts/exports/UI agree.
 
         A Speaker linked to a named Person (global_voice) shows that Person's name
-        everywhere - naming a Person is what "applies across recordings" means. Else
-        the Speaker's own confirmed name, else the 'Speaker N' fallback. An unconfirmed
+        everywhere - naming a Person is what "applies across recordings" means - UNLESS
+        identity_override is set, in which case this one recording shows the Speaker's
+        own name instead (the same voice playing a different role just here). Else the
+        Speaker's own confirmed name, else the 'Speaker N' fallback. An unconfirmed
         inferred name (source='inferred', confirmed=False) is a suggestion the user has
         not accepted yet, so it must not surface in captions, excerpts, or exports -
         only the Speakers card shows it.
         """
         voice = self.global_voice
-        if voice is not None and voice.name:
+        if voice is not None and voice.name and not self.identity_override:
             return voice.name
         return self.name if (self.name and self.confirmed) else f"Speaker {self.display_index}"
 
@@ -466,12 +476,13 @@ class Speaker(Base):
 
         A Speaker linked to a Person takes that Person's colour, so one identity has one
         colour in every recording and recolouring the Person in the People view flows to
-        every member's captions. Else the Speaker's own picked colour, else a default
-        cycled from SPEAKER_COLOR_PALETTE keyed on display_index (stable and readable
-        before the user has picked anything).
+        every member's captions - UNLESS identity_override is set, in which case this
+        recording keeps its own colour. Else the Speaker's own picked colour, else a
+        default cycled from SPEAKER_COLOR_PALETTE keyed on display_index (stable and
+        readable before the user has picked anything).
         """
         voice = self.global_voice
-        if voice is not None:
+        if voice is not None and not self.identity_override:
             return voice.display_color
         return self.color or SPEAKER_COLOR_PALETTE[(self.display_index - 1) % len(SPEAKER_COLOR_PALETTE)]
 

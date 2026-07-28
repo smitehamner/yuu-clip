@@ -262,6 +262,44 @@ class TestSpeakerPersonControls:
         expect(person).to_contain_text("Yuu")
         expect(page.locator(".speaker-promote")).to_have_count(0)
 
+    def test_override_note_shown_only_when_identity_override_true(self, page: Page):
+        linked = {**_SPEAKER, "global_voice_id": 7001, "person_name": "Yuu",
+                  "identity_override": True,
+                  "suggested_voice_id": None, "suggested_voice_name": None,
+                  "suggested_voice_score": None}
+        page.route(
+            "**/api/videos/*/speakers",
+            lambda route: route.fulfill(
+                status=200, content_type="application/json", body=json.dumps([linked])
+            ),
+        )
+        self._select_first_video(page)
+        expect(page.locator(".speaker-override-note")).to_have_count(1)
+
+    def test_unlink_button_confirms_then_posts_split(self, page: Page):
+        linked = {**_SPEAKER, "global_voice_id": 7001, "person_name": "Yuu",
+                  "suggested_voice_id": None, "suggested_voice_name": None,
+                  "suggested_voice_score": None}
+        page.route(
+            "**/api/videos/*/speakers",
+            lambda route: route.fulfill(
+                status=200, content_type="application/json", body=json.dumps([linked])
+            ),
+        )
+        page.route(
+            "**/api/voices/*/split",
+            lambda route: route.fulfill(status=200, content_type="application/json", body="{}"),
+        )
+        self._select_first_video(page)
+
+        page.locator(".speaker-unlink-btn").click()
+        page.locator("#confirm-ok-btn").wait_for(state="visible", timeout=2000)
+        with page.expect_request(
+            lambda r: r.url.endswith("/api/voices/7001/split") and r.method == "POST"
+        ) as req_info:
+            page.click("#confirm-ok-btn")
+        assert json.loads(req_info.value.post_data)["speaker_id"] == _SPEAKER["id"]
+
     def test_cross_recording_chip_confirm_posts(self, page: Page):
         suggested = {**_SPEAKER, "id": 90003, "global_voice_id": None, "person_name": None,
                      "suggested_voice_id": 7001, "suggested_voice_name": "Yuu",

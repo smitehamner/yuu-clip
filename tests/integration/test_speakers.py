@@ -10,6 +10,7 @@ from pathlib import Path
 from yuu_clip.db.models import (
     AudioTrack,
     ClipCandidate,
+    ProjectVoice,
     Speaker,
     Transcript,
     TranscriptSegment,
@@ -79,6 +80,45 @@ class TestSpeakerRoutes:
 
     def test_rename_404_for_missing_speaker(self, client):
         assert client.put("/api/speakers/9999", json={"name": "X"}).status_code == 404
+
+    def _link_to_named_person(self, project_dir: Path, speaker_id: int, person_name: str) -> None:
+        db = self._db(project_dir)
+        voice = ProjectVoice(name=person_name, display_index=1, confirmed=True)
+        db.add(voice)
+        db.flush()
+        db.get(Speaker, speaker_id).global_voice_id = voice.id
+        db.commit()
+        db.close()
+
+    def test_renaming_a_linked_speaker_overrides_the_person_name_here(self, client, project_dir):
+        video_id, speaker_id, _ = self._seed_speaker(project_dir)
+        self._link_to_named_person(project_dir, speaker_id, "Hamner")
+
+        # Before the override: display_name follows the linked Person.
+        listed = client.get(f"/api/videos/{video_id}/speakers").json()
+        assert listed[0]["display_name"] == "Hamner"
+
+        resp = client.put(f"/api/speakers/{speaker_id}", json={"name": "Kayla Collins"})
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["display_name"] == "Kayla Collins"
+        assert body["identity_override"] is True
+        assert body["person_name"] == "Hamner"
+
+    def test_clearing_the_name_reverts_a_linked_speaker_to_the_person_name(self, client, project_dir):
+        _, speaker_id, _ = self._seed_speaker(project_dir)
+        self._link_to_named_person(project_dir, speaker_id, "Hamner")
+        client.put(f"/api/speakers/{speaker_id}", json={"name": "Kayla Collins"})
+
+        resp = client.put(f"/api/speakers/{speaker_id}", json={"name": ""})
+        body = resp.json()
+        assert body["display_name"] == "Hamner"
+        assert body["identity_override"] is False
+
+    def test_renaming_an_unlinked_speaker_never_sets_override(self, client, project_dir):
+        _, speaker_id, _ = self._seed_speaker(project_dir)
+        resp = client.put(f"/api/speakers/{speaker_id}", json={"name": "Solo"})
+        assert resp.json()["identity_override"] is False
 
     def test_list_returns_default_palette_color(self, client, project_dir):
         video_id, _, _ = self._seed_speaker(project_dir)

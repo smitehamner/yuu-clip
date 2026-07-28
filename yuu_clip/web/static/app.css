@@ -353,9 +353,11 @@ button.section-toggle-btn:not(.active):hover { color: var(--text); background: v
 .speaker-status { display: flex; flex-wrap: wrap; gap: 8px; margin-left: 36px; }
 .speaker-chip { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); font-size: 12px; color: var(--muted); }
 .speaker-chip strong { color: var(--text); }
-.speaker-samevoice, .speaker-diffvoice, .speaker-sameperson, .speaker-diffperson, .speaker-open-people { padding: 2px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg); cursor: pointer; font-size: 12px; color: var(--muted); }
+.speaker-override-note { font-size: 11px; font-style: italic; color: var(--muted); }
+.speaker-samevoice, .speaker-diffvoice, .speaker-sameperson, .speaker-diffperson, .speaker-open-people, .speaker-unlink-btn { padding: 2px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg); cursor: pointer; font-size: 12px; color: var(--muted); }
 .speaker-samevoice, .speaker-sameperson, .speaker-open-people { border-color: var(--accent); color: var(--accent); }
 .speaker-samevoice:hover, .speaker-sameperson:hover, .speaker-open-people:hover { background: color-mix(in srgb, var(--accent) 15%, transparent); }
+.speaker-unlink-btn:hover { background: color-mix(in srgb, var(--red) 15%, transparent); }
 .speaker-diffvoice:hover, .speaker-diffperson:hover { background: var(--border); color: var(--text); }
 .speaker-promote { font-size: 12px; }
 /* People view (project-wide speaker identity) */

@@ -14,7 +14,7 @@ import {
 } from '../core/jobs.js';
 import { selectClip } from '../clips/clips.js';
 import { updateSpeakerLabelsInTranscript, reloadVideoTranscriptIfOpen } from '../analyze/transcript.js';
-import { openPeopleView } from './voices.js';
+import { openPeopleView, refreshPeopleViewIfOpen } from './voices.js';
 
 let _currentVideoId = null;
 
@@ -107,9 +107,14 @@ function _renderSpeakersCard(speakers) {
     // confirmed-but-unlinked name. Promote only a CONFIRMED name (an unconfirmed
     // suggestion would mint an unnamed Person - accept it first).
     if (s.global_voice_id) {
+      const overrideNote = s.identity_override
+        ? ` <span class="speaker-override-note" title="Clear this speaker's name to go back to showing ${escHtml(s.person_name)} here">(showing its own name/color here)</span>`
+        : '';
       chips.push(`<span class="speaker-chip speaker-person" title="This voice is part of a Person - one name across recordings">
-        Person: <strong>${escHtml(s.person_name)}</strong>
+        Person: <strong>${escHtml(s.person_name)}</strong>${overrideNote}
         <button class="speaker-open-people" title="Manage people">Manage</button>
+        <button class="speaker-unlink-btn" data-speaker-id="${s.id}" data-voice-id="${s.global_voice_id}"
+                data-person-name="${escHtml(s.person_name)}" title="Remove this recording from ${escHtml(s.person_name)}">Unlink</button>
       </span>`);
     } else if (s.name && s.confirmed) {
       chips.push(`<button class="btn ghost speaker-promote" data-speaker-id="${s.id}"
@@ -136,12 +141,14 @@ function _renderSpeakersCard(speakers) {
         `<span class="detail-card-title">Speakers</span>`, `
       <div class="speaker-list">${rows}</div>
       <div class="speaker-hint">Names show up in clip transcripts and captions. They stick even if you re-analyze this recording.</div>`,
-      { actions: `<button class="btn ghost" data-act="rediarize-video" data-job-blocked data-video-id="${_currentVideoId}"
+      { actions: `<span style="display:flex;gap:6px">
+              <button class="btn ghost" style="font-size:11px;padding:3px 9px" data-act="rediarize-video" data-job-blocked data-video-id="${_currentVideoId}"
                 title="Re-run speaker detection on the existing transcript. Clips and scores are kept; named speakers re-attach to matching voices.">Re-detect speakers</button>
-              <button class="btn ghost speaker-new-btn"
+              <button class="btn ghost speaker-new-btn" style="font-size:11px;padding:3px 9px"
                 title="Add a speaker diarization missed or merged, then move lines onto it from the transcript.">+ New speaker</button>
-              <button class="btn ghost speaker-suggest-btn"
-                title="Use the LLM to suggest names from how speakers address each other. Suggestions are never applied until you accept them.">Suggest names</button>` });
+              <button class="btn ghost speaker-suggest-btn" style="font-size:11px;padding:3px 9px"
+                title="Use the LLM to suggest names from how speakers address each other. Suggestions are never applied until you accept them.">Suggest names</button>
+            </span>` });
 }
 
 // A per-row "Merge into..." picker (whole-speaker merge). Only shown when there is at
@@ -245,6 +252,22 @@ export async function _saveSpeakerName(speakerId, name) {
     showToast('Could not save speaker name', 'error');
   } finally {
     if (input) input.disabled = false;
+  }
+}
+
+export async function _unlinkSpeaker(speakerId, voiceId, personName) {
+  try {
+    const res = await fetch(`/api/voices/${voiceId}/split`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({speaker_id: speakerId}),
+    });
+    if (!res.ok) throw new Error(formatApiError(await res.json().catch(() => ({}))));
+    showToast(`Removed this recording from ${personName}`);
+    await loadSpeakers(_currentVideoId);
+    reloadVideoTranscriptIfOpen(_currentVideoId);
+    refreshPeopleViewIfOpen();
+  } catch (err) {
+    showToast(`Could not unlink: ${err.message}`, 'error');
   }
 }
 
@@ -439,6 +462,19 @@ export function initSpeakerListeners() {
     }
     if (e.target.closest && e.target.closest('.speaker-open-people')) {
       openPeopleView();
+      return;
+    }
+    const unlinkBtn = e.target.closest && e.target.closest('.speaker-unlink-btn');
+    if (unlinkBtn) {
+      const speakerId = parseInt(unlinkBtn.dataset.speakerId, 10);
+      const voiceId = parseInt(unlinkBtn.dataset.voiceId, 10);
+      const personName = unlinkBtn.dataset.personName;
+      showConfirm(
+        'Remove this recording from this person?',
+        `This recording's voice becomes unlinked from ${personName} - you can link it again later from the voice match suggestions.`,
+        'Unlink',
+        () => _unlinkSpeaker(speakerId, voiceId, personName),
+      );
       return;
     }
     const samePersonBtn = e.target.closest && e.target.closest('.speaker-sameperson');
