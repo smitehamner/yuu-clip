@@ -37,6 +37,10 @@ def import_url_cmd(
 
     # Machine-readable marker the web UI's SSE stream looks for to grab the
     # downloaded path - printed plain (not via console.print) so the literal
-    # brackets aren't misread as Rich markup.
-    print(f"[Imported] {path}", flush=True)
+    # brackets aren't misread as Rich markup. Leading \n guarantees this starts
+    # a fresh line even if yt-dlp's last progress-bar write ended mid-line with
+    # a bare \r (no \n) - otherwise this marker can get silently appended to that
+    # unterminated line, and the web UI's anchored ^[Imported] regex then fails
+    # to match, intermittently losing the downloaded path (found 2026-07-27).
+    print(f"\n[Imported] {path}", flush=True)
     console.print("\n[bold green]Download complete.[/bold green] Open New Recording to analyze it.\n")
