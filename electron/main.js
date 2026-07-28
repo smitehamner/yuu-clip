@@ -34,7 +34,7 @@ const { decideSetupMode } = require('./startup-mode');
 const { buildRestoreArgs, parseRestoreExit } = require('./restore-backup');
 const { mergePathEntries } = require('./registry-path');
 const {
-  VENV_DIR, VENV_PYTHON, VENV_PIP, BUNDLED_PYTHON, BUNDLED_FFMPEG_DIR,
+  VENV_DIR, VENV_PYTHON, BUNDLED_PYTHON, BUNDLED_FFMPEG_DIR,
   BUNDLED_LLAMA_SERVER_DIR,
   SETUP_LOG, SETUP_COMPLETE_MARKER, WHEEL_MARKER,
   DEFAULT_PROJECT_DIR, BASE_PORT,
@@ -391,11 +391,11 @@ function registerWizardIPC(wizardWin) {
     };
     if (!spec) { send({ error: `Unknown package '${slug}'` }); return; }
 
-    const installArgs = ['install', '--progress-bar', 'raw', ...spec.packages];
+    const installArgs = ['-m', 'pip', 'install', '--progress-bar', 'raw', ...spec.packages];
     logSetup(`Wizard install starting: ${installArgs.join(' ')}`);
     installCancelRequested = false;
     try {
-      await runCmd(VENV_PIP, installArgs,
+      await runCmd(VENV_PYTHON, installArgs,
         pipStatusReporter(statusText => send({ status: statusText })),
         (proc) => { activeInstallProc = proc; });
       logSetup(`Wizard install complete: ${slug}`);
@@ -969,7 +969,7 @@ async function restoreVenvExtrasAfterExtract(setupWin, { hadCudaLibs }) {
     sendStatus('Restoring GPU acceleration for transcription...');
     logSetup(`Restoring opt-in venv extra after upgrade: ${slug}`);
     try {
-      await runCmd(VENV_PIP, ['install', '--progress-bar', 'raw', ...spec.packages], lineHandler);
+      await runCmd(VENV_PYTHON, ['-m', 'pip', 'install', '--progress-bar', 'raw', ...spec.packages], lineHandler);
       logSetup(`Restored venv extra after upgrade: ${slug}`);
     } catch (err) {
       const detail = [err.stderr, err.stdout].filter(Boolean).join('\n');
@@ -1061,14 +1061,14 @@ async function runPipVenvSetup(resourcesDir) {
                     : 'requirements.lock not bundled - installing without a constraint');
     const onPipLine = makePipLineHandler(setupWin);
     await runCmd(
-      VENV_PIP,
-      buildWheelInstallArgs(wheelPath, lockOk ? lockPath : null, wheelhouseOk ? wheelhouseDir : null),
+      VENV_PYTHON,
+      ['-m', 'pip', ...buildWheelInstallArgs(wheelPath, lockOk ? lockPath : null, wheelhouseOk ? wheelhouseDir : null)],
       onPipLine
     );
     logSetup('Ensuring a single OpenCV build (contrib superset wins)...');
     await runCmd(
-      VENV_PIP,
-      buildOpencvDedupeArgs(lockOk ? lockPath : null, wheelhouseOk ? wheelhouseDir : null),
+      VENV_PYTHON,
+      ['-m', 'pip', ...buildOpencvDedupeArgs(lockOk ? lockPath : null, wheelhouseOk ? wheelhouseDir : null)],
       onPipLine
     );
     progress('s0', 'done');

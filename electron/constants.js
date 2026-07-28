@@ -14,8 +14,14 @@ const path = require('path');
 const CATALOG_DATA = require('./shared/catalog-data.json');
 
 const VENV_DIR    = path.join(process.env.LOCALAPPDATA, 'yuu-clip', 'venv');
+// pip is always invoked as `VENV_PYTHON -m pip`, never Scripts/pip.exe directly -
+// that launcher stub embeds an absolute path to the interpreter that existed when
+// pip was installed into the venv (the release-build machine's own path for the
+// prebuilt/relocated venv), which breaks silently once the venv is extracted onto
+// a different machine (found 2026-07-28: GPU-acceleration restore-after-upgrade
+// reported success but wrote into the build machine's leftover venv, not the
+// deployed one). `python -m pip` always resolves through the calling interpreter.
 const VENV_PYTHON = path.join(VENV_DIR, 'Scripts', 'python.exe');
-const VENV_PIP    = path.join(VENV_DIR, 'Scripts', 'pip.exe');
 
 // Pinned CPython bundled into the installer (see scripts/windows-release/fetch-python-runtime.ps1)
 // so end users never need a system Python. Only present in packaged builds -
@@ -65,7 +71,7 @@ const MODELS_DIR = path.join(process.env.LOCALAPPDATA, 'yuu-clip', 'models');
 const SETUP_SCHEMA_VERSION = 3;
 
 module.exports = {
-  VENV_DIR, VENV_PYTHON, VENV_PIP,
+  VENV_DIR, VENV_PYTHON,
   BUNDLED_PYTHON, BUNDLED_FFMPEG_DIR, BUNDLED_LLAMA_SERVER_DIR,
   SETUP_LOG, SETUP_COMPLETE_MARKER, WHEEL_MARKER, ELECTRON_CONFIG_PATH,
   DEFAULT_PROJECT_DIR, BASE_PORT,
