@@ -9,25 +9,14 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
-from yuu_clip.db.models import ClipCandidate, Video
+from yuu_clip.db.models import Video
 from yuu_clip.log import get_logger
-from yuu_clip.scoring.dedup import DUPLICATE_TAG, find_duplicate_candidates
+from yuu_clip.scoring.dedup import scan_and_tag_duplicates
 from yuu_clip.web.deps import ProjectContext
+from yuu_clip.web.routes.clips.schemas import ClipDismissDuplicateRequest
+from yuu_clip.web.routes.common import require_clip
 
 _log = get_logger(__name__)
-
-
-def _set_duplicate_tag(clip: ClipCandidate, flagged: bool) -> bool:
-    """Add or remove DUPLICATE_TAG on *clip*. Returns True if the tag changed."""
-    tags = clip.tags
-    has_tag = DUPLICATE_TAG in tags
-    if flagged and not has_tag:
-        clip.tags = tags + [DUPLICATE_TAG]
-        return True
-    if not flagged and has_tag:
-        clip.tags = [tag for tag in tags if tag != DUPLICATE_TAG]
-        return True
-    return False
 
 
 def make_router(ctx: ProjectContext) -> APIRouter:
@@ -43,23 +32,37 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             video = db.get(Video, video_id)
             if not video:
                 raise HTTPException(404, "Recording not found")
-            pairs = find_duplicate_candidates(video_id, db)
-            flagged_ids = {clip.id for pair in pairs for clip in pair[:2]}
-            clips = db.query(ClipCandidate).filter_by(video_id=video_id).all()
-            changed = sum(_set_duplicate_tag(clip, clip.id in flagged_ids) for clip in clips)
+            result = scan_and_tag_duplicates(video_id, db)
             db.commit()
             _log.info(
                 "Duplicate scan on video %d: %d clips checked, %d flagged, %d tags changed",
-                video_id, len(clips), len(flagged_ids), changed,
+                video_id, result["clips_checked"], result["clips_flagged"], result["changed"],
             )
-            return {
-                "clips_checked": len(clips),
-                "clips_flagged": len(flagged_ids),
-                "pairs": [
-                    {"clip_a_id": clip_a.id, "clip_b_id": clip_b.id, "overlap_ratio": round(ratio, 3)}
-                    for clip_a, clip_b, ratio in pairs
-                ],
-            }
+            return result
+        finally:
+            db.close()
+
+    @router.post("/api/clips/{clip_id}/dismiss-duplicate")
+    def dismiss_duplicate(clip_id: int, body: ClipDismissDuplicateRequest):
+        """Mark *clip_id* and *other_clip_id* as not a duplicate of each other, so a
+        future scan never re-flags this specific pair (a new overlap with a
+        different clip can still flag either one). Re-scans the recording
+        immediately so both clips' tags reflect the dismissal without the
+        reviewer having to run a separate "Check duplicates" pass."""
+        db = ctx.get_db()
+        try:
+            clip = require_clip(db, clip_id)
+            other = require_clip(db, body.other_clip_id)
+            if clip.video_id != other.video_id:
+                raise HTTPException(400, "Clips must belong to the same recording")
+            if clip.id not in other.dismissed_duplicate_ids:
+                other.dismissed_duplicate_ids = other.dismissed_duplicate_ids + [clip.id]
+            if other.id not in clip.dismissed_duplicate_ids:
+                clip.dismissed_duplicate_ids = clip.dismissed_duplicate_ids + [other.id]
+            result = scan_and_tag_duplicates(clip.video_id, db)
+            db.commit()
+            _log.info("Dismissed duplicate pair (clip %d, clip %d)", clip_id, body.other_clip_id)
+            return result
         finally:
             db.close()
 

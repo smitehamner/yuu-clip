@@ -657,6 +657,12 @@ class ClipCandidate(Base):
     tags_json: Mapped[Optional[str]] = mapped_column(Text)       # JSON list - system tags (llm_error, silence_Ns, ...)
     user_tags_json: Mapped[Optional[str]] = mapped_column(Text)  # JSON list - user-defined tags
 
+    # JSON list of clip ids whose overlap with this clip the reviewer explicitly
+    # dismissed as "not a duplicate" - scoring/dedup.py's scan excludes any pair
+    # where either side already dismissed the other, so it doesn't get re-flagged
+    # on the next scan. Dismissal is recorded on both clips in the pair.
+    dismissed_duplicate_ids_json: Mapped[Optional[str]] = mapped_column(Text)
+
     transcript_excerpt: Mapped[Optional[str]] = mapped_column(Text)
     description: Mapped[Optional[str]] = mapped_column(Text)
     description_user: Mapped[Optional[str]] = mapped_column(Text)
@@ -755,6 +761,14 @@ class ClipCandidate(Base):
     @user_tags.setter
     def user_tags(self, value: list[str]) -> None:
         self.user_tags_json = json.dumps(value)
+
+    @property
+    def dismissed_duplicate_ids(self) -> list[int]:
+        return _decode_json_list(self.dismissed_duplicate_ids_json)
+
+    @dismissed_duplicate_ids.setter
+    def dismissed_duplicate_ids(self, value: list[int]) -> None:
+        self.dismissed_duplicate_ids_json = json.dumps(value)
 
     @property
     def hotword_matches(self) -> list[dict]:

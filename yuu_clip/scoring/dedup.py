@@ -48,7 +48,45 @@ def find_duplicate_candidates(
             # end it cannot overlap clip_a, and neither can any clip after it.
             if clip_b.start_ms >= clip_a.end_ms:
                 break
+            if clip_b.id in clip_a.dismissed_duplicate_ids or clip_a.id in clip_b.dismissed_duplicate_ids:
+                continue
             ratio = _overlap_ratio(clip_a, clip_b)
             if ratio >= threshold:
                 duplicates.append((clip_a, clip_b, ratio))
     return duplicates
+
+
+def _set_duplicate_tag(clip: ClipCandidate, flagged: bool) -> bool:
+    """Add or remove DUPLICATE_TAG on *clip*. Returns True if the tag changed."""
+    tags = clip.tags
+    has_tag = DUPLICATE_TAG in tags
+    if flagged and not has_tag:
+        clip.tags = tags + [DUPLICATE_TAG]
+        return True
+    if not flagged and has_tag:
+        clip.tags = [tag for tag in tags if tag != DUPLICATE_TAG]
+        return True
+    return False
+
+
+def scan_and_tag_duplicates(video_id: int, session) -> dict:
+    """Find near-duplicate pairs on *video_id* and persist DUPLICATE_TAG on the
+    flagged clips - idempotent, also clearing the tag from clips no longer
+    flagged (e.g. after one side of a pair is merged or rejected). Caller
+    commits. Shared by the explicit "Check duplicates" scan route and by
+    manual-clip creation, so a clip that overlaps an existing one gets flagged
+    immediately instead of only on the next manual scan.
+    """
+    pairs = find_duplicate_candidates(video_id, session)
+    flagged_ids = {clip.id for pair in pairs for clip in pair[:2]}
+    clips = session.query(ClipCandidate).filter_by(video_id=video_id).all()
+    changed = sum(_set_duplicate_tag(clip, clip.id in flagged_ids) for clip in clips)
+    return {
+        "clips_checked": len(clips),
+        "clips_flagged": len(flagged_ids),
+        "changed": changed,
+        "pairs": [
+            {"clip_a_id": clip_a.id, "clip_b_id": clip_b.id, "overlap_ratio": round(ratio, 3)}
+            for clip_a, clip_b, ratio in pairs
+        ],
+    }

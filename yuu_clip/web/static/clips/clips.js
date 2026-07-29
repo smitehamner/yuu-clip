@@ -1077,6 +1077,7 @@ function _handleDetailClick(e) {
     case 'open-similar-clips-modal': openSimilarClipsModal(clipId); break;
     case 'open-retranscribe': openRetranscribeModal(clipId); break;
     case 'select-related-clip': e.preventDefault(); selectClip(clipId); break;
+    case 'dismiss-duplicate': dismissDuplicate(clipId, Number(act.dataset.partnerId)); break;
     case 'rescore-clip': rescoreClip(clipId); break;
     case 'analyze-frames': analyzeFrames(clipId); break;
   }
@@ -1289,15 +1290,32 @@ export function _duplicateNoticeHTML(clip) {
   if (!(clip.tags || []).includes('possible_duplicate')) return '';
   const partners = _duplicatePartners(clip);
   if (!partners.length) return '';
-  const buttons = partners.map(partner => {
+  const rows = partners.map(partner => {
     const direction = partner.clip.start_ms < clip.start_ms ? 'prev' : 'next';
-    return `<button class="btn" style="font-size:11px;padding:3px 9px" data-merge-a="${clip.id}" data-merge-b="${partner.clip.id}" data-merge-dir="${direction}">Merge #${partner.clip.id} &middot; ${partner.clip.start_hms}</button>`;
+    return `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+      <a href="#" style="color:var(--accent);text-decoration:none;font-size:12px" data-act="select-related-clip" data-clip-id="${partner.clip.id}">View #${partner.clip.id} &middot; ${partner.clip.start_hms}</a>
+      <button class="btn" style="font-size:11px;padding:3px 9px" data-merge-a="${clip.id}" data-merge-b="${partner.clip.id}" data-merge-dir="${direction}">Merge</button>
+      <button class="btn ghost" style="font-size:11px;padding:3px 9px" data-act="dismiss-duplicate" data-clip-id="${clip.id}" data-partner-id="${partner.clip.id}" title="Not actually a duplicate - stop flagging this pair">Not a duplicate</button>
+    </div>`;
   }).join('');
   const ids = partners.map(partner => '#' + partner.clip.id).join(', ');
   return `<div class="clip-dup-notice" role="note">
-    <div>&#8646; Possible duplicate - overlaps ${partners.length === 1 ? 'clip' : 'clips'} ${ids}. Merge to combine into this clip.</div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">${buttons}</div>
+    <div>&#8646; Possible duplicate - overlaps ${partners.length === 1 ? 'clip' : 'clips'} ${ids}.</div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-top:6px">${rows}</div>
   </div>`;
+}
+
+async function dismissDuplicate(clipId, partnerId) {
+  const res = await fetch(`/api/clips/${clipId}/dismiss-duplicate`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({other_clip_id: partnerId}),
+  });
+  if (!res.ok) { const e = await res.json().catch(() => ({})); showToast(e.detail || 'Could not dismiss', 'error'); return; }
+  const videoId = AppState.activeVideoId;
+  if (videoId) await _reloadClipList(videoId);
+  if (AppState.activeClipId) refreshClipDetail(AppState.activeClipId);
+  showToast('Dismissed - this pair will not be flagged again');
 }
 
 async function scanDuplicates(busyBtn) {

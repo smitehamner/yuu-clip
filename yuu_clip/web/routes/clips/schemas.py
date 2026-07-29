@@ -36,6 +36,10 @@ class ClipMergeRequest(BaseModel):
     clip_b_id: int
 
 
+class ClipDismissDuplicateRequest(BaseModel):
+    other_clip_id: int
+
+
 class BulkStatusUpdate(BaseModel):
     clip_ids: list[int]
     status: str  # approved | rejected | pending

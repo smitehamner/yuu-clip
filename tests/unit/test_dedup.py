@@ -116,6 +116,35 @@ def test_tied_start_ms_orders_clip_a_by_lower_id(session):
     assert clip_b.id == 20
 
 
+def test_dismissed_pair_not_flagged(session):
+    a = _add_clip(session, 1, 0, 1000)
+    b = _add_clip(session, 1, 0, 1000)
+    a.dismissed_duplicate_ids = [b.id]
+    assert find_duplicate_candidates(1, session) == []
+
+
+def test_dismissal_recorded_on_either_side_suppresses_the_pair(session):
+    # Dismissal is checked from both directions - recording it only on the
+    # later-starting clip (clip_b in pair order) must still suppress the pair.
+    a = _add_clip(session, 1, 0, 1000)
+    b = _add_clip(session, 1, 0, 1000)
+    b.dismissed_duplicate_ids = [a.id]
+    assert find_duplicate_candidates(1, session) == []
+
+
+def test_dismissing_one_pair_does_not_suppress_a_different_overlap(session):
+    a = _add_clip(session, 1, 0, 1000)
+    b = _add_clip(session, 1, 0, 1000)
+    c = _add_clip(session, 1, 0, 1000)
+    a.dismissed_duplicate_ids = [b.id]
+    b.dismissed_duplicate_ids = [a.id]
+    pairs = find_duplicate_candidates(1, session)
+    paired_ids = [{p[0].id, p[1].id} for p in pairs]
+    assert {a.id, c.id} in paired_ids
+    assert {b.id, c.id} in paired_ids
+    assert {a.id, b.id} not in paired_ids
+
+
 def test_zero_duration_clip_inside_another_never_divides_by_zero(session):
     # A zero-length clip (start == end) sitting inside a longer clip: the shorter
     # duration is 0, so the overlap-ratio guard returns 0.0 (no flag) instead of

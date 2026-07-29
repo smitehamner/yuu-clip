@@ -594,6 +594,17 @@ describe('_duplicateNoticeHTML', () => {
     AppState.clips = [target, partner];
     expect(_duplicateNoticeHTML(target)).toContain('data-merge-dir="prev"');
   });
+
+  it('also offers a View link and a dismiss action for the partner', () => {
+    const partner = { id: 2, start_ms: 2_000, end_ms: 10_000, status: 'pending' };
+    AppState.clips = [target, partner];
+    const html = _duplicateNoticeHTML(target);
+    expect(html).toContain('data-act="select-related-clip"');
+    expect(html).toContain('data-clip-id="2"');
+    expect(html).toContain('data-act="dismiss-duplicate"');
+    expect(html).toContain('data-clip-id="1"');
+    expect(html).toContain('data-partner-id="2"');
+  });
 });
 
 describe('_visionDetailHTML', () => {

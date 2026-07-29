@@ -2,7 +2,7 @@
 and clears stale tags on re-scan (clip-deduplication Stage 2)."""
 from __future__ import annotations
 
-from yuu_clip.db.models import ClipCandidate, make_session
+from yuu_clip.db.models import ClipCandidate, Video, make_session
 from yuu_clip.scoring.dedup import DUPLICATE_TAG
 
 
@@ -79,3 +79,71 @@ def test_merging_clears_the_duplicate_tag_from_survivor(client):
 
     assert res.status_code == 200
     assert DUPLICATE_TAG not in _tags(client, survivor_id)
+
+
+class TestDismissDuplicate:
+    def test_dismissing_clears_the_tag_from_both_clips(self, client):
+        video_id = _video_id(client)
+        first_id, second_id = _add_overlapping_pair(client, video_id)
+        client.post(f"/api/videos/{video_id}/scan-duplicates")
+        assert DUPLICATE_TAG in _tags(client, first_id)
+        assert DUPLICATE_TAG in _tags(client, second_id)
+
+        res = client.post(f"/api/clips/{first_id}/dismiss-duplicate", json={"other_clip_id": second_id})
+
+        assert res.status_code == 200
+        assert res.json()["clips_flagged"] == 0
+        assert DUPLICATE_TAG not in _tags(client, first_id)
+        assert DUPLICATE_TAG not in _tags(client, second_id)
+
+    def test_rescan_does_not_re_flag_a_dismissed_pair(self, client):
+        video_id = _video_id(client)
+        first_id, second_id = _add_overlapping_pair(client, video_id)
+        client.post(f"/api/clips/{first_id}/dismiss-duplicate", json={"other_clip_id": second_id})
+
+        body = client.post(f"/api/videos/{video_id}/scan-duplicates").json()
+
+        assert body["clips_flagged"] == 0
+        assert DUPLICATE_TAG not in _tags(client, first_id)
+        assert DUPLICATE_TAG not in _tags(client, second_id)
+
+    def test_dismissing_one_pair_still_flags_a_third_overlapping_clip(self, client):
+        # first=[200000,260000], second=[210000,270000] (the seeded ~83% overlap
+        # pair). third sits entirely in the 10s sliver of first's window that
+        # second does NOT cover, so it overlaps only first, not second - proving
+        # a dismissal is specific to the dismissed pair, not the whole clip.
+        video_id = _video_id(client)
+        first_id, second_id = _add_overlapping_pair(client, video_id)
+        db = make_session(client.app.state.ctx.db_path)
+        third = ClipCandidate(video_id=video_id, start_ms=201_000, end_ms=209_000, status="pending")
+        db.add(third)
+        db.commit()
+        third_id = third.id
+        db.close()
+
+        client.post(f"/api/clips/{first_id}/dismiss-duplicate", json={"other_clip_id": second_id})
+
+        assert DUPLICATE_TAG in _tags(client, first_id)
+        assert DUPLICATE_TAG in _tags(client, third_id)
+        assert DUPLICATE_TAG not in _tags(client, second_id)
+
+    def test_404_unknown_clip(self, client):
+        video_id = _video_id(client)
+        first_id, _second_id = _add_overlapping_pair(client, video_id)
+        assert client.post(f"/api/clips/{first_id}/dismiss-duplicate", json={"other_clip_id": 999999}).status_code == 404
+
+    def test_400_clips_from_different_videos(self, client):
+        video_id = _video_id(client)
+        first_id, _second_id = _add_overlapping_pair(client, video_id)
+        db = make_session(client.app.state.ctx.db_path)
+        other_video = Video(path="/other.mkv", filename="other.mkv", status="done")
+        db.add(other_video)
+        db.flush()
+        other_clip = ClipCandidate(video_id=other_video.id, start_ms=0, end_ms=1000, status="pending")
+        db.add(other_clip)
+        db.commit()
+        other_clip_id = other_clip.id
+        db.close()
+
+        res = client.post(f"/api/clips/{first_id}/dismiss-duplicate", json={"other_clip_id": other_clip_id})
+        assert res.status_code == 400
