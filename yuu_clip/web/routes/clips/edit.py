@@ -18,6 +18,7 @@ from yuu_clip.log import get_logger
 from yuu_clip.scoring.dedup import DUPLICATE_TAG
 from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.file_deletion import delete_files
+from yuu_clip.web.jobevents import OUTCOME_ERROR, OUTCOME_OK, done_event, log_event, result_event
 from yuu_clip.web.routes.clips.schemas import (
     ClipFieldsUpdate,
     ClipFramingUpdate,
@@ -27,9 +28,11 @@ from yuu_clip.web.routes.clips.schemas import (
 )
 from yuu_clip.web.routes.clips.serialize import _clip_dict
 from yuu_clip.web.routes.common import (
+    active_job,
     reject_if_busy,
     require_clip,
     require_clip_with_source,
+    sse_response,
 )
 from yuu_clip.web.sse import subprocess_sse, terminate_process_tree_async
 
@@ -206,8 +209,12 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
     @router.post("/api/clips/{clip_id}/suggest-framing")
     async def suggest_framing(clip_id: int):
         """Suggest a vertical (9:16) crop position by finding the median face
-        position across sampled frames (MediaPipe). Returns {crop_x: float|null}
-        - null when no face is found; the creator still confirms before it sticks.
+        position across sampled frames (MediaPipe). Streams the result as SSE
+        ({crop_x: float|null} in the result event - null when no face is found;
+        the creator still confirms before it sticks) so a slow detection pass on
+        a longer clip can show progress and be cancelled the same way the other
+        in-process jobs are (client-only: aborting the connection unwinds
+        active_job, nothing is written here to roll back).
 
         503 when the MediaPipe package isn't present - it's bundled with yuu-clip
         by default, so this only fires on a broken/partial install. The detection
@@ -220,6 +227,7 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
                 "Auto-framing needs the MediaPipe package, which should be bundled "
                 "with yuu-clip - try reinstalling if this persists.",
             )
+        reject_if_busy(ctx, "Auto-frame")
         db = ctx.get_db()
         try:
             clip, video = require_clip_with_source(db, clip_id)
@@ -235,14 +243,23 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
             db.close()
 
         from yuu_clip.analyze.framing import suggest_crop_x
-        try:
-            crop_x = await asyncio.to_thread(
-                suggest_crop_x, encode_src, start_s, end_s, source_w, source_h
-            )
-        except Exception as exc:
-            _log.error("Auto-framing failed for clip %d: %s", clip_id, exc, exc_info=True)
-            raise HTTPException(500, "Auto-framing failed - see the log for details")
-        return {"crop_x": crop_x}
+
+        async def event_stream():
+            async with active_job(ctx):
+                yield log_event('[Finding faces…]')
+                try:
+                    crop_x = await asyncio.to_thread(
+                        suggest_crop_x, encode_src, start_s, end_s, source_w, source_h
+                    )
+                except Exception as exc:
+                    _log.error("Auto-framing failed for clip %d: %s", clip_id, exc, exc_info=True)
+                    yield log_event(f'[Error: {exc}]', level="error")
+                    yield done_event(OUTCOME_ERROR, error="Auto-framing failed - see the log for details")
+                    return
+                yield result_event({"crop_x": crop_x})
+                yield done_event(OUTCOME_OK)
+
+        return sse_response(event_stream())
 
     async def _ensure_vision_server_url(clip_id: int) -> str:
         """Ensure the web server's warm vision llama-server is up and return its base

@@ -10,7 +10,8 @@ import {
 } from '../core/utils.js';
 import {
   streamSSE, INGEST_STEPS, setJobCancel, _waitWhileAnalyzePaused, _setPausedUIFromStatus,
-  applyJobBlockedState,
+  applyJobBlockedState, startJobUI, endJobUI, setJobProgress, URL_INSPECT_STEPS,
+  _openSSE, _setActiveStream, _clearActiveStream, _supersedeActiveStream,
 } from '../core/jobs.js';
 import {
   loadVideos, selectVideo, renderVideoDetail, _updateStartIngestButton, _reanalyzeParams,
@@ -812,7 +813,7 @@ function hideImportUrlSection() {
   _importUrlUrl  = null;
 }
 
-async function checkImportUrl() {
+function checkImportUrl() {
   const url = document.getElementById('import-url-input').value.trim();
   const area = document.getElementById('import-url-inspect-area');
   if (!url) return;
@@ -822,25 +823,36 @@ async function checkImportUrl() {
   btn.textContent = 'Checking…';
   area.innerHTML = '<div class="probing-spinner">Checking link...</div>';
   _importUrlInfo = null;
-  try {
-    const res = await fetch('/api/import-url/inspect', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body:   JSON.stringify({url}),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      area.innerHTML = `<div style="color:var(--red);font-size:12px">${escHtml(formatApiError(data))}</div>`;
-      return;
-    }
-    _importUrlInfo = data;
-    _importUrlUrl  = url;
-    renderImportUrlInspect(data);
-  } catch (err) {
-    area.innerHTML = `<div style="color:var(--red);font-size:12px">Could not check link: ${escHtml(String(err.message || err))}</div>`;
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Check link';
-  }
+  _supersedeActiveStream();
+  startJobUI(URL_INSPECT_STEPS, 'Checking link', true);
+  setJobProgress();
+  const teardown = () => { btn.disabled = false; btn.textContent = 'Check link'; endJobUI(); };
+  setJobCancel({
+    title:      'Stop checking link?',
+    body:       'The link check is cancelled - nothing is downloaded either way.',
+    confirm:    'Stop',
+    logMsg:     '[Link check cancelled]',
+    clientOnly: true,
+    onCancel:   () => { area.innerHTML = ''; },
+  });
+  const handle = _openSSE(
+    '/api/import-url/inspect',
+    () => {},
+    () => { _clearActiveStream(handle); teardown(); },
+    errMsg => {
+      _clearActiveStream(handle);
+      teardown();
+      area.innerHTML = `<div style="color:var(--red);font-size:12px">${escHtml(errMsg)}</div>`;
+    },
+    {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({url})},
+    null,
+    data => {
+      _importUrlInfo = data;
+      _importUrlUrl  = url;
+      renderImportUrlInspect(data);
+    },
+  );
+  _setActiveStream(handle, teardown);
 }
 
 function _fmtDurationS(seconds) {

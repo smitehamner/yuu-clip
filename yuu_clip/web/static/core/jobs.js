@@ -75,6 +75,8 @@ const FIND_SIMILAR_STEPS   = [{label: 'Searching',      patterns: ['Searching']}
 // the single pill shows a live count + ETA. Client-only soft-cancel (see reel.js).
 const BATCH_EXPORT_STEPS   = [{label: 'Exporting',      patterns: ['Exporting clip', 'OK clip', 'Skipping'], progressPattern: /\[(\d+)\/(\d+)\]/}];
 const TIMELINE_JOB_STEPS   = [{label: 'Timeline',       patterns: []}];  // driven client-side via setJobProgress
+const AUTOFRAME_JOB_STEPS  = [{label: 'Auto-framing',   patterns: ['Finding faces']}];
+const URL_INSPECT_STEPS    = [{label: 'Checking link',  patterns: ['Checking link']}];
 
 // The full set of known @@PROGRESS stage ids - the JS mirror of progress.py's
 // Stage enum. frames_sample/frames_describe drive the analyze-frames job. Kept
@@ -691,7 +693,8 @@ export {
   initJobsListeners,
   INGEST_STEPS, SCORE_STEPS, FRAMES_STEPS, JOB_STAGES, parseProgress, _driveStepFromMarker,
   RESCORE_JOB_STEPS, REDESCRIBE_JOB_STEPS, HOTWORD_SCAN_STEPS, SUMMARY_JOB_STEPS,
-  SPEAKER_NAMES_STEPS, FIND_SIMILAR_STEPS, TIMELINE_JOB_STEPS, BATCH_EXPORT_STEPS, setJobProgress,
+  SPEAKER_NAMES_STEPS, FIND_SIMILAR_STEPS, TIMELINE_JOB_STEPS, BATCH_EXPORT_STEPS,
+  AUTOFRAME_JOB_STEPS, URL_INSPECT_STEPS, setJobProgress,
   startJobUI, updateJobUI, endJobUI, applyJobBlockedState, _stepPillLabel, _renderStepPill, _tickJobTimer,
   _setPausedUIFromStatus, togglePauseJob, _pollThermalStatus,
   _openSSE, streamSSE, _setActiveStream, _clearActiveStream, _supersedeActiveStream, _abortActiveStream,

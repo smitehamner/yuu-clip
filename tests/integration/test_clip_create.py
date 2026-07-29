@@ -195,10 +195,24 @@ class TestClipFramingPatch:
             session.close()
 
 
+def _sse_result(client, method: str, url: str) -> dict:
+    import json as _json
+    with client.stream(method, url) as resp:
+        assert resp.status_code == 200
+        for line in resp.iter_lines():
+            if not line.startswith("data: "):
+                continue
+            payload = _json.loads(line[len("data: "):])
+            if payload.get("type") == "result":
+                return payload["data"]
+    raise AssertionError(f"no result event in the SSE stream from {method} {url}")
+
+
 class TestSuggestFraming:
-    """POST /api/clips/{id}/suggest-framing returns a MediaPipe-suggested crop_x,
-    or 503 when the optional package is absent. The detector itself is mocked -
-    the tests exercise the gate, the response shape, and the null-face path."""
+    """POST /api/clips/{id}/suggest-framing streams a MediaPipe-suggested crop_x
+    as SSE (so a slow detection pass is cancellable), or 503 when the optional
+    package is absent. The detector itself is mocked - the tests exercise the
+    gate, the response shape, and the null-face path."""
 
     def _new_clip_id(self, client) -> int:
         vid_id = client.get("/api/videos").json()[0]["id"]
@@ -228,9 +242,8 @@ class TestSuggestFraming:
         (project_dir / "session.mkv").write_bytes(b"")  # route guards on src.exists()
         monkeypatch.setattr(framing_mod, "suggest_crop_x", lambda *a, **k: 0.72)
         clip_id = self._new_clip_id(client)
-        res = client.post(f"/api/clips/{clip_id}/suggest-framing")
-        assert res.status_code == 200
-        assert res.json() == {"crop_x": 0.72}
+        body = _sse_result(client, "POST", f"/api/clips/{clip_id}/suggest-framing")
+        assert body == {"crop_x": 0.72}
 
     def test_null_crop_x_when_no_face(self, client, project_dir, monkeypatch):
         import yuu_clip.analyze.framing as framing_mod
@@ -238,6 +251,12 @@ class TestSuggestFraming:
         (project_dir / "session.mkv").write_bytes(b"")
         monkeypatch.setattr(framing_mod, "suggest_crop_x", lambda *a, **k: None)
         clip_id = self._new_clip_id(client)
+        body = _sse_result(client, "POST", f"/api/clips/{clip_id}/suggest-framing")
+        assert body == {"crop_x": None}
+
+    def test_rejected_while_another_job_is_running(self, client, monkeypatch):
+        self._force_mediapipe(monkeypatch, present=True)
+        clip_id = self._new_clip_id(client)
+        client.app.state.ctx.active_jobs = 1
         res = client.post(f"/api/clips/{clip_id}/suggest-framing")
-        assert res.status_code == 200
-        assert res.json() == {"crop_x": None}
+        assert res.status_code == 409

@@ -6,7 +6,10 @@ import {
   showToast, _exportRetranscribeDefault, _diarizationReadiness,
   _diarizationNoteHtml, _wireDiarizationSettingsLink,
 } from '../core/utils.js';
-import { streamSSE, setJobCancel } from '../core/jobs.js';
+import {
+  streamSSE, setJobCancel, setJobProgress, startJobUI, endJobUI,
+  _openSSE, _setActiveStream, _clearActiveStream, _supersedeActiveStream, AUTOFRAME_JOB_STEPS,
+} from '../core/jobs.js';
 import { renderPlayer, renderDetail, _reloadClipList } from '../clips/clips.js';
 import { loadVideos } from '../videos/videos.js';
 import { openSettings } from '../settings/settings.js';
@@ -215,7 +218,7 @@ function _edMount(container) {
         <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
           <input type="checkbox" id="ed-title-card"> Title card
         </label>
-        <button class="btn-secondary" id="ed-autoframe-btn" style="display:none;font-size:12px;padding:4px 8px" title="Suggest a crop position from faces (MediaPipe)">Auto-frame on faces</button>
+        <button class="btn-secondary" id="ed-autoframe-btn" data-job-blocked style="display:none;font-size:12px;padding:4px 8px" title="Suggest a crop position from faces (MediaPipe)">Auto-frame on faces</button>
         <span id="ed-autoframe-note" style="font-size:11px;color:var(--muted)"></span>
       </div>
       <div id="ed-tightcap-warning" role="status" style="display:none;font-size:12px;color:var(--warning);line-height:1.4"></div>
@@ -768,28 +771,41 @@ function _edCropPointerDown(e) {
   window.addEventListener('pointerup', onUp);
 }
 
-async function _edAutoFrame() {
+function _edAutoFrame() {
   const btn  = document.getElementById('ed-autoframe-btn');
   const note = document.getElementById('ed-autoframe-note');
   btn.disabled = true;
   note.textContent = 'Finding faces…';
-  try {
-    const res = await fetch(`/api/clips/${_edClipId}/suggest-framing`, { method: 'POST' });
-    if (res.status === 503) {
-      note.textContent = "Auto-frame isn't available - the face-detection component is missing. "
-        + 'Try reinstalling YuuClip, or set the crop by hand.';
-      return;
-    }
-    if (!res.ok) throw new Error(formatApiError(await res.json().catch(() => ({}))) || `HTTP ${res.status}`);
-    const { crop_x } = await res.json();
-    if (crop_x == null) { note.textContent = 'No face found - set the crop manually.'; return; }
-    _edSetCropX(crop_x);
-    note.textContent = 'Framed on faces.';
-  } catch (err) {
-    note.textContent = `Auto-frame failed: ${err.message}`;
-  } finally {
-    btn.disabled = false;
-  }
+  _supersedeActiveStream();
+  startJobUI(AUTOFRAME_JOB_STEPS, 'Finding faces', true);
+  setJobProgress();
+  const teardown = () => { btn.disabled = false; endJobUI(); };
+  setJobCancel({
+    title:      'Stop auto-framing?',
+    body:       'The crop suggestion is discarded - set it by hand instead.',
+    confirm:    'Stop',
+    logMsg:     '[Auto-frame cancelled]',
+    clientOnly: true,
+    onCancel:   () => { note.textContent = 'Cancelled - set the crop manually.'; },
+  });
+  const handle = _openSSE(
+    `/api/clips/${_edClipId}/suggest-framing`,
+    () => {},
+    () => { _clearActiveStream(handle); teardown(); },
+    errMsg => {
+      _clearActiveStream(handle);
+      teardown();
+      note.textContent = `Auto-frame failed: ${errMsg}`;
+    },
+    { method: 'POST' },
+    null,
+    data => {
+      if (data.crop_x == null) { note.textContent = 'No face found - set the crop manually.'; return; }
+      _edSetCropX(data.crop_x);
+      note.textContent = 'Framed on faces.';
+    },
+  );
+  _setActiveStream(handle, teardown);
 }
 
 // ── export ────────────────────────────────────────────────────────────────────

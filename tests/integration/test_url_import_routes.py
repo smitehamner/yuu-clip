@@ -7,7 +7,28 @@ No real network calls: yt-dlp is always mocked.
 """
 from __future__ import annotations
 
+import json
 from unittest import mock
+
+
+def _sse_result(response) -> dict:
+    for line in response.text.splitlines():
+        if not line.startswith("data: "):
+            continue
+        payload = json.loads(line[len("data: "):])
+        if payload.get("type") == "result":
+            return payload["data"]
+    raise AssertionError(f"no result event in the SSE response: {response.text!r}")
+
+
+def _sse_error(response) -> str:
+    for line in response.text.splitlines():
+        if not line.startswith("data: "):
+            continue
+        payload = json.loads(line[len("data: "):])
+        if payload.get("type") == "done":
+            return payload.get("error", "")
+    raise AssertionError(f"no done event in the SSE response: {response.text!r}")
 
 
 class TestImportUrlRoutes:
@@ -20,8 +41,11 @@ class TestImportUrlRoutes:
         return cm
 
     def test_inspect_rejects_unsupported_url(self, client):
+        # inspect_url()'s own validate_import_url() call raises this from inside
+        # the SSE stream now, not a synchronous 400 - see routes/imports.py.
         r = client.post("/api/import-url/inspect", json={"url": "https://vimeo.com/1"})
-        assert r.status_code == 400
+        assert r.status_code == 200
+        assert "supported" in _sse_error(r).lower()
 
     def test_inspect_returns_metadata(self, client):
         info = {
@@ -31,7 +55,7 @@ class TestImportUrlRoutes:
         with mock.patch("yt_dlp.YoutubeDL", return_value=self._mock_ydl(info)):
             r = client.post("/api/import-url/inspect", json={"url": "https://www.youtube.com/watch?v=vid1"})
         assert r.status_code == 200
-        body = r.json()
+        body = _sse_result(r)
         assert body["title"] == "Great Clip"
         assert body["already_imported"] is False
 
@@ -57,7 +81,7 @@ class TestImportUrlRoutes:
         with mock.patch("yt_dlp.YoutubeDL", return_value=self._mock_ydl(info)):
             r = client.post("/api/import-url/inspect", json={"url": "youtu.be/dup1?si=abc"})
         assert r.status_code == 200
-        assert r.json()["already_imported"] is True
+        assert _sse_result(r)["already_imported"] is True
 
     def test_inspect_flags_already_imported(self, client):
         from yuu_clip.db.models import Video, make_session
@@ -70,16 +94,21 @@ class TestImportUrlRoutes:
         with mock.patch("yt_dlp.YoutubeDL", return_value=self._mock_ydl(info)):
             r = client.post("/api/import-url/inspect", json={"url": "https://youtu.be/dup1"})
         assert r.status_code == 200
-        body = r.json()
+        body = _sse_result(r)
         assert body["already_imported"] is True
         assert body["existing_filename"] == "dup.mkv"
 
-    def test_inspect_live_stream_returns_400(self, client):
+    def test_inspect_live_stream_reports_an_sse_error(self, client):
         info = {"title": "Live", "id": "live1", "is_live": True}
         with mock.patch("yt_dlp.YoutubeDL", return_value=self._mock_ydl(info)):
             r = client.post("/api/import-url/inspect", json={"url": "https://www.twitch.tv/videos/live1"})
-        assert r.status_code == 400
-        assert "live" in r.json()["detail"].lower()
+        assert r.status_code == 200
+        assert "live" in _sse_error(r).lower()
+
+    def test_inspect_rejected_while_another_job_is_running(self, client):
+        client.app.state.ctx.active_jobs = 1
+        r = client.post("/api/import-url/inspect", json={"url": "https://www.youtube.com/watch?v=vid1"})
+        assert r.status_code == 409
 
     def test_start_rejects_unsupported_url(self, client):
         r = client.post("/api/import-url/start", json={"url": "https://vimeo.com/1"})

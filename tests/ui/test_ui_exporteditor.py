@@ -285,34 +285,39 @@ class TestExportEditorOptions:
 @skip_no_server
 class TestExportEditorAutoFrame:
     """Auto-frame on faces in the editor (ported from the retired modal). The button
-    only shows for a vertical preset; a 503 is a broken-install case (the detector
-    ships with the app), so the note points at reinstalling, not a Settings control."""
+    only shows for a vertical preset. The route streams as SSE (so a slow detection
+    pass can show progress and be cancelled) - success delivers crop_x via a typed
+    result event; a 503 is a broken-install case (the detector ships with the app)
+    that fires before the stream starts, so it's still a plain HTTP error."""
 
     def _open_vertical(self, page: Page) -> None:
         _open_editor(page)
         page.select_option("#ed-preset", "tiktok-9x16")
         expect(page.locator("#ed-autoframe-btn")).to_be_visible()
 
-    def _mock_suggest(self, page: Page, status: int, body: dict) -> None:
+    def _mock_suggest_result(self, page: Page, crop_x) -> None:
         page.route(f"**/api/clips/{_FAKE_CLIP_ID}/suggest-framing", lambda route: route.fulfill(
-            status=status, content_type="application/json", body=json.dumps(body)))
+            status=200, content_type="text/event-stream",
+            body='data: {"v": 1, "type": "log", "text": "Finding faces\\u2026", "level": "info"}\n\n'
+                 f'data: {{"v": 1, "type": "result", "data": {{"crop_x": {json.dumps(crop_x)}}}}}\n\n'
+                 'data: {"v": 1, "type": "done", "outcome": "ok"}\n\n'))
 
     def test_success_notes_framed_on_faces(self, page: Page):
         self._open_vertical(page)
-        self._mock_suggest(page, 200, {"crop_x": 0.8})
+        self._mock_suggest_result(page, 0.8)
         page.click("#ed-autoframe-btn")
         expect(page.locator("#ed-autoframe-note")).to_contain_text("Framed on faces")
 
     def test_no_face_leaves_a_note(self, page: Page):
         self._open_vertical(page)
-        self._mock_suggest(page, 200, {"crop_x": None})
+        self._mock_suggest_result(page, None)
         page.click("#ed-autoframe-btn")
         expect(page.locator("#ed-autoframe-note")).to_contain_text("No face found")
 
-    def test_503_points_at_reinstalling(self, page: Page):
+    def test_503_shows_the_server_detail(self, page: Page):
         self._open_vertical(page)
-        self._mock_suggest(page, 503, {"detail": "Auto-framing needs the MediaPipe package"})
+        page.route(f"**/api/clips/{_FAKE_CLIP_ID}/suggest-framing", lambda route: route.fulfill(
+            status=503, content_type="application/json",
+            body=json.dumps({"detail": "Auto-framing needs the MediaPipe package"})))
         page.click("#ed-autoframe-btn")
-        note = page.locator("#ed-autoframe-note")
-        expect(note).to_contain_text("isn't available")
-        expect(note).to_contain_text("reinstalling YuuClip")
+        expect(page.locator("#ed-autoframe-note")).to_contain_text("Auto-framing needs the MediaPipe package")

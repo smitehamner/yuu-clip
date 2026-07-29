@@ -583,6 +583,24 @@ def _sse_body(lines: list[str]) -> str:
     return "".join(f"data: {json.dumps(frame)}\n\n" for frame in frames)
 
 
+def _fulfill_sse(body: str):
+    return lambda route: route.fulfill(status=200, content_type="text/event-stream", body=body)
+
+
+def _sse_result_body(data: dict) -> str:
+    # import-url/inspect streams its metadata as a typed result event, so a slow
+    # yt-dlp fetch can show progress and be cancelled - see routes/imports.py.
+    frames = [
+        {"v": 1, "type": "result", "data": data},
+        {"v": 1, "type": "done", "outcome": "ok"},
+    ]
+    return "".join(f"data: {json.dumps(frame)}\n\n" for frame in frames)
+
+
+def _sse_error_body(message: str) -> str:
+    return f'data: {json.dumps({"v": 1, "type": "done", "outcome": "error", "error": message})}\n\n'
+
+
 @skip_no_server
 class TestImportFromUrl:
     def _open_panel(self, page: Page) -> None:
@@ -627,12 +645,12 @@ class TestImportFromUrl:
         page.goto(LIVE_URL)
         self._open_panel(page)
         page.click("#btn-show-import-url")
-        page.route("**/api/import-url/inspect", _fulfill_json({
+        page.route("**/api/import-url/inspect", _fulfill_sse(_sse_result_body({
             "title": "Epic Gaming Moment", "uploader": "SomeStreamer", "duration_s": 3600,
             "upload_date": "2026-06-15", "category": "Just Chatting",
             "estimated_size_bytes": 500_000_000, "video_id": "abc123",
             "already_imported": False, "existing_filename": None,
-        }))
+        })))
         page.route("**/api/estimate", _fulfill_json({
             "steps": [{"name": "Transcribe", "seconds": 60, "note": "1 track", "hms": "1m 00s"}],
             "total_hms": "1m 00s", "total_seconds": 60, "pct_of_video": 1.7,
@@ -651,12 +669,12 @@ class TestImportFromUrl:
         page.goto(LIVE_URL)
         self._open_panel(page)
         page.click("#btn-show-import-url")
-        page.route("**/api/import-url/inspect", _fulfill_json({
+        page.route("**/api/import-url/inspect", _fulfill_sse(_sse_result_body({
             "title": "Epic Gaming Moment", "uploader": "SomeStreamer", "duration_s": 3600,
             "upload_date": "2026-06-15", "category": "Just Chatting",
             "estimated_size_bytes": 500_000_000, "video_id": "abc123",
             "already_imported": False, "existing_filename": None,
-        }))
+        })))
         page.route("**/api/estimate", _fulfill_json({
             "steps": [{"name": "Transcribe", "seconds": 60, "note": "1 track", "hms": "1m 00s"}],
             "total_hms": "1m 00s", "total_seconds": 60, "pct_of_video": 1.7,
@@ -676,8 +694,8 @@ class TestImportFromUrl:
         page.goto(LIVE_URL)
         self._open_panel(page)
         page.click("#btn-show-import-url")
-        page.route("**/api/import-url/inspect", _fulfill_json(
-            {"detail": "Only YouTube and Twitch links are supported"}, status=400,
+        page.route("**/api/import-url/inspect", _fulfill_sse(
+            _sse_error_body("Only YouTube and Twitch links are supported"),
         ))
         page.fill("#import-url-input", "https://vimeo.com/12345")
         page.click("#btn-check-url")
@@ -687,11 +705,11 @@ class TestImportFromUrl:
         page.goto(LIVE_URL)
         self._open_panel(page)
         page.click("#btn-show-import-url")
-        page.route("**/api/import-url/inspect", _fulfill_json({
+        page.route("**/api/import-url/inspect", _fulfill_sse(_sse_result_body({
             "title": "Dup Video", "uploader": "Streamer", "duration_s": 60,
             "upload_date": None, "category": "", "estimated_size_bytes": None,
             "video_id": "dup1", "already_imported": True, "existing_filename": "dup.mkv",
-        }))
+        })))
         page.fill("#import-url-input", "https://youtu.be/dup1")
         page.click("#btn-check-url")
         expect(page.locator("#import-url-inspect-area")).to_contain_text("Already imported as")
@@ -708,11 +726,11 @@ class TestImportFromUrl:
         page.goto(LIVE_URL)
         self._open_panel(page)
         page.click("#btn-show-import-url")
-        page.route("**/api/import-url/inspect", _fulfill_json({
+        page.route("**/api/import-url/inspect", _fulfill_sse(_sse_result_body({
             "title": "Great Clip", "uploader": "Streamer", "duration_s": 60,
             "upload_date": None, "category": "", "estimated_size_bytes": None,
             "video_id": "vid1", "already_imported": False, "existing_filename": None,
-        }))
+        })))
         page.route("**/api/estimate", _fulfill_json({
             "steps": [], "total_hms": "0s", "total_seconds": 0, "pct_of_video": 0,
             "source": "estimated", "warn_hours": 2.0, "long_run_warning": False,
