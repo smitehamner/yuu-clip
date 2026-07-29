@@ -284,7 +284,13 @@ class TestReelShowInFolder:
         fake_reel = reels_dir / "uitest_show_in_folder.mkv"
         fake_reel.write_bytes(b"fake")
         try:
-            page.wait_for_function("() => AppState.canReveal === true", timeout=5000)
+            # FLAKE-14 (test-flakes register), same class as FLAKE-6: boot seeds
+            # AppState.canReveal from an un-awaited /api/status fetch, so waiting
+            # on it races boot under load. reel.js's item render reads canReveal
+            # directly (yuu_clip/web/static/analyze/reel.js), so forcing it before
+            # the modal opens makes the "Show in Folder" button's presence
+            # deterministic instead of racing boot's own timing.
+            page.evaluate("() => { AppState.canReveal = true; }")
             page.route(
                 "**/api/reveal",
                 lambda route: route.fulfill(

@@ -64,11 +64,14 @@ def select_video_with_clips(page) -> None:
     """Select the first sidebar video that actually has clips and wait for its
     clip list to render.
 
-    Iterating instead of clicking ``#video-list li.first`` keeps the clip tests
-    independent of sidebar ordering - a 0-clip video at the top of the list would
-    otherwise leave the clip list showing only its empty-state row and time out
-    every clip test. Real clip rows carry a ``.clip-num`` badge; the empty-state
-    ``<li>`` does not, which is what we wait on.
+    Picks the candidate from ``AppState.videos``' own ``clip_count`` rather than
+    clicking each row and waiting to see whether clips show up: that trial-and-error
+    approach (FLAKE-12 in the test-flakes register) used a wait TIMING OUT as its
+    signal for "this video has 0 clips" - a legitimate, common case - so raising
+    that wait to survive load contention would have meant every empty video ahead
+    of the right one burning the full ceiling first. Reading ``clip_count`` decides
+    up front with no guessing, so the one render wait left is a real positive
+    assertion (matches the FLAKE-5 principle: safe to give it a generous ceiling).
 
     Split segments are skipped even when they have clips - most tests assume a
     plain top-level recording (e.g. split tests expect 'Split Recording', not
@@ -83,21 +86,16 @@ def select_video_with_clips(page) -> None:
     # parallel run when its query contends on the single SQLite DB - a 5s wait
     # here failed this shared helper for reasons unrelated to the test.
     page.wait_for_selector("#video-list li[data-video-id]", timeout=15000)
-    videos = page.locator("#video-list li[data-video-id]")
-    segment_ids = set(page.evaluate(
-        "AppState.videos.filter(v => v.parent_video_id != null).map(v => v.id)"
-    ))
-    for i in range(videos.count()):
-        li = videos.nth(i)
-        if int(li.get_attribute("data-video-id")) in segment_ids:
-            continue
-        li.click()
-        try:
-            page.wait_for_selector("#clip-list li .clip-num", timeout=3000)
-            return
-        except Exception:
-            continue
-    raise AssertionError("No sidebar video has clips on the live server")
+    candidate_id = page.evaluate(
+        "() => {"
+        " const v = AppState.videos.find("
+        "v => v.parent_video_id == null && v.clip_count > 0);"
+        " return v ? v.id : null; }"
+    )
+    if candidate_id is None:
+        raise AssertionError("No sidebar video has clips on the live server")
+    page.click(f"#video-list li[data-video-id='{candidate_id}']")
+    page.wait_for_selector("#clip-list li .clip-num", timeout=8000)
 
 
 def select_first_video_and_clip(page) -> None:
