@@ -212,7 +212,6 @@ export async function _generateWaveform() {
     `/api/videos/${_splitVideoId}/compute-waveform`,
     () => {},  // onLine: no live progress text needed for this one
     async () => {
-      // Reload energy data and redraw
       const res = await fetch(`/api/videos/${_splitVideoId}/energy`).then(r => r.ok ? r.json() : null);
       if (res?.tracks?.length) {
         const bySecond = new Map();
@@ -563,7 +562,6 @@ function _renderSplitTimeline() {
   // Re-render overlay layers that depend on user markers (suggestion pins hide when near a marker)
   _renderSuggestionLayer();
 
-  // Segment colour bands
   const palette = ['var(--accent)', 'var(--warning)', 'var(--green)', 'var(--red)'];
   segments.innerHTML = segmentsFromSplitPoints(_splitPoints, _splitDurationS, _splitIgnored).map(seg => {
     const widthPct = ((seg.end - seg.start) / _splitDurationS * 100).toFixed(3);
