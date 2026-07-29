@@ -581,55 +581,66 @@ def _register_rescore_routes(router: APIRouter, ctx: ProjectContext) -> None:
 
 
 def _register_summary_routes(router: APIRouter, ctx: ProjectContext) -> None:
-    @router.post("/api/videos/{video_id}/summarize")
+    @router.get("/api/videos/{video_id}/summarize")
     async def summarize_video(video_id: int):
-        """Generate title + summary via LLM and return them for the compare modal.
-
-        Does NOT write to the DB - the caller commits via PATCH /fields after the
-        user accepts the result in the diff modal. Counted as a job (active_job) so
-        the uniform busy guard serializes it against everything else; the blocking
-        LLM call runs off the event loop.
+        """Generate title + summary via LLM and stream the result for the compare
+        modal. Does NOT write to the DB - the caller commits via PATCH /fields
+        after the user accepts the result. Streamed as SSE (like
+        regenerate-summary) so cancellation is symmetric: aborting the
+        connection unwinds active_job without needing a subprocess to kill.
         """
         from yuu_clip.scoring.llm import check_llm_available, summarize_transcript
 
         reject_if_busy(ctx, "Summary")
-        async with active_job(ctx):
-            db = ctx.get_db()
-            try:
-                video = db.get(Video, video_id)
-                if not video:
-                    raise HTTPException(404, "Video not found")
+        db = ctx.get_db()
+        try:
+            video = db.get(Video, video_id)
+            if not video:
+                raise HTTPException(404, "Video not found")
+            context_names = json_list(video.context_names_json)
+            full_text = _video_transcript_text(db, video_id)
+            title_current   = video.effective_title
+            summary_current = video.effective_summary
+        finally:
+            db.close()
 
-                context_names = json_list(video.context_names_json)
-                full_text = _video_transcript_text(db, video_id)
+        if not full_text:
+            raise HTTPException(400, "No transcript available - analyze the recording first")
 
-                if not full_text:
-                    raise HTTPException(400, "No transcript available - analyze the recording first")
+        llm_ok, llm_reason = check_llm_available(ctx.config)
+        if not llm_ok:
+            payload = _needs_model_payload("summary", llm_reason, ctx.config)
 
-                llm_ok, llm_reason = check_llm_available(ctx.config)
-                if not llm_ok:
-                    return _needs_model_payload("summary", llm_reason, ctx.config)
+            async def needs_model_stream():
+                yield result_event(payload)
+                yield done_event(OUTCOME_OK)
 
-                title_current   = video.effective_title
-                summary_current = video.effective_summary
+            return sse_response(needs_model_stream())
 
-                context_text = format_context_block(load_contexts(ctx.project_dir), context_names)
+        context_text = format_context_block(load_contexts(ctx.project_dir), context_names)
+
+        async def event_stream():
+            async with active_job(ctx):
+                yield log_event('[Generating summary…]')
                 try:
                     title_new, summary_new = await asyncio.to_thread(
                         summarize_transcript, full_text, ctx.config, context_text=context_text
                     )
                 except Exception as exc:
                     _log.warning("summarize failed for video %d: %s", video_id, exc, exc_info=True)
-                    raise HTTPException(502, f"LLM error: {exc}")
+                    yield log_event(f'[Error: {exc}]', level="error")
+                    yield done_event(OUTCOME_ERROR, error=f"LLM error: {exc}")
+                    return
 
-                return {
+                yield result_event({
                     "title_new": title_new,
                     "summary_new": summary_new,
                     "title_current": title_current,
                     "summary_current": summary_current,
-                }
-            finally:
-                db.close()
+                })
+                yield done_event(OUTCOME_OK)
+
+        return sse_response(event_stream())
 
     @router.get("/api/videos/{video_id}/regenerate-summary")
     async def regenerate_summary(video_id: int):

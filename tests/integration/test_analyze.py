@@ -1795,11 +1795,11 @@ class TestAnalyzeCancel:
 class TestSummarize:
     def test_summarize_returns_400_without_transcript(self, client):
         vid_id = client.get("/api/videos").json()[0]["id"]
-        r = client.post(f"/api/videos/{vid_id}/summarize")
+        r = client.get(f"/api/videos/{vid_id}/summarize")
         assert r.status_code == 400
 
     def test_summarize_404_for_missing_video(self, client):
-        r = client.post("/api/videos/99999/summarize")
+        r = client.get("/api/videos/99999/summarize")
         assert r.status_code == 404
 
 

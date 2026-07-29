@@ -431,7 +431,7 @@ class TestRejectWhileAnalyzing:
         ("get",  "/api/videos/{vid}/timeline"),
         ("get",  "/api/videos/{vid}/regenerate-summary"),
         ("get",  "/api/videos/{vid}/infer-speaker-names"),
-        ("post", "/api/videos/{vid}/summarize"),
+        ("get",  "/api/videos/{vid}/summarize"),
         ("get",  "/api/clips/1/rescore"),
         ("get",  "/api/clips/1/related-clips"),
         ("post", "/api/clips/1/analyze-frames"),
