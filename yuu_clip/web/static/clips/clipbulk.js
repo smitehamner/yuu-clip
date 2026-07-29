@@ -7,7 +7,7 @@ import { AppState } from '../core/state.js';
 import { formatApiError, plural } from '../core/format.js';
 import { showToast } from '../core/utils.js';
 import { showConfirm, showUndoToast } from '../core/ui.js';
-import { streamSSE } from '../core/jobs.js';
+import { streamSSE, BATCH_EXPORT_STEPS } from '../core/jobs.js';
 import { loadVideos } from '../videos/videos.js';
 import {
   selectClip, renderDetail, clearDetail, _releasePlayerBeforeDelete,
@@ -201,7 +201,7 @@ function _doBulkExportClips(ids) {
       showToast(skippedCount ? `${base} (${skippedCount} already exported)` : base);
       SoundFx.play('export');
     },
-    [{label: 'Export', patterns: ['Exporting', 'OK', 'Skipping']}],
+    BATCH_EXPORT_STEPS,
     'Bulk Exporting',
     false,
     line => {

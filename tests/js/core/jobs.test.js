@@ -57,8 +57,9 @@ describe('parseProgress', () => {
   });
 });
 
-// The marker path is the deterministic primary driver (prose matching is the
-// one-release fallback). Ported from tests/ui/test_ui_sse.py
+// The marker path deterministically drives INGEST_STEPS/SCORE_STEPS/FRAMES_STEPS/
+// BATCH_EXPORT_STEPS - the prose-regex fallback these once carried was retired
+// once the marker path proved out in real runs. Ported from tests/ui/test_ui_sse.py
 // TestProgressMarker::test_marker_drives_pill_stage_and_count - a page.evaluate that
 // only poked the now-exported startJobUI/parseProgress/_driveStepFromMarker globals,
 // so it moves here. test_marker_line_is_not_logged stays in Playwright (it needs the
@@ -98,26 +99,29 @@ describe('_driveStepFromMarker', () => {
   });
 });
 
-describe('updateJobUI step advancement', () => {
+// INGEST_STEPS/SCORE_STEPS are marker-only now (the prose-regex fallback was
+// retired once the @@PROGRESS marker path proved out in real runs) - step
+// activation and counts are driven entirely through _driveStepFromMarker.
+describe('_driveStepFromMarker step advancement (INGEST_STEPS/SCORE_STEPS)', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => { endJobUI(); vi.useRealTimers(); });
 
-  const classesAfter = (line) => {
+  const classesAfter = (stage) => {
     startJobUI(SCORE_STEPS, 'Re-scoring clip');
-    updateJobUI(line);
+    _driveStepFromMarker({stage});
     return [stepClass(0), stepClass(1), stepClass(2)];
   };
 
-  it('a middle-step line marks prior steps done and itself active', () => {
-    // SCORE_STEPS = [Energy, Scene cuts, Scoring]; "Detecting scene" is step 1.
-    expect(classesAfter('Detecting scene changes')).toEqual(['step done', 'step active', 'step']);
+  it('a middle-stage marker marks prior steps done and itself active', () => {
+    // SCORE_STEPS = [Energy, Scene cuts, Scoring]; 'scenes' is step 1.
+    expect(classesAfter('scenes')).toEqual(['step done', 'step active', 'step']);
   });
-  it('the final-step line marks every prior step done', () => {
-    expect(classesAfter('Scoring clips now')).toEqual(['step done', 'step done', 'step active']);
+  it('the final-stage marker marks every prior step done', () => {
+    expect(classesAfter('score')).toEqual(['step done', 'step done', 'step active']);
   });
   it('done pills collapse to a check with the label in the tooltip', () => {
     startJobUI(SCORE_STEPS, 'Re-scoring clip');
-    updateJobUI('Scoring clips now');
+    _driveStepFromMarker({stage: 'score'});
     const el = document.getElementById('step-0');
     expect(el.textContent).toBe('✓');
     expect(el.title).toBe('Energy');
@@ -129,29 +133,26 @@ describe('updateJobUI step advancement', () => {
   });
 });
 
-describe('step-pill progress + ETA', () => {
+describe('step-pill progress + ETA (marker-driven)', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => { endJobUI(); vi.useRealTimers(); });
 
-  it('an ingest track-progress line renders fraction, percent, and an ETA', () => {
-    // INGEST_STEPS[0] (Extract) has progressPattern /Track (\d+)\/(\d+)/. The ETA
-    // needs a second count (rate anchored at the first) so a cold first item can't
-    // project an absurd figure.
+  it('an ingest extract-stage marker renders fraction, percent, and an ETA', () => {
+    // The ETA needs a second count (rate anchored at the first) so a cold first
+    // item can't project an absurd figure.
     startJobUI(INGEST_STEPS, 'Analyzing');
-    updateJobUI('Extracting audio...');
-    updateJobUI('  Track 3/12 [combined]...');
+    _driveStepFromMarker({stage: 'extract', done: 3, total: 12});
     vi.advanceTimersByTime(2000);
-    updateJobUI('  Track 6/12 [combined]...');
+    _driveStepFromMarker({stage: 'extract', done: 6, total: 12});
     const text = document.getElementById('step-0').textContent;
     expect(text).toContain('6/12 (50%)');
     expect(text).toContain('left)');
   });
-  it('a scoring-progress line renders fraction, percent, and an ETA', () => {
+  it('a scoring-stage marker renders fraction, percent, and an ETA', () => {
     startJobUI(SCORE_STEPS, 'Re-scoring clips');
-    updateJobUI('Scoring clips now');
-    updateJobUI('Scoring 3/12');
+    _driveStepFromMarker({stage: 'score', done: 3, total: 12});
     vi.advanceTimersByTime(2000);
-    updateJobUI('Scoring 6/12');
+    _driveStepFromMarker({stage: 'score', done: 6, total: 12});
     const text = document.getElementById('step-2').textContent;
     expect(text).toContain('6/12 (50%)');
     expect(text).toContain('left)');
@@ -161,19 +162,18 @@ describe('step-pill progress + ETA', () => {
   // vanished seconds later). No ETA until a second observed count anchors the rate.
   it('hides the ETA at the first observed count', () => {
     startJobUI(SCORE_STEPS, 'Re-scoring clips');
-    updateJobUI('Scoring clips now');
+    _driveStepFromMarker({stage: 'score'});
     vi.advanceTimersByTime(15000);
-    updateJobUI('Scoring 1/300');
+    _driveStepFromMarker({stage: 'score', done: 1, total: 300});
     const text = document.getElementById('step-2').textContent;
     expect(text).toContain('1/300');
     expect(text).not.toContain('left');
   });
   it('shows the ETA once a second count anchors the rate', () => {
     startJobUI(SCORE_STEPS, 'Re-scoring clips');
-    updateJobUI('Scoring clips now');
-    updateJobUI('Scoring 1/103');
+    _driveStepFromMarker({stage: 'score', done: 1, total: 103});
     vi.advanceTimersByTime(4000);
-    updateJobUI('Scoring 3/103');
+    _driveStepFromMarker({stage: 'score', done: 3, total: 103});
     expect(document.getElementById('step-2').textContent).toContain('left');
   });
 });
@@ -182,10 +182,12 @@ describe('step-pill progress + ETA', () => {
 // first stream is aborted - but abort suppresses its onDone/onError, so its UI
 // teardown must be run by the superseding job via the registered cleanup.
 // The in-process (event-loop) LLM/scoring jobs run through the same pill machinery
-// via single-pill step defs (PROGRESS-CANCEL-GAP Part A): they activate on the
+// via single-pill step defs (PROGRESS-CANCEL-GAP Part A): most activate on the
 // server's bracketed intro line and, where the server counts, parse "i/total" into
-// the determinate fill. Timeline and the summarize POST have no prose lines, so they
-// drive the pill via setJobProgress instead.
+// the determinate fill (still prose - these have no @@PROGRESS marker). Timeline
+// and the summarize POST have no prose lines, so they drive the pill via
+// setJobProgress instead. BATCH_EXPORT_STEPS is the one exception in this group -
+// it does ride the marker path (stage: export_clip), tested separately below.
 describe('in-process job step defs', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => { endJobUI(); vi.useRealTimers(); });
@@ -222,26 +224,31 @@ describe('in-process job step defs', () => {
     expect(stepClass(0)).toContain('active');
   });
 
-  it('BATCH_EXPORT_STEPS parses "[i/total]" from the real server per-clip lines', () => {
+  // BATCH_EXPORT_STEPS is marker-driven (stage: export_clip) - export.py emits
+  // one @@PROGRESS-equivalent progress event per clip with a `label` naming the
+  // clip currently exporting (see routes/clips/export.py's Stage.EXPORT_CLIP).
+  it('BATCH_EXPORT_STEPS drives from the export_clip marker and shows the clip label', () => {
     startJobUI(BATCH_EXPORT_STEPS, 'Batch Export');
-    // Mirrors export.py's exact log line formats.
-    updateJobUI('Exporting clip 42 [3/12]...');
+    _driveStepFromMarker({stage: 'export_clip', done: 2, total: 12, label: 'clip 42: A funny death'});
     expect(stepClass(0)).toContain('active');
-    expect(document.getElementById('step-0').textContent).toContain('3/12 (25%)');
-    updateJobUI('Skipping clip 43 (already exported) [4/12]');
-    expect(document.getElementById('step-0').textContent).toContain('4/12 (33%)');
+    const text = document.getElementById('step-0').textContent;
+    expect(text).toContain('clip 42: A funny death');
+    expect(text).toContain('2/12 (17%)');
+    _driveStepFromMarker({stage: 'export_clip', done: 3, total: 12, label: 'clip 43: Skipped, already exported'});
+    expect(document.getElementById('step-0').textContent).toContain('clip 43: Skipped, already exported');
   });
 
   it('Score step shows the model-load wait message until the first count lands', () => {
     startJobUI(INGEST_STEPS, 'Analyze');
-    // Advance to the Score stage, then the backend's "Preparing the scoring model" line.
-    updateJobUI('  Scoring clips...');
+    // Advance to the Score stage via its marker, then the backend's still-prose
+    // "Preparing the scoring model" line (waitPattern has no marker equivalent).
+    _driveStepFromMarker({stage: 'score'});
     updateJobUI('  Preparing the scoring model...');
     const scoreIdx = INGEST_STEPS.findIndex(s => s.stage === 'score');
     expect(document.getElementById(`step-${scoreIdx}`).textContent)
       .toContain('loading the scoring model into memory');
-    // The first real count clears the wait.
-    updateJobUI('  Scoring 1/5...');
+    // The first real count (via marker) clears the wait.
+    _driveStepFromMarker({stage: 'score', done: 1, total: 5});
     const label = document.getElementById(`step-${scoreIdx}`).textContent;
     expect(label).toContain('1/5 (20%)');
     expect(label).not.toContain('loading the scoring model');

@@ -43,19 +43,6 @@ except the two items below).
   Re-verify on the next VM/packaged run now that the reel and DB-retry fixes have
   shipped; only chase further if it still reproduces.
 
-- [ ] **Retire the prose-regex progress fallback** - the analyze/score pipeline now emits
-  a structured `@@PROGRESS` marker (`pipeline/progress.py`) alongside the human
-  `console.print` lines, and the web UI drives the job pills off that marker (see the
-  sequential-and-honest processing work). The old prose regexes in `jobs.js`
-  (`INGEST_STEPS`/`SCORE_STEPS` `patterns`) are kept one release as a fallback - remove
-  them once the marker path is proven in real runs. Still open: the `export/` engine
-  emits progress via `console.print` only (no marker channel yet); add one if export
-  ever needs a structured progress bar or to run in-process. **Trigger occurred
-  (2026-07-19):** Batch Export's progress pill was asked to show the current clip's id +
-  description, which a regex-parsed prose line can't carry cleanly - give `export/` a
-  real marker channel for this instead of a one-off regex hack. Detail in the private
-  planning workspace, `UX-BUG-HUNT-2026-07-19.md` B14.
-
 - [ ] **Video list (sidebar) has the same unbounded-DOM-rebuild shape** - audited
   2026-07-20 alongside the transcript fix: `videos.js`'s `_renderVideoList` ->
   `_renderGroupedVideoItems` -> `_videoItemLi` rebuilds the *entire* video list from

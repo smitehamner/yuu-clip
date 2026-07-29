@@ -192,14 +192,18 @@ class TestAnalyzeCoordination:
         assert page.locator("#confirm-cancel-btn").inner_text() == "Wait"
 
     def test_transcribe_step_shows_waiting_then_clears_on_progress(self, page: Page):
+        # INGEST_STEPS is marker-only (the prose-regex fallback was retired) - the
+        # Transcribe step activates via _driveStepFromMarker, matching the real
+        # @@PROGRESS-driven flow; only the wait message still rides a prose line
+        # (no marker equivalent exists for a mid-stage "waiting on a download").
         page.evaluate(
             "() => { startJobUI(INGEST_STEPS, 'Analyzing rec.mp4', true, true);"
-            " updateJobUI('  Transcribing (model: base)...');"
+            " _driveStepFromMarker({ stage: 'transcribe' });"
             " updateJobUI('Waiting for the speech-to-text model to finish downloading...'); }"
         )
         assert "waiting" in page.locator("#step-1").inner_text().lower()
         # Once transcription reports real progress, the waiting status clears.
-        page.evaluate("() => updateJobUI('  Track 1/2 [combined]...')")
+        page.evaluate("() => _driveStepFromMarker({ stage: 'transcribe', done: 1, total: 2 })")
         assert "waiting" not in page.locator("#step-1").inner_text().lower()
         # tidy up the job header so the pill row doesn't linger for later tests
         page.evaluate("() => endJobUI()")

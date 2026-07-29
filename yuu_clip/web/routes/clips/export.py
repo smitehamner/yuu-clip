@@ -17,23 +17,33 @@ from yuu_clip.config import validate_whisper_model
 from yuu_clip.db.models import ClipCandidate, Video
 from yuu_clip.export.paths import export_paths, validate_export_preset_query
 from yuu_clip.log import get_logger
+from yuu_clip.pipeline.progress import Stage
 from yuu_clip.web.deps import ProjectContext
-from yuu_clip.web.jobevents import OUTCOME_OK, done_event, log_event
+from yuu_clip.web.jobevents import OUTCOME_OK, done_event, log_event, progress_event
 from yuu_clip.web.routes.common import active_job, reject_if_busy, sse_response
 from yuu_clip.web.sse import new_session_kwargs, terminate_process_tree_async
 
 _log = get_logger(__name__)
 
 
-def _clip_has_export_file(ctx: "ProjectContext", clip_id: int) -> bool:
-    """Check whether a clip already has an exported file on disk. Opens and closes its own DB session."""
+def _clip_export_info(ctx: "ProjectContext", clip_id: int) -> tuple[bool, str]:
+    """Return (already_exported, pill_label) for one clip.
+
+    Opens and closes its own DB session. *pill_label* is the "clip N: description"
+    text the batch-export progress pill shows for the clip currently exporting
+    (see BATCH_EXPORT_STEPS in static/core/jobs.js) - falls back to a bare "clip N"
+    when the clip has no description yet.
+    """
     db = ctx.get_db()
     try:
         clip = db.get(ClipCandidate, clip_id)
         vid  = db.get(Video, clip.video_id) if clip else None
-        if clip and vid:
-            return any(p.exists() for p in export_paths(clip, vid, ctx.export_dir, ctx.config.export_name_template))
-        return False
+        already_exported = bool(clip and vid and any(
+            p.exists() for p in export_paths(clip, vid, ctx.export_dir, ctx.config.export_name_template)
+        ))
+        description = clip.effective_description if clip else ""
+        label = f"clip {clip_id}: {description}" if description else f"clip {clip_id}"
+        return already_exported, label
     finally:
         db.close()
 
@@ -113,7 +123,14 @@ def _clip_export_stream_response(
             exported = 0
             skipped  = 0
             for i, cid in enumerate(clip_ids, 1):
-                if skip_exported and _clip_has_export_file(ctx, cid):
+                already_exported, pill_label = _clip_export_info(ctx, cid)
+                # Emitted before the clip's own encode (not after, unlike the
+                # analyze/score per-item markers) so the pill names the clip
+                # that's *currently* exporting - an encode can run for a while,
+                # and that's what the batch-export pill is meant to surface.
+                yield progress_event(Stage.EXPORT_CLIP, done=i - 1, total=total, label=pill_label)
+
+                if skip_exported and already_exported:
                     skipped += 1
                     yield log_event(f'Skipping clip {cid} (already exported) [{i}/{total}]')
                     continue

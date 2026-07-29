@@ -15,7 +15,7 @@ import { fmtDuration } from './core/format.js';
 import { ColorPicker } from './library/colorpicker.js';
 import {
   startJobUI, updateJobUI, endJobUI, streamSSE,
-  INGEST_STEPS, SCORE_STEPS,
+  INGEST_STEPS, SCORE_STEPS, _driveStepFromMarker,
   _blockedByAnalyze, _setPausedUIFromStatus, _abortActiveStream,
 } from './core/jobs.js';
 import {
@@ -156,17 +156,19 @@ import './core/boot.js';
 //    openSettings (many tests jump straight to a settings state via page.evaluate
 //    rather than driving the real open->close click sequence).
 //  * Job-machinery pokes (formerly the blanket Object.assign(window, jobs) spread,
-//    narrowed to just these 9 in the ui-shim-retirement follow-on): startJobUI,
+//    narrowed to just these 10 in the ui-shim-retirement follow-on): startJobUI,
 //    updateJobUI, endJobUI + the INGEST_STEPS/SCORE_STEPS step-defs drive the header
 //    pill row directly because a real analyze subprocess is too slow/nondeterministic
 //    for a UI test (the pure step-machine is also covered in tests/js/core/jobs.test.js);
-//    streamSSE needs the real fetch/stream transport (test_ui_sse.py, test_ui_projects.py);
-//    _blockedByAnalyze reads seeded AppState; _setPausedUIFromStatus mirrors a page
-//    reconnect; _abortActiveStream is the tests/ui conftest teardown that aborts any
-//    in-flight stream between tests.
+//    _driveStepFromMarker pokes the @@PROGRESS-marker path directly (INGEST_STEPS/
+//    SCORE_STEPS carry no prose patterns to activate a step from a page.evaluate line
+//    anymore - see test_ui_whisper_prefetch.py); streamSSE needs the real fetch/stream
+//    transport (test_ui_sse.py, test_ui_projects.py); _blockedByAnalyze reads seeded
+//    AppState; _setPausedUIFromStatus mirrors a page reconnect; _abortActiveStream is
+//    the tests/ui conftest teardown that aborts any in-flight stream between tests.
 Object.assign(window, {
   AppState, ColorPicker, fmtDuration,
-  startJobUI, updateJobUI, endJobUI, streamSSE, INGEST_STEPS, SCORE_STEPS,
+  startJobUI, updateJobUI, endJobUI, streamSSE, INGEST_STEPS, SCORE_STEPS, _driveStepFromMarker,
   _blockedByAnalyze, _setPausedUIFromStatus, _abortActiveStream,
   showAlert, showConfirm, _confirmCancel, toggleHamburger, openControlsModal, openDiffModal,
   showKebab, showUndoToast,

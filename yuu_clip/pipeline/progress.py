@@ -22,7 +22,13 @@ _PROGRESS_PREFIX = "@@PROGRESS "
 
 class Stage(str, Enum):
     """Canonical stage ids. Must match the ``stage`` field the browser's step
-    definitions carry in ``web/static/core/jobs.js`` (coupling-guarded by a unit test)."""
+    definitions carry in ``web/static/core/jobs.js`` (coupling-guarded by a unit test).
+
+    Also the registry ``yuu_clip/web/jobevents.py``'s ``progress_event`` validates
+    against, so a stage doesn't have to ride the ``@@PROGRESS``-over-stdout channel
+    to be legal - ``EXPORT_CLIP`` is emitted directly as a typed SSE event from
+    ``web/routes/clips/export.py``'s in-process async generator, never printed.
+    """
 
     EXTRACT = "extract"
     TRANSCRIBE = "transcribe"
@@ -34,6 +40,7 @@ class Stage(str, Enum):
     SCORE = "score"
     FRAMES_SAMPLE = "frames_sample"
     FRAMES_DESCRIBE = "frames_describe"
+    EXPORT_CLIP = "export_clip"
 
 
 _KNOWN_STAGES = {stage.value for stage in Stage}

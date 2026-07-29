@@ -28,28 +28,31 @@ let _stepRateAnchor = {}; // stepIdx -> {t, current} at first observed count, cl
 // ── progress indicator ────────────────────────────────────────────────────────
 // estMatch: substrings that map this pill to a step name from /api/estimate, so
 // the progress pill can show its pre-run time estimate as a hover tooltip.
-// progressPattern: regex with two capture groups (current, total) matched
-// against incoming log lines while this step is active, so the pill can show
-// "3/12 (25%)" and a live ETA instead of just elapsed time.
 // stage: the machine-readable id from the @@PROGRESS marker (yuu_clip/pipeline/
-// progress.py Stage). The marker drives the pill deterministically; the patterns/
-// progressPattern regexes below stay as a one-release fallback for the human log
-// lines. The stage set here is coupling-guarded against progress.py by
+// progress.py Stage), driving both step activation and any live current/total
+// count via _driveStepFromMarker - the marker-only step defs below (INGEST_STEPS,
+// SCORE_STEPS, FRAMES_STEPS, BATCH_EXPORT_STEPS) carry no prose patterns/
+// progressPattern; the old prose-regex fallback was retired once the marker path
+// proved out in real runs (see the sequential-and-honest processing work). The
+// stage set here is coupling-guarded against progress.py by
 // tests/unit/test_progress_stage_coupling.py.
+// waitPattern/waitMsg are the one thing the marker still can't carry (a
+// mid-stage "waiting on a model download" sub-state with no count) - kept as
+// prose matches against the still-emitted human console.print lines.
 const INGEST_STEPS = [
-  {label: 'Extract',        stage: 'extract',        patterns: ['Extracting audio'],      estMatch: ['extract audio'],  progressPattern: /Track (\d+)\/(\d+)/},
-  {label: 'Transcribe',     stage: 'transcribe',     patterns: ['Transcribing'],          estMatch: ['transcribe', 'load captions'], progressPattern: /Track (\d+)\/(\d+)/, waitPattern: /Waiting for the speech-to-text model/, waitMsg: 'waiting for the speech model to finish downloading'},
-  {label: 'Speakers',       stage: 'speakers',       patterns: ['Detecting speakers'],    estMatch: ['speaker labels']},
-  {label: 'Generate Clips', stage: 'generate_clips', patterns: ['Generating clip']},
-  {label: 'Summarize',      stage: 'summarize',      patterns: ['Generating video summary'], estMatch: ['summarize']},
-  {label: 'Energy',         stage: 'energy',         patterns: ['Computing audio energy'], estMatch: ['audio energy']},
-  {label: 'Scene cuts',     stage: 'scenes',         patterns: ['Detecting scene'],       estMatch: ['scene detection']},
-  {label: 'Score',          stage: 'score',          patterns: ['Scoring clips'],         estMatch: ['llm scoring'], progressPattern: /Scoring (\d+)\/(\d+)/, waitPattern: /Preparing the scoring model/, waitMsg: 'loading the scoring model into memory'},
+  {label: 'Extract',        stage: 'extract',        patterns: [],   estMatch: ['extract audio']},
+  {label: 'Transcribe',     stage: 'transcribe',     patterns: [],   estMatch: ['transcribe', 'load captions'], waitPattern: /Waiting for the speech-to-text model/, waitMsg: 'waiting for the speech model to finish downloading'},
+  {label: 'Speakers',       stage: 'speakers',       patterns: [],   estMatch: ['speaker labels']},
+  {label: 'Generate Clips', stage: 'generate_clips', patterns: []},
+  {label: 'Summarize',      stage: 'summarize',      patterns: [],   estMatch: ['summarize']},
+  {label: 'Energy',         stage: 'energy',         patterns: [],   estMatch: ['audio energy']},
+  {label: 'Scene cuts',     stage: 'scenes',         patterns: [],   estMatch: ['scene detection']},
+  {label: 'Score',          stage: 'score',          patterns: [],   estMatch: ['llm scoring'], waitPattern: /Preparing the scoring model/, waitMsg: 'loading the scoring model into memory'},
 ];
 const SCORE_STEPS = [
-  {label: 'Energy',  stage: 'energy', patterns: ['Computing audio energy']},
-  {label: 'Scene cuts', stage: 'scenes', patterns: ['Detecting scene']},
-  {label: 'Scoring', stage: 'score',  patterns: ['Scoring clips'], progressPattern: /Scoring (\d+)\/(\d+)/, waitPattern: /Preparing the scoring model/, waitMsg: 'loading the scoring model into memory'},
+  {label: 'Energy',  stage: 'energy', patterns: []},
+  {label: 'Scene cuts', stage: 'scenes', patterns: []},
+  {label: 'Scoring', stage: 'score',  patterns: [], waitPattern: /Preparing the scoring model/, waitMsg: 'loading the scoring model into memory'},
 ];
 // Marker-driven only (the analyze-frames SSE emits no prose stage lines), so these
 // carry no patterns - just the two @@PROGRESS stages the vision route emits.
@@ -64,16 +67,19 @@ const FRAMES_STEPS = [
 // activates on the server's bracketed intro line. The counted jobs also carry a
 // progressPattern for a live "i/total" fill; the rest show label + elapsed. See
 // PROGRESS-CANCEL-GAP-2026-07-20 Part A. No `stage` field: these never ride the
-// @@PROGRESS marker path (JOB_STAGES is analyze-only, coupling-guarded).
+// @@PROGRESS marker path - except BATCH_EXPORT_STEPS below, which the export
+// route emits as a typed progress event directly (no subprocess stdout to parse).
 const RESCORE_JOB_STEPS    = [{label: 'Scoring',        patterns: ['Starting LLM scoring'],       progressPattern: /Scored (\d+)\/(\d+)/}];
 const REDESCRIBE_JOB_STEPS = [{label: 'Describing',     patterns: ['Re-generating descriptions'], progressPattern: /Described (\d+)\/(\d+)/}];
 const HOTWORD_SCAN_STEPS   = [{label: 'Scanning',       patterns: ['Scanning'],                   progressPattern: /Scanned (\d+)\/(\d+)/}];
 const SUMMARY_JOB_STEPS    = [{label: 'Summarizing',    patterns: ['Generating summary', 'Generating session summary']}];
 const SPEAKER_NAMES_STEPS  = [{label: 'Suggesting names', patterns: ['Suggesting speaker names']}];
 const FIND_SIMILAR_STEPS   = [{label: 'Searching',      patterns: ['Searching']}];
-// Sequential per-clip batch export: the server tags every line with "[i/total]", so
-// the single pill shows a live count + ETA. Client-only soft-cancel (see reel.js).
-const BATCH_EXPORT_STEPS   = [{label: 'Exporting',      patterns: ['Exporting clip', 'OK clip', 'Skipping'], progressPattern: /\[(\d+)\/(\d+)\]/}];
+// Sequential per-clip batch export: the server emits an @@PROGRESS marker per clip
+// (stage export_clip) whose label carries "clip N: description", so the single pill
+// shows a live count + ETA plus which clip is currently exporting. Client-only
+// soft-cancel (see reel.js).
+const BATCH_EXPORT_STEPS   = [{label: 'Exporting',      stage: 'export_clip', patterns: []}];
 const TIMELINE_JOB_STEPS   = [{label: 'Timeline',       patterns: []}];  // driven client-side via setJobProgress
 const AUTOFRAME_JOB_STEPS  = [{label: 'Auto-framing',   patterns: ['Finding faces']}];
 const URL_INSPECT_STEPS    = [{label: 'Checking link',  patterns: ['Checking link']}];
@@ -85,7 +91,7 @@ const URL_INSPECT_STEPS    = [{label: 'Checking link',  patterns: ['Checking lin
 const _PROGRESS_PREFIX = '@@PROGRESS ';
 const JOB_STAGES = new Set([
   'extract', 'transcribe', 'speakers', 'generate_clips', 'summarize',
-  'energy', 'scenes', 'score', 'frames_sample', 'frames_describe',
+  'energy', 'scenes', 'score', 'frames_sample', 'frames_describe', 'export_clip',
 ]);
 
 // Mirror of progress.py parse_progress: returns the marker payload, or null for
@@ -104,6 +110,10 @@ function parseProgress(line) {
 // label (e.g. "waiting for the speech model to finish downloading"). Set when a
 // step's waitPattern matches, cleared when that step reports real progress.
 let _stepWaitingMsg = {};
+// stepIdx -> the current @@PROGRESS marker's optional `label` (e.g. "clip 42:
+// A funny death" for BATCH_EXPORT_STEPS), shown instead of the plain step label.
+// Cleared per job; persists across same-stage marker updates that omit it.
+let _stepMarkerLabel = {};
 let _jobActive     = false;
 let _activeJobCleanup = null;
 let _jobTimer      = null;
@@ -147,6 +157,7 @@ function startJobUI(stepDefs, jobLabel, cancellable = false, pausable = false) {
   _stepProgress  = {};
   _stepRateAnchor = {};
   _stepWaitingMsg = {};
+  _stepMarkerLabel = {};
   _jobPausable   = pausable;
   _jobPaused     = false;
   _activeCancel  = _ANALYZE_CANCEL;
@@ -320,8 +331,11 @@ function _driveStepFromMarker(marker) {
   const idx = _jobStepDefs.findIndex(s => s.stage === marker.stage);
   if (idx < 0) return;
   _activateStep(idx);
+  if (marker.label) _stepMarkerLabel[idx] = marker.label;
   if (typeof marker.done === 'number' && typeof marker.total === 'number' && marker.total > 0) {
     _setStepProgress(idx, marker.done, marker.total);
+  } else {
+    _renderStepPill(idx);
   }
   refreshHooks.syncAnalysisLivePanel();
 }
@@ -355,18 +369,21 @@ function _debouncedClipListRefresh() {
 // Builds the live label for a step pill: "Score · 3/12 (25%) · 0:42 (~2:06
 // left)" once per-item counts arrive from the subprocess log; elapsed-only
 // (falling back to the pre-run /api/estimate figure) before the first count.
+// A step whose @@PROGRESS marker carries a `label` (e.g. BATCH_EXPORT_STEPS'
+// per-clip "clip 42: A funny death") shows that in place of the plain step label.
 function _stepPillLabel(idx) {
   const def = _jobStepDefs[idx];
   if (!def) return {text: '', pct: null};
+  const name = _stepMarkerLabel[idx] || def.label;
   const waiting = _stepWaitingMsg[idx];
-  if (waiting) return {text: `${def.label} · ${waiting}`, pct: null};
+  if (waiting) return {text: `${name} · ${waiting}`, pct: null};
   const elapsedMs = Date.now() - _stepStartTime;
   const progress  = _stepProgress[idx];
   // == null, not falsy: the @@PROGRESS contract allows done: 0 ("0/N (0%)").
   if (!progress || progress.current == null) {
     const est = _estimateHmsFor(def);
     return {
-      text: est ? `${def.label} · ${_fmtElapsed(elapsedMs)} (~${est})` : `${def.label} · ${_fmtElapsed(elapsedMs)}`,
+      text: est ? `${name} · ${_fmtElapsed(elapsedMs)} (~${est})` : `${name} · ${_fmtElapsed(elapsedMs)}`,
       pct: null,
     };
   }
@@ -383,7 +400,7 @@ function _stepPillLabel(idx) {
     if (isFinite(remainingMs) && remainingMs >= 0) eta = ` (~${_fmtElapsed(remainingMs)} left)`;
   }
   return {
-    text: `${def.label} · ${current}/${total} (${pct}%) · ${_fmtElapsed(elapsedMs)}${eta}`,
+    text: `${name} · ${current}/${total} (${pct}%) · ${_fmtElapsed(elapsedMs)}${eta}`,
     pct,
   };
 }

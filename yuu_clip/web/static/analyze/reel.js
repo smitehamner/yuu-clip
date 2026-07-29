@@ -424,7 +424,7 @@ async function exportUnexportedReelClips() {
       _refreshReelExportStatus();
       loadVideos();
     },
-    [{label: 'Exporting', patterns: ['Exporting clip', 'OK clip', 'Skipping']}],
+    BATCH_EXPORT_STEPS,
     'Export',
   );
 }

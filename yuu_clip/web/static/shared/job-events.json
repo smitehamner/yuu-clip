@@ -27,7 +27,8 @@
     "scenes",
     "score",
     "frames_sample",
-    "frames_describe"
+    "frames_describe",
+    "export_clip"
   ],
   "decode_fixtures": [
     {

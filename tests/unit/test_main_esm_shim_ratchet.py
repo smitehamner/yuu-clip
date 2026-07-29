@@ -54,6 +54,7 @@ _EXPECTED_GROUP1_SPREADS: frozenset[str] = frozenset()
 _EXPECTED_GROUP2: frozenset[str] = frozenset({
     "AppState", "ColorPicker", "fmtDuration",
     "startJobUI", "updateJobUI", "endJobUI", "streamSSE", "INGEST_STEPS", "SCORE_STEPS",
+    "_driveStepFromMarker",
     "_blockedByAnalyze", "_setPausedUIFromStatus", "_abortActiveStream",
     "showAlert", "showConfirm", "_confirmCancel", "toggleHamburger",
     "openControlsModal", "openDiffModal", "showKebab", "showUndoToast",
