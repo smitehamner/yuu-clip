@@ -176,6 +176,105 @@ class TestNeedsModelEmptyState:
 
 
 # ---------------------------------------------------------------------------
+# summarize / regenerate-summary - the LLM call itself raising must surface as
+# a typed SSE error, not a crash (BUG #9 converted /summarize from a plain
+# POST to this SSE shape specifically so a failure/cancel has a stream to
+# unwind - a regression here would silently drop back to an unhandled 500).
+# ---------------------------------------------------------------------------
+
+def _last_done_event(response) -> dict:
+    import json
+    lines = [line for line in response.text.splitlines() if line.startswith("data: ")]
+    return json.loads(lines[-1][len("data: "):])
+
+
+class TestSummaryGenerationErrorPath:
+    def _mock_llm_failure(self, monkeypatch):
+        monkeypatch.setattr("yuu_clip.scoring.llm.check_llm_available", lambda _cfg: (True, ""))
+
+        def _boom(*args, **kwargs):
+            raise RuntimeError("model exploded")
+
+        monkeypatch.setattr("yuu_clip.scoring.llm.summarize_transcript", _boom)
+
+    def test_summarize_streams_error_when_llm_call_raises(self, project_dir, client, monkeypatch):
+        _seed_transcript(project_dir)
+        self._mock_llm_failure(monkeypatch)
+        vid_id = client.get("/api/videos").json()[0]["id"]
+
+        r = client.get(f"/api/videos/{vid_id}/summarize")
+
+        assert r.status_code == 200
+        assert _last_done_event(r) == {
+            "v": 1, "type": "done", "outcome": "error",
+            "error": "LLM error: model exploded",
+        }
+
+    def test_regenerate_summary_streams_error_and_leaves_video_untouched(self, project_dir, client, monkeypatch):
+        _seed_transcript(project_dir)
+        self._mock_llm_failure(monkeypatch)
+        vid_id = client.get("/api/videos").json()[0]["id"]
+
+        r = client.get(f"/api/videos/{vid_id}/regenerate-summary")
+
+        assert r.status_code == 200
+        assert _last_done_event(r) == {
+            "v": 1, "type": "done", "outcome": "error",
+            "error": "Summary generation failed: model exploded",
+        }
+        from yuu_clip.db.models import Video, make_session
+        session = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            video = session.get(Video, vid_id)
+            assert video.summarized_at is None
+            assert video.summary is None
+        finally:
+            session.close()
+
+    def test_timeline_chunk_failure_degrades_that_entry_without_aborting_the_stream(
+        self, project_dir, client, monkeypatch,
+    ):
+        """One window's LLM call raising must not drop the other windows or fail
+        the whole timeline - the per-chunk try/except degrades just that entry's
+        text, an untested behavior path since the only prior timeline coverage
+        was the guards, the needs-model empty state, and (at the system tier) the
+        all-success path."""
+        from yuu_clip.db.models import AudioTrack, Transcript, TranscriptSegment, make_session
+        session = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            track = session.query(AudioTrack).first()
+            tx = Transcript(audio_track_id=track.id, model_name="base")
+            session.add(tx)
+            session.flush()
+            # Two 10s windows (interval_s=10 below): [0,5000) and [15000,20000).
+            session.add(TranscriptSegment(transcript_id=tx.id, start_ms=0, end_ms=5_000, text="the heist begins"))
+            session.add(TranscriptSegment(transcript_id=tx.id, start_ms=15_000, end_ms=20_000, text="the getaway"))
+            session.commit()
+        finally:
+            session.close()
+
+        monkeypatch.setattr("yuu_clip.scoring.llm.check_llm_available", lambda _cfg: (True, ""))
+
+        def _fail_second_chunk(chunk_text, start_hms, end_hms, window_clips, config, context_text):
+            if "getaway" in chunk_text:
+                raise RuntimeError("model exploded")
+            return "The heist begins."
+
+        monkeypatch.setattr("yuu_clip.scoring.llm.generate_timeline_chunk", _fail_second_chunk)
+        vid_id = client.get("/api/videos").json()[0]["id"]
+
+        r = client.get(f"/api/videos/{vid_id}/timeline?interval_s=10")
+
+        assert r.status_code == 200
+        assert _last_done_event(r) == {"v": 1, "type": "done", "outcome": "ok"}
+        timeline = client.get(f"/api/videos/{vid_id}").json()["timeline"]
+        assert [entry["text"] for entry in timeline] == [
+            "The heist begins.",
+            "[Error generating entry: model exploded]",
+        ]
+
+
+# ---------------------------------------------------------------------------
 # rescore_clip 404 guard
 # ---------------------------------------------------------------------------
 
