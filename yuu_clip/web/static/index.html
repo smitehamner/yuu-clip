@@ -337,7 +337,7 @@
         <div class="settings-label">Model readiness</div>
         <div class="settings-note">Whether the model you've picked can score text and analyze images</div>
       </div>
-      <div id="s-llm-capabilities" style="font-size:12px;color:var(--muted)">Checking…</div>
+      <div id="s-llm-capabilities" class="hint-text">Checking…</div>
     </div>
     </div><!-- /#s-llm-body -->
     </div><!-- /#s-llm-generative-block -->
@@ -559,31 +559,31 @@
     <div style="font-size:12px;color:var(--muted);margin-bottom:8px;font-weight:600">Signal weights</div>
     <div class="settings-weight-row">
       <span class="settings-weight-label">&#128266; Audio energy</span>
-      <input type="range" min="0" max="5" step="0.1" id="s-energy-weight" aria-label="Audio energy weight" style="flex:1"
+      <input type="range" min="0" max="5" step="0.1" id="s-energy-weight" aria-label="Audio energy weight" class="flex-1"
              oninput="document.getElementById('s-energy-weight-val').textContent=parseFloat(this.value).toFixed(1)">
       <span class="settings-weight-val" id="s-energy-weight-val">1.0</span>
     </div>
     <div class="settings-weight-row">
       <span class="settings-weight-label">&#127916; Scene cuts</span>
-      <input type="range" min="0" max="5" step="0.1" id="s-scene-weight" aria-label="Scene cuts weight" style="flex:1"
+      <input type="range" min="0" max="5" step="0.1" id="s-scene-weight" aria-label="Scene cuts weight" class="flex-1"
              oninput="document.getElementById('s-scene-weight-val').textContent=parseFloat(this.value).toFixed(1)">
       <span class="settings-weight-val" id="s-scene-weight-val">0.5</span>
     </div>
     <div class="settings-weight-row">
       <span class="settings-weight-label">&#129504; LLM score</span>
-      <input type="range" min="0" max="5" step="0.1" id="s-llm-weight" aria-label="LLM score weight" style="flex:1"
+      <input type="range" min="0" max="5" step="0.1" id="s-llm-weight" aria-label="LLM score weight" class="flex-1"
              oninput="document.getElementById('s-llm-weight-val').textContent=parseFloat(this.value).toFixed(1)">
       <span class="settings-weight-val" id="s-llm-weight-val">2.0</span>
     </div>
     <div class="settings-weight-row" style="margin-bottom:4px">
       <span class="settings-weight-label">&#128514; Laugh detection</span>
-      <input type="range" min="0" max="5" step="0.1" id="s-laugh-weight" aria-label="Laugh detection weight" style="flex:1"
+      <input type="range" min="0" max="5" step="0.1" id="s-laugh-weight" aria-label="Laugh detection weight" class="flex-1"
              oninput="document.getElementById('s-laugh-weight-val').textContent=parseFloat(this.value).toFixed(1)">
       <span class="settings-weight-val" id="s-laugh-weight-val">1.5</span>
     </div>
     <div style="margin-bottom:4px;display:flex;gap:8px;align-items:center">
       <label class="settings-label" for="s-laugh-mode" style="white-space:nowrap;min-width:90px">Laugh mode</label>
-      <select id="s-laugh-mode" class="settings-input" style="flex:1">
+      <select id="s-laugh-mode" class="settings-input flex-1">
         <option value="transcript">Transcript (default - pattern matching)</option>
         <option value="audio">Audio (listens for laughter rhythm - nothing extra to download)</option>
         <option value="model">Model (HuggingFace classifier, best accuracy)</option>
@@ -600,7 +600,7 @@
     <div style="margin-bottom:16px" id="s-laugh-model-fields-spacer"></div>
     <div class="settings-weight-row">
       <span class="settings-weight-label">&#128214; Lexicon</span>
-      <input type="range" min="0" max="5" step="0.1" id="s-lexicon-weight" aria-label="Lexicon scoring weight" style="flex:1"
+      <input type="range" min="0" max="5" step="0.1" id="s-lexicon-weight" aria-label="Lexicon scoring weight" class="flex-1"
              oninput="document.getElementById('s-lexicon-weight-val').textContent=parseFloat(this.value).toFixed(1)">
       <span class="settings-weight-val" id="s-lexicon-weight-val">1.0</span>
     </div>
@@ -609,13 +609,13 @@
     </div>
     <div class="settings-weight-row">
       <span class="settings-weight-label">&#9889; Speech rate</span>
-      <input type="range" min="0" max="5" step="0.1" id="s-speech-rate-weight" aria-label="Speech rate weight" style="flex:1"
+      <input type="range" min="0" max="5" step="0.1" id="s-speech-rate-weight" aria-label="Speech rate weight" class="flex-1"
              oninput="document.getElementById('s-speech-rate-weight-val').textContent=parseFloat(this.value).toFixed(1)">
       <span class="settings-weight-val" id="s-speech-rate-weight-val">0.5</span>
     </div>
     <div class="settings-weight-row">
       <span class="settings-weight-label">&#128172; Speaker overlap</span>
-      <input type="range" min="0" max="5" step="0.1" id="s-churn-weight" aria-label="Speaker overlap weight" style="flex:1"
+      <input type="range" min="0" max="5" step="0.1" id="s-churn-weight" aria-label="Speaker overlap weight" class="flex-1"
              oninput="document.getElementById('s-churn-weight-val').textContent=parseFloat(this.value).toFixed(1)">
       <span class="settings-weight-val" id="s-churn-weight-val">0.5</span>
     </div>
@@ -624,7 +624,7 @@
     </div>
     <div class="settings-weight-row">
       <span class="settings-weight-label">&#128200; Prosody</span>
-      <input type="range" min="0" max="5" step="0.1" id="s-prosody-weight" aria-label="Prosody weight" style="flex:1"
+      <input type="range" min="0" max="5" step="0.1" id="s-prosody-weight" aria-label="Prosody weight" class="flex-1"
              oninput="document.getElementById('s-prosody-weight-val').textContent=parseFloat(this.value).toFixed(1)">
       <span class="settings-weight-val" id="s-prosody-weight-val">0.5</span>
     </div>
@@ -633,7 +633,7 @@
     </div>
     <div class="settings-weight-row" style="margin-bottom:4px">
       <span class="settings-weight-label">&#128165; Audio events</span>
-      <input type="range" min="0" max="5" step="0.1" id="s-audio-event-weight" aria-label="Audio events weight" style="flex:1"
+      <input type="range" min="0" max="5" step="0.1" id="s-audio-event-weight" aria-label="Audio events weight" class="flex-1"
              oninput="document.getElementById('s-audio-event-weight-val').textContent=parseFloat(this.value).toFixed(1)">
       <span class="settings-weight-val" id="s-audio-event-weight-val">1.0</span>
     </div>
@@ -652,25 +652,25 @@
     <div style="font-size:12px;color:var(--muted);margin-bottom:8px;font-weight:600">Sub-score weights</div>
     <div class="settings-weight-row">
       <span class="settings-weight-label">&#128514; Funny</span>
-      <input type="range" min="0" max="5" step="0.1" id="s-funny-weight" aria-label="Funny sub-score weight" style="flex:1"
+      <input type="range" min="0" max="5" step="0.1" id="s-funny-weight" aria-label="Funny sub-score weight" class="flex-1"
              oninput="document.getElementById('s-funny-weight-val').textContent=parseFloat(this.value).toFixed(1)">
       <span class="settings-weight-val" id="s-funny-weight-val">1.0</span>
     </div>
     <div class="settings-weight-row">
       <span class="settings-weight-label">&#127917; Dramatic</span>
-      <input type="range" min="0" max="5" step="0.1" id="s-dramatic-weight" aria-label="Dramatic sub-score weight" style="flex:1"
+      <input type="range" min="0" max="5" step="0.1" id="s-dramatic-weight" aria-label="Dramatic sub-score weight" class="flex-1"
              oninput="document.getElementById('s-dramatic-weight-val').textContent=parseFloat(this.value).toFixed(1)">
       <span class="settings-weight-val" id="s-dramatic-weight-val">1.0</span>
     </div>
     <div class="settings-weight-row">
       <span class="settings-weight-label">&#9876;&#65039; Action</span>
-      <input type="range" min="0" max="5" step="0.1" id="s-action-weight" aria-label="Action sub-score weight" style="flex:1"
+      <input type="range" min="0" max="5" step="0.1" id="s-action-weight" aria-label="Action sub-score weight" class="flex-1"
              oninput="document.getElementById('s-action-weight-val').textContent=parseFloat(this.value).toFixed(1)">
       <span class="settings-weight-val" id="s-action-weight-val">1.0</span>
     </div>
     <div class="settings-weight-row">
       <span class="settings-weight-label">&#127916; Visual</span>
-      <input type="range" min="0" max="5" step="0.1" id="s-visual-weight" aria-label="Visual sub-score weight" style="flex:1"
+      <input type="range" min="0" max="5" step="0.1" id="s-visual-weight" aria-label="Visual sub-score weight" class="flex-1"
              oninput="document.getElementById('s-visual-weight-val').textContent=parseFloat(this.value).toFixed(1)">
       <span class="settings-weight-val" id="s-visual-weight-val">0.5</span>
     </div>
@@ -1137,8 +1137,8 @@
           <div id="session-grouping-label" class="meta">Pick 2+ recordings to group as a session</div>
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
-          <button class="btn ghost" id="btn-cancel-group" style="font-size:11px;padding:2px 8px">Cancel</button>
-          <button class="btn primary" id="btn-confirm-group" style="font-size:11px;padding:2px 8px" disabled>Group as session</button>
+          <button class="btn ghost btn-sm" id="btn-cancel-group">Cancel</button>
+          <button class="btn primary btn-sm" id="btn-confirm-group" disabled>Group as session</button>
         </div>
       </div>
       <ul class="sidebar-list" id="video-list"></ul>
@@ -1199,10 +1199,10 @@
       <div class="clip-bulk-toolbar" id="clip-bulk-toolbar" style="display:none">
         <span id="clip-bulk-count">0 selected</span>
         <div class="clip-bulk-actions">
-          <button class="btn" style="font-size:11px;padding:2px 8px" title="Approve selected clips" data-act="bulk-approve">Approve</button>
-          <button class="btn" style="font-size:11px;padding:2px 8px" title="Reject selected clips" data-act="bulk-reject">Reject</button>
-          <button class="btn" style="font-size:11px;padding:2px 8px" title="Export selected clips" data-act="bulk-export">Export</button>
-          <button class="btn danger" style="font-size:11px;padding:2px 8px" title="Delete selected clips" data-act="bulk-delete">Delete</button>
+          <button class="btn btn-sm" title="Approve selected clips" data-act="bulk-approve">Approve</button>
+          <button class="btn btn-sm" title="Reject selected clips" data-act="bulk-reject">Reject</button>
+          <button class="btn btn-sm" title="Export selected clips" data-act="bulk-export">Export</button>
+          <button class="btn danger btn-sm" title="Delete selected clips" data-act="bulk-delete">Delete</button>
           <button class="btn ghost" style="font-size:11px;padding:2px 6px" title="Clear selection" aria-label="Clear selection" data-act="bulk-clear-selection">&times;</button>
         </div>
       </div>
@@ -1256,7 +1256,7 @@
         <div class="field">
           <label for="analyze-profile">Track layout</label>
           <div style="display:flex;gap:6px">
-            <select id="analyze-profile" style="flex:1"></select>
+            <select id="analyze-profile" class="flex-1"></select>
             <button class="btn" id="btn-open-profile-manager" title="Manage track layouts">&#9881;</button>
           </div>
         </div>
@@ -1313,11 +1313,11 @@
             Split before analyzing
           </label>
           <div id="pre-split-editor" style="display:none;flex-direction:column;gap:8px;margin-top:6px">
-            <div id="pre-split-instructions" style="font-size:12px;color:var(--muted)"></div>
+            <div id="pre-split-instructions" class="hint-text"></div>
             <div id="pre-split-timeline-bar"
                  style="position:relative;height:48px;flex-shrink:0;background:var(--surface);border:1px solid var(--border);border-radius:6px;cursor:crosshair;overflow:hidden">
               <div id="pre-split-segments-layer" style="display:flex;height:100%;pointer-events:none"></div>
-              <div id="pre-split-markers-layer" style="position:absolute;inset:0;pointer-events:none"></div>
+              <div id="pre-split-markers-layer" class="layer-fill"></div>
             </div>
             <div id="pre-split-segment-list" style="display:flex;flex-direction:column;gap:6px"></div>
           </div>
@@ -1340,7 +1340,7 @@
           <span class="log-title">Log</span>
           <span class="log-toggle" id="log-toggle">&#9660;</span>
         </button>
-        <button class="btn ghost" id="btn-clear-log" aria-label="Clear log" style="font-size:11px;padding:2px 8px">Clear</button>
+        <button class="btn ghost btn-sm" id="btn-clear-log" aria-label="Clear log">Clear</button>
       </div>
       <div class="log-body" id="log-body">
         <div id="log-lines"></div>
@@ -1371,7 +1371,7 @@
           style="display:none;position:absolute;top:8px;left:8px;background:rgba(0,0,0,.7);color:var(--on-scrim);font-size:11px;padding:3px 8px;border-radius:4px;pointer-events:none"></span>
   </div>
 
-  <div id="split-instructions" style="font-size:12px;color:var(--muted)"></div>
+  <div id="split-instructions" class="hint-text"></div>
 
   <!-- Timeline zoom controls -->
   <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)">
@@ -1386,20 +1386,20 @@
   <div id="split-timeline-scroll" style="overflow-x:auto;overflow-y:hidden;flex-shrink:0">
     <div style="position:relative;height:60px;width:100%;background:var(--surface);border:1px solid var(--border);border-radius:6px;cursor:crosshair;user-select:none" id="split-timeline-bar">
       <canvas id="split-waveform-canvas" style="position:absolute;inset:0;width:100%;height:100%;border-radius:6px;pointer-events:none"></canvas>
-      <div id="split-scene-layer"    style="position:absolute;inset:0;pointer-events:none"></div>
-      <div id="split-suggestion-layer" style="position:absolute;inset:0;pointer-events:none"></div>
-      <div id="split-clips-layer"    style="position:absolute;inset:0;pointer-events:none"></div>
-      <div id="split-segments-layer" style="position:absolute;inset:0;pointer-events:none;display:flex"></div>
-      <div id="split-markers-layer"  style="position:absolute;inset:0;pointer-events:none"></div>
+      <div id="split-scene-layer"    class="layer-fill"></div>
+      <div id="split-suggestion-layer" class="layer-fill"></div>
+      <div id="split-clips-layer"    class="layer-fill"></div>
+      <div id="split-segments-layer" class="layer-fill" style="display:flex"></div>
+      <div id="split-markers-layer"  class="layer-fill"></div>
     </div>
   </div>
   <!-- Overlay legend (M6-1) -->
   <div id="split-legend" style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;font-size:11px;color:var(--muted)">
-    <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:2px;height:12px;background:var(--accent);border-radius:1px"></span>Split point (yours)</span>
-    <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:0;height:12px;border-left:1.5px dashed color-mix(in srgb, var(--text) 45%, transparent)"></span>Suggested split - click to place</span>
-    <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:1px;height:12px;background:color-mix(in srgb, var(--text) 40%, transparent)"></span>Scene cut</span>
-    <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:16px;height:4px;background:color-mix(in srgb, var(--text) 35%, transparent);border-radius:2px"></span>Existing clip</span>
-    <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:16px;height:12px;background:var(--accent);opacity:0.25;border-radius:2px;border-right:2px solid var(--accent)"></span>Segment</span>
+    <span class="inline-row"><span style="width:2px;height:12px;background:var(--accent);border-radius:1px"></span>Split point (yours)</span>
+    <span class="inline-row"><span style="width:0;height:12px;border-left:1.5px dashed color-mix(in srgb, var(--text) 45%, transparent)"></span>Suggested split - click to place</span>
+    <span class="inline-row"><span style="width:1px;height:12px;background:color-mix(in srgb, var(--text) 40%, transparent)"></span>Scene cut</span>
+    <span class="inline-row"><span style="width:16px;height:4px;background:color-mix(in srgb, var(--text) 35%, transparent);border-radius:2px"></span>Existing clip</span>
+    <span class="inline-row"><span style="width:16px;height:12px;background:var(--accent);opacity:0.25;border-radius:2px;border-right:2px solid var(--accent)"></span>Segment</span>
   </div>
   <!-- Waveform notice (shown when no energy data and not computing) -->
   <div id="split-waveform-notice" style="display:none;font-size:12px;color:var(--muted);align-items:center;gap:10px">
@@ -1457,9 +1457,9 @@
 <!-- Getting Started modal -->
 <div class="modal-bg" id="getting-started-modal">
   <div class="modal" id="getting-started-modal-panel" style="max-width:520px">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+    <div class="modal-header-row">
       <h3 style="margin:0">Getting Started</h3>
-      <button class="btn ghost" style="padding:4px 8px" id="getting-started-x-btn" aria-label="Close">&#x2715;</button>
+      <button class="btn ghost modal-close-btn" id="getting-started-x-btn" aria-label="Close">&#x2715;</button>
     </div>
 
     <div id="getting-started-model-banner" style="margin:0 0 16px;padding:10px 12px;border:1px solid color-mix(in srgb, var(--accent) 40%, transparent);border-radius:8px;background:color-mix(in srgb, var(--accent) 8%, transparent);font-size:13px;line-height:1.6;color:var(--text)">
@@ -1477,20 +1477,20 @@
     <div class="section-title" style="margin-bottom:6px">What the scores mean</div>
     <table style="width:100%;font-size:13px;border-collapse:collapse;margin-bottom:16px">
       <tbody>
-        <tr><td style="padding:3px 8px 3px 0;color:var(--text)">&#11088; Overall</td><td style="color:var(--muted)">Weighted blend of the four sub-scores</td></tr>
-        <tr><td style="padding:3px 8px 3px 0;color:var(--text)">&#128514; Funny</td><td style="color:var(--muted)">Jokes, absurdist moments, chaotic banter</td></tr>
-        <tr><td style="padding:3px 8px 3px 0;color:var(--text)">&#127917; Dramatic</td><td style="color:var(--muted)">Confrontations, revelations, emotional beats</td></tr>
-        <tr><td style="padding:3px 8px 3px 0;color:var(--text)">&#9876;&#65039; Action</td><td style="color:var(--muted)">Combat, tension, high-stakes moments</td></tr>
-        <tr><td style="padding:3px 8px 3px 0;color:var(--text)">&#127916; Visual</td><td style="color:var(--muted)">On-screen intensity - scene cuts and motion, even in silence</td></tr>
+        <tr><td class="legend-term">&#11088; Overall</td><td class="muted">Weighted blend of the four sub-scores</td></tr>
+        <tr><td class="legend-term">&#128514; Funny</td><td class="muted">Jokes, absurdist moments, chaotic banter</td></tr>
+        <tr><td class="legend-term">&#127917; Dramatic</td><td class="muted">Confrontations, revelations, emotional beats</td></tr>
+        <tr><td class="legend-term">&#9876;&#65039; Action</td><td class="muted">Combat, tension, high-stakes moments</td></tr>
+        <tr><td class="legend-term">&#127916; Visual</td><td class="muted">On-screen intensity - scene cuts and motion, even in silence</td></tr>
       </tbody>
     </table>
 
     <div class="section-title" style="margin-bottom:6px">Key concepts</div>
     <table style="width:100%;font-size:13px;border-collapse:collapse;margin-bottom:16px">
       <tbody>
-        <tr><td style="padding:3px 8px 3px 0;color:var(--text);white-space:nowrap">Track layout</td><td style="color:var(--muted)">Maps your OBS audio tracks to roles (player voice, game sounds, etc.) so YuuClip knows what to transcribe</td></tr>
-        <tr><td style="padding:3px 8px 3px 0;color:var(--text);white-space:nowrap">World context</td><td style="color:var(--muted)">Tells the LLM scorer who's in your recordings and what the setting is - improves descriptions and scores for your specific game</td></tr>
-        <tr><td style="padding:3px 8px 3px 0;color:var(--text);white-space:nowrap">Clip vs Scene</td><td style="color:var(--muted)">Clips are punchy 15-90 second moments; scenes are longer 1-5 minute stretches with a story arc. If you turn on Generate scenes, they share the clip list with a SCENE badge and the All / Clips / Scenes buttons filter between them</td></tr>
+        <tr><td class="legend-term nowrap">Track layout</td><td class="muted">Maps your OBS audio tracks to roles (player voice, game sounds, etc.) so YuuClip knows what to transcribe</td></tr>
+        <tr><td class="legend-term nowrap">World context</td><td class="muted">Tells the LLM scorer who's in your recordings and what the setting is - improves descriptions and scores for your specific game</td></tr>
+        <tr><td class="legend-term nowrap">Clip vs Scene</td><td class="muted">Clips are punchy 15-90 second moments; scenes are longer 1-5 minute stretches with a story arc. If you turn on Generate scenes, they share the clip list with a SCENE badge and the All / Clips / Scenes buttons filter between them</td></tr>
       </tbody>
     </table>
 
@@ -1510,12 +1510,12 @@
   <div class="modal" style="width:940px;max-width:96vw;max-height:90vh;display:flex;flex-direction:column">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
       <h3 style="margin:0">Help &amp; Guides</h3>
-      <button class="btn ghost" style="padding:4px 8px" id="help-modal-close-btn" aria-label="Close">&#x2715;</button>
+      <button class="btn ghost modal-close-btn" id="help-modal-close-btn" aria-label="Close">&#x2715;</button>
     </div>
     <div style="display:flex;gap:18px;flex:1;min-height:0">
       <nav id="help-doc-list" aria-label="Guides"></nav>
       <div id="help-doc-view" tabindex="-1" role="document">
-        <div style="color:var(--muted)">Loading&#x2026;</div>
+        <div class="muted">Loading&#x2026;</div>
       </div>
     </div>
   </div>
@@ -1526,7 +1526,7 @@
   <div class="modal" style="width:780px;max-width:94vw">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;position:sticky;top:0;background:var(--surface);z-index:1">
       <h3 style="margin:0">About YuuClip</h3>
-      <button class="btn ghost" style="padding:4px 8px" id="about-modal-x-btn" aria-label="Close">&#x2715;</button>
+      <button class="btn ghost modal-close-btn" id="about-modal-x-btn" aria-label="Close">&#x2715;</button>
     </div>
     <p style="color:var(--muted);font-size:13px;margin:0 0 12px">
       <span id="about-version">Version unknown</span><br>
@@ -1612,7 +1612,7 @@
           <button class="reel-tab-btn" id="reel-tab-btn-view">View</button>
         </div>
       </div>
-      <button class="btn ghost" id="reel-close-btn" style="padding:4px 8px" aria-label="Close">&#x2715;</button>
+      <button class="btn ghost modal-close-btn" id="reel-close-btn" aria-label="Close">&#x2715;</button>
     </div>
 
     <!-- Build tab -->
@@ -1633,8 +1633,8 @@
 
       <div style="margin-bottom:10px">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-          <label style="font-size:12px;color:var(--muted)">Clip order <span style="font-size:10px">(check to include · drag or ↑↓ to reorder)</span></label>
-          <button class="btn ghost" id="reel-refresh-btn" style="font-size:11px;padding:2px 8px">&#8635; Refresh</button>
+          <label class="hint-text">Clip order <span style="font-size:10px">(check to include · drag or ↑↓ to reorder)</span></label>
+          <button class="btn ghost btn-sm" id="reel-refresh-btn">&#8635; Refresh</button>
         </div>
         <div class="reel-clip-list" id="reel-clip-list">
           <div style="padding:16px;text-align:center;color:var(--muted);font-size:12px">Loading clips…</div>
@@ -1684,7 +1684,7 @@
             Highlight each word as it's spoken (TikTok style)
           </label>
           <div id="demo-chunk-size-row" style="display:none;align-items:center;gap:8px;margin-top:6px">
-            <label for="demo-chunk-size" style="font-size:12px;color:var(--muted)">Words on screen</label>
+            <label for="demo-chunk-size" class="hint-text">Words on screen</label>
             <input type="number" id="demo-chunk-size" min="1" max="12" placeholder="4" style="width:80px">
           </div>
         </div>
@@ -1715,12 +1715,12 @@
 <!-- Reel Preview Popup -->
 <div class="modal-bg" id="reel-preview-modal">
   <div class="modal" style="width:720px;padding:14px" aria-label="Clip preview">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+    <div class="modal-header-row">
       <span id="reel-preview-label" style="font-size:13px;color:var(--muted)"></span>
       <div style="display:flex;align-items:center;gap:6px">
         <button class="btn ghost" id="reel-preview-prev" style="font-size:11px;padding:4px 10px" title="Previous clip">&#9664; Previous</button>
         <button class="btn ghost" id="reel-preview-next" style="font-size:11px;padding:4px 10px" title="Next clip">Next &#9654;</button>
-        <button class="btn ghost" id="reel-preview-close-btn" style="padding:4px 8px" aria-label="Close">&#x2715;</button>
+        <button class="btn ghost modal-close-btn" id="reel-preview-close-btn" aria-label="Close">&#x2715;</button>
       </div>
     </div>
     <video id="reel-preview-video" controls style="width:100%;border-radius:6px;background:#000;max-height:72vh"></video>
@@ -1730,9 +1730,9 @@
 <!-- Batch Export Modal -->
 <div class="modal-bg" id="batch-export-modal">
   <div class="modal" style="width:400px">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+    <div class="modal-header-row">
       <h3 style="margin:0">Export Approved Clips</h3>
-      <button class="btn ghost" style="padding:4px 8px" id="batch-export-x-btn" aria-label="Close">&#x2715;</button>
+      <button class="btn ghost modal-close-btn" id="batch-export-x-btn" aria-label="Close">&#x2715;</button>
     </div>
     <div class="field">
       <label for="batch-min-score">Minimum score</label>
@@ -1802,11 +1802,11 @@
     <div class="field">
       <label style="display:flex;align-items:center;gap:10px;cursor:pointer;margin:0">
         <input type="checkbox" id="retranscribe-speaker-labels" disabled style="width:auto">
-        <span style="font-size:13px">Speaker labels <span style="color:var(--muted)">(identifies who is speaking)</span></span>
+        <span style="font-size:13px">Speaker labels <span class="muted">(identifies who is speaking)</span></span>
       </label>
       <div id="retranscribe-speaker-note" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
     </div>
-    <div style="font-size:12px;color:var(--muted)">
+    <div class="hint-text">
       Transcribes only this clip's time window with the selected model, then re-scores.
     </div>
     <div class="modal-actions">
@@ -1819,9 +1819,9 @@
 <!-- Context Manager Modal -->
 <div class="modal-bg" id="context-modal">
   <div class="modal" style="width:680px;max-height:85vh">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+    <div class="modal-header-row">
       <h3 style="margin:0">World Contexts</h3>
-      <button class="btn ghost" style="padding:4px 8px" id="context-manager-x-btn" aria-label="Close">&#x2715;</button>
+      <button class="btn ghost modal-close-btn" id="context-manager-x-btn" aria-label="Close">&#x2715;</button>
     </div>
     <p style="font-size:12px;color:var(--muted);margin-top:-6px">Named knowledge injected into LLM prompts - people, setting, and notes.</p>
     <div style="display:flex;gap:16px;min-height:300px">
@@ -1835,7 +1835,7 @@
           <input type="text" id="ce-display-name" placeholder="My Game">
         </div>
         <div class="field">
-          <label for="ce-context-id" style="color:var(--muted)">Context ID <span style="font-weight:400">(auto-filled from the name - edit if you like)</span></label>
+          <label for="ce-context-id" class="muted">Context ID <span style="font-weight:400">(auto-filled from the name - edit if you like)</span></label>
           <input type="text" id="ce-context-id" placeholder="my-game" style="font-size:12px">
         </div>
         <div class="field">
@@ -1863,7 +1863,7 @@
             <textarea class="ctx-textarea" id="ce-char-lore" rows="2" aria-label="Character lore" placeholder="What the scorer should know about this character - role, arc, personality."></textarea>
             <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)">
               <label for="ce-char-boost" style="white-space:nowrap">Score boost</label>
-              <input type="range" id="ce-char-boost" min="0" max="1" step="0.05" value="0" style="flex:1">
+              <input type="range" id="ce-char-boost" min="0" max="1" step="0.05" value="0" class="flex-1">
               <span id="ce-char-boost-label" style="width:36px;text-align:right;font-variant-numeric:tabular-nums">0%</span>
             </div>
             <div style="display:flex;gap:8px">
@@ -1877,15 +1877,15 @@
           <label>LLM scoring weights <span style="color:var(--muted);font-weight:400">(overrides global - leave blank to use global defaults)</span></label>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:4px">
             <div>
-              <label for="ce-weight-funny" style="font-size:12px;color:var(--muted)">Funny</label>
+              <label for="ce-weight-funny" class="hint-text">Funny</label>
               <input type="number" id="ce-weight-funny" min="0" step="0.1" placeholder="global" style="width:100%">
             </div>
             <div>
-              <label for="ce-weight-dramatic" style="font-size:12px;color:var(--muted)">Dramatic</label>
+              <label for="ce-weight-dramatic" class="hint-text">Dramatic</label>
               <input type="number" id="ce-weight-dramatic" min="0" step="0.1" placeholder="global" style="width:100%">
             </div>
             <div>
-              <label for="ce-weight-action" style="font-size:12px;color:var(--muted)">Action</label>
+              <label for="ce-weight-action" class="hint-text">Action</label>
               <input type="number" id="ce-weight-action" min="0" step="0.1" placeholder="global" style="width:100%">
             </div>
           </div>
@@ -2021,7 +2021,7 @@
       <label for="auto-approve-slider" style="font-size:13px;color:var(--muted)">Threshold</label>
       <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
         <input type="range" id="auto-approve-slider" min="0" max="1" step="0.05" value="0.6"
-               style="flex:1">
+               class="flex-1">
         <span id="auto-approve-threshold-label" style="font-size:14px;font-weight:600;min-width:36px;text-align:right">60%</span>
       </div>
       <div id="auto-approve-preview" style="color:var(--muted);font-size:13px;margin-top:10px;min-height:18px"></div>
@@ -2038,12 +2038,12 @@
   <div class="modal" style="width:740px;max-height:88vh;display:flex;flex-direction:column">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <h3 style="margin:0">Glossary</h3>
-      <button class="btn ghost" style="padding:4px 8px" id="glossary-modal-close-btn" aria-label="Close">&#x2715;</button>
+      <button class="btn ghost modal-close-btn" id="glossary-modal-close-btn" aria-label="Close">&#x2715;</button>
     </div>
     <input type="search" id="glossary-filter" placeholder="Filter terms&#x2026;" aria-label="Filter glossary terms"
            style="margin-bottom:10px;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">
     <div id="glossary-content" style="flex:1;overflow-y:auto;font-size:13px;line-height:1.7;padding-right:4px">
-      <div style="color:var(--muted)">Loading&#x2026;</div>
+      <div class="muted">Loading&#x2026;</div>
     </div>
     <div id="glossary-no-matches" style="display:none;color:var(--muted);font-size:13px;padding:8px 0">No terms match your filter.</div>
   </div>
@@ -2052,9 +2052,9 @@
 <!-- Controls Modal -->
 <div class="modal-bg" id="controls-modal">
   <div class="modal" style="max-width:400px">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+    <div class="modal-header-row">
       <h3 style="margin:0">Keyboard Controls</h3>
-      <button class="btn ghost" style="padding:4px 8px" id="controls-modal-close-btn" aria-label="Close">&#x2715;</button>
+      <button class="btn ghost modal-close-btn" id="controls-modal-close-btn" aria-label="Close">&#x2715;</button>
     </div>
     <table style="width:100%;font-size:12px;border-collapse:collapse;color:var(--muted)">
       <tbody>
@@ -2094,7 +2094,7 @@
   <div class="modal" style="width:480px;max-height:85vh;overflow-y:auto">
     <div style="display:flex;align-items:center;justify-content:space-between">
       <h3 id="actions-modal-title" style="margin:0"></h3>
-      <button class="btn ghost" id="actions-modal-close-btn" style="padding:4px 8px" aria-label="Close">&#x2715;</button>
+      <button class="btn ghost modal-close-btn" id="actions-modal-close-btn" aria-label="Close">&#x2715;</button>
     </div>
     <div id="actions-modal-body" style="display:flex;flex-direction:column;gap:2px"></div>
   </div>

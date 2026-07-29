@@ -222,7 +222,7 @@
         <div class="settings-label">Model readiness</div>
         <div class="settings-note">Whether the model you've picked can score text and analyze images</div>
       </div>
-      <div id="s-llm-capabilities" style="font-size:12px;color:var(--muted)">Checking…</div>
+      <div id="s-llm-capabilities" class="hint-text">Checking…</div>
     </div>
     </div><!-- /#s-llm-body -->
     </div><!-- /#s-llm-generative-block -->
@@ -444,31 +444,31 @@
     <div style="font-size:12px;color:var(--muted);margin-bottom:8px;font-weight:600">Signal weights</div>
     <div class="settings-weight-row">
       <span class="settings-weight-label">&#128266; Audio energy</span>
-      <input type="range" min="0" max="5" step="0.1" id="s-energy-weight" aria-label="Audio energy weight" style="flex:1"
+      <input type="range" min="0" max="5" step="0.1" id="s-energy-weight" aria-label="Audio energy weight" class="flex-1"
              oninput="document.getElementById('s-energy-weight-val').textContent=parseFloat(this.value).toFixed(1)">
       <span class="settings-weight-val" id="s-energy-weight-val">1.0</span>
     </div>
     <div class="settings-weight-row">
       <span class="settings-weight-label">&#127916; Scene cuts</span>
-      <input type="range" min="0" max="5" step="0.1" id="s-scene-weight" aria-label="Scene cuts weight" style="flex:1"
+      <input type="range" min="0" max="5" step="0.1" id="s-scene-weight" aria-label="Scene cuts weight" class="flex-1"
              oninput="document.getElementById('s-scene-weight-val').textContent=parseFloat(this.value).toFixed(1)">
       <span class="settings-weight-val" id="s-scene-weight-val">0.5</span>
     </div>
     <div class="settings-weight-row">
       <span class="settings-weight-label">&#129504; LLM score</span>
-      <input type="range" min="0" max="5" step="0.1" id="s-llm-weight" aria-label="LLM score weight" style="flex:1"
+      <input type="range" min="0" max="5" step="0.1" id="s-llm-weight" aria-label="LLM score weight" class="flex-1"
              oninput="document.getElementById('s-llm-weight-val').textContent=parseFloat(this.value).toFixed(1)">
       <span class="settings-weight-val" id="s-llm-weight-val">2.0</span>
     </div>
     <div class="settings-weight-row" style="margin-bottom:4px">
       <span class="settings-weight-label">&#128514; Laugh detection</span>
-      <input type="range" min="0" max="5" step="0.1" id="s-laugh-weight" aria-label="Laugh detection weight" style="flex:1"
+      <input type="range" min="0" max="5" step="0.1" id="s-laugh-weight" aria-label="Laugh detection weight" class="flex-1"
              oninput="document.getElementById('s-laugh-weight-val').textContent=parseFloat(this.value).toFixed(1)">
       <span class="settings-weight-val" id="s-laugh-weight-val">1.5</span>
     </div>
     <div style="margin-bottom:4px;display:flex;gap:8px;align-items:center">
       <label class="settings-label" for="s-laugh-mode" style="white-space:nowrap;min-width:90px">Laugh mode</label>
-      <select id="s-laugh-mode" class="settings-input" style="flex:1">
+      <select id="s-laugh-mode" class="settings-input flex-1">
         <option value="transcript">Transcript (default - pattern matching)</option>
         <option value="audio">Audio (listens for laughter rhythm - nothing extra to download)</option>
         <option value="model">Model (HuggingFace classifier, best accuracy)</option>
@@ -485,7 +485,7 @@
     <div style="margin-bottom:16px" id="s-laugh-model-fields-spacer"></div>
     <div class="settings-weight-row">
       <span class="settings-weight-label">&#128214; Lexicon</span>
-      <input type="range" min="0" max="5" step="0.1" id="s-lexicon-weight" aria-label="Lexicon scoring weight" style="flex:1"
+      <input type="range" min="0" max="5" step="0.1" id="s-lexicon-weight" aria-label="Lexicon scoring weight" class="flex-1"
              oninput="document.getElementById('s-lexicon-weight-val').textContent=parseFloat(this.value).toFixed(1)">
       <span class="settings-weight-val" id="s-lexicon-weight-val">1.0</span>
     </div>
@@ -494,13 +494,13 @@
     </div>
     <div class="settings-weight-row">
       <span class="settings-weight-label">&#9889; Speech rate</span>
-      <input type="range" min="0" max="5" step="0.1" id="s-speech-rate-weight" aria-label="Speech rate weight" style="flex:1"
+      <input type="range" min="0" max="5" step="0.1" id="s-speech-rate-weight" aria-label="Speech rate weight" class="flex-1"
              oninput="document.getElementById('s-speech-rate-weight-val').textContent=parseFloat(this.value).toFixed(1)">
       <span class="settings-weight-val" id="s-speech-rate-weight-val">0.5</span>
     </div>
     <div class="settings-weight-row">
       <span class="settings-weight-label">&#128172; Speaker overlap</span>
-      <input type="range" min="0" max="5" step="0.1" id="s-churn-weight" aria-label="Speaker overlap weight" style="flex:1"
+      <input type="range" min="0" max="5" step="0.1" id="s-churn-weight" aria-label="Speaker overlap weight" class="flex-1"
              oninput="document.getElementById('s-churn-weight-val').textContent=parseFloat(this.value).toFixed(1)">
       <span class="settings-weight-val" id="s-churn-weight-val">0.5</span>
     </div>
@@ -509,7 +509,7 @@
     </div>
     <div class="settings-weight-row">
       <span class="settings-weight-label">&#128200; Prosody</span>
-      <input type="range" min="0" max="5" step="0.1" id="s-prosody-weight" aria-label="Prosody weight" style="flex:1"
+      <input type="range" min="0" max="5" step="0.1" id="s-prosody-weight" aria-label="Prosody weight" class="flex-1"
              oninput="document.getElementById('s-prosody-weight-val').textContent=parseFloat(this.value).toFixed(1)">
       <span class="settings-weight-val" id="s-prosody-weight-val">0.5</span>
     </div>
@@ -518,7 +518,7 @@
     </div>
     <div class="settings-weight-row" style="margin-bottom:4px">
       <span class="settings-weight-label">&#128165; Audio events</span>
-      <input type="range" min="0" max="5" step="0.1" id="s-audio-event-weight" aria-label="Audio events weight" style="flex:1"
+      <input type="range" min="0" max="5" step="0.1" id="s-audio-event-weight" aria-label="Audio events weight" class="flex-1"
              oninput="document.getElementById('s-audio-event-weight-val').textContent=parseFloat(this.value).toFixed(1)">
       <span class="settings-weight-val" id="s-audio-event-weight-val">1.0</span>
     </div>
@@ -537,25 +537,25 @@
     <div style="font-size:12px;color:var(--muted);margin-bottom:8px;font-weight:600">Sub-score weights</div>
     <div class="settings-weight-row">
       <span class="settings-weight-label">&#128514; Funny</span>
-      <input type="range" min="0" max="5" step="0.1" id="s-funny-weight" aria-label="Funny sub-score weight" style="flex:1"
+      <input type="range" min="0" max="5" step="0.1" id="s-funny-weight" aria-label="Funny sub-score weight" class="flex-1"
              oninput="document.getElementById('s-funny-weight-val').textContent=parseFloat(this.value).toFixed(1)">
       <span class="settings-weight-val" id="s-funny-weight-val">1.0</span>
     </div>
     <div class="settings-weight-row">
       <span class="settings-weight-label">&#127917; Dramatic</span>
-      <input type="range" min="0" max="5" step="0.1" id="s-dramatic-weight" aria-label="Dramatic sub-score weight" style="flex:1"
+      <input type="range" min="0" max="5" step="0.1" id="s-dramatic-weight" aria-label="Dramatic sub-score weight" class="flex-1"
              oninput="document.getElementById('s-dramatic-weight-val').textContent=parseFloat(this.value).toFixed(1)">
       <span class="settings-weight-val" id="s-dramatic-weight-val">1.0</span>
     </div>
     <div class="settings-weight-row">
       <span class="settings-weight-label">&#9876;&#65039; Action</span>
-      <input type="range" min="0" max="5" step="0.1" id="s-action-weight" aria-label="Action sub-score weight" style="flex:1"
+      <input type="range" min="0" max="5" step="0.1" id="s-action-weight" aria-label="Action sub-score weight" class="flex-1"
              oninput="document.getElementById('s-action-weight-val').textContent=parseFloat(this.value).toFixed(1)">
       <span class="settings-weight-val" id="s-action-weight-val">1.0</span>
     </div>
     <div class="settings-weight-row">
       <span class="settings-weight-label">&#127916; Visual</span>
-      <input type="range" min="0" max="5" step="0.1" id="s-visual-weight" aria-label="Visual sub-score weight" style="flex:1"
+      <input type="range" min="0" max="5" step="0.1" id="s-visual-weight" aria-label="Visual sub-score weight" class="flex-1"
              oninput="document.getElementById('s-visual-weight-val').textContent=parseFloat(this.value).toFixed(1)">
       <span class="settings-weight-val" id="s-visual-weight-val">0.5</span>
     </div>

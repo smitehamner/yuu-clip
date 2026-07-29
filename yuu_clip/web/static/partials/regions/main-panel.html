@@ -39,7 +39,7 @@
         <div class="field">
           <label for="analyze-profile">Track layout</label>
           <div style="display:flex;gap:6px">
-            <select id="analyze-profile" style="flex:1"></select>
+            <select id="analyze-profile" class="flex-1"></select>
             <button class="btn" id="btn-open-profile-manager" title="Manage track layouts">&#9881;</button>
           </div>
         </div>
@@ -96,11 +96,11 @@
             Split before analyzing
           </label>
           <div id="pre-split-editor" style="display:none;flex-direction:column;gap:8px;margin-top:6px">
-            <div id="pre-split-instructions" style="font-size:12px;color:var(--muted)"></div>
+            <div id="pre-split-instructions" class="hint-text"></div>
             <div id="pre-split-timeline-bar"
                  style="position:relative;height:48px;flex-shrink:0;background:var(--surface);border:1px solid var(--border);border-radius:6px;cursor:crosshair;overflow:hidden">
               <div id="pre-split-segments-layer" style="display:flex;height:100%;pointer-events:none"></div>
-              <div id="pre-split-markers-layer" style="position:absolute;inset:0;pointer-events:none"></div>
+              <div id="pre-split-markers-layer" class="layer-fill"></div>
             </div>
             <div id="pre-split-segment-list" style="display:flex;flex-direction:column;gap:6px"></div>
           </div>
@@ -123,7 +123,7 @@
           <span class="log-title">Log</span>
           <span class="log-toggle" id="log-toggle">&#9660;</span>
         </button>
-        <button class="btn ghost" id="btn-clear-log" aria-label="Clear log" style="font-size:11px;padding:2px 8px">Clear</button>
+        <button class="btn ghost btn-sm" id="btn-clear-log" aria-label="Clear log">Clear</button>
       </div>
       <div class="log-body" id="log-body">
         <div id="log-lines"></div>

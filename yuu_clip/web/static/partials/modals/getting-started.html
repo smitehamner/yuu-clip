@@ -1,8 +1,8 @@
 <div class="modal-bg" id="getting-started-modal">
   <div class="modal" id="getting-started-modal-panel" style="max-width:520px">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+    <div class="modal-header-row">
       <h3 style="margin:0">Getting Started</h3>
-      <button class="btn ghost" style="padding:4px 8px" id="getting-started-x-btn" aria-label="Close">&#x2715;</button>
+      <button class="btn ghost modal-close-btn" id="getting-started-x-btn" aria-label="Close">&#x2715;</button>
     </div>
 
     <div id="getting-started-model-banner" style="margin:0 0 16px;padding:10px 12px;border:1px solid color-mix(in srgb, var(--accent) 40%, transparent);border-radius:8px;background:color-mix(in srgb, var(--accent) 8%, transparent);font-size:13px;line-height:1.6;color:var(--text)">
@@ -20,20 +20,20 @@
     <div class="section-title" style="margin-bottom:6px">What the scores mean</div>
     <table style="width:100%;font-size:13px;border-collapse:collapse;margin-bottom:16px">
       <tbody>
-        <tr><td style="padding:3px 8px 3px 0;color:var(--text)">&#11088; Overall</td><td style="color:var(--muted)">Weighted blend of the four sub-scores</td></tr>
-        <tr><td style="padding:3px 8px 3px 0;color:var(--text)">&#128514; Funny</td><td style="color:var(--muted)">Jokes, absurdist moments, chaotic banter</td></tr>
-        <tr><td style="padding:3px 8px 3px 0;color:var(--text)">&#127917; Dramatic</td><td style="color:var(--muted)">Confrontations, revelations, emotional beats</td></tr>
-        <tr><td style="padding:3px 8px 3px 0;color:var(--text)">&#9876;&#65039; Action</td><td style="color:var(--muted)">Combat, tension, high-stakes moments</td></tr>
-        <tr><td style="padding:3px 8px 3px 0;color:var(--text)">&#127916; Visual</td><td style="color:var(--muted)">On-screen intensity - scene cuts and motion, even in silence</td></tr>
+        <tr><td class="legend-term">&#11088; Overall</td><td class="muted">Weighted blend of the four sub-scores</td></tr>
+        <tr><td class="legend-term">&#128514; Funny</td><td class="muted">Jokes, absurdist moments, chaotic banter</td></tr>
+        <tr><td class="legend-term">&#127917; Dramatic</td><td class="muted">Confrontations, revelations, emotional beats</td></tr>
+        <tr><td class="legend-term">&#9876;&#65039; Action</td><td class="muted">Combat, tension, high-stakes moments</td></tr>
+        <tr><td class="legend-term">&#127916; Visual</td><td class="muted">On-screen intensity - scene cuts and motion, even in silence</td></tr>
       </tbody>
     </table>
 
     <div class="section-title" style="margin-bottom:6px">Key concepts</div>
     <table style="width:100%;font-size:13px;border-collapse:collapse;margin-bottom:16px">
       <tbody>
-        <tr><td style="padding:3px 8px 3px 0;color:var(--text);white-space:nowrap">Track layout</td><td style="color:var(--muted)">Maps your OBS audio tracks to roles (player voice, game sounds, etc.) so YuuClip knows what to transcribe</td></tr>
-        <tr><td style="padding:3px 8px 3px 0;color:var(--text);white-space:nowrap">World context</td><td style="color:var(--muted)">Tells the LLM scorer who's in your recordings and what the setting is - improves descriptions and scores for your specific game</td></tr>
-        <tr><td style="padding:3px 8px 3px 0;color:var(--text);white-space:nowrap">Clip vs Scene</td><td style="color:var(--muted)">Clips are punchy 15-90 second moments; scenes are longer 1-5 minute stretches with a story arc. If you turn on Generate scenes, they share the clip list with a SCENE badge and the All / Clips / Scenes buttons filter between them</td></tr>
+        <tr><td class="legend-term nowrap">Track layout</td><td class="muted">Maps your OBS audio tracks to roles (player voice, game sounds, etc.) so YuuClip knows what to transcribe</td></tr>
+        <tr><td class="legend-term nowrap">World context</td><td class="muted">Tells the LLM scorer who's in your recordings and what the setting is - improves descriptions and scores for your specific game</td></tr>
+        <tr><td class="legend-term nowrap">Clip vs Scene</td><td class="muted">Clips are punchy 15-90 second moments; scenes are longer 1-5 minute stretches with a story arc. If you turn on Generate scenes, they share the clip list with a SCENE badge and the All / Clips / Scenes buttons filter between them</td></tr>
       </tbody>
     </table>
 

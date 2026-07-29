@@ -2,12 +2,12 @@
   <div class="modal" style="width:740px;max-height:88vh;display:flex;flex-direction:column">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <h3 style="margin:0">Glossary</h3>
-      <button class="btn ghost" style="padding:4px 8px" id="glossary-modal-close-btn" aria-label="Close">&#x2715;</button>
+      <button class="btn ghost modal-close-btn" id="glossary-modal-close-btn" aria-label="Close">&#x2715;</button>
     </div>
     <input type="search" id="glossary-filter" placeholder="Filter terms&#x2026;" aria-label="Filter glossary terms"
            style="margin-bottom:10px;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">
     <div id="glossary-content" style="flex:1;overflow-y:auto;font-size:13px;line-height:1.7;padding-right:4px">
-      <div style="color:var(--muted)">Loading&#x2026;</div>
+      <div class="muted">Loading&#x2026;</div>
     </div>
     <div id="glossary-no-matches" style="display:none;color:var(--muted);font-size:13px;padding:8px 0">No terms match your filter.</div>
   </div>

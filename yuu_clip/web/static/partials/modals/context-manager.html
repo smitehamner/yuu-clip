@@ -1,8 +1,8 @@
 <div class="modal-bg" id="context-modal">
   <div class="modal" style="width:680px;max-height:85vh">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+    <div class="modal-header-row">
       <h3 style="margin:0">World Contexts</h3>
-      <button class="btn ghost" style="padding:4px 8px" id="context-manager-x-btn" aria-label="Close">&#x2715;</button>
+      <button class="btn ghost modal-close-btn" id="context-manager-x-btn" aria-label="Close">&#x2715;</button>
     </div>
     <p style="font-size:12px;color:var(--muted);margin-top:-6px">Named knowledge injected into LLM prompts - people, setting, and notes.</p>
     <div style="display:flex;gap:16px;min-height:300px">
@@ -16,7 +16,7 @@
           <input type="text" id="ce-display-name" placeholder="My Game">
         </div>
         <div class="field">
-          <label for="ce-context-id" style="color:var(--muted)">Context ID <span style="font-weight:400">(auto-filled from the name - edit if you like)</span></label>
+          <label for="ce-context-id" class="muted">Context ID <span style="font-weight:400">(auto-filled from the name - edit if you like)</span></label>
           <input type="text" id="ce-context-id" placeholder="my-game" style="font-size:12px">
         </div>
         <div class="field">
@@ -44,7 +44,7 @@
             <textarea class="ctx-textarea" id="ce-char-lore" rows="2" aria-label="Character lore" placeholder="What the scorer should know about this character - role, arc, personality."></textarea>
             <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)">
               <label for="ce-char-boost" style="white-space:nowrap">Score boost</label>
-              <input type="range" id="ce-char-boost" min="0" max="1" step="0.05" value="0" style="flex:1">
+              <input type="range" id="ce-char-boost" min="0" max="1" step="0.05" value="0" class="flex-1">
               <span id="ce-char-boost-label" style="width:36px;text-align:right;font-variant-numeric:tabular-nums">0%</span>
             </div>
             <div style="display:flex;gap:8px">
@@ -58,15 +58,15 @@
           <label>LLM scoring weights <span style="color:var(--muted);font-weight:400">(overrides global - leave blank to use global defaults)</span></label>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:4px">
             <div>
-              <label for="ce-weight-funny" style="font-size:12px;color:var(--muted)">Funny</label>
+              <label for="ce-weight-funny" class="hint-text">Funny</label>
               <input type="number" id="ce-weight-funny" min="0" step="0.1" placeholder="global" style="width:100%">
             </div>
             <div>
-              <label for="ce-weight-dramatic" style="font-size:12px;color:var(--muted)">Dramatic</label>
+              <label for="ce-weight-dramatic" class="hint-text">Dramatic</label>
               <input type="number" id="ce-weight-dramatic" min="0" step="0.1" placeholder="global" style="width:100%">
             </div>
             <div>
-              <label for="ce-weight-action" style="font-size:12px;color:var(--muted)">Action</label>
+              <label for="ce-weight-action" class="hint-text">Action</label>
               <input type="number" id="ce-weight-action" min="0" step="0.1" placeholder="global" style="width:100%">
             </div>
           </div>

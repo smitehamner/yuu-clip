@@ -13,6 +13,16 @@
 body { background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; font-size: 14px; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 .muted { color: var(--muted); }
 
+/* Small layout utilities hoisted out of the most-repeated inline `style="..."`
+   attributes across the index.html partials (ROADMAP.md's opportunistic
+   inline-style-extraction item) - each covers a pattern used 5+ times. */
+.flex-1 { flex: 1; }
+.btn-sm { font-size: 11px; padding: 2px 8px; }
+.modal-close-btn { padding: 4px 8px; }
+.layer-fill { position: absolute; inset: 0; pointer-events: none; }
+.inline-row { display: inline-flex; align-items: center; gap: 5px; }
+.hint-text { font-size: 12px; color: var(--muted); }
+
 /* Display face on the wordmark + structural headings/section labels (the
    condensed-caps chrome). Deliberately not on tiny badges or body text. */
 header h1,
@@ -564,6 +574,9 @@ mark.tx-hit { background: color-mix(in srgb, var(--warning) 40%, transparent); c
 .modal-bg.visible { display: flex; }
 .modal { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; width: 500px; max-height: 90vh; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
 .modal h3 { font-size: 16px; font-weight: 600; }
+.modal-header-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.legend-term { padding: 3px 8px 3px 0; color: var(--text); }
+.legend-term.nowrap { white-space: nowrap; }
 .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
 .field input, .field select { width: 100%; padding: 8px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); font-size: 13px; }
 .path-row { display: flex; gap: 6px; }

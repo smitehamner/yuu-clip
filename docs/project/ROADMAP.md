@@ -92,40 +92,18 @@ except the two items below).
 
 - [ ] **Hoist repeated inline `style="..."` in the index.html partials into `app.css`
   classes (opportunistic)** - the WS-E split made `index.html` a stitch of
-  `static/partials/*.html`; each partial still carries verbose inline styles (hint text,
-  small ghost buttons, modal field rows). This is pure maintainability polish, not a
-  correctness or theming issue: the colour-literal guard already covers the partials
-  (`tests/unit/test_static_theme_colors.py` globs every static `*.html`), and the most-
-  repeated pattern is `style="display:none"` which is JS-toggled and must NOT become a
-  class. Extract opportunistically when touching a partial, verifying with full `test-ui`;
-  not a public-flip blocker.
-
-- [ ] **Decide whether per-video/per-project local files deserve atomic writes**
-  *(surfaced 2026-07-26, full-app quality review)* - `project_archive.py`'s restore
-  path was hardened to validate a backup's integrity before touching the live
-  project (a real data-loss bug: a corrupt archive could half-overwrite the live
-  DB). Several *other* local writers use plain non-atomic `write_text` and were
-  judged a deliberate simplicity tradeoff at the time, not fixed alongside: global
-  config (`config.py::_overlay_layer`), world-context storage
-  (`contexts.py::save_contexts`), per-video track layouts (`track_labels.py`), and
-  the backup file itself on the *write* side (`project_archive.py::build_backup`,
-  as opposed to the now-hardened *restore* side). An interrupted write to any of
-  these can leave a truncated/corrupt file; config and contexts already recover
-  gracefully (backs up to `.corrupt.bak`, reverts to defaults), but per-video track
-  layouts do not have that fallback and may be more precious than global settings.
-  Needs an owner call: harden all of these to atomic-write + backup-on-corrupt
-  (mirroring the pattern `project_archive.py`'s restore side now uses), or
-  document why the current behavior is acceptable. Detail:
-  `docs/dev/llm/REVIEW_OPEN_ITEMS.md` Section 7.
-
-- [ ] **`electron/main.js` has no `app.requestSingleInstanceLock()`**
-  *(surfaced 2026-07-26, full-app quality review)* - two rapid first-run launches
-  (e.g. a user double-clicking the app icon twice) can race on venv extraction
-  (`VENV_DIR`/`.incoming`). A second launch *after* setup is already caught by the
-  port-8080 duplicate-server dialog, so this is first-run-only. The standard fix
-  (acquire the lock, focus the existing window on a second launch attempt) changes
-  current dialog-based behavior - needs an owner call on the desired UX before
-  implementing. Detail: `docs/dev/llm/REVIEW_OPEN_ITEMS.md` Section 11.
+  `static/partials/*.html`; each partial still carries verbose inline styles. This is
+  pure maintainability polish, not a correctness or theming issue: the colour-literal
+  guard already covers the partials (`tests/unit/test_static_theme_colors.py` globs
+  every static `*.html`), and `style="display:none"` (still the single most-repeated
+  literal pattern) is JS-toggled and must NOT become a class.
+  **Partially done (2026-07-29, code-quality pass):** extracted the patterns repeated
+  4+ times - `.flex-1`, `.btn-sm`, `.modal-close-btn`, `.layer-fill`, `.inline-row`,
+  `.hint-text`, `.modal-header-row`, `.legend-term` (`app.css`) - collapsing ~55 inline
+  `style="..."` sites across 19 partial files down to shared classes (existing `.muted`
+  absorbed another 12). ~370 inline styles remain, each below that 4-occurrence bar
+  (one-off layout tweaks); keep extracting opportunistically when a partial is next
+  touched, not as a further blind sweep.
 
 ---
 
@@ -136,9 +114,11 @@ Wanted before distributing beyond friends/trusted users.
 - [ ] **Opportunistic: extract remaining inline styles in the partials into `app.css`
   classes.** The `index.html` build-time stitch (`static/index.src.html` + `partials/*`
   via `yuu-dev bundle`) already shipped; the paired inline-style extraction was deferred as
-  opportunistic cleanup (the ~100 remaining inline styles are valid `var(--token)`/layout
+  opportunistic cleanup (the remaining inline styles are valid `var(--token)`/layout
   styles, and the color-literal guard already globs the partials, so there is no safety
-  gap). Do it when a region is being edited anyway, not as a blind sweep.
+  gap). The most-repeated patterns were extracted 2026-07-29 (see section 1's matching
+  item for the class list); do the rest when a region is being edited anyway, not as a
+  blind sweep.
 
 ---
 
