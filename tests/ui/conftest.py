@@ -128,7 +128,7 @@ def _first_row(page):
 def open_split_editor(page) -> None:
     select_video_with_clips(page)
     page.click(".vid-actions button:has-text('Additional Actions')")
-    page.wait_for_selector("#actions-modal.visible", timeout=2000)
+    page.wait_for_selector("#actions-modal.visible", timeout=8000)
     page.click("#actions-modal .action-row:has-text('Split Recording')")
     expect(page.locator("#split-editor-panel")).to_be_visible(timeout=3000)
 
@@ -154,11 +154,25 @@ def place_split_point(page) -> None:
     symptom). An unqualified click() has Playwright compute the center from
     the live, actionability-stable box in one atomic action, which cannot go
     stale between measurement and dispatch.
+
+    FLAKE-3 (test-flakes register) recurred 3x even after the above fix: under
+    xdist CPU contention the bar's layout can still be mid-reflow at the exact
+    click instant, landing `sec <= 0`. Retries the click (up to 3 attempts)
+    rather than widening the wait, because a retry is idempotent here -
+    `splitTimelineClick` ignores a click within 0.5% of an existing marker, so
+    a retry after a click that actually landed is a no-op, not a duplicate.
     """
     bar = page.locator("#split-timeline-bar")
     expect(bar).to_be_visible()
-    bar.click()
-    expect(page.locator("#split-markers-layer .split-marker")).to_have_count(1)
+    markers = page.locator("#split-markers-layer .split-marker")
+    for attempt in range(3):
+        bar.click()
+        try:
+            expect(markers).to_have_count(1, timeout=1000 if attempt < 2 else 5000)
+            return
+        except AssertionError:
+            if attempt == 2:
+                raise
 
 
 _had_failure = False

@@ -55,12 +55,17 @@ class TestClipReview:
         select_first_video_and_clip(page)
         page.wait_for_selector(".clip-actions", timeout=5000)
 
-        def _assert_disabled_then_continue(route):
+        # FLAKE-9 (test-flakes register): route.continue_() let the real setStatus
+        # POST hit the live server's with_write_retry DB write, whose latency (the
+        # very thing B7 exists to tolerate) could exceed the re-enable assertion's
+        # 5s window under xdist load. Fulfilling a canned 200 here removes that
+        # server round-trip - setStatus only checks res.ok, never reads the body.
+        def _assert_disabled_then_fulfill(route):
             expect(page.locator(".status-seg[data-seg-status='approved']")).to_be_disabled()
             expect(page.locator(".status-seg[data-seg-status='rejected']")).to_be_disabled()
-            route.continue_()
+            route.fulfill(status=200, content_type="application/json", body="{}")
 
-        page.route(re.compile(r".*/api/clips/\d+/status$"), _assert_disabled_then_continue)
+        page.route(re.compile(r".*/api/clips/\d+/status$"), _assert_disabled_then_fulfill)
         page.locator(".status-seg[data-seg-status='approved']").click()
         expect(page.locator(".status-seg[data-seg-status='approved']")).to_be_enabled()
 
@@ -68,7 +73,7 @@ class TestClipReview:
         select_first_video_and_clip(page)
         page.wait_for_selector(".clip-actions", timeout=3000)
         page.click(".clip-actions button:has-text('Additional Actions')")
-        page.wait_for_selector("#actions-modal.visible", timeout=2000)
+        page.wait_for_selector("#actions-modal.visible", timeout=8000)
         expect(page.locator("#actions-modal-body button:has-text('Retranscribe')")).to_be_visible()
 
     def test_sidebar_shows_clip_id(self, page: Page):
@@ -288,7 +293,11 @@ class TestScoreOverrideModal:
         # Real click: the detail view's own "Override Score" button (rendered
         # for any already-scored clip) delegates to openScoreOverride(clipId).
         page.click("[data-act='open-score-override']")
-        page.wait_for_selector("#score-override-modal.visible", timeout=2000)
+        # FLAKE-11 (test-flakes register): 2000ms was tighter than the rest of the
+        # suite's hardened modal-open waits (3000-8000ms per FLAKE-5) and got hit
+        # under xdist CPU contention - a positive wait's timeout is a failure
+        # ceiling, not a delay, so raising it never slows a green run.
+        page.wait_for_selector("#score-override-modal.visible", timeout=8000)
 
     def test_opens_score_override_modal(self, page: Page):
         select_first_video_and_clip(page)
@@ -411,7 +420,7 @@ class TestBatchExportModal:
     def _open(self, page: Page):
         select_video_with_clips(page)
         page.click("[data-act='open-batch-export']")
-        page.wait_for_selector("#batch-export-modal.visible", timeout=3000)
+        page.wait_for_selector("#batch-export-modal.visible", timeout=8000)
 
     def test_captions_default_to_softsub(self, page: Page):
         self._open(page)
@@ -430,7 +439,7 @@ class TestBatchExportModal:
         select_video_with_clips(page)
         self._mock_status(page, needs_retranscribe=True, model="medium")
         page.click("[data-act='open-batch-export']")
-        page.wait_for_selector("#batch-export-modal.visible", timeout=3000)
+        page.wait_for_selector("#batch-export-modal.visible", timeout=8000)
         expect(page.locator("#batch-retranscribe")).to_be_checked()
         assert page.locator("#batch-retranscribe-model").input_value() == "medium"
         expect(page.locator("#batch-retranscribe-model")).to_be_enabled()
@@ -440,7 +449,7 @@ class TestBatchExportModal:
         select_video_with_clips(page)
         self._mock_status(page, needs_retranscribe=False, model="large-v3")
         page.click("[data-act='open-batch-export']")
-        page.wait_for_selector("#batch-export-modal.visible", timeout=3000)
+        page.wait_for_selector("#batch-export-modal.visible", timeout=8000)
         expect(page.locator("#batch-retranscribe")).not_to_be_checked()
         assert page.locator("#batch-retranscribe-model").input_value() == "large-v3"
         expect(page.locator("#batch-retranscribe-model")).to_be_disabled()

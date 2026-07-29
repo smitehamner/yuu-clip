@@ -27,7 +27,7 @@ def _open_settings(page: Page) -> None:
     # on it means the async catalog load has also settled.
     page.wait_for_function(
         "document.getElementById('s-paths-display').textContent.trim().length > 0",
-        timeout=3000,
+        timeout=8000,
     )
 
 

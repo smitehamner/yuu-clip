@@ -538,7 +538,7 @@ class TestClipActionsModalGroups:
         page.evaluate("() => { AppState.activeClipData.description = 'a described clip'; }")
         # Real click: the clip's own Additional Actions button.
         page.click(".clip-actions button:has-text('Additional Actions')")
-        page.wait_for_selector("#actions-modal.visible", timeout=2000)
+        page.wait_for_selector("#actions-modal.visible", timeout=8000)
         # text_content, not inner_text - .section-title is CSS-uppercased
         headings = page.locator("#actions-modal-body .section-title").all_text_contents()
         assert "Regenerate" not in headings
@@ -559,7 +559,7 @@ class TestClipActionsModalGroups:
                 openClipActionsModal(9002);
             }"""
         )
-        page.wait_for_selector("#actions-modal.visible", timeout=2000)
+        page.wait_for_selector("#actions-modal.visible", timeout=8000)
         merge_desc = page.locator(
             "#actions-modal-body .action-row:has-text('Merge previous') .action-row-desc"
         ).inner_text()
@@ -586,7 +586,7 @@ class TestClipActionsModalGroups:
                 openClipActionsModal(9002);
             }"""
         )
-        page.wait_for_selector("#actions-modal.visible", timeout=2000)
+        page.wait_for_selector("#actions-modal.visible", timeout=8000)
         merge_requests: list = []
         page.on("request", lambda r: merge_requests.append(r) if "/merge" in r.url else None)
         page.click("#actions-modal-body button:has-text('Merge previous')")
@@ -877,7 +877,7 @@ class TestClipShowInFolder:
         )
         # Real click: the clip's own Additional Actions button.
         page.click(".clip-actions button:has-text('Additional Actions')")
-        page.wait_for_selector("#actions-modal.visible", timeout=2000)
+        page.wait_for_selector("#actions-modal.visible", timeout=8000)
         expect(page.locator("#actions-modal-body .action-row:has-text('Show in Folder')")).to_have_count(0)
 
 

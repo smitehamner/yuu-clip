@@ -260,7 +260,7 @@ class TestScanActionGating:
     def _open_video_actions(self, page: Page) -> None:
         select_video_with_clips(page)
         page.click(".vid-actions button:has-text('Additional Actions')")
-        page.wait_for_selector("#actions-modal.visible", timeout=2000)
+        page.wait_for_selector("#actions-modal.visible", timeout=8000)
 
     def test_scan_action_hidden_with_no_semantic_hotwords(self, page: Page):
         self._open_video_actions(page)
@@ -304,14 +304,14 @@ class TestRescanHotwordsMenuAction:
     def test_rescan_action_always_offered(self, page: Page):
         select_video_with_clips(page)
         page.click(".vid-actions button:has-text('Additional Actions')")
-        page.wait_for_selector("#actions-modal.visible", timeout=2000)
+        page.wait_for_selector("#actions-modal.visible", timeout=8000)
         expect(page.locator("#actions-modal-body .action-row:has-text('Rescan Hot-words')")).to_be_visible()
 
     def test_selecting_the_row_hits_the_rescan_endpoint(self, page: Page):
         select_video_with_clips(page)
         video_id = page.evaluate("() => AppState.activeVideoId")
         page.click(".vid-actions button:has-text('Additional Actions')")
-        page.wait_for_selector("#actions-modal.visible", timeout=2000)
+        page.wait_for_selector("#actions-modal.visible", timeout=8000)
         with page.expect_request(f"**/api/videos/{video_id}/hotword-rescan", timeout=3000):
             page.click("#actions-modal-body .action-row:has-text('Rescan Hot-words')")
         expect(page.locator("#actions-modal")).not_to_be_visible()

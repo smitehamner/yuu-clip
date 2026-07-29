@@ -129,9 +129,17 @@ class TestModelDownloadBanner:
         page.route("**/api/llm/gguf/download*", lambda r: _fulfill_sse(r, _PROGRESS_44 + _DONE))
         page.route("**/api/llm/download-status/clear", _clear)
 
-        _reboot(page)
-        page.wait_for_selector("#model-download-banner", state="hidden", timeout=4000)
+        # FLAKE-10 (test-flakes register): waiting only for the banner to become
+        # hidden proved the DOM-visibility step ran, not that the clear request it
+        # follows had landed - under xdist load the two could observably diverge.
+        # expect_response (not expect_request - see FLAKE-4 on why the "request"
+        # event isn't safe to order against a route handler's own side effects)
+        # only resolves once _clear's route.fulfill() has run, and calls["clear"]
+        # is incremented before that fulfill() call, so this ordering is solid.
+        with page.expect_response("**/api/llm/download-status/clear", timeout=8000):
+            _reboot(page)
         assert calls["clear"] == 1
+        page.wait_for_selector("#model-download-banner", state="hidden", timeout=4000)
         # The gate fetch plus the post-success refresh -> capabilities read again.
         assert calls["cap"] >= 2
         page.wait_for_function(
