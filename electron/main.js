@@ -19,7 +19,7 @@ const path   = require('path');
 const { Readable } = require('stream');
 const { parseNvidiaVramMB, selectGPU } = require('./gpu-detect');
 const { resolveBundledFfmpegDir } = require('./ffmpeg-detect');
-const { buildWheelInstallArgs, buildOpencvDedupeArgs } = require('./venv-setup');
+const { buildWheelInstallArgs, buildOpencvDedupeArgs, buildPipInstallArgs, installVenvExtras } = require('./venv-setup');
 const { rewritePyvenvCfg, decidePrebuiltEnvAction, extrasToRestoreAfterExtract } = require('./prebuilt-env');
 const { parsePipRawProgress } = require('./pip-progress');
 const { describeInstallFailure, describeDownloadFailure } = require('./install-error');
@@ -391,7 +391,7 @@ function registerWizardIPC(wizardWin) {
     };
     if (!spec) { send({ error: `Unknown package '${slug}'` }); return; }
 
-    const installArgs = ['-m', 'pip', 'install', '--progress-bar', 'raw', ...spec.packages];
+    const installArgs = ['-m', 'pip', ...buildPipInstallArgs(spec.packages)];
     logSetup(`Wizard install starting: ${installArgs.join(' ')}`);
     installCancelRequested = false;
     try {
@@ -962,21 +962,19 @@ async function restoreVenvExtrasAfterExtract(setupWin, { hadCudaLibs }) {
   const sendStatus = (text) => {
     try { setupWin.webContents.send('venv:status', { text }); } catch (_) {}
   };
-  const lineHandler = makePipLineHandler(setupWin);
-  for (const slug of slugs) {
-    const spec = WIZARD_INSTALLABLE[slug];
-    if (!spec) continue;
-    sendStatus('Restoring GPU acceleration for transcription...');
-    logSetup(`Restoring opt-in venv extra after upgrade: ${slug}`);
-    try {
-      await runCmd(VENV_PYTHON, ['-m', 'pip', 'install', '--progress-bar', 'raw', ...spec.packages], lineHandler);
-      logSetup(`Restored venv extra after upgrade: ${slug}`);
-    } catch (err) {
+  await installVenvExtras(runCmd, VENV_PYTHON, slugs, WIZARD_INSTALLABLE, {
+    onLine: makePipLineHandler(setupWin),
+    onStart: (slug) => {
+      sendStatus('Restoring GPU acceleration for transcription...');
+      logSetup(`Restoring opt-in venv extra after upgrade: ${slug}`);
+    },
+    onSuccess: (slug) => logSetup(`Restored venv extra after upgrade: ${slug}`),
+    onError: (slug, err) => {
       const detail = [err.stderr, err.stdout].filter(Boolean).join('\n');
       const tail = detail.split(/\r?\n/).filter(Boolean).slice(-3).join('\n');
       logSetup(`Restore of ${slug} failed (non-fatal - Setup Warnings chip will catch it): ${err.message}${tail ? '\n' + tail : ''}`);
-    }
-  }
+    },
+  });
 }
 
 function relocateExtractedVenv(venvPath) {

@@ -46,4 +46,33 @@ function buildOpencvDedupeArgs(lockPath = null, wheelhouseDir = null) {
   return args;
 }
 
-module.exports = { buildWheelInstallArgs, buildOpencvDedupeArgs };
+// Shared by the two WIZARD_INSTALLABLE pip-install call sites (the wizard's
+// "install this optional package now" IPC handler, and the post-upgrade
+// venv-extras restore below) - was previously an inline literal duplicated at
+// both sites.
+function buildPipInstallArgs(packages) {
+  return ['install', '--progress-bar', 'raw', ...packages];
+}
+
+// Restores each opt-in venv extra (today only cuda-libs) after the prebuilt-env
+// upgrade path wipes and re-extracts the venv. `runCmd` is injected so this is
+// unit-testable with a fake spawner - main.js passes the real one from
+// install.js. Tolerant of a single extra's failure: the Settings/Analyze
+// "Setup Warnings" chip already detects a missing extra and offers a one-click
+// reinstall, so one network hiccup here must not abort the rest of the restore
+// loop or the surrounding upgrade.
+async function installVenvExtras(runCmd, pythonBin, slugs, catalog, { onLine, onStart, onSuccess, onError } = {}) {
+  for (const slug of slugs) {
+    const spec = catalog[slug];
+    if (!spec) continue;
+    if (onStart) onStart(slug);
+    try {
+      await runCmd(pythonBin, ['-m', 'pip', ...buildPipInstallArgs(spec.packages)], onLine);
+      if (onSuccess) onSuccess(slug);
+    } catch (err) {
+      if (onError) onError(slug, err);
+    }
+  }
+}
+
+module.exports = { buildWheelInstallArgs, buildOpencvDedupeArgs, buildPipInstallArgs, installVenvExtras };

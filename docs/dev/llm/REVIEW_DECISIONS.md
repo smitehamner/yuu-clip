@@ -862,6 +862,23 @@ copy sweep doesn't "fix" it as an isolated one-off without knowing it was seen
 and deliberately skipped.
 Last confirmed: 2026-07-26.
 
+### `electron/main.js`'s `setup:install-package` IPC handler still has no runCmd-level test coverage
+Rationale for leaving open: this is one of the four WIZARD_INSTALLABLE
+pip-invocation call sites flagged as an untested bug class (had shipped
+regressions twice before). The other three - the wheel/opencv-dedupe install
+and the post-upgrade venv-extras restore - were extracted 2026-07-29 into
+`venv-setup.js::buildPipInstallArgs`/`installVenvExtras`, which take an
+injected `runCmd` and are unit-tested with a fake spawner
+(`electron/test/venv-setup.test.js`). This one handler is genuinely coupled to
+`main.js`'s module-scope mutable cancel state (`activeInstallProc`/
+`installCancelRequested`, shared with the wizard's Cancel-install IPC handler)
+and to `event.sender`, so extracting it needs threading that shared state out
+as parameters, not just an injected `runCmd` - a larger, riskier restructuring
+than the other three sites. Revisit trigger: another pip-invocation regression
+traced to this specific handler, or a broader main.js cancel-state refactor
+that already needs to touch `activeInstallProc`.
+Last confirmed: 2026-07-29.
+
 ### `pipeline/ingest.py::_extract_audio_and_check_rms_overlap` catches only `except RuntimeError`, unlike its sibling `_transcribe_and_check_overlap`'s `except Exception`
 Rationale for leaving open: not live today (`extract_audio_track` only ever
 raises `RuntimeError`), but if `subprocess.run` itself raised (e.g. `OSError`
