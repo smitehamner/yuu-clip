@@ -55,28 +55,6 @@ except the two items below).
   gets this large (the transcript bug was confirmed via a real 3h+ recording; this one
   is audit-only, not yet confirmed painful in practice).
 
-- [ ] **In-process LLM/scoring jobs lack progress + a Cancel** - found in the v0.1.27
-  manual checks: "Generate timeline" and "Suggest names" show no progress and offer no way
-  to cancel, and a sweep found this is one class, not two bugs. Every *subprocess* job
-  (analyze, score, reel, export, retranscribe, re-detect, regenerate clips) already has
-  pills + a working Cancel; every *event-loop* job (timeline, summarize, regenerate-summary,
-  rescore-all, rescore-failed, redescribe-all, hotword-scan, find-similar, infer-speaker-
-  names, session summarize) calls `_openSSE` directly, so it gets neither - and can't reuse
-  the shared Cancel button, which only kills the subprocess handles. The two batch actions
-  whose own dialogs say "several minutes" (rescore-all, redescribe-all) are the worst: long,
-  zero feedback, no cancel. Progress is cheap (wire them through `startJobUI`/`updateJobUI`
-  like single-clip rescore already does; `rescore-clips` even streams `Scored i/total` lines
-  today); Cancel is the real lift (event-loop jobs have no cancel token). Full triage +
-  per-site table + two-part fix in the private planning workspace
-  (`PROGRESS-CANCEL-GAP-2026-07-20.md`). Fix the whole set together, not timeline alone.
-  **Baseline rule (owner, 2026-07-20): every long-running progress/loading indicator must show at
-  minimum the elapsed time since the process started** - a bare spinner reads as hung. Two instances
-  were fixed on report: the on-demand 720p-preview build now shows the encode % + elapsed (it discarded
-  the proxy encoder's SSE lines; the post-analysis auto warm-up that first surfaced this was later removed
-  entirely per owner request, so only the manual "Build 720p preview" build remains), and the
-  YouTube/Twitch download percentage now streams live (it was block-buffered in the raw-`print` import
-  subprocess). Apply the same elapsed-time-minimum when wiring the remaining event-loop jobs above.
-
 - [ ] **Hoist repeated inline `style="..."` in the index.html partials into `app.css`
   classes (opportunistic)** - the WS-E split made `index.html` a stitch of
   `static/partials/*.html`; each partial still carries verbose inline styles. This is

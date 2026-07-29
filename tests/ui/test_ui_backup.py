@@ -49,8 +49,18 @@ def _choose_backup_file(page: Page) -> None:
 
 @skip_no_server
 class TestBackup:
-    def test_backup_button_calls_endpoint_and_toasts(self, page: Page):
-        page.route("**/api/backup", lambda route: route.fulfill(
+    def test_backup_button_streams_progress_then_downloads_and_toasts(self, page: Page):
+        # The button now streams progress through /api/backup/events (SSE) and
+        # follows the result event's token to /api/backup/download/<token> - see
+        # settings-backup.js's backupProject().
+        page.route("**/api/backup/events", lambda route: route.fulfill(
+            status=200, content_type="text/event-stream",
+            body='data: {"v": 1, "type": "log", "text": "Building project backup", "level": "info"}\n\n'
+                 'data: {"v": 1, "type": "log", "text": "Zipped 1/2 files", "level": "info"}\n\n'
+                 'data: {"v": 1, "type": "result", "data": {"token": "tok-1", "filename": "proj-backup.zip"}}\n\n'
+                 'data: {"v": 1, "type": "done", "outcome": "ok"}\n\n',
+        ))
+        page.route("**/api/backup/download/tok-1", lambda route: route.fulfill(
             status=200,
             headers={
                 "content-type": "application/zip",
@@ -59,10 +69,20 @@ class TestBackup:
             body=b"PK\x03\x04zip-bytes",
         ))
         _open_settings(page)
-        with page.expect_request("**/api/backup") as req:
+        with page.expect_request("**/api/backup/events") as events_req, \
+                page.expect_request("**/api/backup/download/tok-1") as download_req:
             page.locator("#btn-backup-project").click()
-        assert req.value.method == "POST"
+        assert events_req.value.method == "GET"
+        assert download_req.value.method == "GET"
         expect(page.locator("#toast-container")).to_contain_text("Backup saved")
+
+    def test_backup_button_is_tagged_job_blocked(self, page: Page):
+        # applyJobBlockedState() (core/jobs.js) disables every [data-job-blocked]
+        # element while any other job is running - this just guards the tag itself,
+        # since a client-only-stubbed cross-job scenario belongs in jobs.js's own
+        # generic coverage, not a backup-specific test.
+        _open_settings(page)
+        expect(page.locator("#btn-backup-project")).to_have_attribute("data-job-blocked", "")
 
 
 @skip_no_server

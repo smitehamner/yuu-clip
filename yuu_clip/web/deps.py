@@ -162,6 +162,12 @@ class ProjectContext:
         # around its SSE stream, and it also guards against a duplicate download.
         self.model_downloads: dict[str, str] = {}
 
+        # Finished backup archives awaiting their browser download, keyed by a
+        # one-time token handed to the client in the /api/backup/events SSE
+        # stream's result event. Popped (and its file deleted) by
+        # /api/backup/download/<token> - see routes/backup.py.
+        self.pending_backups: dict[str, Path] = {}
+
     def reload_config(self) -> None:
         """Re-read config.json from disk into ``self.config``.
 

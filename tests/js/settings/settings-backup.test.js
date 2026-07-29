@@ -20,6 +20,24 @@ import {
 const okJson = (body = {}) => Promise.resolve({ ok: true, json: async () => body });
 const errJson = (body = {}) => Promise.resolve({ ok: false, json: async () => body });
 
+// Fakes a fetch Response whose body streams the given typed SSE payloads, one
+// chunk per event - matches jobs.js's _openSSE reader shape (see the identical
+// helper in tests/js/core/jobs.test.js's "streamSSE outcome passthrough" block).
+function sseResponse(payloads) {
+  const encoder = new TextEncoder();
+  const chunks = payloads.map((p) => encoder.encode(`data: ${JSON.stringify(p)}\n\n`));
+  let i = 0;
+  return {
+    ok: true,
+    body: { getReader: () => ({ read: async () => (i < chunks.length ? { done: false, value: chunks[i++] } : { done: true }) }) },
+  };
+}
+
+const BACKUP_RESULT_AND_DONE = [
+  { v: 1, type: 'result', data: { token: 'tok-1', filename: 'my-backup.zip' } },
+  { v: 1, type: 'done', outcome: 'ok' },
+];
+
 beforeEach(() => {
   vi.clearAllMocks();
 });
@@ -29,42 +47,50 @@ afterEach(() => {
 });
 
 describe('backupProject', () => {
-  it('downloads the returned archive and shows success', async () => {
+  it('streams progress, then downloads the archive the result event points to', async () => {
     const headers = new Map([['content-disposition', 'attachment; filename="my-backup.zip"']]);
-    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({
-      ok: true,
-      headers: { get: (k) => headers.get(k.toLowerCase()) || null },
-      blob: async () => new Blob(['zip bytes']),
-    })));
+    vi.stubGlobal('fetch', vi.fn((url) => {
+      if (String(url) === '/api/backup/events') return Promise.resolve(sseResponse(BACKUP_RESULT_AND_DONE));
+      if (String(url) === '/api/backup/download/tok-1') return Promise.resolve({
+        ok: true,
+        headers: { get: (k) => headers.get(k.toLowerCase()) || null },
+        blob: async () => new Blob(['zip bytes']),
+      });
+      return Promise.reject(new Error(`unexpected fetch: ${url}`));
+    }));
     const createObjectURL = vi.fn(() => 'blob:fake');
     const revokeObjectURL = vi.fn();
     vi.stubGlobal('URL', { ...URL, createObjectURL, revokeObjectURL });
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
 
-    await backupProject();
+    backupProject();
+    await vi.waitFor(() => expect(showToast).toHaveBeenCalledWith('Backup saved', 'success'));
 
     expect(createObjectURL).toHaveBeenCalled();
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:fake');
-    expect(showToast).toHaveBeenCalledWith('Backup saved', 'success');
     clickSpy.mockRestore();
   });
 
-  it('re-enables the button and shows the server error on failure', async () => {
-    const btn = document.getElementById('btn-backup-project');
-    vi.stubGlobal('fetch', vi.fn(() => errJson({ detail: 'Disk full' })));
+  it('shows the server error when the follow-up download fetch fails', async () => {
+    vi.stubGlobal('fetch', vi.fn((url) => {
+      if (String(url) === '/api/backup/events') return Promise.resolve(sseResponse(BACKUP_RESULT_AND_DONE));
+      if (String(url) === '/api/backup/download/tok-1') return errJson({ detail: 'Disk full' });
+      return Promise.reject(new Error(`unexpected fetch: ${url}`));
+    }));
 
-    await backupProject();
+    backupProject();
 
-    expect(showToast).toHaveBeenCalledWith('Disk full', 'error');
-    expect(btn.disabled).toBe(false);
+    await vi.waitFor(() => expect(showToast).toHaveBeenCalledWith('Disk full', 'error'));
   });
 
-  it('shows a generic error when the request throws', async () => {
+  it('shows a network error and re-enables the button when the events stream fails to open', async () => {
+    const btn = document.getElementById('btn-backup-project');
     vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('offline'))));
 
-    await backupProject();
+    backupProject();
 
-    expect(showToast).toHaveBeenCalledWith('Backup failed', 'error');
+    await vi.waitFor(() => expect(showToast).toHaveBeenCalledWith('offline', 'error'));
+    expect(btn.disabled).toBe(false);
   });
 });
 

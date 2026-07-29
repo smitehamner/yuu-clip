@@ -1,34 +1,70 @@
 import { escHtml, formatApiError, plural, stripQuotedPath } from '../core/format.js';
 import { showToast } from '../core/utils.js';
 import { showConfirm } from '../core/ui.js';
+import {
+  BACKUP_JOB_STEPS, startJobUI, endJobUI, setJobCancel,
+  _supersedeActiveStream, _setActiveStream, _clearActiveStream, _openSSE, _blockedByAnalyze,
+} from '../core/jobs.js';
 
 // Feature-map - Settings > Backup & Restore (code: backup)
-//   API: routes/backup.py (/api/backup, /api/restore/inspect, /api/restore/apply)
+//   API: routes/backup.py (/api/backup, /api/backup/events, /api/backup/download/<token>,
+//     /api/restore/inspect, /api/restore/apply)
 //   Siblings: project_archive.py (archive + re-point core) · projects.js (switchProject reload pattern)
 //   Tests: tests/ui/test_ui_backup.py, tests/js/settings/settings-backup.test.js
 
-// Backup: ask the server to build the archive, then download the returned zip.
+// Backup: stream the zip-build progress through the shared job pill (same as
+// rescore-all/timeline/etc. - see PROGRESS-CANCEL-GAP-2026-07-20), then download
+// the finished archive by the one-time token the stream's result event carries.
 // Uses the browser download (an <a download>) rather than an Electron save dialog:
 // it works identically in browser-dev and inside packaged Electron (Chromium shows
 // a native save dialog), and keeps the archive off a server-chosen path.
-async function backupProject() {
+function backupProject() {
+  if (_blockedByAnalyze('back up the project')) return;
   const btn = document.getElementById('btn-backup-project');
   const original = btn ? btn.textContent : '';
   if (btn) { btn.disabled = true; btn.textContent = 'Backing up…'; }
+  _supersedeActiveStream();
+  startJobUI(BACKUP_JOB_STEPS, 'Backing up project', true);
+  const teardown = () => { if (btn) { btn.disabled = false; btn.textContent = original; } endJobUI(); };
+  // Client-only soft-cancel like every other in-process job: the background zip
+  // (already off the request thread) finishes and is discarded server-side
+  // (_discard_orphaned_backup) rather than actually stopping mid-write.
+  setJobCancel({
+    title:      'Stop backup?',
+    body:       'The backup is discarded - nothing changes in your project either way.',
+    confirm:    'Stop',
+    logMsg:     '[Backup cancelled]',
+    clientOnly: true,
+  });
+  const handle = _openSSE(
+    '/api/backup/events',
+    () => {},
+    () => { _clearActiveStream(handle); teardown(); },
+    errMsg => {
+      _clearActiveStream(handle);
+      teardown();
+      showToast(errMsg || 'Backup failed', 'error');
+    },
+    {},
+    null,
+    data => _downloadFinishedBackup(data.token, data.filename),
+  );
+  _setActiveStream(handle, teardown);
+}
+
+async function _downloadFinishedBackup(token, filename) {
   try {
-    const res = await fetch('/api/backup', { method: 'POST' });
+    const res = await fetch(`/api/backup/download/${token}`);
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       showToast(formatApiError(err) || 'Backup failed', 'error');
       return;
     }
     const blob = await res.blob();
-    _downloadBlob(blob, _filenameFromResponse(res) || 'yuu-clip-backup.zip');
+    _downloadBlob(blob, filename || _filenameFromResponse(res) || 'yuu-clip-backup.zip');
     showToast('Backup saved', 'success');
   } catch {
     showToast('Backup failed', 'error');
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = original; }
   }
 }
 

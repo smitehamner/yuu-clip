@@ -32,6 +32,7 @@ import zlib
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Callable, Optional
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -144,11 +145,19 @@ def _default_backup_name(project_dir: Path) -> str:
     return f"{project_dir.name}-backup-{stamp}.zip"
 
 
-def build_backup(project_dir: Path, dest_path: Path | None = None) -> Path:
+def build_backup(
+    project_dir: Path,
+    dest_path: Path | None = None,
+    on_progress: Optional[Callable[[int, int], None]] = None,
+) -> Path:
     """Write a portable backup zip of *project_dir* and return its path.
 
     Writes to a temp file when *dest_path* is omitted (the browser-download path);
-    the caller is responsible for streaming and cleaning up that temp file."""
+    the caller is responsible for streaming and cleaning up that temp file.
+
+    *on_progress*, if given, is called after each member is written with
+    (done, total) - the manifest counts as the first member - so a caller
+    running this off the request thread can report live progress."""
     project_dir = Path(project_dir)
     db_path = project_db_path(project_dir)
     _checkpoint_wal(db_path)
@@ -166,13 +175,19 @@ def build_backup(project_dir: Path, dest_path: Path | None = None) -> Path:
     dest_path = Path(dest_path)
 
     root = project_dir / ".yuu-clip"
+    state_files = _state_files(project_dir)
+    total = len(state_files) + 1  # +1 for the manifest itself
     tmp_path = dest_path.with_name(dest_path.name + ".tmp")
     try:
         with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as archive:
             archive.writestr("manifest.json", json.dumps(manifest, indent=2))
-            for file_path in _state_files(project_dir):
+            if on_progress:
+                on_progress(1, total)
+            for done, file_path in enumerate(state_files, start=2):
                 arcname = (Path(".yuu-clip") / file_path.relative_to(root)).as_posix()
                 archive.write(file_path, arcname)
+                if on_progress:
+                    on_progress(done, total)
         os.replace(tmp_path, dest_path)
     except Exception:
         tmp_path.unlink(missing_ok=True)

@@ -71,6 +71,7 @@ const FRAMES_STEPS = [
 // route emits as a typed progress event directly (no subprocess stdout to parse).
 const RESCORE_JOB_STEPS    = [{label: 'Scoring',        patterns: ['Starting LLM scoring'],       progressPattern: /Scored (\d+)\/(\d+)/}];
 const REDESCRIBE_JOB_STEPS = [{label: 'Describing',     patterns: ['Re-generating descriptions'], progressPattern: /Described (\d+)\/(\d+)/}];
+const BACKUP_JOB_STEPS     = [{label: 'Backing up',     patterns: ['Building project backup'],    progressPattern: /Zipped (\d+)\/(\d+)/}];
 const HOTWORD_SCAN_STEPS   = [{label: 'Scanning',       patterns: ['Scanning'],                   progressPattern: /Scanned (\d+)\/(\d+)/}];
 const SUMMARY_JOB_STEPS    = [{label: 'Summarizing',    patterns: ['Generating summary', 'Generating session summary']}];
 const SPEAKER_NAMES_STEPS  = [{label: 'Suggesting names', patterns: ['Suggesting speaker names']}];
@@ -709,7 +710,7 @@ function initJobsListeners() {
 export {
   initJobsListeners,
   INGEST_STEPS, SCORE_STEPS, FRAMES_STEPS, JOB_STAGES, parseProgress, _driveStepFromMarker,
-  RESCORE_JOB_STEPS, REDESCRIBE_JOB_STEPS, HOTWORD_SCAN_STEPS, SUMMARY_JOB_STEPS,
+  RESCORE_JOB_STEPS, REDESCRIBE_JOB_STEPS, BACKUP_JOB_STEPS, HOTWORD_SCAN_STEPS, SUMMARY_JOB_STEPS,
   SPEAKER_NAMES_STEPS, FIND_SIMILAR_STEPS, TIMELINE_JOB_STEPS, BATCH_EXPORT_STEPS,
   AUTOFRAME_JOB_STEPS, URL_INSPECT_STEPS, setJobProgress,
   startJobUI, updateJobUI, endJobUI, applyJobBlockedState, _stepPillLabel, _renderStepPill, _tickJobTimer,

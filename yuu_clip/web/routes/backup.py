@@ -6,7 +6,12 @@
 
 Backup: POST /api/backup builds a portable zip of the project's .yuu-clip state
 (see project_archive.build_backup) and returns it as a download, or writes it to a
-caller-supplied path (the Electron save dialog).
+caller-supplied path (the Electron save dialog) - unchanged, synchronous, no
+progress. GET /api/backup/events is the progress-reporting path the Settings UI
+actually uses: it runs the same build off the request thread, streams
+"Zipped i/total files" log lines plus a typed done event, and hands back a
+one-time download token (ctx.pending_backups) that GET /api/backup/download/
+<token> then serves as the file, deleting it afterwards.
 
 Restore is two steps so the user can review before anything is written:
   POST /api/restore/inspect  -> stage the archive, return manifest + the source
@@ -19,7 +24,9 @@ Electron passes a server-side archive_path instead of uploading bytes.
 """
 from __future__ import annotations
 
+import asyncio
 import tempfile
+import time
 from dataclasses import asdict
 from pathlib import Path
 from typing import Optional
@@ -41,11 +48,17 @@ from yuu_clip.project_archive import (
 )
 from yuu_clip.recent_projects import record_known_project
 from yuu_clip.web.deps import ProjectContext
-from yuu_clip.web.routes.common import analyze_in_flight
+from yuu_clip.web.jobevents import OUTCOME_ERROR, OUTCOME_OK, done_event, log_event, result_event
+from yuu_clip.web.routes.common import active_job, analyze_in_flight, sse_response
 
 _log = get_logger(__name__)
 
 _STAGING_PREFIX = "yuu-restore-"
+_BACKUP_PROGRESS_POLL_S = 0.2
+# A pending_backups entry this old was never claimed (the client disconnected in
+# the narrow window after the zip finished but before it fetched the download) -
+# swept opportunistically so its temp file doesn't linger in %TEMP% forever.
+_STALE_PENDING_BACKUP_S = 30 * 60
 
 
 class BackupRequest(BaseModel):
@@ -87,6 +100,70 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             return {"path": str(archive_path)}
 
         archive_path = build_backup(ctx.project_dir)
+        return FileResponse(
+            archive_path,
+            media_type="application/zip",
+            filename=archive_path.name,
+            background=BackgroundTask(_cleanup_temp, archive_path),
+        )
+
+    @router.get("/api/backup/events")
+    def backup_events():
+        """Build the backup off the request thread while streaming progress.
+
+        Ends with a typed result event carrying a one-time download token; the
+        client follows up with GET /api/backup/download/<token> to get the file.
+        Aborting this stream (client-only soft-cancel, same as every other
+        in-process job) detaches the UI but does not stop the background zip -
+        it finishes and is discarded by _discard_orphaned_backup, matching the
+        Cancel semantics of rescore-all/redescribe-all/etc.
+        """
+        _guard_idle()
+        _reap_stale_pending_backups(ctx)
+        token = uuid4().hex
+        dest_path = Path(tempfile.gettempdir()) / f"yuu-backup-{token}.zip"
+
+        async def event_stream():
+            async with active_job(ctx):
+                yield log_event("Building project backup…")
+                loop = asyncio.get_running_loop()
+                progress = {"done": 0, "total": 0}
+
+                def on_progress(done: int, total: int) -> None:
+                    progress["done"], progress["total"] = done, total
+
+                future = loop.run_in_executor(
+                    None, build_backup, ctx.project_dir, dest_path, on_progress
+                )
+                last = (0, 0)
+                try:
+                    while not future.done():
+                        await asyncio.sleep(_BACKUP_PROGRESS_POLL_S)
+                        current = (progress["done"], progress["total"])
+                        if current != last and current[1]:
+                            yield log_event(f"Zipped {current[0]}/{current[1]} files")
+                            last = current
+                except asyncio.CancelledError:
+                    future.add_done_callback(_discard_orphaned_backup)
+                    raise
+
+                try:
+                    archive_path = future.result()
+                except Exception as exc:  # noqa: BLE001 - reported to the client, not swallowed
+                    _log.exception("Project backup failed")
+                    yield done_event(OUTCOME_ERROR, str(exc))
+                    return
+                ctx.pending_backups[token] = archive_path
+                yield result_event({"token": token, "filename": archive_path.name})
+                yield done_event(OUTCOME_OK)
+
+        return sse_response(event_stream())
+
+    @router.get("/api/backup/download/{token}")
+    def backup_download(token: str):
+        archive_path = ctx.pending_backups.pop(token, None)
+        if archive_path is None or not archive_path.is_file():
+            raise HTTPException(404, "That backup is no longer available - build a new one.")
         return FileResponse(
             archive_path,
             media_type="application/zip",
@@ -200,3 +277,37 @@ def _cleanup_temp(path: Path) -> None:
         path.unlink(missing_ok=True)
     except OSError as exc:  # noqa: BLE001 - a lingering temp file is not fatal
         _log.warning("Could not remove temp backup file %s: %s", path, exc)
+
+
+def _reap_stale_pending_backups(ctx) -> None:
+    """Delete + drop any pending_backups entry a client never claimed.
+
+    A client can disconnect in the narrow window after the zip finished (so the
+    token is already registered) but before its download fetch lands - opportunistic
+    since there is no scheduler here; each new backup sweeps the leftovers of any
+    earlier one."""
+    now = time.time()
+    for token, path in list(ctx.pending_backups.items()):
+        try:
+            stale = (now - path.stat().st_mtime) > _STALE_PENDING_BACKUP_S
+        except OSError:
+            stale = True
+        if stale:
+            ctx.pending_backups.pop(token, None)
+            _cleanup_temp(path)
+
+
+def _discard_orphaned_backup(future) -> None:
+    """Delete the zip a cancelled /api/backup/events client never claimed.
+
+    A thread-pool future already running can't be interrupted, so a client-only
+    soft-cancel just detaches the SSE stream - the zip keeps writing in the
+    background. This done-callback (registered only on that cancel path) throws
+    away the result once the thread actually finishes, instead of leaking the
+    temp file."""
+    try:
+        archive_path = future.result()
+    except Exception as exc:  # noqa: BLE001 - the backup was abandoned either way
+        _log.warning("Cancelled project backup's background zip also failed: %s", exc)
+        return
+    _cleanup_temp(archive_path)
