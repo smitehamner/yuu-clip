@@ -104,6 +104,7 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
             "seg_id": seg_id,
             "text": text,
             "affected_clip_ids": affected_clip_ids,
+            "video_id": video_id,
         }
 
     @router.get("/api/clips/{clip_id}/captions.vtt")

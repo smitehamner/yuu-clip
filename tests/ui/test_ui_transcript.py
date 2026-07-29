@@ -54,7 +54,9 @@ class TestClipTranscript:
             route.fulfill(
                 status=200,
                 content_type="application/json",
-                body=json.dumps({"seg_id": 11, "text": "let's GO", "affected_clip_ids": []}),
+                body=json.dumps({
+                    "seg_id": 11, "text": "let's GO", "affected_clip_ids": [], "video_id": 1,
+                }),
             )
 
         page.route("**/api/caption-segments/11", _handle_put)
@@ -69,6 +71,11 @@ class TestClipTranscript:
 
         expect(page.locator("#clip-transcript-view .tline-text").first).to_have_text("let's GO")
         assert put_bodies and put_bodies[0]["text"] == "let's GO"
+        # Regression guard: saving a caption from within a clip's transcript must
+        # leave the clip detail open, not jump back to the recording overview
+        # (the old handler force-rendered the video detail on every caption save).
+        expect(page.locator("#detail .clip-badge")).to_be_visible()
+        expect(page.locator("#detail .video-badge")).to_have_count(0)
 
 
 # TestTextlessVisualClipTranscriptCard moved to tests/js/clips/renderdetail.test.js -

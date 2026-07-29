@@ -59,7 +59,7 @@ def _seed_transcript(session, with_speaker: bool = False):
 class TestUpdateCaptionSegment:
     def test_updates_text_and_returns_affected_clip(self, client, project_dir):
         session = _db(project_dir)
-        seg_a_id, _seg_b_id, clip_ids, _vid = _seed_transcript(session)
+        seg_a_id, _seg_b_id, clip_ids, vid = _seed_transcript(session)
         session.close()
 
         res = client.put(f"/api/caption-segments/{seg_a_id}", json={"text": "hello world"})
@@ -68,6 +68,7 @@ class TestUpdateCaptionSegment:
         assert data["text"] == "hello world"
         # seg A only overlaps the first clip (0-60000ms).
         assert data["affected_clip_ids"] == [clip_ids[0]]
+        assert data["video_id"] == vid
 
         check = _db(project_dir)
         seg = check.get(TranscriptSegment, seg_a_id)
