@@ -405,6 +405,37 @@ class TestGgufDownloadUI:
         page.route("**/api/whisper/prefetch", lambda route: whisper_pending.append(route))
         gguf_pending: dict = {}
         page.route("**/api/llm/gguf/download*", lambda route: gguf_pending.setdefault("route", route))
+        # openSettings() (settings.js) awaits ~9 sequential fetches before this
+        # test's real interest (the gguf/whisper banners) is even reachable -
+        # config/defaults, whisper-languages, sounds, hotwords, contexts,
+        # sensitive-terms, export-presets, content-presets, then /api/status for
+        # the paths display. None of those subsystems are what this test checks,
+        # so stub them all with canned data: otherwise this test's timing depends
+        # on the live fixture server answering 9 real round-trips serially, which
+        # under full-suite DB contention occasionally blew the wait past even an
+        # 8s ceiling (same "unmocked real latency in the timing path" class as
+        # FLAKE-9 in the test-flakes register, not a main-thread-race class - a
+        # retry wouldn't help here since retrying just re-issues the same chain).
+        def _fulfill_json(body):
+            # A single-parameter closure, not a 2-parameter lambda with a
+            # default: Playwright's Python binding inspects the handler's
+            # parameter count and passes route.request as a second positional
+            # arg to any 2-param callback, which would silently clobber a
+            # `body=body` default-capture with the real Request object.
+            return lambda route: route.fulfill(content_type="application/json", body=body)
+
+        for path, body in [
+            ("**/api/config/defaults", '{}'),
+            ("**/api/config/whisper-languages", '{"languages":[]}'),
+            ("**/api/sounds", '[]'),
+            ("**/api/hotwords", '[]'),
+            ("**/api/contexts", '[]'),
+            ("**/api/sensitive-terms", '[]'),
+            ("**/api/export-presets", '{"builtins":[],"custom":[]}'),
+            ("**/api/content-presets", '{"presets":[],"active":"generic"}'),
+            ("**/api/status", '{}'),
+        ]:
+            page.route(path, _fulfill_json(body))
         # Boot runs initModelPrefetch against the stubs -> the whisper banner starts.
         _open_settings(page)
         page.wait_for_selector('#model-download-banner .mdl-row[data-mdl-kind="whisper"]', timeout=8000)

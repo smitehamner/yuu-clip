@@ -11,6 +11,7 @@ import re
 
 from conftest import (
     LIVE_URL,
+    open_modal,
     select_first_video_and_clip,
     select_video_with_clips,
     skip_no_server,
@@ -103,8 +104,11 @@ class TestDeleteVideoConfirm:
             else route.continue_(),
         )
         page.click("#video-list li[data-video-id]")
-        page.click(".vid-actions button:has-text('Additional Actions')")
-        page.wait_for_selector("#actions-modal.visible", timeout=8000)
+        open_modal(
+            page,
+            lambda: page.click(".vid-actions button:has-text('Additional Actions')"),
+            "#actions-modal.visible",
+        )
         page.click("#actions-modal .action-row:has-text('Remove Recording')")
         page.wait_for_selector("#confirm-modal.visible", timeout=2000)
         return video_id
@@ -167,8 +171,11 @@ class TestTimelineModalUnitOrder:
 class TestVideoActionsModal:
     def test_opens_with_expected_action_groups(self, page: Page):
         select_video_with_clips(page)
-        page.click(".vid-actions button:has-text('Additional Actions')")
-        page.wait_for_selector("#actions-modal.visible", timeout=8000)
+        open_modal(
+            page,
+            lambda: page.click(".vid-actions button:has-text('Additional Actions')"),
+            "#actions-modal.visible",
+        )
         body = page.locator("#actions-modal-body")
         expect(body.locator("button:has-text('Approve Above Score')")).to_be_visible()
         expect(body.locator("button:has-text('Re-score All Clips')")).to_be_visible()
@@ -178,14 +185,20 @@ class TestVideoActionsModal:
 
     def test_title_includes_video_name(self, page: Page):
         select_video_with_clips(page)
-        page.click(".vid-actions button:has-text('Additional Actions')")
-        page.wait_for_selector("#actions-modal.visible", timeout=8000)
+        open_modal(
+            page,
+            lambda: page.click(".vid-actions button:has-text('Additional Actions')"),
+            "#actions-modal.visible",
+        )
         expect(page.locator("#actions-modal-title")).to_contain_text("Additional Actions")
 
     def test_danger_actions_render_with_danger_class(self, page: Page):
         select_video_with_clips(page)
-        page.click(".vid-actions button:has-text('Additional Actions')")
-        page.wait_for_selector("#actions-modal.visible", timeout=8000)
+        open_modal(
+            page,
+            lambda: page.click(".vid-actions button:has-text('Additional Actions')"),
+            "#actions-modal.visible",
+        )
         danger_row = page.locator("#actions-modal-body .action-row.danger:has-text('Remove Recording')")
         expect(danger_row).to_be_visible()
 
@@ -193,8 +206,11 @@ class TestVideoActionsModal:
         # Clicking the close (X) button must dismiss the modal without invoking
         # any row's action - only clicking a row itself should fire its action.
         select_video_with_clips(page)
-        page.click(".vid-actions button:has-text('Additional Actions')")
-        page.wait_for_selector("#actions-modal.visible", timeout=8000)
+        open_modal(
+            page,
+            lambda: page.click(".vid-actions button:has-text('Additional Actions')"),
+            "#actions-modal.visible",
+        )
         requests: list = []
         page.on("request", lambda r: requests.append(r.url))
         page.click("#actions-modal button[aria-label='Close']")
@@ -206,8 +222,11 @@ class TestVideoActionsModal:
         # action to verify the row's onclick actually fires (closeActionsModal()
         # runs first, then row.action()).
         select_video_with_clips(page)
-        page.click(".vid-actions button:has-text('Additional Actions')")
-        page.wait_for_selector("#actions-modal.visible", timeout=8000)
+        open_modal(
+            page,
+            lambda: page.click(".vid-actions button:has-text('Additional Actions')"),
+            "#actions-modal.visible",
+        )
         page.click("#actions-modal .action-row:has-text('Split Recording')")
         expect(page.locator("#actions-modal")).not_to_be_visible()
         expect(page.locator("#split-editor-panel")).to_be_visible(timeout=3000)
@@ -367,8 +386,11 @@ class TestInProcessBatchJobCancel:
         # Hang the rescore SSE so the job stays live (route registered but never
         # fulfilled/continued); the client aborts it on Cancel.
         page.route("**/api/videos/*/rescore-clips*", lambda route: None)
-        page.click(".vid-actions button:has-text('Additional Actions')")
-        page.wait_for_selector("#actions-modal.visible", timeout=8000)
+        open_modal(
+            page,
+            lambda: page.click(".vid-actions button:has-text('Additional Actions')"),
+            "#actions-modal.visible",
+        )
         page.click("#actions-modal .action-row:has-text('Re-score All Clips')")
         page.wait_for_selector("#confirm-modal.visible", timeout=2000)
         page.click("#confirm-ok-btn")  # "Re-score All"
@@ -398,8 +420,11 @@ class TestFindSimilarFeedback:
     def _start_find_similar(self, page: Page) -> None:
         select_first_video_and_clip(page)
         page.route("**/api/clips/*/related-clips*", lambda route: None)  # hang
-        page.click("#detail button[data-act='open-clip-actions-modal']")
-        page.wait_for_selector("#actions-modal.visible", timeout=8000)
+        open_modal(
+            page,
+            lambda: page.click("#detail button[data-act='open-clip-actions-modal']"),
+            "#actions-modal.visible",
+        )
         page.click("#actions-modal .action-row:has-text('Find Similar')")
         page.wait_for_selector("#similar-clips-modal.visible", timeout=2000)
         page.click("#btn-find-similar-go")

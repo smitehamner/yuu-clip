@@ -16,6 +16,7 @@ import pytest
 from conftest import (
     LIVE_URL,
     _first_row,
+    open_modal,
     select_first_video_and_clip,
     select_video_with_clips,
     skip_no_server,
@@ -537,8 +538,11 @@ class TestClipActionsModalGroups:
         page.wait_for_selector("#clip-tag-input", timeout=3000)
         page.evaluate("() => { AppState.activeClipData.description = 'a described clip'; }")
         # Real click: the clip's own Additional Actions button.
-        page.click(".clip-actions button:has-text('Additional Actions')")
-        page.wait_for_selector("#actions-modal.visible", timeout=8000)
+        open_modal(
+            page,
+            lambda: page.click(".clip-actions button:has-text('Additional Actions')"),
+            "#actions-modal.visible",
+        )
         # text_content, not inner_text - .section-title is CSS-uppercased
         headings = page.locator("#actions-modal-body .section-title").all_text_contents()
         assert "Regenerate" not in headings
@@ -548,18 +552,21 @@ class TestClipActionsModalGroups:
     def test_merge_row_description_is_truncated(self, page: Page):
         select_first_video_and_clip(page)
         page.wait_for_selector("#clip-tag-input", timeout=3000)
-        page.evaluate(
-            """() => {
-                const long = 'x'.repeat(200);
-                AppState.clips = [
-                    {id: 9001, start_ms: 0, start_hms: '0:00', description: long},
-                    {id: 9002, start_ms: 60000, start_hms: '1:00', description: 'short'},
-                ];
-                AppState.activeClipData = null;
-                openClipActionsModal(9002);
-            }"""
+        open_modal(
+            page,
+            lambda: page.evaluate(
+                """() => {
+                    const long = 'x'.repeat(200);
+                    AppState.clips = [
+                        {id: 9001, start_ms: 0, start_hms: '0:00', description: long},
+                        {id: 9002, start_ms: 60000, start_hms: '1:00', description: 'short'},
+                    ];
+                    AppState.activeClipData = null;
+                    openClipActionsModal(9002);
+                }"""
+            ),
+            "#actions-modal.visible",
         )
-        page.wait_for_selector("#actions-modal.visible", timeout=8000)
         merge_desc = page.locator(
             "#actions-modal-body .action-row:has-text('Merge previous') .action-row-desc"
         ).inner_text()
@@ -576,17 +583,20 @@ class TestClipActionsModalGroups:
         tests/test_videos.py::TestMergeClips."""
         select_first_video_and_clip(page)
         page.wait_for_selector("#clip-tag-input", timeout=3000)
-        page.evaluate(
-            """() => {
-                AppState.clips = [
-                    {id: 9001, start_ms: 0, start_hms: '0:00', description: 'first'},
-                    {id: 9002, start_ms: 60000, start_hms: '1:00', description: 'second'},
-                ];
-                AppState.activeClipData = null;
-                openClipActionsModal(9002);
-            }"""
+        open_modal(
+            page,
+            lambda: page.evaluate(
+                """() => {
+                    AppState.clips = [
+                        {id: 9001, start_ms: 0, start_hms: '0:00', description: 'first'},
+                        {id: 9002, start_ms: 60000, start_hms: '1:00', description: 'second'},
+                    ];
+                    AppState.activeClipData = null;
+                    openClipActionsModal(9002);
+                }"""
+            ),
+            "#actions-modal.visible",
         )
-        page.wait_for_selector("#actions-modal.visible", timeout=8000)
         merge_requests: list = []
         page.on("request", lambda r: merge_requests.append(r) if "/merge" in r.url else None)
         page.click("#actions-modal-body button:has-text('Merge previous')")
@@ -876,8 +886,11 @@ class TestClipShowInFolder:
             }"""
         )
         # Real click: the clip's own Additional Actions button.
-        page.click(".clip-actions button:has-text('Additional Actions')")
-        page.wait_for_selector("#actions-modal.visible", timeout=8000)
+        open_modal(
+            page,
+            lambda: page.click(".clip-actions button:has-text('Additional Actions')"),
+            "#actions-modal.visible",
+        )
         expect(page.locator("#actions-modal-body .action-row:has-text('Show in Folder')")).to_have_count(0)
 
 

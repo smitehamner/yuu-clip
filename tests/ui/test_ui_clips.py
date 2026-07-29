@@ -14,6 +14,7 @@ import pytest
 from conftest import (
     LIVE_URL,
     _first_row,
+    open_modal,
     select_first_video_and_clip,
     select_video_with_clips,
     skip_no_server,
@@ -72,8 +73,11 @@ class TestClipReview:
     def test_retranscribe_button_exists(self, page: Page):
         select_first_video_and_clip(page)
         page.wait_for_selector(".clip-actions", timeout=3000)
-        page.click(".clip-actions button:has-text('Additional Actions')")
-        page.wait_for_selector("#actions-modal.visible", timeout=8000)
+        open_modal(
+            page,
+            lambda: page.click(".clip-actions button:has-text('Additional Actions')"),
+            "#actions-modal.visible",
+        )
         expect(page.locator("#actions-modal-body button:has-text('Retranscribe')")).to_be_visible()
 
     def test_sidebar_shows_clip_id(self, page: Page):
@@ -419,8 +423,7 @@ class TestBatchExportModal:
 
     def _open(self, page: Page):
         select_video_with_clips(page)
-        page.click("[data-act='open-batch-export']")
-        page.wait_for_selector("#batch-export-modal.visible", timeout=8000)
+        open_modal(page, lambda: page.click("[data-act='open-batch-export']"), "#batch-export-modal.visible")
 
     def test_captions_default_to_softsub(self, page: Page):
         self._open(page)
@@ -438,8 +441,7 @@ class TestBatchExportModal:
     def test_retranscribe_checked_when_stale(self, page: Page):
         select_video_with_clips(page)
         self._mock_status(page, needs_retranscribe=True, model="medium")
-        page.click("[data-act='open-batch-export']")
-        page.wait_for_selector("#batch-export-modal.visible", timeout=8000)
+        open_modal(page, lambda: page.click("[data-act='open-batch-export']"), "#batch-export-modal.visible")
         expect(page.locator("#batch-retranscribe")).to_be_checked()
         assert page.locator("#batch-retranscribe-model").input_value() == "medium"
         expect(page.locator("#batch-retranscribe-model")).to_be_enabled()
@@ -448,8 +450,7 @@ class TestBatchExportModal:
     def test_retranscribe_unchecked_when_already_matching(self, page: Page):
         select_video_with_clips(page)
         self._mock_status(page, needs_retranscribe=False, model="large-v3")
-        page.click("[data-act='open-batch-export']")
-        page.wait_for_selector("#batch-export-modal.visible", timeout=8000)
+        open_modal(page, lambda: page.click("[data-act='open-batch-export']"), "#batch-export-modal.visible")
         expect(page.locator("#batch-retranscribe")).not_to_be_checked()
         assert page.locator("#batch-retranscribe-model").input_value() == "large-v3"
         expect(page.locator("#batch-retranscribe-model")).to_be_disabled()

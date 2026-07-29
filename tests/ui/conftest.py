@@ -22,6 +22,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import pytest
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import expect
 
 # ---------------------------------------------------------------------------
@@ -123,10 +124,48 @@ def _first_row(page):
     return page.locator("#clip-list li:has(.clip-num)").first
 
 
+def open_modal(page, trigger, modal_visible_selector: str, *, attempts: int = 3) -> None:
+    """Run ``trigger()`` and wait for the resulting modal to gain ``.visible``,
+    retrying ``trigger`` if it doesn't appear.
+
+    FLAKE-13 (test-flakes register): the actions-modal/batch-export-modal opens
+    this guards were previously just a wait_for_selector, raised as high as
+    8000ms - but for actions-modal specifically the whole click-to-``.visible``
+    path (``openActionsModal``/``openVideoActionsModal``/``openClipActionsModal``
+    in core/ui.js, videos.js, clips.js) is synchronous with no fetch and no
+    animation-gated step, so the class add IS the earliest possible "ready"
+    signal - a longer wait for the same signal doesn't help when the real
+    problem is peak full-suite contention starving the page's main thread badly
+    enough that the click handler never got a scheduling slot in time. Retrying
+    the trigger recovers from that (and from a genuinely dropped click) the same
+    way FLAKE-3's place_split_point retry does. Safe because every modal opener
+    wired through this helper is idempotent - it fully repopulates a singleton
+    modal's content and (re-)adds the visible class, so a trigger that "lands
+    twice" is a no-op, not a corrupted state or a duplicated element.
+    (openBatchExportModal is the one exception with a real awaited fetch before
+    ``.visible`` - retrying still just re-issues that fetch, which is harmless
+    against a route-mocked or idle test server.)
+    """
+    for attempt in range(attempts):
+        trigger()
+        try:
+            page.wait_for_selector(
+                modal_visible_selector,
+                timeout=2000 if attempt < attempts - 1 else 8000,
+            )
+            return
+        except PlaywrightTimeoutError:
+            if attempt == attempts - 1:
+                raise
+
+
 def open_split_editor(page) -> None:
     select_video_with_clips(page)
-    page.click(".vid-actions button:has-text('Additional Actions')")
-    page.wait_for_selector("#actions-modal.visible", timeout=8000)
+    open_modal(
+        page,
+        lambda: page.click(".vid-actions button:has-text('Additional Actions')"),
+        "#actions-modal.visible",
+    )
     page.click("#actions-modal .action-row:has-text('Split Recording')")
     expect(page.locator("#split-editor-panel")).to_be_visible(timeout=3000)
 
