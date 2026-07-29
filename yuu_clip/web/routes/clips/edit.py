@@ -224,8 +224,8 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
         if importlib.util.find_spec("mediapipe") is None:
             raise HTTPException(
                 503,
-                "Auto-framing needs the MediaPipe package, which should be bundled "
-                "with yuu-clip - try reinstalling if this persists.",
+                "The MediaPipe package isn't installed - it should be bundled "
+                "with yuu-clip, so try reinstalling if this persists.",
             )
         reject_if_busy(ctx, "Auto-frame")
         db = ctx.get_db()

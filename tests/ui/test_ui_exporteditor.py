@@ -318,6 +318,6 @@ class TestExportEditorAutoFrame:
         self._open_vertical(page)
         page.route(f"**/api/clips/{_FAKE_CLIP_ID}/suggest-framing", lambda route: route.fulfill(
             status=503, content_type="application/json",
-            body=json.dumps({"detail": "Auto-framing needs the MediaPipe package"})))
+            body=json.dumps({"detail": "The MediaPipe package isn't installed"})))
         page.click("#ed-autoframe-btn")
-        expect(page.locator("#ed-autoframe-note")).to_contain_text("Auto-framing needs the MediaPipe package")
+        expect(page.locator("#ed-autoframe-note")).to_contain_text("Auto-frame failed: The MediaPipe package isn't installed")
