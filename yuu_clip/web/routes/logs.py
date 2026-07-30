@@ -15,9 +15,9 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi.responses import PlainTextResponse
 
-from yuu_clip.log import log_path_for, recent_log_lines
+from yuu_clip.log import log_path_for, recent_log_lines, redact
 from yuu_clip.web.deps import ProjectContext
 
 
@@ -26,16 +26,24 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
     @router.get("/api/logs/export")
     def export_log():
-        """Download the application log as a plain-text file attachment."""
+        """Download the application log as a plain-text file attachment.
+
+        Re-redacts the file's content on the way out rather than streaming it
+        raw: the on-disk file can carry lines written before a redaction rule
+        covered them (or any other formatter-bypassing gap), and this is the
+        one path a user is invited to hand to someone else, so it gets the same
+        defense-in-depth treatment as the secret patterns in yuu_clip/log.py.
+        """
         from datetime import datetime
         filename = f"yuu-clip-{datetime.now().strftime('%Y-%m-%d')}.log"
 
         log_file = log_path_for(ctx.project_dir)
         if log_file.exists():
-            return FileResponse(str(log_file), media_type="text/plain", filename=filename)
-        content = "\n".join(recent_log_lines()) or "(no log entries yet)"
+            content = redact(log_file.read_text(encoding="utf-8", errors="replace"))
+        else:
+            content = "\n".join(recent_log_lines()) or "(no log entries yet)"
         return PlainTextResponse(
-            content, headers={"Content-Disposition": f"attachment; filename={filename}"}
+            content, headers={"Content-Disposition": f'attachment; filename="{filename}"'}
         )
 
     @router.get("/api/glossary")

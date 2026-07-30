@@ -41,6 +41,26 @@ class TestExportLog:
         # attempt to read a file that isn't there.
         assert resp.text != ""
 
+    def test_redacts_a_username_that_predates_the_formatter(self, client, project_dir: Path):
+        # Historical log content (written before a redaction rule covered it, or by
+        # any other path that bypassed _SanitizingFormatter) must not ship verbatim
+        # just because it's already sitting in the file - the download route
+        # re-redacts on read, not just at write time (found 2026-07-30: 5 old lines
+        # in the owner's real dev log leaked their Windows username this way).
+        log_file = log_path_for(project_dir)
+        log_file.parent.mkdir(parents=True, exist_ok=True)
+        log_file.write_text(
+            r"2026-01-01 12:00:00 DEBUG yuu_clip.config - Loaded global config from"
+            "\n" r"C:\Users\realname\AppData\Local\yuu-clip\yuu-clip\config.json",
+            encoding="utf-8",
+        )
+
+        resp = client.get("/api/logs/export")
+
+        assert resp.status_code == 200
+        assert "realname" not in resp.text
+        assert r"C:\Users\<user>\AppData" in resp.text
+
     def test_filename_is_dated(self, client, project_dir: Path):
         from datetime import datetime
 
