@@ -40,6 +40,18 @@ New here? Start with the plain-English intro in
 
 ---
 
+## Screenshots
+
+| Clip review | World contexts |
+| --- | --- |
+| ![Clip review: recordings sidebar, clip list, player, and per-clip scores](docs/screenshots/review.png) | ![World contexts: tell the scorer who is who and what the session is, so highlights make sense](docs/screenshots/world-contexts.png) |
+
+| Highlight reels | People |
+| --- | --- |
+| ![Highlight reels: compile approved clips into a single reel](docs/screenshots/highlight-reels.png) | ![People: name each voice once and the name follows them across every recording](docs/screenshots/people.png) |
+
+---
+
 ## Install the desktop app (recommended)
 
 The Windows desktop app is the easiest way to use YuuClip. It bundles everything it
