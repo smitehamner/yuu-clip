@@ -39,8 +39,13 @@ $versionMarker = "$outDir\prebuilt-env.version"
 # Run the smoke check from a file, not `python -c`: Windows PowerShell 5.1 mangles
 # embedded double-quotes when passing an argument to a native exe, which corrupts an
 # inline -c string. A file has no quoting to mangle.
+# alembic + sqlalchemy are here deliberately: the app migrates the project DB on
+# every project open, so a venv missing them fails at first launch, not at some
+# optional feature. They are pure-Python and easy to assume present - importing
+# yuu_clip alone does not pull them (migrate.py is imported lazily at bind time).
 $smokeScript = @'
 import torch, ctranslate2, cv2, faster_whisper, speechbrain, yuu_clip
+import alembic, sqlalchemy
 print("imports OK")
 '@
 
