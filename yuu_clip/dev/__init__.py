@@ -17,6 +17,7 @@ from yuu_clip.dev import (  # noqa: E402,F401  (registers commands)
     notices,
     serve,
     shareddata,
+    smoke,
     status,
     testjs,
     tests,

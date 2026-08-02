@@ -299,6 +299,7 @@ def test_chaos(
         for f in _findings:
             console.print(f"- {f}")
     console.print(f"\nTotal: {len(_findings)} finding(s)")
+    CHAOS_LOG.parent.mkdir(parents=True, exist_ok=True)
     CHAOS_LOG.write_text("\n".join(_findings), encoding="utf-8")
     console.print(f"[dim]Findings: {CHAOS_LOG}[/dim]")
 

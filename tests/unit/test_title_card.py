@@ -257,8 +257,10 @@ class TestApplyTitleCardThreadsConfig:
 
 
 class _FakeVideoForReel:
-    def __init__(self, filename):
+    def __init__(self, filename, width=1920, height=1080):
         self.filename = filename
+        self.width = width
+        self.height = height
 
 
 class TestBuildSegmentListThreadsConfig:

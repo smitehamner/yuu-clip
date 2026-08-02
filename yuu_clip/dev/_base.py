@@ -34,8 +34,11 @@ app = typer.Typer(
 # yuu_clip/dev/_base.py -> parents[2] is the repo root.
 REPO_ROOT = Path(__file__).resolve().parents[2]
 LOG_PATH = REPO_ROOT / ".yuu-clip" / "yuu-clip.log"
+# Not created at import time: in a packaged install REPO_ROOT resolves inside/next
+# to the bundled site-packages, and merely importing yuu_clip.dev must not mkdir a
+# stray directory there. Callers that actually write into it create it lazily
+# (write_run_logs already does; acquire_ui_lock/JS_LOG/CHAOS_LOG do it explicitly).
 TEST_LOGS_DIR = REPO_ROOT / ".test-logs"
-TEST_LOGS_DIR.mkdir(exist_ok=True)
 
 
 def node_available() -> bool:

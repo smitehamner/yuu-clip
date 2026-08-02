@@ -459,7 +459,8 @@ def _build_segment_list(
         print(f"Generating title card {idx + 1}/{n}...", flush=True)
         card_path = tmp_dir / f"title_{idx:03d}.mkv"
         _make_title_card(
-            title_lines, card_path, duration=title_dur, fps=fps,
+            title_lines, card_path, width=video.width or 1920, height=video.height or 1080,
+            duration=title_dur, fps=fps,
             bg_color=config.title_card_bg_color, font_color=config.title_card_font_color,
         )
         segments.append(card_path)

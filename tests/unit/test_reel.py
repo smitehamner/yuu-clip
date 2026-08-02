@@ -265,6 +265,61 @@ class TestSelectClipExportFile:
         assert self._select(tmp_path) is None
 
 
+class TestBuildSegmentListTitleCardSizing:
+    """_build_segment_list must size each title card to match its clip's source
+    video - ffmpeg's xfade filter requires consecutive segments to share
+    dimensions, so a title card left at the 1920x1080 default in front of a
+    smaller-resolution clip fails the whole reel encode with a filter error."""
+
+    def _clip_and_video(self, width, height):
+        import types
+        clip = types.SimpleNamespace(
+            video_id=1, start_hms="0:15", duration_hms="0:15", effective_description="A clip",
+        )
+        video = types.SimpleNamespace(filename="session.mkv", width=width, height=height)
+        return clip, video
+
+    def test_title_card_matches_a_non_1080p_clip_video(self, tmp_path, monkeypatch):
+        from yuu_clip import reel as reel_mod
+        from yuu_clip.config import Config
+
+        clip, video = self._clip_and_video(640, 360)
+        captured: dict = {}
+
+        def fake_make_title_card(lines, output_path, **kwargs):
+            captured.update(kwargs)
+            output_path.write_bytes(b"card")
+
+        monkeypatch.setattr(reel_mod, "_make_title_card", fake_make_title_card)
+        reel_mod._build_segment_list(
+            [clip], {1: video}, [tmp_path / "clip.mkv"], [15.0], tmp_path,
+            fps=30.0, title_dur=3.0, config=Config(),
+        )
+
+        assert captured["width"] == 640
+        assert captured["height"] == 360
+
+    def test_title_card_falls_back_to_1080p_when_video_size_unknown(self, tmp_path, monkeypatch):
+        from yuu_clip import reel as reel_mod
+        from yuu_clip.config import Config
+
+        clip, video = self._clip_and_video(None, None)
+        captured: dict = {}
+
+        def fake_make_title_card(lines, output_path, **kwargs):
+            captured.update(kwargs)
+            output_path.write_bytes(b"card")
+
+        monkeypatch.setattr(reel_mod, "_make_title_card", fake_make_title_card)
+        reel_mod._build_segment_list(
+            [clip], {1: video}, [tmp_path / "clip.mkv"], [15.0], tmp_path,
+            fps=30.0, title_dur=3.0, config=Config(),
+        )
+
+        assert captured["width"] == 1920
+        assert captured["height"] == 1080
+
+
 def _seed_transcribed_project(tmp_path):
     """A project DB with one approved clip carrying one transcript segment.
 

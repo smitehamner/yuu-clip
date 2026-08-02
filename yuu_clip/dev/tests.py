@@ -261,6 +261,7 @@ def orphan_test_procs(processes: list[procs.ProcInfo]) -> list[procs.ProcInfo]:
 
 
 def acquire_ui_lock(lock_path: Path) -> bool:
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
     for _ in range(2):
         try:
             with open(lock_path, "x", encoding="utf-8") as handle:

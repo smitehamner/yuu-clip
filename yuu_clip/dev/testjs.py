@@ -51,6 +51,7 @@ def run_vitest(
     mode = [] if watch else ["run"]
     cmd = ["node", str(VITEST_ENTRY), *mode, *(vitest_args or [])]
     code, output = run_and_tee(cmd, REPO_ROOT, pytest_env())
+    JS_LOG.parent.mkdir(parents=True, exist_ok=True)
     JS_LOG.write_text(output, encoding="utf-8")
     console.print(f"[dim]Full log: {JS_LOG}[/dim]")
     return code
