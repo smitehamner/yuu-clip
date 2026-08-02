@@ -5,6 +5,29 @@ fast dev iteration. Split out of the user walkthrough
 (`docs/user/tutorials/end-to-end-walkthrough.md`) so that doc stays desktop-app framed
 and free of `yuu-dev` / `ffmpeg` / `yt-dlp` asides.
 
+## Default release-gate recording
+
+Tier 1 step 3 of [installed-app-checklist.md](installed-app-checklist.md) needs one
+recording. Unless a build gives a reason to pick something else, use:
+
+`https://www.youtube.com/watch?v=_cMxraX_5RE&list=PL6B3937A5D230E335&index=4`
+
+Fetch it with `yt-dlp` for personal dev testing only - never commit it, never
+redistribute it (same rule as the publicly-available recordings in the table below).
+**Download once and keep it locally**; re-fetching per run makes the gate depend on a
+third party being up.
+
+**Known characteristics - do not write checks that contradict these:**
+
+- Several distinct voices, so diarization and speaker clustering get a real workout.
+- The characters **never introduce themselves by name**, so speaker-name inference
+  produces nothing. "Suggest names" returning no suggestions against this source is
+  correct behavior, not a failure. An automated assertion about inferred names needs a
+  different recording.
+
+If analysis runs long, trim rather than sitting through it:
+`ffmpeg -t 600 -i source.mkv -c copy test.mkv`.
+
 ## Recommended test videos
 
 Different video types stress different parts of the pipeline. If you're building a test

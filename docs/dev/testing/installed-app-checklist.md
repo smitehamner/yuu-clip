@@ -28,6 +28,79 @@ spot-check. If time is short, the P0 rows are the release gate.
 
 ---
 
+## How to size a run (read this before walking the whole document)
+
+Walking all 68 items every build costs 2-3 hours of attention and re-checks the same
+surfaces release after release. Do that only for a milestone build. The routine gate is
+Tier 1 below; Tiers 2 and 3 exist so the rest is skipped on purpose rather than by
+fatigue.
+
+**Audience assumption, and it expires:** the **first public release** is the only build
+whose entire audience is fresh installs - nobody has a prior version to upgrade from.
+That is the whole reason Tier 3 can be parked, and it applies to that build only. From
+the **next** release onward the audience is permanently mixed (some upgrade, some install
+fresh), so Tier 3 is mandatory from then on. This is not a condition to re-evaluate each
+time; it flips once, on the release after the first public one, and stays flipped.
+
+### Tier 1 - every build (about 30 minutes attended)
+
+The subset where a failure is **silent and terminal for a new user** - nobody files a
+bug for an app that never opened.
+
+| # | Step | Covers |
+|---|------|--------|
+| 1 | Install the `.exe` on a clean machine with no system Python; launch it. | A1-A4 |
+| 2 | Watch first-run bring-up, then finish the wizard. Default prefetch pulls Whisper + speaker + face-detector + audio-event/laugh with no extra opt-in; the LLM step's "Download recommended model" completes and auto-fills. | B1-B4, C1-C8, F1 |
+| 3 | Add a test recording, Analyze, watch it finish, clips appear. | UC-B01, D1-D2 |
+| 4 | Approve a clip, export it, play it in the app with captions, scrub it. | UC-B05, D3, E1-E2 |
+| 5 | Build a highlight reel from the approved clips. | UC-E03 |
+| 6 | Quit while a job is running. Task Manager shows no orphan `python.exe` / `llama-server.exe` / `ffmpeg.exe`. | UC-G03, H5 |
+
+That is every P0 row that applies to a fresh install. Test-recording guidance, including
+the default source and its known characteristics, is in
+[test-video-matrix.md](test-video-matrix.md).
+
+### Tier 2 - only when the diff touches it
+
+| Trigger | Walk |
+|---|---|
+| Installer / electron-builder / NSIS config changed | Full A1-A4 plus the uninstall check |
+| Setup wizard or the setup schema changed | Full C1-C8 and F1-F3 |
+| Export / ffmpeg / preset code changed | Vertical 9:16 preset, caption defaults, Batch Export, the cancel audit |
+| Whisper / diarization / speaker code changed | The speaker rows in UC-D02 |
+| A dependency was added or bumped | Offline wheelhouse + lock verification, F2/F3 on a slow or absent network |
+| Update-check code changed | UC-G04 |
+| A migration was added | UC-G05 (see Tier 3 - with no user holding a prior install this only runs against the maintainer's own projects) |
+
+### Tier 3 - parked for the FIRST public release only
+
+Not applicable to that one build, not "skipped". Every row here needs a user who already
+has an earlier build installed, and for the first public release nobody does.
+
+**From the second public release onward, this tier is mandatory on every build.** The
+audience is mixed from then on - some users upgrade, some install fresh - and the upgrade
+half is the half that can lose data. Do not treat this as a judgement call per release.
+
+- UC-G05 library upgrade / schema migration on an existing project.
+- I1/I2 update-mode wizard (installing a newer build over an older one).
+- G3 CUDA libs surviving an app upgrade.
+- The `.gguf` and venv survival check across an install-over.
+
+Note for whoever ships release two: the migration-adoption path is the sharpest edge
+here. It runs before `create_all` on every project open, so an upgrade that stamps a DB
+at the wrong revision surfaces as a crash later rather than at upgrade time. Walk UC-G05
+against a project created by the *previous* release, not a freshly-made one.
+
+### What this gate cannot reduce
+
+The largest remaining release risk is **hardware variance** - whether the bundled Vulkan
+`llama-server` falls back to CPU correctly on a machine the maintainer does not own
+(D2, G1-G2). Re-walking the gate on the same hardware does not move it. There is also no
+crash-report or telemetry path, so a fresh install that dies is invisible. Both point the
+same way: make it easy for early users to send a log rather than self-testing further.
+
+---
+
 ## Section A - Setup and first run
 
 | UC | Pri | Check | Pass |

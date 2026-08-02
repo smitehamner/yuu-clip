@@ -175,8 +175,19 @@ Never swap in a build whose own `README.txt`/config reports `--enable-nonfree`
 
 ## Test the build
 
-Before sharing, install and smoke-test in a secondary Windows user account or a VM
-**with no system Python installed** - this confirms the bundled runtime works standalone:
+**Size the run first.** [testing/installed-app-checklist.md](testing/installed-app-checklist.md)'s
+"How to size a run" section is authoritative: Tier 1 is the ~30-minute gate for every
+build, Tier 2 rows are walked only when the diff touches them, and Tier 3 is parked for
+the first public release only. Do not walk the list below top to bottom unless this is a
+milestone build - most of it is Tier 2 or Tier 3.
+
+The items marked **(Tier 3)** below require a user who already has an earlier build
+installed. They do not apply to the **first public release** (nobody has a prior version).
+**They apply to every release after it** - from release two on, the audience is
+permanently mixed and the upgrade path is the half that can lose data.
+
+Install and smoke-test in a secondary Windows user account or a VM **with no system
+Python installed** - this confirms the bundled runtime works standalone:
 
 - [ ] Run `yuu-clip-X.Y.Z-Setup.exe` - confirm Start Menu shortcut is created
 - [ ] Desktop shortcut was offered as optional during install
@@ -199,10 +210,10 @@ Before sharing, install and smoke-test in a secondary Windows user account or a 
 - [ ] Configure an LLM model path in Settings, rescore - LLM scores appear
 - [ ] Click X while analysis is in progress - "Cancel?" dialog appears
 - [ ] Click X when idle - app closes immediately
-- [ ] Install the next build over this one - the downloaded `.gguf` under
+- [ ] **(Tier 3)** Install the next build over this one - the downloaded `.gguf` under
       `%LOCALAPPDATA%\yuu-clip\models\` and the venv both survive, and LLM scoring still
       works without re-downloading anything
-- [ ] **Schema upgrade path (do this whenever a release changes the DB schema):** open a
+- [ ] **(Tier 3) Schema upgrade path (do this whenever a release changes the DB schema):** open a
       project created by the PREVIOUS release in this build. The library must open with all
       data intact, a `project.db.pre-migration-<timestamp>.bak` must appear in the project's
       `.yuu-clip/` folder, and `yuu-dev migrate-status -p <project>` must report head. This
