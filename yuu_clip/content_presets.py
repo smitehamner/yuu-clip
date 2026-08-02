@@ -23,7 +23,7 @@ DEFAULT_PRESET_ID = "generic"
 
 @dataclass(frozen=True)
 class HotWordSpec:
-    """A starter hot-word an applied preset offers to insert. boost is on the 0–1
+    """A starter hot-word an applied preset offers to insert. boost is on the 0-1
     score scale; presets stay modest (≤ 0.2) so they nudge rather than dominate."""
     phrase: str
     target: str            # "overall" | "funny" | "dramatic" | "action"

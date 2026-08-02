@@ -50,14 +50,14 @@ _LAUGH_RE = re.compile(
     re.IGNORECASE,
 )
 
-# Laughter rhythm: 4–12 Hz bursting rate (ha-ha cadence)
+# Laughter rhythm: 4-12 Hz bursting rate (ha-ha cadence)
 _LAUGH_HZ_LOW  = 4.0
 _LAUGH_HZ_HIGH = 12.0
 _ENVELOPE_FPS  = 20   # 50 ms energy frames
 
 
 def _score_transcript_text(text: str, duration_s: float) -> float:
-    """Return 0–1 score based on laugh-marker density in *text*."""
+    """Return 0-1 score based on laugh-marker density in *text*."""
     count = len(_LAUGH_RE.findall(text))
     if count == 0 or duration_s <= 0:
         return 0.0
@@ -66,9 +66,9 @@ def _score_transcript_text(text: str, duration_s: float) -> float:
 
 
 def _detect_laugh_rhythm(samples, sample_rate: int, start_ms: int, end_ms: int) -> float:
-    """Return 0–1 score from spectral burst-rhythm analysis of the clip window.
+    """Return 0-1 score from spectral burst-rhythm analysis of the clip window.
 
-    Laughter produces rhythmic energy bursts at 4–12 Hz (ha-ha cadence).
+    Laughter produces rhythmic energy bursts at 4-12 Hz (ha-ha cadence).
     We extract the energy envelope at 50 ms resolution then check what fraction
     of its spectral power falls in that band.  This won't distinguish laughter
     from other rhythmic sounds perfectly, but on a player-voice track it gives

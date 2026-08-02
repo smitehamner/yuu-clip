@@ -1102,7 +1102,7 @@ class TestSplitVideoFields:
 
     def test_segment_duration_ms_correct(self, client):
         vid_id = self._video_id(client)
-        # Seed duration_ms is 600_000 ms (600 s). Split at 120 s → [0–120, 120–600].
+        # Seed duration_ms is 600_000 ms (600 s). Split at 120 s → [0-120, 120-600].
         r = client.post(f"/api/videos/{vid_id}/split", json={"split_points": [120.0]})
         assert r.status_code == 200
         seg_ids = r.json()["segment_ids"]

@@ -696,7 +696,7 @@ class TestRunSpeakerDiarizationSuggests:
 
 # ---------------------------------------------------------------------------
 # SpeechBrainDiarizationClient - availability + pure pipeline helpers
-# (steps d–e are factored out so they test without importing SpeechBrain)
+# (steps d-e are factored out so they test without importing SpeechBrain)
 # ---------------------------------------------------------------------------
 
 class TestSpeechBrainAvailable:
@@ -959,8 +959,8 @@ class TestAssignSpeakers:
     def test_assigns_by_overlap(self):
         from yuu_clip.transcribe.speaker_attach import _assign_speakers
 
-        seg_a = self._make_seg(0, 5000)    # 0–5 s
-        seg_b = self._make_seg(6000, 10000) # 6–10 s
+        seg_a = self._make_seg(0, 5000)    # 0-5 s
+        seg_b = self._make_seg(6000, 10000) # 6-10 s
 
         session = MagicMock()
         session.query.return_value.filter_by.return_value.order_by.return_value.all.return_value = [seg_a, seg_b]
@@ -989,14 +989,14 @@ class TestAssignSpeakers:
     def test_partial_overlap_picks_best(self):
         from yuu_clip.transcribe.speaker_attach import _assign_speakers
 
-        seg = self._make_seg(3000, 7000)  # 3–7 s
+        seg = self._make_seg(3000, 7000)  # 3-7 s
 
         session = MagicMock()
         session.query.return_value.filter_by.return_value.order_by.return_value.all.return_value = [seg]
 
         turns = [
-            (0.0, 4.0, "SPEAKER_00"),   # 1 s overlap (3–4)
-            (4.0, 8.0, "SPEAKER_01"),   # 3 s overlap (4–7)
+            (0.0, 4.0, "SPEAKER_00"),   # 1 s overlap (3-4)
+            (4.0, 8.0, "SPEAKER_01"),   # 3 s overlap (4-7)
         ]
         _assign_speakers(session, transcript_id=1, turns=turns)
 

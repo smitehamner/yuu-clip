@@ -182,7 +182,7 @@ class NameCorrection:
     token_start: int      # character offset of the token within the segment text
     token_end: int
     suggested: str        # the lexicon name to replace it with
-    score: float          # rapidfuzz ratio (0–100)
+    score: float          # rapidfuzz ratio (0-100)
     speaker_scoped: bool  # True when the segment is attributed (own-name rule applied)
     common_word: bool     # True when the token used the common/short-word cutoff
 

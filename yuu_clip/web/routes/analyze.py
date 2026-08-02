@@ -75,8 +75,8 @@ _IMPORT_NAMES: dict[str, list[str]] = {
 
 # ── Whisper real-time speed ratios ──────────────────────────────────────────
 # Seconds of video processed per second of wall-clock time. Recalibrated against
-# real analyze_run_json timings across 0.5h–7.9h recordings on this GPU (single
-# transcribed track, cuda float16): base ≈20×, medium ≈9–29× (wide, speech-density
+# real analyze_run_json timings across 0.5h-7.9h recordings on this GPU (single
+# transcribed track, cuda float16): base ≈20×, medium ≈9-29× (wide, speech-density
 # dependent - kept conservative), large-v3 ≈4× (one short overhead-heavy sample).
 _WHISPER_GPU_SPEED: dict[str, float] = {
     "large-v3": 5, "large-v2": 5, "large": 5,
@@ -106,7 +106,7 @@ _ENERGY_MODE: dict[str, tuple[float, str]] = {
 # wall-clock, per transcribed track. GPU recalibrated to ~20× from real runs
 # (~4.9% of video duration on long recordings); kept slightly conservative at 18
 # since short recordings pay a fixed model-load overhead this linear model omits.
-# CPU reflects the FEATURES-documented ~2–4× real-time floor.
+# CPU reflects the FEATURES-documented ~2-4× real-time floor.
 _DIARIZATION_RT_SPEED = {"gpu": 18.0, "cpu": 3.0}
 
 # ── Measured-rate estimate (from past analyze_run_json timings) ────────────

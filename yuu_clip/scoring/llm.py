@@ -178,7 +178,7 @@ Given a transcript excerpt, do the following in a single JSON response:
    - Why it is funny, dramatic, or otherwise notable
    - Who is involved (use names if mentioned in the transcript)
    - Any other interesting context, callbacks, or recurring bits
-3. Rate 0.0–1.0 on three dimensions:
+3. Rate 0.0-1.0 on three dimensions:
    "score_funny":    jokes, unexpected reactions, absurd moments, chaotic banter
    "score_dramatic": confrontations, revelations, emotional moments, story beats
    "score_action":   physical chaos, combat, chase, high-stakes tension
@@ -217,7 +217,7 @@ Given a transcript excerpt, do the following in a single JSON response:
    - What makes it worth watching as a longer moment (arc, payoff, stakes, or context)
    - Who is involved (use names if mentioned in the transcript)
    - Any callbacks, running bits, or context that pays off
-3. Rate 0.0–1.0 on three dimensions, judged over the WHOLE scene:
+3. Rate 0.0-1.0 on three dimensions, judged over the WHOLE scene:
    "score_funny":    sustained humor, running gags, comedic build-up and payoff
    "score_dramatic": tension that builds and resolves, confrontations, revelations, emotional arcs
    "score_action":   escalating stakes, sustained high-tension sequences, physical chaos
@@ -395,7 +395,7 @@ def generate_timeline_chunk(
         if clip_descriptions else ""
     )
     user_msg = (
-        f"Time window: {start_hms} – {end_hms}\n\n"
+        f"Time window: {start_hms} - {end_hms}\n\n"
         f"Transcript:\n\"\"\"\n{transcript[:4000]}\n\"\"\""
         f"{clips_ctx}"
     )

@@ -62,13 +62,13 @@ The fastest way to go through a session is keyboard shortcuts:
 | `Ctrl+Z` | Undo the last approve/reject (within 5 seconds) |
 | `?` | Open the Keyboard Controls panel |
 
-You can go through dozens of clips in a few minutes just using arrow keys and A/R. A typical 1-hour session produces 20–40 clips; a full review pass takes under 5 minutes.
+You can go through dozens of clips in a few minutes just using arrow keys and A/R. A typical 1-hour session produces 20-40 clips; a full review pass takes under 5 minutes.
 
 ---
 
 ## What the scores mean
 
-Each clip gets rated 0–1 on four dimensions:
+Each clip gets rated 0-1 on four dimensions:
 
 **Funny** - jokes, banter, chaos, absurd moments, people cracking up or saying something wildly out of place
 
@@ -103,7 +103,7 @@ You can have multiple contexts for different games, servers, or crews.
 
 ## How long does it take?
 
-It depends mainly on your recording length and whether you have an Nvidia GPU. A typical 1-hour session takes 9–18 minutes on an RTX GPU, or 2.5–3 hours on CPU only. Almost all of that time is transcription; everything else adds 2–5 minutes regardless of length.
+It depends mainly on your recording length and whether you have an Nvidia GPU. A typical 1-hour session takes 9-18 minutes on an RTX GPU, or 2.5-3 hours on CPU only. Almost all of that time is transcription; everything else adds 2-5 minutes regardless of length.
 
 Whisper model choice matters too - `base` (the default) is fast but rougher, `large-v3` is the most accurate but wants a ~6 GB+ GPU (~4.2 GB VRAM in use). `medium` (~2.8 GB VRAM, fine on a 4 GB GPU) is the practical sweet spot for most sessions.
 
@@ -113,7 +113,7 @@ Detailed timing estimates and model comparisons are in [PERFORMANCE.md](PERFORMA
 
 ## Exporting clips
 
-Hit **Export** on any clip (or press `E`). By default it does a quick export - no re-encoding, identical quality to the source, finishes in 1–5 seconds. An SRT caption file is written alongside it automatically.
+Hit **Export** on any clip (or press `E`). By default it does a quick export - no re-encoding, identical quality to the source, finishes in 1-5 seconds. An SRT caption file is written alongside it automatically.
 
 Options for baking captions into the video, precise frame-accurate cuts, and container format are in the export modal or in [FEATURES.md](FEATURES.md).
 

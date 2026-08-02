@@ -3,7 +3,7 @@ LexiconScorer - nudges funny / dramatic / action from curated keyword density.
 
 Zero-dependency scorer that complements the audio-energy, scene-cut, laugh, and
 (optional) LLM signals: it scans a clip's transcript excerpt for genre-neutral
-marker phrases and turns their per-minute density into a 0–1 score per dimension.
+marker phrases and turns their per-minute density into a 0-1 score per dimension.
 A dimension with no markers returns None ("no opinion"), so it never drags that
 dimension's weighted average down.
 
@@ -66,7 +66,7 @@ _MATCH_TERMS: dict[str, list[MatchTerm]] = {
 
 
 def _density_score(hit_count: int, duration_s: float) -> float:
-    """Return a 0–1 score from marker hits per minute, saturating at the cap."""
+    """Return a 0-1 score from marker hits per minute, saturating at the cap."""
     if hit_count == 0 or duration_s <= 0:
         return 0.0
     per_minute = hit_count / duration_s * 60

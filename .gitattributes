@@ -1,5 +1,5 @@
 # Vendored third-party source archives (GPL compliance accompaniment for the
-# bundled FFmpeg build — see docs/dev/THIRD-PARTY-NOTICES-FFMPEG.md). Binary,
+# bundled FFmpeg build - see docs/dev/THIRD-PARTY-NOTICES-FFMPEG.md). Binary,
 # infrequently changed, tracked via Git LFS rather than as a plain git blob.
 docs/dev/third-party-source/*.tar.gz filter=lfs diff=lfs merge=lfs -text
 docs/dev/third-party-source/*.tar.xz filter=lfs diff=lfs merge=lfs -text

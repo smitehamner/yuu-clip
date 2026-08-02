@@ -61,8 +61,8 @@ def probe_video(path: Path) -> VideoInfo:
     Run ffprobe on *path* and return a VideoInfo.
 
     Raises:
-        FileNotFoundError  – if the video file doesn't exist
-        RuntimeError       – if ffprobe fails or ffprobe/ffmpeg are not in PATH
+        FileNotFoundError  - if the video file doesn't exist
+        RuntimeError       - if ffprobe fails or ffprobe/ffmpeg are not in PATH
     """
     if not path.exists():
         raise FileNotFoundError(f"Video not found: {path}")

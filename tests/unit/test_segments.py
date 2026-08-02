@@ -215,10 +215,10 @@ class TestGenerateCandidates:
         from yuu_clip.segments.windower import generate_candidates
         session, v, tx = self._setup_db(tmp_path)
         # Two clusters each > min_clip_ms (15 s), separated by > silence_threshold_ms (3 s)
-        # Cluster A: 0 – 20 000 ms  (4 × 5 s segments)
+        # Cluster A: 0 - 20 000 ms  (4 × 5 s segments)
         for i in range(4):
             self._add_seg(session, tx.id, i * 5_000, (i + 1) * 5_000, f"a{i}")
-        # Cluster B: 30 000 – 50 000 ms
+        # Cluster B: 30 000 - 50 000 ms
         for i in range(4):
             offset = 30_000 + i * 5_000
             self._add_seg(session, tx.id, offset, offset + 5_000, f"b{i}")

@@ -62,7 +62,7 @@ Most lookups only need this table: the authoritative user-facing term, the code 
 | Trim | `start_offset_s`, `end_offset_s` | Creator offsets applied at export |
 | Clip generation | `generate_candidates()` | Transcript → candidate windows - not "segmentation" in UI |
 | Manual clip | `"manual"` tag, `clipcreate.js` | A clip picked by hand from the transcript, instead of clip generation |
-| Score | `score_overall`, `score_funny`, … | 0–1 rating per dimension |
+| Score | `score_overall`, `score_funny`, … | 0-1 rating per dimension |
 | Scoring dimension | `funny`, `dramatic`, `action`, `visual` | The four axes. Funny/Dramatic/Action are transcript-driven (LLM-rated); Visual is model-free (frame-diff + scene cuts), weighted 0.5 in Overall |
 | Hot-word | `hot_words`, `hotword_*` | A phrase that nudges a clip's score when it appears in the transcript |
 | Sensitive Terms | `sensitive_terms`, `SensitiveTerm` | Privacy Terms + Censor Words together - the feature name (Settings section) |
@@ -574,7 +574,7 @@ Whether the creator has reviewed a clip and what they decided.
 The precise time range a clip covers within its recording.
 
 - **Code:** `start_ms`, `end_ms`
-- **Display format:** timestamps like "12:34 – 13:02"
+- **Display format:** timestamps like "12:34 - 13:02"
 - **Notes:** The window is what was analyzed; the exported clip may differ if Trim is applied.
 
 ---
@@ -636,7 +636,7 @@ A longer contextual candidate - a 1-5 minute moment with a story arc, which may 
 
 ### Score
 
-A 0–1 rating of a clip along a scoring dimension, or the weighted average of all four.
+A 0-1 rating of a clip along a scoring dimension, or the weighted average of all four.
 
 - **Code:** `score_overall`, `score_funny`, `score_dramatic`, `score_action`, `score_visual`
 - **UI label:** score bars and numeric badges
@@ -697,7 +697,7 @@ A one-choice tuning preset for the kind of content you make - RP / narrative, Co
 
 ### Laughs
 
-A 0–1 measure of laughter density in a clip, shown as its own score independent of the Funny dimension.
+A 0-1 measure of laughter density in a clip, shown as its own score independent of the Funny dimension.
 
 - **Code:** `score_laugh` (nullable column); produced by `LaughScorer`
 - **UI label:** "Laughs" (score bar, sidebar percentage, sort option)
@@ -843,7 +843,7 @@ The two independent local-model buckets on the `llamacpp` backend (Settings → 
 
 User-facing: **"Analyze frames"** / **"What's on screen"**. Optional, off by default: sample a few frames evenly across a clip, send them to a vision model, and store a short factual "what's on screen" summary (the game/scene, on-screen events, HUD/popups). The summary enriches the clip's descriptions and is added to the text scorer's prompt as a *Visual context* block - it never scores the clip directly. Triggered manually per clip ("Analyze frames" button) or via an "Include frame analysis" checkbox in the batch Re-score flow; never automatic during Analyze.
 
-- **Code:** `analyze/frames.py` (`sample_clip_frames`, `resolve_frame_window`, `sample_and_describe`); `scoring/llm.py` (`describe_frames`, `check_vision_available`, `_visual_block`); `LLMClient.chat_vision` + `VisionNotSupportedError` in `scoring/llm_client.py`; route `POST /api/clips/{id}/analyze-frames` and `?include_frames=1` on rescore-clips; config `vision_enabled` (master switch), `vision_frames_per_clip` (1–10), `llm_vision_model_path` + `llm_mmproj_path` (see [[Text model / Vision model]]). DB: `clip_candidates.vision_summary` / `vision_analyzed_at`.
+- **Code:** `analyze/frames.py` (`sample_clip_frames`, `resolve_frame_window`, `sample_and_describe`); `scoring/llm.py` (`describe_frames`, `check_vision_available`, `_visual_block`); `LLMClient.chat_vision` + `VisionNotSupportedError` in `scoring/llm_client.py`; route `POST /api/clips/{id}/analyze-frames` and `?include_frames=1` on rescore-clips; config `vision_enabled` (master switch), `vision_frames_per_clip` (1-10), `llm_vision_model_path` + `llm_mmproj_path` (see [[Text model / Vision model]]). DB: `clip_candidates.vision_summary` / `vision_analyzed_at`.
 - **Notes:** The instruction is a plain-text user prompt (not JSON) - small local vision models reliably follow "describe this" but return coordinates/empty for a JSON-schema system prompt. Frames come from the fresh 720p proxy when present (parent-keyed timeline, segment offset added).
 
 ---
@@ -873,7 +873,7 @@ Scoring based on the density of curated marker phrases in a clip's transcript - 
 
 - **Code:** `LexiconScorer` (`scoring/lexicon.py`), config `scorer_lexicon_enabled` / `scorer_lexicon_weight`
 - **UI label:** "Lexicon" (Settings → Scoring weights → Signal weights)
-- **Notes:** Genre-neutral, editable word lists per dimension (laughter/absurdity → Funny, confrontation/emotion → Dramatic, urgency/combat/profanity intensity → Action). Marker density is normalised per minute to a 0–1 score; a dimension with no markers contributes nothing (returns no opinion), so it never drags a dimension's average down. Feeds the standard dimensions, so [Content type](#content-type) presets tune it through the dimension weights.
+- **Notes:** Genre-neutral, editable word lists per dimension (laughter/absurdity → Funny, confrontation/emotion → Dramatic, urgency/combat/profanity intensity → Action). Marker density is normalised per minute to a 0-1 score; a dimension with no markers contributes nothing (returns no opinion), so it never drags a dimension's average down. Feeds the standard dimensions, so [Content type](#content-type) presets tune it through the dimension weights.
 
 ---
 
@@ -1046,7 +1046,7 @@ of exporting at original quality - e.g. to fit a platform's upload limits.
 
 The horizontal position of the 9:16 crop used by a vertical (TikTok / Shorts)
 Export preset - a property of the clip, reused across vertical exports. Stored as
-a 0–1 fraction: 0 = left edge flush, 0.5 = center, 1 = right edge flush.
+a 0-1 fraction: 0 = left edge flush, 0.5 = center, 1 = right edge flush.
 
 - **Code:** `ClipCandidate.crop_x` (nullable REAL; NULL = center),
   `ExportPreset.vertical` (bool)
@@ -1090,7 +1090,7 @@ Export mode that re-encodes video to cut at exactly the requested frame.
 - **Code:** `stream_copy=False`, `reencode=True`
 - **Also called in codebase:** "re-encode", "frame-accurate"
 - **Do not call it:** "re-encode" in user-facing text
-- **Notes:** Slower (~10–30s per minute of clip). Required for baked-in captions.
+- **Notes:** Slower (~10-30s per minute of clip). Required for baked-in captions.
 
 ---
 

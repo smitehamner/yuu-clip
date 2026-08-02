@@ -593,7 +593,7 @@ class Config:
     # vision-capable model is configured (see check_vision_available) - it's still
     # opt in per clip ("Analyze frames") or in the batch Re-score flow, never automatic.
     vision_enabled: bool = True
-    vision_frames_per_clip: int = 2  # frames evenly sampled across the clip window (1–10)
+    vision_frames_per_clip: int = 2  # frames evenly sampled across the clip window (1-10)
 
     # Master switch for all generative-AI features (LLM clip scoring, descriptions,
     # summaries, and image analysis). Off = clips are still created and ranked, just

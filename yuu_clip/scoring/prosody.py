@@ -4,7 +4,7 @@ Extends the energy-envelope + FFT approach in laugh._detect_laugh_rhythm to a br
 prosody signal: a monotone, flat delivery scores low; an expressive one - rising and
 falling intensity, shifting pitch - scores high. Unlike the two excitement-nudge
 signals it is a *continuous* delivery-quality measure (like audio energy), so it emits
-a real 0–1 whenever the clip has present, non-silent audio, giving the dramatic
+a real 0-1 whenever the clip has present, non-silent audio, giving the dramatic
 dimension a genuine non-LLM baseline. Feeds dramatic and action; needs the player-voice
 WAV (PyAV + numpy), like laugh 'audio' mode.
 """
@@ -39,7 +39,7 @@ _CENTROID_MIX = 0.4
 
 
 def prosody_dynamics(samples, sample_rate: int, start_ms: int, end_ms: int) -> float | None:
-    """0–1 delivery-dynamics score for the clip window, or None when there's no usable
+    """0-1 delivery-dynamics score for the clip window, or None when there's no usable
     (present, non-silent, ≥ ~1 s) audio."""
     import numpy as np
 
