@@ -83,6 +83,8 @@ def _shot_world_contexts(page: Page) -> None:
     _select_recording_with_clips(page)
     page.click("#btn-world-contexts")
     page.wait_for_selector("#context-modal.visible", timeout=5000)
+    page.click("[data-edit-ctx='mmo-rp']")
+    page.wait_for_selector("#context-editor[style*='flex']", timeout=5000)
     page.wait_for_timeout(800)
 
 
