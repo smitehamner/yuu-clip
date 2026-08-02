@@ -3,9 +3,9 @@
 Plan of record:
 D:\\1\\Hamner\\Code\\000_project_planning\\finalized_plans\\yuu-clip_plans\\plans\\release-smoke-harness\\INDEX.md
 
-This module owns option parsing and the try/finally shell (preflight, run the 11
-steps serially, always switch the server back to its original project). client.py /
-media.py / steps.py / report.py hold the parts that don't need Typer.
+This module owns option parsing and the try/finally shell (preflight, run the
+selected steps serially, always switch the server back to its original project).
+client.py / media.py / steps/ / report.py hold the parts that don't need Typer.
 """
 from __future__ import annotations
 
@@ -22,7 +22,15 @@ from yuu_clip.dev._base import REPO_ROOT, app, console
 from yuu_clip.dev.smoke import media
 from yuu_clip.dev.smoke.client import SmokeClient
 from yuu_clip.dev.smoke.report import STATUS_FAIL, STATUS_PASS, STATUS_SKIP, StepResult, render_console, write_report
-from yuu_clip.dev.smoke.steps import STEP_SPECS, SmokeContext, StepSkip
+from yuu_clip.dev.smoke.steps import (
+    SECTION_ORDER,
+    SECTIONS,
+    STEP_SPECS,
+    SmokeContext,
+    StepSkip,
+    StepSpec,
+    bootstrap_state,
+)
 
 SCRATCH_MARKER = ".yuu-clip-smoke-scratch"
 SCRATCH_PREFIX = "yuu-clip-smoke-"
@@ -98,14 +106,25 @@ def _resolve_media(
     return source
 
 
-def _run_steps(ctx: SmokeContext) -> list[StepResult]:
+def _select_specs(only: Optional[str], from_step: Optional[int]) -> tuple[StepSpec, ...]:
+    if only is not None and only not in SECTIONS:
+        _abort(f"--only {only!r} is not a known section: {', '.join(SECTION_ORDER)}")
+    specs = SECTIONS[only] if only is not None else STEP_SPECS
+    if from_step is not None:
+        specs = tuple(s for s in specs if s.step_no >= from_step)
+    if not specs:
+        _abort("No steps selected - check --only/--from.")
+    return specs
+
+
+def _run_steps(ctx: SmokeContext, specs: tuple[StepSpec, ...]) -> list[StepResult]:
     results: list[StepResult] = []
     failed = False
-    for spec in STEP_SPECS:
+    for spec in specs:
         if failed:
             results.append(StepResult(spec.step_no, spec.name, spec.uc_ids, STATUS_SKIP,
                                        detail="skipped after an earlier step failed"))
-            console.print(render_console([results[-1]])[0])
+            console.print(render_console([results[-1]])[0], markup=False)
             continue
         ctx.state.pop("_last_frames", None)
         started = time.monotonic()
@@ -125,7 +144,7 @@ def _run_steps(ctx: SmokeContext) -> list[StepResult]:
                                  frames=ctx.state.get("_last_frames", []))
             failed = True
         results.append(result)
-        console.print(render_console([result])[0])
+        console.print(render_console([result])[0], markup=False)
     return results
 
 
@@ -148,13 +167,24 @@ def release_smoke(
     report_dir: Optional[Path] = typer.Option(None, "--report-dir"),
     keep: bool = typer.Option(False, "--keep", help="Keep scratch dirs even on success."),
     no_llm: bool = typer.Option(False, "--no-llm", help="Analyze with no_score; downgrade score/description assertions to SKIPPED."),
-    project: Optional[Path] = typer.Option(None, "--project", help="Reuse a specific scratch dir instead of a fresh timestamped one."),
+    online: bool = typer.Option(False, "--online", help="Also run the live URL import row (needs network access)."),
+    project: Optional[Path] = typer.Option(None, "--project", help="Reuse a specific scratch dir instead of a fresh timestamped one. Required by --only/--from past step 1, pointed at a dir a prior run already analyzed."),
+    only: Optional[str] = typer.Option(None, "--only", help=f"Run only one section: {', '.join(SECTION_ORDER)}."),
+    from_step: Optional[int] = typer.Option(None, "--from", help="Resume from this step number (needs --project)."),
     max_source_minutes: int = typer.Option(10, "--max-source-minutes"),
 ) -> None:
-    """Drive a live yuu-dev server through the 11-step release-gate flow over HTTP/SSE.
+    """Drive a live yuu-dev server through the release-gate flow over HTTP/SSE.
 
     Needs a running server (``yuu-dev serve``) - this does not start one.
     """
+    selected_specs = _select_specs(only, from_step)
+    needs_bootstrap = selected_specs[0].step_no != 1
+    if needs_bootstrap and project is None:
+        _abort(
+            "--only/--from skipping step 1 needs --project pointing at a scratch dir "
+            "a prior full run already analyzed (pass --keep on that run to retain it)."
+        )
+
     root = (scratch_root or Path(tempfile.gettempdir())).resolve()
     root.mkdir(parents=True, exist_ok=True)
     cache_dir = root / media.CACHE_DIRNAME
@@ -166,8 +196,9 @@ def release_smoke(
         _validate_explicit_project(scratch_dir)
         # Step 1 asserts `created is True` unconditionally - a validated reuse
         # target is safe to destroy, so clear it rather than special-casing the
-        # assertion for --project.
-        if scratch_dir.exists():
+        # assertion for --project. Skipped when resuming (needs_bootstrap): that
+        # reuse is explicitly about keeping the directory's prior analyzed state.
+        if scratch_dir.exists() and not needs_bootstrap:
             shutil.rmtree(scratch_dir)
 
     client = SmokeClient(base_url)
@@ -181,8 +212,11 @@ def release_smoke(
 
         source = _resolve_media(media_dir, cache_dir, root, max_source_minutes)
         ctx = SmokeContext(client=client, scratch_dir=scratch_dir, restore_dir=restore_dir,
-                            source=source, no_llm=no_llm)
-        results = _run_steps(ctx)
+                            source=source, no_llm=no_llm, online=online)
+        if needs_bootstrap:
+            client.post_json("/api/projects/switch", {"path": str(scratch_dir)})
+            bootstrap_state(ctx)
+        results = _run_steps(ctx, selected_specs)
         success = all(r.status != STATUS_FAIL for r in results)
     finally:
         _restore_original_project(client, original_project)
@@ -195,15 +229,17 @@ def release_smoke(
             "started_at": timestamp, "base_url": base_url,
             "media_mode": "synthetic" if (source and source.is_synthetic) else "real",
             "source": str(source.video_path) if source else "(not resolved)",
+            "only": only or "(all)", "from_step": from_step or 1,
         }
         write_report(report_path, results, meta)
 
         if success and not keep:
-            shutil.rmtree(scratch_dir, ignore_errors=True)
             shutil.rmtree(restore_dir, ignore_errors=True)
+            if project is None:
+                shutil.rmtree(scratch_dir, ignore_errors=True)
 
     console.print("")
     for line in render_console(results):
-        console.print(line)
+        console.print(line, markup=False)
     console.print(f"[dim]Report: {report_path}[/dim]")
     raise typer.Exit(0 if success else 1)

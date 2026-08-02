@@ -17,11 +17,11 @@ from pathlib import Path
 import pytest
 import typer
 
-from yuu_clip.dev.smoke import _validate_explicit_project
+from yuu_clip.dev.smoke import _select_specs, _validate_explicit_project
 from yuu_clip.dev.smoke.client import _read_frames
 from yuu_clip.dev.smoke.media import NoQualifyingMediaError, pick_from_media_dir
 from yuu_clip.dev.smoke.report import STATUS_FAIL, STATUS_PASS, STATUS_SKIP, StepResult, render_console, write_report
-from yuu_clip.dev.smoke.steps import STEP_SPECS
+from yuu_clip.dev.smoke.steps import SECTION_ORDER, SECTIONS, STEP_SPECS, SmokeContext, bootstrap_state
 from yuu_clip.web.jobevents import done_payload, frame, log_payload, progress_payload
 
 REPO = Path(__file__).resolve().parents[2]
@@ -107,6 +107,38 @@ def test_render_console_is_ascii_only_for_a_mixed_run():
     assert rendered.encode("ascii")  # raises UnicodeEncodeError on any non-ASCII glyph
     assert "[ok]" in rendered and "[FAIL]" in rendered and "[skip]" in rendered
     assert "boom: 12.3s < 60s" in rendered
+
+
+def test_render_console_markers_survive_a_real_rich_console_with_markup_disabled():
+    # yuu_clip/dev/smoke/__init__.py's console.print(render_console(...), markup=False)
+    # calls all depend on this: the shared `console` (yuu_clip.console) is a Rich
+    # Console with markup enabled by default, and "[ok]"/"[FAIL]"/"[skip]" look like
+    # (unclosed) Rich markup tags - printed with the default markup=True they get
+    # silently swallowed, dropping the status marker from every line. See the next
+    # test for a direct demonstration of that failure mode.
+    import io
+
+    from rich.console import Console
+
+    results = [StepResult(1, "Switch to scratch project", ("UC-A03",), STATUS_PASS, duration_s=0.1)]
+    line = render_console(results)[0]
+
+    buffer = io.StringIO()
+    Console(file=buffer, width=200).print(line, markup=False)
+    assert "[ok]" in buffer.getvalue()
+
+
+def test_render_console_marker_is_eaten_by_rich_markup_when_not_disabled():
+    import io
+
+    from rich.console import Console
+
+    results = [StepResult(1, "Switch to scratch project", ("UC-A03",), STATUS_PASS, duration_s=0.1)]
+    line = render_console(results)[0]
+
+    buffer = io.StringIO()
+    Console(file=buffer, width=200).print(line)  # markup=True (Rich's default)
+    assert "[ok]" not in buffer.getvalue()
 
 
 def test_write_report_includes_residual_manual_only_rows(tmp_path):
@@ -202,3 +234,101 @@ def test_every_step_uc_id_exists_in_the_use_case_catalog():
 
     missing = referenced - known_ids
     assert not missing, f"release-smoke steps reference UC ids missing from USE_CASES.md: {sorted(missing)}"
+
+
+# --- steps/ package assembly (Stage 2) -------------------------------------------
+
+def test_step_specs_are_numbered_sequentially_from_one():
+    assert [spec.step_no for spec in STEP_SPECS] == list(range(1, len(STEP_SPECS) + 1))
+
+
+def test_step_specs_cover_every_declared_section_in_order():
+    assert [spec.section for spec in STEP_SPECS] == sorted(
+        [spec.section for spec in STEP_SPECS], key=SECTION_ORDER.index
+    )
+    assert set(SECTIONS) == set(SECTION_ORDER)
+    assert sum(len(specs) for specs in SECTIONS.values()) == len(STEP_SPECS)
+
+
+def test_core_section_is_stage_ones_eleven_steps():
+    assert len(SECTIONS["core"]) == 11
+    assert [spec.step_no for spec in SECTIONS["core"]] == list(range(1, 12))
+
+
+# --- --only / --from selection ----------------------------------------------------
+
+def test_select_specs_only_returns_a_single_sections_steps():
+    selected = _select_specs("editing", None)
+    assert selected == SECTIONS["editing"]
+
+
+def test_select_specs_unknown_section_aborts():
+    with pytest.raises(typer.Exit):
+        _select_specs("not-a-real-section", None)
+
+
+def test_select_specs_from_step_filters_to_that_step_and_later():
+    selected = _select_specs(None, STEP_SPECS[-1].step_no)
+    assert selected == (STEP_SPECS[-1],)
+
+
+def test_select_specs_combining_only_and_from_narrows_within_the_section():
+    editing = SECTIONS["editing"]
+    selected = _select_specs("editing", editing[2].step_no)
+    assert selected == editing[2:]
+
+
+# --- bootstrap_state ---------------------------------------------------------------
+
+class _FakeClientForBootstrap:
+    def __init__(self, videos, clips, reels):
+        self._videos = videos
+        self._clips = clips
+        self._reels = reels
+
+    def get_json(self, path):
+        if path == "/api/videos":
+            return self._videos
+        if path.endswith("/clips"):
+            return self._clips
+        if path == "/api/demo/list":
+            return self._reels
+        raise AssertionError(f"unexpected path in bootstrap test: {path}")
+
+
+def _bootstrap_ctx(tmp_path, client, video_filename="synthetic-smoke.mkv"):
+    from yuu_clip.dev.smoke.media import ResolvedSource
+
+    scratch_dir = tmp_path / "scratch"
+    scratch_dir.mkdir()
+    (scratch_dir / video_filename).write_bytes(b"fake")
+    source = ResolvedSource(video_path=tmp_path / video_filename, srt_path=None, is_synthetic=True)
+    return SmokeContext(client=client, scratch_dir=scratch_dir, restore_dir=tmp_path / "restore",
+                         source=source, no_llm=False)
+
+
+def test_bootstrap_state_populates_video_and_clip_ids(tmp_path):
+    client = _FakeClientForBootstrap(
+        videos=[{"id": 7, "filename": "synthetic-smoke.mkv"}],
+        clips=[{"id": 101, "status": "pending", "has_export": False},
+               {"id": 102, "status": "approved", "has_export": True}],
+        reels=[{"filename": "highlights_20260101_000000.mkv"}],
+    )
+    ctx = _bootstrap_ctx(tmp_path, client)
+
+    bootstrap_state(ctx)
+
+    assert ctx.state["video_id"] == 7
+    assert ctx.state["approved_clip_id"] == 102  # prefers the approved clip over clips[0]
+    assert ctx.state["exported_clip_id"] == 102
+    assert ctx.state["reel_filename"] == "highlights_20260101_000000.mkv"
+    assert ctx.state["source_path"] == ctx.scratch_dir / "synthetic-smoke.mkv"
+
+
+def test_bootstrap_state_leaves_state_unset_when_video_not_found(tmp_path):
+    client = _FakeClientForBootstrap(videos=[], clips=[], reels=[])
+    ctx = _bootstrap_ctx(tmp_path, client)
+
+    bootstrap_state(ctx)
+
+    assert "video_id" not in ctx.state

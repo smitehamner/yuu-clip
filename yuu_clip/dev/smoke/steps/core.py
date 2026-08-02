@@ -1,22 +1,14 @@
-"""The 11 core release-smoke steps and their exact assertions (plan Stage 1).
-
-Each step function takes the shared SmokeContext, does its HTTP/SSE work, raises
-AssertionError/SmokeHttpError/TimeoutError on failure (or StepSkip when the step
-is legitimately not applicable, e.g. score assertions under --no-llm), and returns
-``(detail, frames)`` on success. yuu_clip/dev/smoke/__init__.py turns that into a
-timed StepResult and stops at the first failure.
-"""
+"""Section "core" - the 11-step release-gate flow (plan Stage 1)."""
 from __future__ import annotations
 
 import shutil
 import urllib.parse
 import zipfile
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
-from yuu_clip.dev.smoke.client import SmokeClient
-from yuu_clip.dev.smoke.media import MIN_CANDIDATE_DURATION_S, ResolvedSource
+from yuu_clip.dev.smoke.media import MIN_CANDIDATE_DURATION_S
+from yuu_clip.dev.smoke.steps import SmokeContext, StepSkip, StepSpec, assert_outcome_ok, drain_sse, raw_frames
 
 EXPORT_DEADLINE_S = 300.0
 ANALYZE_DEADLINE_S = 1800.0
@@ -26,61 +18,7 @@ BACKUP_DEADLINE_S = 120.0
 FORBIDDEN_BACKUP_PREFIXES = ("exports/", "proxies/", "audio/")
 
 
-class StepSkip(Exception):
-    """A step is legitimately not applicable this run (not a failure)."""
-
-
-@dataclass
-class SmokeContext:
-    client: SmokeClient
-    scratch_dir: Path
-    restore_dir: Path
-    source: ResolvedSource
-    no_llm: bool
-    state: dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass(frozen=True)
-class StepSpec:
-    step_no: int
-    name: str
-    uc_ids: tuple[str, ...]
-    run: Callable[[SmokeContext], tuple[str, list[dict]]]
-
-
-# --- shared plumbing -------------------------------------------------------
-
-def drain_sse(ctx: SmokeContext, path: str, deadline_s: float) -> list[dict]:
-    """Consume an SSE stream, also stashing its raw frames on ctx so a step that
-    fails after draining still leaves useful debugging context - the orchestrator
-    reports on the exception message alone otherwise, dropping exactly the frames
-    a human needs to diagnose e.g. an unexpected outcome."""
-    frames = list(ctx.client.stream_sse(path, deadline_s))
-    ctx.state["_last_frames"] = _raw_frames(frames)
-    return frames
-
-
-def _done_frame(frames: list[dict]) -> Optional[dict]:
-    for frame in reversed(frames):
-        if frame.get("kind") == "done":
-            return frame
-    return None
-
-
-def assert_outcome_ok(frames: list[dict]) -> dict:
-    final = _done_frame(frames)
-    if final is None:
-        raise AssertionError("stream ended with no 'done' frame")
-    if final["outcome"] != "ok":
-        raise AssertionError(f"outcome={final['outcome']!r} error={final.get('error', '')!r}")
-    return final
-
-
-def _raw_frames(frames: list[dict]) -> list[dict]:
-    return [f["_raw"] for f in frames]
-
-
-# --- step 1: switch project -------------------------------------------------
+# --- step: switch project -------------------------------------------------
 
 def step_switch_project(ctx: SmokeContext) -> tuple[str, list[dict]]:
     response = ctx.client.post_json("/api/projects/switch", {"path": str(ctx.scratch_dir)})
@@ -92,7 +30,7 @@ def step_switch_project(ctx: SmokeContext) -> tuple[str, list[dict]]:
     return f"current={response['current']} created=True", []
 
 
-# --- step 2: probe the source recording ------------------------------------
+# --- step: probe the source recording ------------------------------------
 
 def step_probe_source(ctx: SmokeContext) -> tuple[str, list[dict]]:
     dest = ctx.scratch_dir / ctx.source.video_path.name
@@ -108,7 +46,7 @@ def step_probe_source(ctx: SmokeContext) -> tuple[str, list[dict]]:
     return f"{dest.name}: {duration_s:.1f}s, srt_sidecar={probe.get('srt_sidecar')}", []
 
 
-# --- step 3: analyze the recording ------------------------------------------
+# --- step: analyze the recording ------------------------------------------
 
 def step_analyze(ctx: SmokeContext) -> tuple[str, list[dict]]:
     source_path = ctx.state["source_path"]
@@ -127,10 +65,10 @@ def step_analyze(ctx: SmokeContext) -> tuple[str, list[dict]]:
     if not matching:
         raise AssertionError(f"no video row found for {source_path.name} after analyze")
     ctx.state["video_id"] = matching[0]["id"]
-    return f"outcome={final['outcome']} video_id={ctx.state['video_id']}", _raw_frames(frames)
+    return f"outcome={final['outcome']} video_id={ctx.state['video_id']}", raw_frames(frames)
 
 
-# --- step 4: review clip list and detail ------------------------------------
+# --- step: review clip list and detail ------------------------------------
 
 def step_review_clips(ctx: SmokeContext) -> tuple[str, list[dict]]:
     video_id = ctx.state["video_id"]
@@ -150,7 +88,7 @@ def step_review_clips(ctx: SmokeContext) -> tuple[str, list[dict]]:
     return f"{len(clips)} clips; clip {detail['id']} description={detail['description'][:60]!r}", []
 
 
-# --- step 5: approve and reject clips ---------------------------------------
+# --- step: approve and reject clips ---------------------------------------
 
 def step_review_status(ctx: SmokeContext) -> tuple[str, list[dict]]:
     video_id = ctx.state["video_id"]
@@ -170,7 +108,7 @@ def step_review_status(ctx: SmokeContext) -> tuple[str, list[dict]]:
     return f"approved={approve_id} rejected={reject_id}", []
 
 
-# --- step 6: export a clip ---------------------------------------------------
+# --- step: export a clip ---------------------------------------------------
 
 def step_export_clip(ctx: SmokeContext) -> tuple[str, list[dict]]:
     # No progress-frame assertion here: unlike the analyze pipeline (ingest.py) and
@@ -189,10 +127,10 @@ def step_export_clip(ctx: SmokeContext) -> tuple[str, list[dict]]:
         raise AssertionError(f"clip {clip_id} has no export files after export")
 
     ctx.state["exported_clip_id"] = clip_id
-    return f"outcome={final['outcome']} files={files['files']}", _raw_frames(frames)
+    return f"outcome={final['outcome']} files={files['files']}", raw_frames(frames)
 
 
-# --- step 7: build a highlight reel ------------------------------------------
+# --- step: build a highlight reel ------------------------------------------
 
 def step_build_reel(ctx: SmokeContext) -> tuple[str, list[dict]]:
     start = ctx.client.post_json("/api/demo/start", {})
@@ -210,10 +148,10 @@ def step_build_reel(ctx: SmokeContext) -> tuple[str, list[dict]]:
         raise AssertionError(f"reel {reel['filename']} stale={reel['stale']!r}, expected exactly False")
 
     ctx.state["reel_filename"] = reel["filename"]
-    return f"clip_count={start['clip_count']} reel={reel['filename']}", _raw_frames(frames)
+    return f"clip_count={start['clip_count']} reel={reel['filename']}", raw_frames(frames)
 
 
-# --- step 8: reel goes stale on member re-export -----------------------------
+# --- step: reel goes stale on member re-export -----------------------------
 
 def step_reel_staleness(ctx: SmokeContext) -> tuple[str, list[dict]]:
     clip_id = ctx.state["exported_clip_id"]
@@ -227,10 +165,10 @@ def step_reel_staleness(ctx: SmokeContext) -> tuple[str, list[dict]]:
     if reel["stale"] is not True:
         raise AssertionError(f"reel {reel['filename']} stale={reel['stale']!r}, expected exactly True")
 
-    return f"reel={reel['filename']} stale=True", _raw_frames(frames)
+    return f"reel={reel['filename']} stale=True", raw_frames(frames)
 
 
-# --- step 9: back up the project ---------------------------------------------
+# --- step: back up the project ---------------------------------------------
 
 def _assert_backup_membership(archive_path: Path, source_basename: str) -> None:
     with zipfile.ZipFile(archive_path) as zf:
@@ -261,10 +199,10 @@ def step_backup(ctx: SmokeContext) -> tuple[str, list[dict]]:
     _assert_backup_membership(archive_path, ctx.state["source_path"].name)
 
     ctx.state["backup_archive_path"] = archive_path
-    return f"token={token} filename={filename} size={len(body)}", _raw_frames(frames)
+    return f"token={token} filename={filename} size={len(body)}", raw_frames(frames)
 
 
-# --- step 10: restore into a second project -----------------------------------
+# --- step: restore into a second project -----------------------------------
 
 def step_restore(ctx: SmokeContext) -> tuple[str, list[dict]]:
     archive_path = ctx.state["backup_archive_path"]
@@ -293,7 +231,7 @@ def step_restore(ctx: SmokeContext) -> tuple[str, list[dict]]:
     return f"restored {len(restored_clips)} clips into {ctx.restore_dir}", []
 
 
-# --- step 11: source file guard (move-aside + ranged read) --------------------
+# --- step: source file guard (move-aside + ranged read) --------------------
 
 def step_source_file_guard(ctx: SmokeContext) -> tuple[str, list[dict]]:
     video_id = ctx.state["video_id"]
@@ -323,7 +261,7 @@ def step_source_file_guard(ctx: SmokeContext) -> tuple[str, list[dict]]:
     return f"source_exists toggled correctly; ranged GET returned {len(body)} bytes", []
 
 
-STEP_SPECS: tuple[StepSpec, ...] = (
+STEPS: tuple[StepSpec, ...] = (
     StepSpec(1, "Switch to scratch project", ("UC-A03",), step_switch_project),
     StepSpec(2, "Probe source recording", ("UC-B01",), step_probe_source),
     StepSpec(3, "Analyze the recording", ("UC-B01",), step_analyze),
