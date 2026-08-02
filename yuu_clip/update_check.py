@@ -67,8 +67,8 @@ def _fetch_latest_release(repo: str) -> dict:
 def check_for_update(current_version: str, repo: str = _REPO) -> UpdateCheckResult:
     """Fetch the latest GitHub release for *repo* and compare it to *current_version*.
 
-    *repo* 404s unauthenticated while the GitHub repo stays private - that surfaces
-    here as an ordinary error result, not an exception.
+    Any lookup failure - no network, rate limiting, a repo with no published
+    release - surfaces as an ordinary error result, not an exception.
     """
     try:
         data = _fetch_latest_release(repo)

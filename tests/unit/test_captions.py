@@ -223,7 +223,7 @@ class TestCollectClipSubtitles:
 
     def test_clips_segment_to_window_and_makes_relative(self):
         from yuu_clip.subtitles import collect_clip_subtitles
-        # segment spans 4s–8s; clip window is 5s–10s → clipped to 5s–8s → relative 0–3s
+        # segment spans 4s-8s; clip window is 5s-10s → clipped to 5s-8s → relative 0-3s
         seg = self._make_seg(4_000, 8_000, "overlap")
         track = self._make_track("player_voice", True, [seg])
         clip = self._make_clip([track])
@@ -264,8 +264,8 @@ class TestCollectClipSubtitles:
 
     def test_start_offset_shifts_clip_window(self):
         from yuu_clip.subtitles import collect_clip_subtitles
-        # clip: 5s–10s with start_offset=+2s → effective window 7s–10s
-        # segment 6s–9s should be clipped to 7s–9s → relative 0–2s
+        # clip: 5s-10s with start_offset=+2s → effective window 7s-10s
+        # segment 6s-9s should be clipped to 7s-9s → relative 0-2s
         seg = self._make_seg(6_000, 9_000, "speech")
         track = self._make_track("player_voice", True, [seg])
         clip = self._make_clip([track], start_offset=2.0)
@@ -277,8 +277,8 @@ class TestCollectClipSubtitles:
 
     def test_negative_start_offset_expands_clip_window(self):
         from yuu_clip.subtitles import collect_clip_subtitles
-        # clip: 5s–10s with start_offset=-1s → effective window 4s–10s
-        # segment 4s–6s → relative 0–2s
+        # clip: 5s-10s with start_offset=-1s → effective window 4s-10s
+        # segment 4s-6s → relative 0-2s
         seg = self._make_seg(4_000, 6_000, "speech")
         track = self._make_track("player_voice", True, [seg])
         clip = self._make_clip([track], start_offset=-1.0)

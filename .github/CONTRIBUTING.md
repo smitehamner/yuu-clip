@@ -6,7 +6,7 @@ an issue to discuss anything non-trivial before sending a large PR - it saves us
 time if the direction needs a conversation first.
 
 By contributing you agree that your contribution is licensed under the project's
-[Apache License 2.0](LICENSE).
+[Apache License 2.0](../LICENSE).
 
 ## Platform notes (read this first)
 
@@ -160,27 +160,27 @@ Two registries keep the docs and tests honest about what the app does. When your
 change alters user-visible behavior, a default, a recommended model, the scoring
 axes, or a documented number:
 
-- **[docs/dev/llm/DOC-CLAIMS.md](docs/dev/llm/DOC-CLAIMS.md)** - the fact registry.
+- **[docs/dev/llm/DOC-CLAIMS.md](../docs/dev/llm/DOC-CLAIMS.md)** - the fact registry.
   Find the affected fact's row and update the code AND **every surface listed in that
   row** in the same change (README, user guides, UI copy, wizard, ...). Fact guards in
   `tests/unit/test_doc_claims.py` fail when a listed surface drifts.
-- **[docs/dev/USE_CASES.md](docs/dev/USE_CASES.md)** - the end-to-end use-case
+- **[docs/dev/USE_CASES.md](../docs/dev/USE_CASES.md)** - the end-to-end use-case
   catalog. Adding or materially changing a user-facing flow means adding/updating its
   `UC-` entry there and its matching row in
-  [docs/dev/testing/installed-app-checklist.md](docs/dev/testing/installed-app-checklist.md)
+  [docs/dev/testing/installed-app-checklist.md](../docs/dev/testing/installed-app-checklist.md)
   (structure enforced by `tests/unit/test_use_case_catalog.py`).
 
 ## Code standards
 
-Full details live in [CLAUDE.md](CLAUDE.md) (which doubles as the architecture map and
+Full details live in [CLAUDE.md](../CLAUDE.md) (which doubles as the architecture map and
 the assistant-context file). The essentials:
 
 - Comments only when the *why* is genuinely non-obvious. No docstrings on internal
   functions - clear names instead.
 - Functions under ~30 lines, one concern each. No duplication - extract shared logic.
 - Descriptive names; handle error paths explicitly; add no features beyond the task.
-- **Frontend:** never hardcode colors. Every color is a `var(--token)` theme token (see
-  the top of `yuu_clip/web/static/app.css`).
+- **Frontend:** never hardcode colors. Every color is a `var(--token)` theme token
+  defined in `yuu_clip/web/static/shared/tokens.css`.
 - **ASCII only in authored text, console output, and commit messages.** The legacy
   Windows console encodes stdout as cp1252, so non-ASCII glyphs crash it. No em-dashes
   anywhere - use a spaced hyphen ( - ).
@@ -232,12 +232,19 @@ the glossary before introducing it.
 
 ## Pull requests
 
-1. Branch from `main` and keep each PR focused on one change.
+`main` is protected: it is always releasable, every change reaches it through a pull
+request, and CI must be green before merge. This applies to the maintainer too - there
+are no direct pushes to `main`. Branches are short-lived; delete yours after the merge.
+
+1. Branch from `main` and keep each PR focused on one change. Name it for the change
+   (`fix/export-progress-stall`, `docs/contributing-links`) - the prefix is a
+   convention, not enforced.
 2. Make sure `yuu-dev lint` and `yuu-dev test-api` are green; add or update tests
    alongside the change, not after.
 3. Fill out the PR template.
+4. Merge once CI passes. Prefer **squash merge** so `main` keeps one commit per change.
 
-New to the codebase? Read [docs/dev/ARCHITECTURE.md](docs/dev/ARCHITECTURE.md) first -
+New to the codebase? Read [docs/dev/ARCHITECTURE.md](../docs/dev/ARCHITECTURE.md) first -
 it is the human on-ramp: the pipeline flow, the two-process model, the data model, the
 swappable-backend seam, and the top landmines to avoid. The exhaustive file-by-file map
-is [docs/dev/LAYOUT.md](docs/dev/LAYOUT.md).
+is [docs/dev/LAYOUT.md](../docs/dev/LAYOUT.md).

@@ -72,9 +72,10 @@ except the two items below).
 
 ---
 
-## 2 - Pre-distribution blockers
+## 2 - Post-release polish
 
-Wanted before distributing beyond friends/trusted users.
+The repo went public 2026-07-26 and v0.2.0 shipped 2026-08-02, so nothing here blocks
+distribution any more. What is left is opportunistic cleanup.
 
 - [ ] **Opportunistic: extract remaining inline styles in the partials into `app.css`
   classes.** The `index.html` build-time stitch (`static/index.src.html` + `partials/*`
@@ -189,7 +190,7 @@ Wanted before distributing beyond friends/trusted users.
 
 ---
 
-## 5 - Platform reach
+## 4 - Platform reach
 
 - [ ] **AMD / Intel GPU support** - code analysis done; the two GPU paths are in very
   different shape:

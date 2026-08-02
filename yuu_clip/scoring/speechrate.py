@@ -23,7 +23,7 @@ log = logging.getLogger(__name__)
 
 # Words/sec at or below CALM = ordinary conversation → no opinion. At/above FAST =
 # rapid, excited delivery → saturates at 1.0. Between = a linear excitement ramp.
-# Heuristic, editable: relaxed English speech sits ~2 wps, animated bursts hit 4–6.
+# Heuristic, editable: relaxed English speech sits ~2 wps, animated bursts hit 4-6.
 _CALM_WPS = 2.3
 _FAST_WPS = 5.0
 # Ignore sub-burst segments whose per-segment rate is timestamp noise (a single
@@ -32,10 +32,10 @@ _MIN_BURST_S = 0.6
 
 
 def speech_rate_score(word_durations: Iterable[tuple[int, float]]) -> float | None:
-    """Return a 0–1 excitement score from (word_count, duration_s) pairs, or None.
+    """Return a 0-1 excitement score from (word_count, duration_s) pairs, or None.
 
     Blends the clip's mean words-per-sec with its fastest qualifying segment (the
-    "burst"), then ramps CALM→FAST to 0–1. Returns None when there's no usable
+    "burst"), then ramps CALM→FAST to 0-1. Returns None when there's no usable
     speech, or when the blended rate is merely calm (so a slow clip stays silent
     rather than dragging funny/action toward zero).
     """

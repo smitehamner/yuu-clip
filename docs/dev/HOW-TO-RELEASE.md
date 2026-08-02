@@ -133,7 +133,7 @@ Then commit the updated `requirements.lock`.
 > `yuu_clip/db/migrations/` are included in the wheel (they are `package-data`, not a
 > Python package).
 
-Total build time: ~2–5 minutes depending on machine (longer on the first run,
+Total build time: ~2-5 minutes depending on machine (longer on the first run,
 which downloads the ~45 MB Python runtime archive).
 
 ### Bundled Python runtime
@@ -295,19 +295,43 @@ diagnostic is the log file. Tell them up front: "if anything breaks, zip up and 
 `%APPDATA%\yuu-clip\yuu-clip_install.log` (install/setup failures) and
 `%USERPROFILE%\Videos\yuu-clip\.yuu-clip\yuu-clip.log` (app/runtime failures)."
 
-### GitHub release (future)
+### GitHub release
 
-1. Tag the commit: `git tag v0.1.0 && git push origin v0.1.0`
+This is the primary distribution channel. `main` is protected, so the version bump
+reaches it through a PR like any other change - tag the merge commit, not a local one.
+
+1. Land the version bump on `main` via PR, then tag that commit:
+   `git tag v0.2.1 && git push origin v0.2.1`
 2. Create a GitHub Release at `github.com/smitehamner/yuu-clip/releases/new`
-3. Set the tag to `v0.1.0`, title `yuu-clip v0.1.0`
+3. Set the tag to `v0.2.1`, title `YuuClip 0.2.1`
 4. Upload `releases/X.Y.Z/yuu-clip-X.Y.Z-Setup.exe` as a release asset
 5. Write release notes (what changed since last release)
-6. Publish
-7. **Once the repo is public**, verify the in-app update check for real: install an older build,
-   launch it, and confirm Settings -> Updates (and the header banner) reports this release with
-   a working link. This is the one check that can't run against a private repo - GitHub's
-   `releases/latest` API 404s unauthenticated - so it isn't covered by the pytest suite; see
-   `docs/dev/USE_CASES.md` UC-G04.
+6. **Include the GPL source-accompaniment block** (below) - the installer bundles GPL
+   FFmpeg and libx264, so every release that ships the `.exe` must point at the exact
+   matching source from the same page. This is not optional and it is easy to forget.
+7. Publish
+8. Verify the in-app update check for real: install an older build, launch it, and
+   confirm Settings -> Updates (and the header banner) reports this release with a
+   working link. The lookup half can be checked from a dev shell
+   (`check_for_update("<older version>")` in `yuu_clip/update_check.py`); the banner and
+   Settings status line need a real older build. See `docs/dev/USE_CASES.md` UC-G04.
+
+#### Required release-notes block (GPL source accompaniment)
+
+Paste this into every release that attaches the installer, updating the archive links
+only when the FFmpeg/x264 pin changes (see `THIRD-PARTY-NOTICES-FFMPEG.md`):
+
+```markdown
+### Third-party source (GPL)
+
+The installer bundles FFmpeg 8.1.2 and libx264 (commit `0480cb0`), both licensed under
+the GNU GPL v3. The exact matching source is available here:
+
+- [ffmpeg-8.1.2.tar.xz](https://github.com/smitehamner/yuu-clip/releases/download/third-party-source_0.1.0/ffmpeg-8.1.2.tar.xz)
+- [x264-0480cb0.tar.gz](https://github.com/smitehamner/yuu-clip/releases/download/third-party-source_0.1.0/x264-0480cb0.tar.gz)
+
+Full compliance record: [docs/dev/THIRD-PARTY-NOTICES-FFMPEG.md](https://github.com/smitehamner/yuu-clip/blob/main/docs/dev/THIRD-PARTY-NOTICES-FFMPEG.md)
+```
 
 > **Auto-update is notify-only.** The app checks GitHub and links to the new release (Settings ->
 > Updates); users still download and run the installer manually. Actually downloading and

@@ -59,6 +59,11 @@ FFmpeg 8.1.2 source: https://github.com/smitehamner/yuu-clip/releases/download/t
 libx264 (commit 0480cb0) source: https://github.com/smitehamner/yuu-clip/releases/download/third-party-source_0.1.0/x264-0480cb0.tar.gz
 These are in addition to the archives shipped side-by-side with each installer (the primary source-accompaniment per GPLv3 section 6).
 
+When the installer is distributed via GitHub Releases, the source has to be reachable
+from that same page - a mirror release nobody links to is not accompaniment. Every
+release that attaches the `.exe` must therefore carry the source-accompaniment block in
+its notes; the exact text to paste is in `HOW-TO-RELEASE.md`'s "GitHub release" section.
+
 ## Re-pinning
 
 Bumping the bundled FFmpeg version is a **three-file change**: the binary pin in

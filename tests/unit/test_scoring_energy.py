@@ -263,7 +263,7 @@ class TestAudioEnergyScorerHappyPath:
         session.add(track)
         session.flush()
 
-        # Most of the video is loud; seconds 0–9 are quiet
+        # Most of the video is loud; seconds 0-9 are quiet
         for s in range(30):
             db = -60.0 if s < 10 else 0.0
             session.add(AudioEnergy(audio_track_id=track.id, second_offset=s, rms_db=db))

@@ -18,8 +18,8 @@
 | Item | Size |
 |---|---|
 | YuuClip app (Electron + Python venv) | ~600 MB |
-| Whisper model weights (downloaded on first analysis) | 75 MB (tiny) – 3 GB (large-v3) |
-| Local LLM model file (.gguf, if using local LLM) | 2–8 GB typical (depends on model) |
+| Whisper model weights (downloaded on first analysis) | 75 MB (tiny) - 3 GB (large-v3) |
+| Local LLM model file (.gguf, if using local LLM) | 2-8 GB typical (depends on model) |
 
 Whisper weights are cached in the faster-whisper model cache (default: `%USERPROFILE%\.cache\huggingface\hub`). They are shared across projects and only downloaded once per model size.
 
@@ -39,7 +39,7 @@ A 2-hour session with 2 audio tracks produces roughly 460 MB of audio extracts. 
 YuuClip does not auto-delete any files. To reclaim space:
 - **Audio extracts**: delete `.yuu-clip/audio/` - will be regenerated on next analysis
 - **Exports / reels**: delete individual files from `.yuu-clip/exports/` and `.yuu-clip/reels/` via the UI (Delete Export button) or directly from disk
-- **Whisper models**: remove from the model cache to free 75 MB–3 GB per size
+- **Whisper models**: remove from the model cache to free 75 MB-3 GB per size
 
 ## SSD vs. external drive
 

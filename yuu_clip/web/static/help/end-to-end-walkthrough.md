@@ -80,7 +80,7 @@ The fastest way to review is keyboard-only:
    - If unsure: press `→` to move on without deciding. You can come back via the `Unreviewed` filter chip.
 4. Press `→` to advance to the next clip.
 
-Repeat. A typical 1-hour session produces 20–40 clips. At 5–10 seconds per clip on average, a full review pass takes under 5 minutes.
+Repeat. A typical 1-hour session produces 20-40 clips. At 5-10 seconds per clip on average, a full review pass takes under 5 minutes.
 
 **Useful filter trick:** Click the `Unreviewed` chip to see only unreviewed clips. Click `Approved` to review your picks. The filter chips are above the clip list, each showing a live count.
 

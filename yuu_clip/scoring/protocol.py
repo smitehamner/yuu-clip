@@ -1,7 +1,7 @@
 """
 Scorer protocol and ScoreResult dataclass.
 
-A scorer returns a ScoreResult with a 0–1 value for each dimension it measures,
+A scorer returns a ScoreResult with a 0-1 value for each dimension it measures,
 and None for dimensions it has no opinion on. The ScoringEngine combines results
 from multiple scorers using configurable weights, normalising each dimension only
 over the scorers that actually emit a value for it.

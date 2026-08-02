@@ -5,7 +5,7 @@ Pre-computation: compute_energy(track, session) reads the WAV using PyAV (alread
 a project dependency), computes RMS dB per second, and stores rows in audio_energy.
 
 Scoring: queries the energy rows for the clip time window, weights by track
-relevance_weight, and normalises against the track baseline to produce a 0–1
+relevance_weight, and normalises against the track baseline to produce a 0-1
 score_action contribution.
 """
 from __future__ import annotations

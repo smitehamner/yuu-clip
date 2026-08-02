@@ -52,7 +52,7 @@ def _overlap_seconds(turns: list[tuple[str, int, int]]) -> float:
 
 
 def churn_score(turns: list[tuple[str | None, int, int]], window_duration_s: float) -> float | None:
-    """0–1 chaos score from (speaker_key, start_ms, end_ms) turns, or None.
+    """0-1 chaos score from (speaker_key, start_ms, end_ms) turns, or None.
 
     None when fewer than two distinct speakers are attributed (diarization off or a
     solo stretch). Otherwise combines the speaker-switch rate along the time-ordered
