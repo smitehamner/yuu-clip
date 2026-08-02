@@ -94,9 +94,8 @@ def _triple_click(page, selector: str, timeout: int = DEFAULT_TIMEOUT_MS) -> Non
     _click(page, selector, timeout=timeout)
 
 
-def _click_each(page, selectors: list[str], timeout: int = DEFAULT_TIMEOUT_MS) -> None:
-    for selector in selectors:
-        _click(page, selector, timeout=timeout)
+def _click_nth(page, selector: str, index: int, timeout: int = DEFAULT_TIMEOUT_MS) -> None:
+    page.locator(selector).nth(index).click(timeout=timeout)
 
 
 def _run_phases(page) -> None:
@@ -141,11 +140,21 @@ def _run_phases(page) -> None:
     _report("Log toggle mash")
 
     # Phase 5: Settings open, mash section jump links, close without saving.
+    # `.nth(i)` against the class selector directly - `:nth-of-type` counts sibling
+    # <button> elements by tag, not by class, so a plain
+    # `button.settings-jump-link:nth-of-type(n)` only ever matches n=1 (each
+    # jump-link is the sole button in its .settings-note) and hangs forever on
+    # every later index.
     _phase("Settings jump-link mash + discard")
     _safe("open settings", lambda: _click(page, "#btn-settings-header"))
     page.wait_for_timeout(300)
-    jump_links = [f"button.settings-jump-link:nth-of-type({n})" for n in range(1, 6)]
-    _safe("jump links", lambda: _click_each(page, jump_links, timeout=1000))
+    jump_link_count = page.locator("button.settings-jump-link").count()
+
+    def _mash_jump_links() -> None:
+        for i in range(jump_link_count):
+            _click_nth(page, "button.settings-jump-link", i, timeout=1000)
+
+    _safe("jump links", _mash_jump_links)
     _safe("close settings via Escape", lambda: page.keyboard.press("Escape"))
     _report("Settings jump-link mash + discard")
 
@@ -156,6 +165,15 @@ def _run_phases(page) -> None:
         _safe(f"key {key}", lambda key=key: page.keyboard.press(key))
         page.wait_for_timeout(20)
     _report("Keyboard shortcut spam")
+
+    # Phase 6 left a clip selected, which swaps #detail to clip view - the
+    # video-scoped batch-export/video-actions buttons Phases 7 and 9 target only
+    # render in video view, so re-select a video first or those phases are
+    # guaranteed to find nothing.
+    if ids:
+        _safe("re-select a video (phase 6 left clip view up)",
+              lambda: _click(page, f"li[data-video-id='{ids[0]}']", timeout=2000))
+        page.wait_for_timeout(150)
 
     # Phase 7: batch export modal open/confirm-spam without filling fields.
     _phase("Batch export modal double-submit")
@@ -186,6 +204,10 @@ def _run_phases(page) -> None:
     # bare text= selector can resolve to that instead.
     _phase("Job start/cancel/restart race")
     redetect_row = "#actions-modal .action-row:has(.action-row-label:has-text('Re-detect Speakers'))"
+    if ids:
+        _safe("re-select a video (phase 6 left clip view up)",
+              lambda: _click(page, f"li[data-video-id='{ids[0]}']", timeout=2000))
+        page.wait_for_timeout(150)
     _safe("open Additional Actions", lambda: _click(page, "[data-act='open-video-actions']", timeout=2000))
     page.wait_for_timeout(200)
     _safe("click Re-detect Speakers", lambda: _click(page, redetect_row, timeout=2000))
