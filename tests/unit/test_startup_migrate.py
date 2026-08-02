@@ -15,6 +15,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from alembic import command
 from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import sessionmaker
@@ -25,6 +26,7 @@ from yuu_clip.db.migrate import (
     database_revision,
     make_alembic_config,
     run_startup_migrations,
+    script_base,
     script_head,
 )
 from yuu_clip.db.models import Character, Video, make_engine, sqlite_url
@@ -34,15 +36,24 @@ _ENABLED = SimpleNamespace(db_migrate_on_startup=True)
 
 
 def _seed_pre_alembic_db(db_path: Path) -> None:
-    """A DB as an old (pre-migration-framework) app left it: create_all schema, real
-    rows, and NO alembic_version table."""
-    engine = make_engine(db_path)
-    session = sessionmaker(bind=engine)()
-    session.add(Video(path="s.mkv", filename="s.mkv"))
-    session.add(Character(context_slug="ctx", name="Hero"))
-    session.commit()
-    session.close()
-    engine.dispose()
+    """A DB as an old (pre-migration-framework) app left it: only the BASELINE
+    schema (migration 0001), real rows, and NO alembic_version table. Deliberately
+    NOT built via make_engine/create_all - that runs against *current* Base.metadata,
+    which would pull in every table/column added by later migrations (0002+), which
+    a genuinely pre-Alembic DB never received."""
+    cfg = make_alembic_config(db_path)
+    command.upgrade(cfg, script_base(cfg))
+    engine = create_engine(sqlite_url(db_path))
+    try:
+        with engine.begin() as conn:
+            conn.exec_driver_sql("DROP TABLE alembic_version")
+        session = sessionmaker(bind=engine)()
+        session.add(Video(path="s.mkv", filename="s.mkv"))
+        session.add(Character(context_slug="ctx", name="Hero"))
+        session.commit()
+        session.close()
+    finally:
+        engine.dispose()
 
 
 def _column_names(db_path: Path, table: str) -> set[str]:
@@ -112,23 +123,61 @@ def test_new_database_is_built_to_head(tmp_path: Path) -> None:
     assert database_revision(db_path) == script_head(make_alembic_config(db_path))
 
 
-def test_pre_alembic_db_is_adopted_with_rows_intact(tmp_path: Path) -> None:
+def test_pre_alembic_db_is_adopted_and_upgraded_to_head(tmp_path: Path) -> None:
     db_path = tmp_path / ".yuu-clip" / "project.db"
     db_path.parent.mkdir(parents=True)
     _seed_pre_alembic_db(db_path)
     assert database_revision(db_path) is None
+    assert "identity_override" not in _column_names(db_path, "speakers")
 
     run_startup_migrations(db_path, _ENABLED, now=_FIXED_CLOCK)
 
+    # Adoption stamps baseline, then the normal pending-migration path runs every
+    # migration after baseline - so a genuinely pre-Alembic DB actually gets the
+    # DDL (e.g. speakers.identity_override) those migrations add, not just a stamp.
     assert database_revision(db_path) == script_head(make_alembic_config(db_path))
-    # Adoption stamps only - no backup and no rebuild, the existing rows survive.
+    assert "identity_override" in _column_names(db_path, "speakers")
     engine = make_engine(db_path)
     session = sessionmaker(bind=engine)()
     assert session.query(Video).count() == 1
     assert session.query(Character).count() == 1
     session.close()
     engine.dispose()
+    # Real DDL ran to reach head from baseline, so it gets the usual pre-upgrade backup.
+    assert len(list(db_path.parent.glob("*.bak"))) == 1
+
+
+def test_current_schema_db_is_adopted_by_stamping_head_only(tmp_path: Path) -> None:
+    """A DB built via make_engine/create_all (every dev/test fixture) already has
+    every column current migrations add - it just never got stamped. Adoption
+    should recognize that and stamp head directly, with no DDL run and no backup."""
+    db_path = tmp_path / ".yuu-clip" / "project.db"
+    db_path.parent.mkdir(parents=True)
+    engine = make_engine(db_path)
+    session = sessionmaker(bind=engine)()
+    session.add(Video(path="s.mkv", filename="s.mkv"))
+    session.commit()
+    session.close()
+    engine.dispose()
+    assert database_revision(db_path) is None
+
+    run_startup_migrations(db_path, _ENABLED, now=_FIXED_CLOCK)
+
+    assert database_revision(db_path) == script_head(make_alembic_config(db_path))
     assert list(db_path.parent.glob("*.bak")) == []
+
+
+def test_migration_adoption_markers_cover_every_post_baseline_revision() -> None:
+    """Every migration after baseline must register an _ADOPTION_MARKERS check, or
+    a genuinely historical DB whose real schema stops at an earlier revision gets
+    silently stamped past it during adoption - the bug this module's adoption path
+    used to have (see run_startup_migrations)."""
+    cfg = make_alembic_config(Path("unused.db"))
+    revisions_after_base = migrate._revisions_base_to_head(cfg)[1:]
+
+    missing = [rev for rev in revisions_after_base if rev not in migrate._ADOPTION_MARKERS]
+
+    assert missing == []
 
 
 def test_pending_migration_backs_up_then_upgrades(tmp_path: Path, monkeypatch) -> None:

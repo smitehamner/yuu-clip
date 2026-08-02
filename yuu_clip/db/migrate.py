@@ -27,7 +27,7 @@ from alembic.config import Config as AlembicConfig
 from alembic.runtime.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, text
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import Engine, Inspector
 from sqlalchemy.inspection import inspect
 from sqlalchemy.pool import NullPool
 
@@ -62,6 +62,67 @@ def make_alembic_config(db_path: Path) -> AlembicConfig:
 
 def script_head(cfg: AlembicConfig) -> Optional[str]:
     return ScriptDirectory.from_config(cfg).get_current_head()
+
+
+def script_base(cfg: AlembicConfig) -> str:
+    """The revision with no down_revision - the schema create_all() produced at the
+    first public release."""
+    (base,) = ScriptDirectory.from_config(cfg).get_bases()
+    return base
+
+
+def _revisions_base_to_head(cfg: AlembicConfig) -> list[str]:
+    script = ScriptDirectory.from_config(cfg)
+    return [rev.revision for rev in reversed(list(script.walk_revisions()))]
+
+
+def _has_person_characters_table(inspector: Inspector) -> bool:
+    return "person_characters" in inspector.get_table_names()
+
+
+def _has_speaker_identity_override(inspector: Inspector) -> bool:
+    return "identity_override" in {c["name"] for c in inspector.get_columns("speakers")}
+
+
+def _has_dismissed_duplicate_ids(inspector: Inspector) -> bool:
+    return "dismissed_duplicate_ids_json" in {c["name"] for c in inspector.get_columns("clip_candidates")}
+
+
+# Every migration after baseline needs an entry here: a check for schema it adds to
+# a table that already existed at baseline. Without one, a DB whose real on-disk
+# schema stops at an earlier revision looks (to _detect_adopted_revision) like it
+# already has that migration, and gets stamped past it - silently skipping the DDL
+# that would have added it. test_migration_adoption_markers enforces coverage.
+_ADOPTION_MARKERS: dict[str, Callable[[Inspector], bool]] = {
+    "0002_person_characters": _has_person_characters_table,
+    "0003_speaker_identity_override": _has_speaker_identity_override,
+    "0004_dismissed_duplicates": _has_dismissed_duplicate_ids,
+}
+
+
+def _detect_adopted_revision(db_path: Path, cfg: AlembicConfig) -> str:
+    """The revision to stamp a DB found with no alembic_version table.
+
+    "No alembic_version table" covers two different real shapes: a genuinely
+    historical DB from before this framework existed (schema stops at whatever
+    revision it stops at) and a create_all()-built DB (dev/test fixtures) that
+    already matches head. Distinguishing them requires checking actual schema, not
+    just assuming one or the other - see the migration 0003 incident this replaced
+    (a historical DB got stamped straight to head and was missing three migrations'
+    worth of columns).
+    """
+    engine = _engine(db_path)
+    try:
+        inspector = inspect(engine)
+        revision = script_base(cfg)
+        for rev in _revisions_base_to_head(cfg)[1:]:
+            marker = _ADOPTION_MARKERS.get(rev)
+            if marker is None or not marker(inspector):
+                break
+            revision = rev
+        return revision
+    finally:
+        engine.dispose()
 
 
 def _engine(db_path: Path) -> Engine:
@@ -115,14 +176,20 @@ def run_startup_migrations(
     tables = _table_names(db_path)
     if "alembic_version" not in tables:
         if _SENTINEL_TABLE in tables:
-            # A DB created before this framework existed. Under the first-release
-            # assumption (no divergent in-the-wild DBs), its schema already matches
-            # the baseline, so adopt it by stamping head rather than re-running the
-            # baseline DDL over existing tables. See ARCHITECTURE.md "Data model".
-            _log.info("Adopting pre-Alembic database at %s (stamping %s)", db_path, head)
-            _stamp(db_path, head)
+            # A DB found with no alembic_version table. Its actual schema may stop
+            # at baseline (a genuinely historical pre-framework DB) or already match
+            # head (a create_all()-built dev/test fixture) - inspect it to find out
+            # rather than assuming either, then fall through to apply anything after
+            # the detected revision normally. See ARCHITECTURE.md "Data model".
+            adopted = _detect_adopted_revision(db_path, cfg)
+            _log.info("Adopting database at %s (stamping %s)", db_path, adopted)
+            _stamp(db_path, adopted)
         else:
             _upgrade(cfg, head, "empty database")
+            return
+        if database_revision(db_path) == head:
+            return
+        _apply_pending(db_path, cfg, head, clock)
         return
 
     if database_revision(db_path) == head:
