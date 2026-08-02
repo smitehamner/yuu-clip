@@ -427,8 +427,8 @@ A one-glance "what to walk before public" list is in the final section.
   4. Turn off "Check for updates automatically"; relaunch and confirm no background check runs (the manual button still works).
   5. Simulate no internet; confirm the status reads a plain failure message, not a crash.
 - **Expected:** a newer release shows a status line and a dismissible header banner linking to the GitHub release page; nothing is ever downloaded or installed automatically; the toggle gates only the background launch check, never the manual button; a failed check degrades to a plain message.
-- **Automation:** automated / manual-only. The check/compare logic and route are automated; the real end-to-end GitHub lookup can only be verified once the repo is public (unauthenticated `releases/latest` 404s on a private repo).
-- **Coverage:** tests/unit/test_update_check.py, tests/integration/test_updates.py, tests/js/core/updatecheck.test.js. Live-repo verification is a manual HOW-TO-RELEASE.md checklist item post-flip. Automated by tests/integration/test_updates.py::TestUpdatesCheck::test_reports_update_available.
+- **Automation:** automated / manual-only. The check/compare logic and route are automated. The real end-to-end GitHub lookup against the public repo was verified 2026-08-02 (v0.2.0 published: an older version reports the update with the right release URL; the current version reports none). What stays manual is the visual half - the banner and the Settings status line in a running older build.
+- **Coverage:** tests/unit/test_update_check.py, tests/integration/test_updates.py, tests/js/core/updatecheck.test.js. Live-repo verification is a manual HOW-TO-RELEASE.md checklist item. Automated by tests/integration/test_updates.py::TestUpdatesCheck::test_reports_update_available.
 - **Pre-release priority:** P2 - convenience, not core loop; never blocks or auto-changes anything.
 
 ### UC-G05 - Library upgrades cleanly on an app update (schema migration + backup)

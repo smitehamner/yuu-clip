@@ -311,6 +311,20 @@ both when a term changes):
 
 Use these glossary terms in **conversation** too, not just in code. If discussing a concept with the user, use the user-facing term (e.g. say "track layout" not "profile", "world context" not "RP context").
 
+## Branching and commits
+
+The repo is public and `main` is protected: it is always releasable, and every change
+reaches it through a pull request with green CI. There are no direct commits to `main`,
+including the maintainer's - a branch that cannot be pushed to `main` is working as
+intended, not a misconfiguration to route around.
+
+- Start work on a short-lived branch off `main` (`fix/...`, `feat/...`, `docs/...`).
+- Squash-merge the PR so `main` keeps one commit per change; delete the branch after.
+- Tag releases on the merged commit on `main`, never on a local one
+  (`docs/dev/HOW-TO-RELEASE.md`).
+
+Never push, open a PR, or merge unless asked - commit locally and say what is ready.
+
 ## Behavior
 - Never cd into the current working directory before running a command
 - Always use the approved dev CLI (`yuu-dev <cmd>`) - never raw python calls outside the venv
