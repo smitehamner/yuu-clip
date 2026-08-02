@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import re
 import threading
+import time
 
 import typer
 
@@ -96,6 +97,24 @@ def _triple_click(page, selector: str, timeout: int = DEFAULT_TIMEOUT_MS) -> Non
 
 def _click_nth(page, selector: str, index: int, timeout: int = DEFAULT_TIMEOUT_MS) -> None:
     page.locator(selector).nth(index).click(timeout=timeout)
+
+
+def _wait_until_idle(page, timeout_s: float = 15.0) -> None:
+    """Poll /api/status until any_running reads false twice in a row, or raise.
+
+    Two consecutive clear reads, not one: a single any_running poll right at
+    job completion was observed to flicker back to true for one tick before
+    settling, and a naive single-read check would falsely declare the job done.
+    """
+    deadline = time.monotonic() + timeout_s
+    consecutive_clear = 0
+    while time.monotonic() < deadline:
+        any_running = page.evaluate("() => fetch('/api/status').then(r => r.json()).then(s => s.any_running)")
+        consecutive_clear = consecutive_clear + 1 if not any_running else 0
+        if consecutive_clear >= 2:
+            return
+        page.wait_for_timeout(400)
+    raise TimeoutError(f"job still running after {timeout_s}s")
 
 
 def _run_phases(page) -> None:
@@ -179,9 +198,25 @@ def _run_phases(page) -> None:
     _phase("Batch export modal double-submit")
     _safe("open batch export", lambda: _click(page, "[data-act='open-batch-export']", timeout=2000))
     page.wait_for_timeout(300)
+    # openBatchExportModal() pre-checks "retranscribe" (with the largest model)
+    # whenever the video's existing transcript doesn't match the export model - left
+    # checked, the first Export click starts a real, slow subprocess-based
+    # retranscription job that legitimately holds the global job lock for the rest
+    # of the run, so Phase 9's rediarize race always 409s instead of testing anything.
+    _safe("uncheck retranscribe (keep this phase fast)", lambda: page.uncheck("#batch-retranscribe", timeout=1000))
     _safe("triple-click Export", lambda: _triple_click(page, "#batch-confirm-btn", timeout=1000))
     page.wait_for_timeout(500)
     _safe("Escape out", lambda: page.keyboard.press("Escape"))
+    # The first Export click starts a real subprocess-based export job (2 tiny
+    # fixture clips still take several real seconds - subprocess spawn + ffmpeg)
+    # that keeps running after the modal closes. Confirmed via a direct
+    # /api/status probe that the server releases the job lock reliably once the
+    # job genuinely ends - it isn't stuck - so wait it out rather than race
+    # Phase 9 into a 409 against a job it was never going to be able to
+    # interrupt in time. Debounced (two consecutive clear reads) because a
+    # single any_running poll right at completion was observed to flicker back
+    # to true for one tick before settling.
+    _safe("wait for export job to finish", lambda: _wait_until_idle(page))
     _report("Batch export modal double-submit")
 
     # Phase 8: resize viewport mid-modal.
