@@ -193,6 +193,27 @@ Python installed** - this confirms the bundled runtime works standalone:
 - [ ] Desktop shortcut was offered as optional during install
 - [ ] Launch from Start Menu - app window opens, browser loads
 - [ ] First-run venv setup completes without errors
+- [ ] **Run `yuu-dev release-smoke` against the packaged app** - with the app running,
+      open a shell and run:
+      ```powershell
+      & "$env:LOCALAPPDATA\yuu-clip\venv\Scripts\yuu-dev.exe" release-smoke
+      ```
+      `yuu-dev.exe` is a real console-script entry point in the packaged app's bundled
+      venv (confirmed against an installed build - `pyvenv.cfg`'s `home`/`executable`
+      point at `%LOCALAPPDATA%\Programs\yuu-clip\resources\python`, the same venv the
+      running app's backend uses), so this exercises the actual bundled `ffmpeg.exe` /
+      `llama-server.exe` / venv, not a dev checkout. The app binds port 8080 by default;
+      if something else already holds it, the app log (Hamburger menu -> Download Log -
+      the log path is `<project>/.yuu-clip/yuu-clip.log`, project-relative, not fixed
+      under `%LOCALAPPDATA%`) has a "Using port NNNN" / "Port 8080 in use... using
+      NNNN" line (`electron/main.js`) - pass `--base-url http://127.0.0.1:NNNN` if
+      it's not 8080. This is the step that
+      actually exercises the bundled binaries end to end; running it against
+      `yuu-dev serve` instead does not. It needs a network-reachable YouTube for its
+      default recording (falls back to synthetic media with a loud SKIPPED note
+      offline) and a configured local LLM for the score/description assertions (pass
+      `--no-llm` to downgrade those to SKIPPED instead of failing). See
+      `docs/dev/TESTING.md`'s "Release smoke" section for the full option reference.
 - [ ] Fresh install on a machine whose bundled pip is older than the latest on PyPI -
       venv setup must still complete (regression guard for the 0.1.13/0.1.14 blocker where
       `pip install --upgrade pip` couldn't replace itself; now `python -m pip`)

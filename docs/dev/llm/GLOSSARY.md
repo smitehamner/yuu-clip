@@ -1389,6 +1389,30 @@ These terms are used with multiple meanings in the codebase or everyday speech. 
 | **Export** | Save a single clip to a file | Build a highlight reel | Use **"export clip"** for the single-clip action; **"build reel"** for compilations |
 | **Profile** | Track layout (saved audio assignments) | User/app profile (does not exist here) | Always say **"track layout"**; retire bare "profile" from the UI |
 | **Model** | Speech-to-text model (Whisper) | LLM scoring model (LLM) | Qualify as **"speech-to-text model"** / **"LLM model"**; never bare "model" in user-facing text |
+| **Smoke** (dev tooling) | `yuu-dev test-ui --smoke` (UI Playwright backstop) | `yuu-dev release-smoke` (live-server release gate) / `electron/test/smoke.test.js` (Electron boot smoke) | Three distinct meanings - see [Release Smoke](#release-smoke); always use the qualified form |
+
+---
+
+## Dev Tooling Terms
+
+### Release Smoke
+
+The `yuu-dev release-smoke` command: a release-time gate that drives a **live**
+server over HTTP/SSE (a stdlib `urllib` client, real models, real ffmpeg) through
+the actual API surface - project switch, analyze, review, export, editing,
+transcription, aggregate views, config, and housekeeping. It can point at a
+packaged install's bundled binaries, which no other test tier reaches. Distinct
+from every other pytest tier (`docs/dev/TESTING.md` has the full picture): the
+system tier drives the pipeline in-process with Whisper/LLM stubbed; the UI tier
+drives a browser against an isolated fixture server; release smoke is the one that
+walks a real, already-running server end to end.
+
+- **Code:** `yuu_clip/dev/smoke/` (the `release-smoke` Typer command)
+- **Not to be confused with:** `yuu-dev test-ui --smoke` (the ~6-test Playwright UI
+  backstop) or `electron/test/smoke.test.js` (the Electron boot smoke test, opt-in
+  `YUU_SMOKE=1`) - three distinct meanings of "smoke" in this repo's dev tooling.
+  Always use the qualified form (**release smoke**, **UI smoke**, **Electron
+  smoke**) when it isn't already obvious from context.
 
 ---
 

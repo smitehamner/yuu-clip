@@ -250,6 +250,7 @@ yuu-dev test-ui --smoke     # ~6-test backstop only, quickest sanity check
 yuu-dev test-ui             # full suite (all tests/ui/test_ui_*.py) - see cadence above
 yuu-dev test-system         # full-stack system tier (tests/system, -m "not golden"); real pipeline + TestClient, needs ffmpeg
 yuu-dev test-golden         # opt-in real-models path only (tests/system, -m golden); real Whisper + real LLM, env-gated
+yuu-dev release-smoke       # release-time gate against a LIVE server (real HTTP/SSE, real models/ffmpeg); not part of the mandatory post-change gate
 ```
 
 The `system`/`golden` tiers (full-stack use-case tests against a real pipeline),

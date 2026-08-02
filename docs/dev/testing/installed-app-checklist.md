@@ -26,6 +26,14 @@ file blank - it's a template to check against, not a run log.
 **Priority key** (from the catalog): **P0** must pass to ship; **P1** should pass; **P2**
 spot-check. If time is short, the P0 rows are the release gate.
 
+**`**(release-smoke)**`** on a row means `yuu-dev release-smoke` (see
+[TESTING.md](../TESTING.md)) drives that row's API calls end to end against a live
+server. It still needs a human glance for the row's *visual* half (does it look
+right, is the copy readable, does the animation feel responsive) - the marker means
+the backend plumbing is covered, not that the row can be skipped outright. The four
+unmarked P0 rows (UC-A01, UC-A02, UC-G03, UC-G05) are packaged-only surfaces no HTTP
+client can reach at all.
+
 ---
 
 ## How to size a run (read this before walking the whole document)
@@ -147,13 +155,13 @@ eyeballed live (pytest cannot drive the pre-server Electron surface). Watch it h
 
 | UC | Pri | Check | Pass |
 |----|-----|-------|------|
-| [UC-A03](../USE_CASES.md#uc-a03---create-open-and-switch-projects) | P1 | First-run empty state reads correctly; switch project via the top-left switcher reloads without a restart; switch blocked while a job runs; a new folder starts empty. | [ ] |
+| [UC-A03](../USE_CASES.md#uc-a03---create-open-and-switch-projects) **(release-smoke)** | P1 | First-run empty state reads correctly; switch project via the top-left switcher reloads without a restart; switch blocked while a job runs; a new folder starts empty. | [ ] |
 
 ## Section B - Core loop: analyze, review, export
 
 | UC | Pri | Check | Pass |
 |----|-----|-------|------|
-| [UC-B01](../USE_CASES.md#uc-b01---analyze-a-recording) | P0 | Analyze a real recording end to end: inspection + estimate; step pills advance with real progress; sidebar entry appears live and survives a refresh; second analyze blocked; clips listed on completion. Bundled FFmpeg + `llama-server` used - step detail: D1-D3 below. | [ ] |
+| [UC-B01](../USE_CASES.md#uc-b01---analyze-a-recording) **(release-smoke)** | P0 | Analyze a real recording end to end: inspection + estimate; step pills advance with real progress; sidebar entry appears live and survives a refresh; second analyze blocked; clips listed on completion. Bundled FFmpeg + `llama-server` used - step detail: D1-D3 below. | [ ] |
 
 #### UC-B01 detail: Bundled binaries resolve, no system installs (D1-D3)
 
@@ -165,10 +173,10 @@ eyeballed live (pytest cannot drive the pre-server Electron surface). Watch it h
 
 | UC | Pri | Check | Pass |
 |----|-----|-------|------|
-| [UC-B02](../USE_CASES.md#uc-b02---orient-to-the-results) | P2 | Clip cards show five score icons + SCENE badge; sort and All/Clips/Scenes + status chips work; preference remembered. | [ ] |
-| [UC-B03](../USE_CASES.md#uc-b03---review-clips-with-the-keyboard) | P2 | `A`/`R` set status; arrows/`J`/`K` navigate; `Ctrl+Z` undo within 5 s (not after 6 s); `?` opens controls. | [ ] |
-| [UC-B04](../USE_CASES.md#uc-b04---inspect-a-clip-in-detail) | P2 | One-liner, long description, score bars, tags, transcript; unscored shows "Not yet scored"; silent clip shows the no-dialogue note. | [ ] |
-| [UC-B05](../USE_CASES.md#uc-b05---export-a-clip-and-play-it) | P0 | `E` exports a real MKV + SRT to `.yuu-clip/exports/`; player plays it via `yuu-media://` and shows captions; seek/scrub works; out-of-project path refused. Step detail: E1-E4 below. | [ ] |
+| [UC-B02](../USE_CASES.md#uc-b02---orient-to-the-results) **(release-smoke)** | P2 | Clip cards show five score icons + SCENE badge; sort and All/Clips/Scenes + status chips work; preference remembered. | [ ] |
+| [UC-B03](../USE_CASES.md#uc-b03---review-clips-with-the-keyboard) **(release-smoke)** | P2 | `A`/`R` set status; arrows/`J`/`K` navigate; `Ctrl+Z` undo within 5 s (not after 6 s); `?` opens controls. | [ ] |
+| [UC-B04](../USE_CASES.md#uc-b04---inspect-a-clip-in-detail) **(release-smoke)** | P2 | One-liner, long description, score bars, tags, transcript; unscored shows "Not yet scored"; silent clip shows the no-dialogue note. | [ ] |
+| [UC-B05](../USE_CASES.md#uc-b05---export-a-clip-and-play-it) **(release-smoke)** | P0 | `E` exports a real MKV + SRT to `.yuu-clip/exports/`; player plays it via `yuu-media://` and shows captions; seek/scrub works; out-of-project path refused. Step detail: E1-E4 below. | [ ] |
 
 #### UC-B05 detail: Native media protocol (E1-E4)
 
@@ -184,50 +192,50 @@ the Python byte-pump. This path does not exist in browser-dev mode.
 
 | UC | Pri | Check | Pass |
 |----|-----|-------|------|
-| [UC-B06](../USE_CASES.md#uc-b06---bulk-review-and-export) | P1 | Bulk toolbar acts only on checked + visible clips; bulk delete confirms; bulk export warns on stale captions; bulk undo reverts each to its own prior status. | [ ] |
+| [UC-B06](../USE_CASES.md#uc-b06---bulk-review-and-export) **(release-smoke)** | P1 | Bulk toolbar acts only on checked + visible clips; bulk delete confirms; bulk export warns on stale captions; bulk undo reverts each to its own prior status. | [ ] |
 
 ## Section C - Editing a clip
 
 | UC | Pri | Check | Pass |
 |----|-----|-------|------|
-| [UC-C01](../USE_CASES.md#uc-c01---edit-a-clip-description) | P2 | Inline-edit the one-liner/long description; saves and persists across reload; user edit kept separate from a later LLM regen. | [ ] |
-| [UC-C02](../USE_CASES.md#uc-c02---trim-a-clip-then-export) | P1 | Edit & export: trim changes output duration; `trim_edited_at` set; stale badge flips; exported file matches the trimmed range. | [ ] |
-| [UC-C03](../USE_CASES.md#uc-c03---edit-captions-then-re-export) | P1 | Caption edit rebuilds overlapping-clip excerpts + shows the re-score notice; re-export refreshes the SRT with the corrected text. | [ ] |
-| [UC-C04](../USE_CASES.md#uc-c04---split-a-recording-then-export-from-a-segment) | P1 | Split only redistributes clips/transcript by start time; destructive choices confirm first; segment-relative timing survives export; Undo Split restores the parent with absolute timing. | [ ] |
-| [UC-C05](../USE_CASES.md#uc-c05---merge-duplicate-or-adjacent-clips-then-export) | P1 | Check duplicates flags overlaps; merge clears the flag + resets export metadata; merged range exports as one file. | [ ] |
-| [UC-C06](../USE_CASES.md#uc-c06---create-a-clip-or-scene-by-hand) | P2 | Manual picker creates a clip/scene from transcript lines or time inputs; it is scored immediately; a longer range saves as a Scene. | [ ] |
+| [UC-C01](../USE_CASES.md#uc-c01---edit-a-clip-description) **(release-smoke)** | P2 | Inline-edit the one-liner/long description; saves and persists across reload; user edit kept separate from a later LLM regen. | [ ] |
+| [UC-C02](../USE_CASES.md#uc-c02---trim-a-clip-then-export) **(release-smoke)** | P1 | Edit & export: trim changes output duration; `trim_edited_at` set; stale badge flips; exported file matches the trimmed range. | [ ] |
+| [UC-C03](../USE_CASES.md#uc-c03---edit-captions-then-re-export) **(release-smoke)** | P1 | Caption edit rebuilds overlapping-clip excerpts + shows the re-score notice; re-export refreshes the SRT with the corrected text. | [ ] |
+| [UC-C04](../USE_CASES.md#uc-c04---split-a-recording-then-export-from-a-segment) **(release-smoke)** | P1 | Split only redistributes clips/transcript by start time; destructive choices confirm first; segment-relative timing survives export; Undo Split restores the parent with absolute timing. | [ ] |
+| [UC-C05](../USE_CASES.md#uc-c05---merge-duplicate-or-adjacent-clips-then-export) **(release-smoke)** | P1 | Check duplicates flags overlaps; merge clears the flag + resets export metadata; merged range exports as one file. | [ ] |
+| [UC-C06](../USE_CASES.md#uc-c06---create-a-clip-or-scene-by-hand) **(release-smoke)** | P2 | Manual picker creates a clip/scene from transcript lines or time inputs; it is scored immediately; a longer range saves as a Scene. | [ ] |
 
 ## Section D - Transcription and speakers
 
 | UC | Pri | Check | Pass |
 |----|-----|-------|------|
-| [UC-D01](../USE_CASES.md#uc-d01---retranscribe-captions-refresh) | P2 | Retranscribe (clip/recording) with a chosen model refreshes the excerpt + SRT; recording-level flags clips for re-score; speaker labels reused. | [ ] |
-| [UC-D02](../USE_CASES.md#uc-d02---diarize-name-speakers-export-with-captions) | P1 | Name speakers + colors; rename a speaker inline by clicking its name label in the transcript; Suggest names accept/dismiss; Fix names applies only on Apply (marks overlaps for re-score); borderline voice match stays unnamed until confirmed; Promote to Person flows a rename to every recording; export carries names into captions. | [ ] |
+| [UC-D01](../USE_CASES.md#uc-d01---retranscribe-captions-refresh) **(release-smoke)** | P2 | Retranscribe (clip/recording) with a chosen model refreshes the excerpt + SRT; recording-level flags clips for re-score; speaker labels reused. | [ ] |
+| [UC-D02](../USE_CASES.md#uc-d02---diarize-name-speakers-export-with-captions) **(release-smoke)** | P1 | Name speakers + colors; rename a speaker inline by clicking its name label in the transcript; Suggest names accept/dismiss; Fix names applies only on Apply (marks overlaps for re-score); borderline voice match stays unnamed until confirmed; Promote to Person flows a rename to every recording; export carries names into captions. | [ ] |
 
 ## Section E - Aggregate views
 
 | UC | Pri | Check | Pass |
 |----|-----|-------|------|
-| [UC-E01](../USE_CASES.md#uc-e01---generate-a-video-summary) | P2 | Generate Summary streams a title + paragraph; inline edit saves and survives reload. | [ ] |
-| [UC-E02](../USE_CASES.md#uc-e02---session-timeline-and-multi-recording-sessions) | P2 | Timeline markers map to clips; group 2+ recordings into a Session; Session Summary + Unified Timeline with break labels; ungroup detaches without deleting. | [ ] |
-| [UC-E03](../USE_CASES.md#uc-e03---build-a-highlight-reel-and-reel-staleness) | P1 | Build a reel end to end (source/transition/captions/order); unexported clips offered for export first; reel lands in `.yuu-clip/reels/`; re-exporting a member flips the stale flag. | [ ] |
+| [UC-E01](../USE_CASES.md#uc-e01---generate-a-video-summary) **(release-smoke)** | P2 | Generate Summary streams a title + paragraph; inline edit saves and survives reload. | [ ] |
+| [UC-E02](../USE_CASES.md#uc-e02---session-timeline-and-multi-recording-sessions) **(release-smoke)** | P2 | Timeline markers map to clips; group 2+ recordings into a Session; Session Summary + Unified Timeline with break labels; ungroup detaches without deleting. | [ ] |
+| [UC-E03](../USE_CASES.md#uc-e03---build-a-highlight-reel-and-reel-staleness) **(release-smoke)** | P1 | Build a reel end to end (source/transition/captions/order); unexported clips offered for export first; reel lands in `.yuu-clip/reels/`; re-exporting a member flips the stale flag. | [ ] |
 
 ## Section F - Context, configuration, and vision
 
 | UC | Pri | Check | Pass |
 |----|-----|-------|------|
-| [UC-F01](../USE_CASES.md#uc-f01---world-contexts-create-assign-re-score-and-characters) | P1 | Create a context (+ optional Character); assign it; staleness warning shows; re-score (LLM only vs Full) injects it; a linked person's boost applies only where they speak AND the recording is tagged with that character's context (a different context's alias for the same person does not leak in). | [ ] |
-| [UC-F02](../USE_CASES.md#uc-f02---track-layouts-create-edit-delete) | P2 | Create/edit/delete a track layout (delete confirms); a new layout is selectable in the analyze dropdown. | [ ] |
-| [UC-F03](../USE_CASES.md#uc-f03---scoring-configuration-content-presets-weights-hot-words-sensitive-terms) | P2 | Apply a content preset (confirm dialog spells out the change); Exact hot-word auto-applies + Meaning via Scan; sensitive term rescans instantly and only warns (Flagged chip). | [ ] |
-| [UC-F04](../USE_CASES.md#uc-f04---vertical--shorts-export-with-auto-framing) | P1 | 9:16 preset exports 1080x1920; framing choice saved on the clip; narrower sources letterboxed; Auto-frame suggests a crop you confirm. | [ ] |
-| [UC-F05](../USE_CASES.md#uc-f05---vision-whats-on-screen-image-analysis) | P2 | Analyze frames (1-10) lands the "What's on screen" card on the right clip after navigating away; never auto-runs during analysis. | [ ] |
+| [UC-F01](../USE_CASES.md#uc-f01---world-contexts-create-assign-re-score-and-characters) **(release-smoke)** | P1 | Create a context (+ optional Character); assign it; staleness warning shows; re-score (LLM only vs Full) injects it; a linked person's boost applies only where they speak AND the recording is tagged with that character's context (a different context's alias for the same person does not leak in). | [ ] |
+| [UC-F02](../USE_CASES.md#uc-f02---track-layouts-create-edit-delete) **(release-smoke)** | P2 | Create/edit/delete a track layout (delete confirms); a new layout is selectable in the analyze dropdown. | [ ] |
+| [UC-F03](../USE_CASES.md#uc-f03---scoring-configuration-content-presets-weights-hot-words-sensitive-terms) **(release-smoke)** | P2 | Apply a content preset (confirm dialog spells out the change); Exact hot-word auto-applies + Meaning via Scan; sensitive term rescans instantly and only warns (Flagged chip). | [ ] |
+| [UC-F04](../USE_CASES.md#uc-f04---vertical--shorts-export-with-auto-framing) **(release-smoke)** | P1 | 9:16 preset exports 1080x1920; framing choice saved on the clip; narrower sources letterboxed; Auto-frame suggests a crop you confirm. | [ ] |
+| [UC-F05](../USE_CASES.md#uc-f05---vision-whats-on-screen-image-analysis) **(release-smoke)** | P2 | Analyze frames (1-10) lands the "What's on screen" card on the right clip after navigating away; never auto-runs during analysis. | [ ] |
 
 ## Section G - Housekeeping and desktop lifecycle
 
 | UC | Pri | Check | Pass |
 |----|-----|-------|------|
-| [UC-G01](../USE_CASES.md#uc-g01---back-up-and-restore-a-project) | P1 | Back up downloads a small `.zip` (no source videos/exports/proxies); restore into a folder rebuilds the project; moved-source relink lets clips play; blank folders stay marked missing. | [ ] |
-| [UC-G02](../USE_CASES.md#uc-g02---confirmations-log-download-status-notification-sounds) | P2 | Delete/cancel use the in-app modal; Download Log is non-empty + username-redacted; opted-in notification sound fires on completion. | [ ] |
+| [UC-G01](../USE_CASES.md#uc-g01---back-up-and-restore-a-project) **(release-smoke)** | P1 | Back up downloads a small `.zip` (no source videos/exports/proxies); restore into a folder rebuilds the project; moved-source relink lets clips play; blank folders stay marked missing. | [ ] |
+| [UC-G02](../USE_CASES.md#uc-g02---confirmations-log-download-status-notification-sounds) **(release-smoke)** | P2 | Delete/cancel use the in-app modal; Download Log is non-empty + username-redacted; opted-in notification sound fires on completion. | [ ] |
 | [UC-G03](../USE_CASES.md#uc-g03---desktop-shell-lifecycle-packaged) | P0 | Re-run Setup Wizard preserves config; Reveal-in-folder opens Explorer; quit leaves NO orphan `python.exe` / `llama-server.exe` / `ffmpeg.exe` (Task Manager); clean relaunch skips the wizard; schema-advancing update opens the wizard in `update` mode. Step detail: H1-H6 and I1-I2 below. | [ ] |
 
 #### UC-G03 detail: Desktop-shell lifecycle (H1-H6)
@@ -250,9 +258,9 @@ the Python byte-pump. This path does not exist in browser-dev mode.
 
 | UC | Pri | Check | Pass |
 |----|-----|-------|------|
-| [UC-G04](../USE_CASES.md#uc-g04---check-for-available-updates) | P2 | Update banner/status show a newer release with a working link; nothing downloads/installs automatically; turning the toggle off stops the launch check but not the manual button; offline shows a plain failure message. | [ ] |
+| [UC-G04](../USE_CASES.md#uc-g04---check-for-available-updates) **(release-smoke)** | P2 | Update banner/status show a newer release with a working link; nothing downloads/installs automatically; turning the toggle off stops the launch check but not the manual button; offline shows a plain failure message. | [ ] |
 | [UC-G05](../USE_CASES.md#uc-g05---library-upgrades-cleanly-on-an-app-update-schema-migration--backup) | P0 | Open a project made by the prior release after updating; library opens with all data intact; a `project.db.pre-migration-<timestamp>.bak` appears in `.yuu-clip/`; a broken upgrade refuses to serve with a clear message and keeps the backup (forward-only, no downgrade). | [ ] |
-| [UC-G06](../USE_CASES.md#uc-g06---loopback-only-by-default-warned-before-exposing-to-the-network) | P1 | Default bind is `127.0.0.1` and works; `yuu-dev serve --host 0.0.0.0` prints a loud "NO password" network-exposure warning; the app rejects cross-site / non-loopback-Host browser requests (403) while the desktop shell and CLI keep working. | [ ] |
+| [UC-G06](../USE_CASES.md#uc-g06---loopback-only-by-default-warned-before-exposing-to-the-network) **(release-smoke)** | P1 | Default bind is `127.0.0.1` and works; `yuu-dev serve --host 0.0.0.0` prints a loud "NO password" network-exposure warning; the app rejects cross-site / non-loopback-Host browser requests (403) while the desktop shell and CLI keep working. | [ ] |
 
 ## Packaged mechanics with no single use case
 

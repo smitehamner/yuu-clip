@@ -38,6 +38,40 @@ prints a loud banner with the skip reason; do not read a skip as a pass. It asse
 structure only (a clip exists, transcript non-empty, a description is present, an
 export file lands), never exact model output.
 
+## Release smoke (`yuu-dev release-smoke`) - live server, real HTTP/SSE
+
+A sixth, distinct tier: it drives a **live** server over the wire (real HTTP/SSE
+calls via a stdlib `urllib` client, not the in-process `TestClient`) with **real
+models and real ffmpeg** - the whole point is that it can point at a **packaged
+install's** bundled `ffmpeg.exe` / `llama-server.exe` / bundled venv, which the
+system tier's stubs and the fixture server's isolated config never exercise. It
+does not replace any tier above: the system tier stays the fast, deterministic,
+stubbed-model gate; release smoke is the slow, real-model, real-server release
+gate that walks the actual HTTP API surface end to end.
+
+- Run it against an already-running server: `yuu-dev serve` (dev) or a packaged
+  install (see `HOW-TO-RELEASE.md`'s "Test the build" step for the exact packaged
+  invocation). It does not start a server itself.
+- Media: a cached/downloaded real recording by default (see
+  `testing/test-video-matrix.md`'s "Default release-gate recording"), a synthetic
+  `testsrc`+`sine` fixture with a matching `.srt` sidecar as the offline fallback
+  (loud SKIPPED note when it falls back), or `--media-dir <folder>` to point at any
+  local footage.
+- `--only <section>` runs one section (`core`, `editing`, `transcription`,
+  `aggregate`, `config`, `housekeeping`); `--from <step>` resumes from a step
+  number. Both need `--project <scratch dir>` when skipping the (slow) analyze
+  step, pointed at a directory a prior `--keep`'d run already analyzed - a
+  `bootstrap_state` pass re-derives the video/clip ids from the live server
+  instead of replaying steps 1-3.
+- What it does **not** cover: no browser (no UI/visual assertions), no installer,
+  and none of the packaged-only surfaces a live HTTP client can't reach (the setup
+  wizard, the native `yuu-media://` protocol, desktop lifecycle / orphan-process
+  checks, notification sounds) - those stay a human walk, tracked in
+  `testing/installed-app-checklist.md`.
+- Every run writes a full report (every SSE frame captured, PASS/FAIL/SKIP per
+  step, ending with the residual manual-only rows) to `.test-logs/` in a dev
+  checkout, or the scratch root in a packaged install (`--report-dir` overrides).
+
 ## Electron wrapper tests (only when touching `electron/`)
 
 The desktop wrapper has its own Node test suite, separate from the pytest suites
