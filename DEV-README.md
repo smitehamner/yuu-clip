@@ -20,7 +20,7 @@ brew install ffmpeg               # macOS
 sudo apt install ffmpeg           # Ubuntu/Debian
 ```
 
-### Python 3.11+
+### Python 3.11 - 3.13
 ```
 winget install Python.Python.3.12   # Windows
 ```

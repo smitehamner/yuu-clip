@@ -98,8 +98,12 @@ error, fix the code (or add the missing annotation) - do not just re-freeze the
 baseline (`yuu-dev typecheck --sync` is only for genuinely accepted pre-existing gaps,
 and the regenerated `mypy-baseline.txt` is committed).
 
-The `scripts/*.ps1` files are thin **Windows-only aliases** to these commands, kept for
-muscle memory. On macOS/Linux, call `yuu-dev` directly.
+The old per-command `.ps1` alias shims (serve/logs/test-api/test-ui/lint/wait-server/
+check-analyze) were removed once every command lived in `yuu-dev` directly - call
+`yuu-dev` on any OS. Two `.ps1` files remain in `scripts/`, each a thin wrapper over a
+single slower tier not in the table above: `test-system.ps1` (`yuu-dev test-system`) and
+`test-golden.ps1` (`yuu-dev test-golden`), kept for muscle memory and as the plans'
+named deliverables.
 
 ## Running the app
 

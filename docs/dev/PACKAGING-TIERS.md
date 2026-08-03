@@ -34,7 +34,7 @@ surprisingly slow.
 Any model the app defaults to must carry a licence that permits monetizing its output
 (Apache-2.0 / MIT / BSD-3-Clause). Llama / Gemma / bespoke-restrictive licences are out
 of defaults. See
-`yuu_clip/model_catalog.py` and `tests/test_model_catalog.py`.
+`yuu_clip/model_catalog.py` and `tests/unit/test_model_catalog.py`.
 
 ## Licence verdicts - models promoted to default by the packaging overhaul
 
