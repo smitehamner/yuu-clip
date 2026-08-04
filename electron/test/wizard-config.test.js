@@ -68,6 +68,34 @@ test('local opt-in with generative AI disabled does not queue a download', () =>
   assert.equal(pyCfg.pending_local_model, '');
 });
 
+// ── llm_enabled (2.16: lightweight mode must not look like a broken setup) ────
+// config.py defaults llm_enabled to True; the Setup Warnings chip
+// (gpustatus.js gpuMismatchReasons) reads "enabled but no model ready" as a
+// mismatch. Lightweight mode has no model on purpose, so it must set
+// llm_enabled: false explicitly rather than leaving that default in place.
+
+test('local opt-in enables llm_enabled', () => {
+  const pyCfg = buildProjectConfigFromWizard(localOptInCfg);
+  assert.equal(pyCfg.llm_enabled, true);
+});
+
+test('lightweight choice disables llm_enabled', () => {
+  const pyCfg = buildProjectConfigFromWizard({ ...localOptInCfg, localModelChoice: 'lightweight' });
+  assert.equal(pyCfg.llm_enabled, false);
+});
+
+test('generative AI disabled (ai_privacy_mode none) disables llm_enabled even if local was chosen', () => {
+  const pyCfg = buildProjectConfigFromWizard({ ...localOptInCfg, aiPrivacyMode: 'none' });
+  assert.equal(pyCfg.llm_enabled, false);
+});
+
+test('an in-hand model file enables llm_enabled even if lightweight is chosen', () => {
+  const pyCfg = buildProjectConfigFromWizard({
+    ...localOptInCfg, localModelChoice: 'lightweight', llmModelPath: 'C:\\models\\model.gguf',
+  });
+  assert.equal(pyCfg.llm_enabled, true);
+});
+
 // ── model prefetch checkbox (first-run-friction Stage 6, default-ON) ──────────
 // One checkbox covers the speech + speaker models via a single config flag.
 

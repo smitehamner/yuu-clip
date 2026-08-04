@@ -1,4 +1,4 @@
-import { escHtml, formatApiError, plural, stripQuotedPath } from '../core/format.js';
+import { escHtml, formatApiError, actionFailedMsg, plural, stripQuotedPath } from '../core/format.js';
 import { showToast } from '../core/utils.js';
 import { showConfirm } from '../core/ui.js';
 import {
@@ -63,8 +63,8 @@ async function _downloadFinishedBackup(token, filename) {
     const blob = await res.blob();
     _downloadBlob(blob, filename || _filenameFromResponse(res) || 'yuu-clip-backup.zip');
     showToast('Backup saved', 'success');
-  } catch {
-    showToast('Backup failed', 'error');
+  } catch (e) {
+    showToast(actionFailedMsg('Backup', e), 'error');
   }
 }
 
@@ -208,8 +208,8 @@ async function _applyRestore(overwrite) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ archive_path: _restoreState.stagingPath, target_dir: target, mapping, overwrite }),
     });
-  } catch {
-    showToast('Restore failed', 'error');
+  } catch (e) {
+    showToast(actionFailedMsg('Restore', e), 'error');
     _resetRestoreConfirm();
     return;
   }

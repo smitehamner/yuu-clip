@@ -15,9 +15,8 @@ let _gettingStartedOpener = null;
 export function openGettingStartedModal() {
   _gettingStartedOpener = document.activeElement;
   document.getElementById('getting-started-modal').classList.add('visible');
-  // Reset the scroll and focus the header X (not the bottom Close button): focusing a
-  // control at the end of this tall modal scrolled it into view, so it opened at the
-  // bottom instead of the top.
+  // Reset the scroll and focus the header X: focusing a control further down this
+  // tall modal scrolled it into view, so it opened at the bottom instead of the top.
   const panel = document.getElementById('getting-started-modal-panel');
   if (panel) panel.scrollTop = 0;
   setTimeout(() => document.getElementById('getting-started-x-btn')?.focus(), 50);

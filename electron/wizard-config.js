@@ -49,6 +49,15 @@ function buildProjectConfigFromWizard(cfg) {
   if (wantsLocal && !hasModelFile && cfg.recommendedModelId) {
     pyCfg.pending_local_model = cfg.recommendedModelId;
   }
+  // Written explicitly both ways (not just on lightweight) so re-running the
+  // wizard and switching back to local AI clears a stale `false` - see the
+  // diarization_backend note above on why an omitted key would not. Without
+  // this, "Lightweight mode" left config.py's `llm_enabled: bool = True`
+  // default in place with no model configured, and the Setup Warnings chip
+  // (gpustatus.js gpuMismatchReasons) read that as "enabled but broken" and
+  // lit up on every launch, even though lightweight mode was working exactly
+  // as chosen.
+  pyCfg.llm_enabled = wantsLocal || hasModelFile;
   return pyCfg;
 }
 

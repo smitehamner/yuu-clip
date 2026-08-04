@@ -573,6 +573,35 @@ function wireVenvMinimize(win) {
   win.on('closed', () => ipcMain.removeAllListeners('venv:minimize'));
 }
 
+// The first-run setup window (showVenvSetupWindow) has no native chrome, so its
+// close button is a custom one wired here. Both extraction and pip-install steps
+// write into a temp/incomplete location and only mark themselves done on success
+// (extractPrebuiltEnv's .incoming staging dir; runPipVenvSetup's WHEEL_MARKER) -
+// quitting mid-step just re-runs that step next launch, so it's safe to allow
+// once the user confirms they want to stop waiting.
+let activeVenvSetupProc = null;
+
+function wireVenvClose(win) {
+  ipcMain.removeAllListeners('venv:close');
+  ipcMain.on('venv:close', () => {
+    if (win.isDestroyed()) return;
+    const { response } = dialog.showMessageBoxSync(win, {
+      type: 'warning',
+      buttons: ['Keep waiting', 'Quit anyway'],
+      defaultId: 0,
+      cancelId: 0,
+      message: "Setup isn't finished yet.",
+      detail: 'Quit anyway? YuuClip will pick up where it left off the next time you start it.',
+    });
+    if (response !== 1) return;
+    logSetup('First-run setup window closed by user before finishing');
+    if (activeVenvSetupProc) { try { activeVenvSetupProc.kill(); } catch (_) {} }
+    isQuitting = true;
+    app.exit(0);
+  });
+  win.on('closed', () => ipcMain.removeAllListeners('venv:close'));
+}
+
 // A standalone loading window for launch paths with no wizard to repurpose, so
 // the taskbar isn't empty during the (multi-second) backend boot. Tracked as
 // wizardWin so the same startup teardown closes it once the main window opens.
@@ -753,13 +782,16 @@ function showVenvSetupWindow(stepLabel, note) {
     },
   });
   wireVenvMinimize(win);
+  wireVenvClose(win);
   const html = `<!DOCTYPE html><html lang="en"><head><style>
     @keyframes spin{to{transform:rotate(360deg)}}
     @keyframes indeterminate-slide{0%{left:-30%}100%{left:100%}}
     body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:#12121e;color:#d8d8e8;text-align:center}
     .titlebar{position:fixed;top:0;left:0;right:0;height:28px;-webkit-app-region:drag}
-    .min-btn{position:fixed;top:0;right:0;width:32px;height:28px;-webkit-app-region:no-drag;display:flex;align-items:center;justify-content:center;color:#87879f;font-size:14px;cursor:pointer;user-select:none}
+    .min-btn{position:fixed;top:0;right:32px;width:32px;height:28px;-webkit-app-region:no-drag;display:flex;align-items:center;justify-content:center;color:#87879f;font-size:14px;cursor:pointer;user-select:none}
     .min-btn:hover{color:#e8e8f8;background:#1e1e30}
+    .close-btn{position:fixed;top:0;right:0;width:32px;height:28px;-webkit-app-region:no-drag;display:flex;align-items:center;justify-content:center;color:#87879f;font-size:14px;cursor:pointer;user-select:none}
+    .close-btn:hover{color:#fff;background:#c0392b}
     h3{margin:0 0 12px;font-size:14px;color:#e8e8f8}
     .spin{display:inline-block;width:28px;height:28px;border:3px solid #1e1e30;border-top-color:#5b8ef0;border-radius:50%;animation:spin 0.65s linear infinite;margin:0 auto 14px}
     .steps{list-style:none;margin:0;padding:0;text-align:left;display:inline-block}
@@ -779,6 +811,7 @@ function showVenvSetupWindow(stepLabel, note) {
   </style></head><body>
     <div class="titlebar"></div>
     <div class="min-btn" id="minBtn" title="Minimize">-</div>
+    <div class="close-btn" id="closeBtn" title="Close">&times;</div>
     <div>
     <div class="spin"></div>
     <h3>Setting up YuuClip</h3>
@@ -793,6 +826,8 @@ function showVenvSetupWindow(stepLabel, note) {
   </div><script>
     var minBtn=document.getElementById('minBtn');
     if(minBtn) minBtn.onclick=function(){ if(window.venvAPI&&window.venvAPI.minimize) window.venvAPI.minimize(); };
+    var closeBtn=document.getElementById('closeBtn');
+    if(closeBtn) closeBtn.onclick=function(){ if(window.venvAPI&&window.venvAPI.requestClose) window.venvAPI.requestClose(); };
     if(window.venvAPI) window.venvAPI.onProgress(function(msg){
       var steps=['s0'];
       var idx=steps.indexOf(msg.id);
@@ -903,10 +938,13 @@ async function runPrebuiltEnvSetup(envArchive, bundledVersion) {
   fs.mkdirSync(path.dirname(VENV_DIR), { recursive: true });
   const setupWin = showVenvSetupWindow(
     'Unpacking the analysis engine',
-    "Unpacking the analysis engine - just a moment. The first time can take a little longer while your antivirus scans the new files. Please don't close this window.");
+    "Unpacking the analysis engine - just a moment. The first time can take a little longer while your antivirus scans the new files. You can close this window if you need to; YuuClip will pick up where it left off next launch.");
   const progress = (id, state) => { try { setupWin.webContents.send('venv:progress', { id, state }); } catch (_) {} };
+  const sendFraction = (fraction) => {
+    try { setupWin.webContents.send('venv:status', { fraction, label: 'Unpacking files' }); } catch (_) {}
+  };
   try {
-    const extractResult = await extractPrebuiltEnv(envArchive, bundledVersion, progress);
+    const extractResult = await extractPrebuiltEnv(envArchive, bundledVersion, progress, sendFraction);
     await restoreVenvExtrasAfterExtract(setupWin, extractResult);
   } catch (err) {
     const detail = [err.stderr, err.stdout].filter(Boolean).join('\n');
@@ -916,7 +954,22 @@ async function runPrebuiltEnvSetup(envArchive, bundledVersion) {
     wrapped.logPath = SETUP_LOG;
     throw wrapped;
   } finally {
+    activeVenvSetupProc = null;
     setupWin.close();
+  }
+}
+
+// Counts entries in the archive so extraction progress can be reported as a
+// fraction (entries extracted / total) instead of staying indeterminate for the
+// whole unpack - the common case for a packaged app's first launch. Falls back
+// to 0 (indeterminate) if the listing itself fails for any reason.
+async function countTarEntries(envArchive) {
+  try {
+    const { stdout } = await runCmd('tar', ['-tzf', envArchive]);
+    return stdout.split(/\r?\n/).filter(Boolean).length;
+  } catch (err) {
+    logSetup(`Could not pre-count archive entries for progress reporting: ${err.message}`);
+    return 0;
   }
 }
 
@@ -925,7 +978,7 @@ async function runPrebuiltEnvSetup(envArchive, bundledVersion) {
 // stays old and the next launch re-extracts cleanly). The prebuilt venv records
 // the build machine's python path; relocateExtractedVenv repoints it at the
 // bundled runtime's real install location before it is used.
-async function extractPrebuiltEnv(envArchive, bundledVersion, progress) {
+async function extractPrebuiltEnv(envArchive, bundledVersion, progress, sendFraction) {
   progress('s0', 'active');
   logSetup(`Unpacking prebuilt env from ${envArchive}`);
   // The re-extract below wipes the whole venv, including opt-in extras the user
@@ -939,7 +992,11 @@ async function extractPrebuiltEnv(envArchive, bundledVersion, progress) {
   if (fs.existsSync(VENV_DIR)) fs.rmSync(VENV_DIR, { recursive: true, force: true });
   if (fs.existsSync(incoming)) fs.rmSync(incoming, { recursive: true, force: true });
   fs.mkdirSync(incoming, { recursive: true });
-  await runCmd('tar', ['-xzf', envArchive, '-C', incoming]);
+  const totalEntries = await countTarEntries(envArchive);
+  let extractedCount = 0;
+  await runCmd('tar', ['-xvzf', envArchive, '-C', incoming],
+    totalEntries ? () => { extractedCount++; sendFraction(Math.min(extractedCount / totalEntries, 1)); } : null,
+    (proc) => { activeVenvSetupProc = proc; });
   const extractedVenv = path.join(incoming, 'venv');
   relocateExtractedVenv(extractedVenv);
   fs.renameSync(extractedVenv, VENV_DIR);
@@ -985,13 +1042,17 @@ function relocateExtractedVenv(venvPath) {
 
 async function promptPythonMissing() {
   if (app.isPackaged) {
-    await dialog.showMessageBox({
+    logSetup('Bundled Python runtime missing or damaged - aborting setup');
+    const { response } = await dialog.showMessageBox({
       type: 'error', title: 'YuuClip installation is damaged',
       message:
         'The Python runtime bundled with YuuClip is missing or damaged.\n\n' +
-        'Try reinstalling YuuClip. If the problem persists, please report it.',
-      buttons: ['Quit'], defaultId: 0,
+        'Reinstalling YuuClip replaces it. If the problem persists after that, open the log and send it to us.',
+      buttons: ['Download the latest installer', 'Open log folder', 'Quit'],
+      defaultId: 0, cancelId: 2, noLink: true,
     });
+    if (response === 0) openExternalUrl('https://github.com/smitehamner/yuu-clip/releases');
+    else if (response === 1) { try { shell.showItemInFolder(SETUP_LOG); } catch (_) {} }
   } else {
     logSetup('No Python 3.11+ found on PATH - aborting setup');
     await dialog.showMessageBox({
@@ -1041,11 +1102,12 @@ async function runPipVenvSetup(resourcesDir) {
 
   const setupWin = showVenvSetupWindow(
     'Installing the analysis engine',
-    "Installing the analysis engine - first time only, this can take a few minutes. Please don't close this window.");
+    "Installing the analysis engine - first time only, this can take a few minutes. You can close this window if you need to; YuuClip will pick up where it left off next launch.");
   const progress = (id, state) => { try { setupWin.webContents.send('venv:progress', { id, state }); } catch (_) {} };
   try {
     progress('s0', 'active');
-    if (!venvExists) { await runCmd(pythonBin, ['-m', 'venv', VENV_DIR]); logSetup('Venv created'); }
+    const trackProc = (proc) => { activeVenvSetupProc = proc; };
+    if (!venvExists) { await runCmd(pythonBin, ['-m', 'venv', VENV_DIR], null, trackProc); logSetup('Venv created'); }
     logSetup('Installing wheel...');
     const lockPath = path.join(resourcesDir, 'requirements.lock');
     const lockOk   = fs.existsSync(lockPath);
@@ -1061,13 +1123,13 @@ async function runPipVenvSetup(resourcesDir) {
     await runCmd(
       VENV_PYTHON,
       ['-m', 'pip', ...buildWheelInstallArgs(wheelPath, lockOk ? lockPath : null, wheelhouseOk ? wheelhouseDir : null)],
-      onPipLine
+      onPipLine, trackProc
     );
     logSetup('Ensuring a single OpenCV build (contrib superset wins)...');
     await runCmd(
       VENV_PYTHON,
       ['-m', 'pip', ...buildOpencvDedupeArgs(lockOk ? lockPath : null, wheelhouseOk ? wheelhouseDir : null)],
-      onPipLine
+      onPipLine, trackProc
     );
     progress('s0', 'done');
     logSetup('Wheel installed');
@@ -1081,6 +1143,7 @@ async function runPipVenvSetup(resourcesDir) {
     wrapped.logPath = SETUP_LOG;
     throw wrapped;
   } finally {
+    activeVenvSetupProc = null;
     setupWin.close();
   }
 }
@@ -1089,25 +1152,37 @@ async function runPipVenvSetup(resourcesDir) {
 // Port handling
 // ---------------------------------------------------------------------------
 
+// Returns { port, reuseExisting }. reuseExisting is true when the caller should
+// skip spawning its own backend and point the main window at the one already
+// answering on BASE_PORT - the common case is a prior session whose Electron
+// shell died (or was killed) without taking its spawned Python backend down
+// with it, since that's a separate process tree (see killBackendTree).
 async function resolvePort() {
   if (!await isPortInUse(BASE_PORT)) {
     logSetup(`Using port ${BASE_PORT}`);
-    return BASE_PORT;
+    return { port: BASE_PORT, reuseExisting: false };
   }
 
   if (await isYuuClipOnPort(BASE_PORT)) {
-    await dialog.showMessageBox({
+    const { response } = await dialog.showMessageBox({
       type: 'warning', title: 'YuuClip is already running',
-      message: 'Another YuuClip instance is already using port 8080.\n\nClose it first, then relaunch.',
-      buttons: ['OK'],
+      message: 'Another YuuClip instance is already using port 8080.',
+      detail:
+        "This is usually a previous session that didn't fully close. You can connect to it " +
+        'directly, or quit and close it yourself (Task Manager) before relaunching.',
+      buttons: ['Connect to it', 'Quit'], defaultId: 0, cancelId: 1, noLink: true,
     });
+    if (response === 0) {
+      logSetup(`Connecting to the already-running YuuClip instance on port ${BASE_PORT} instead of spawning a new backend`);
+      return { port: BASE_PORT, reuseExisting: true };
+    }
     app.quit();
     throw new Error('Duplicate YuuClip instance');
   }
 
   const free = await findFreePort(BASE_PORT + 1);
   logSetup(`Port ${BASE_PORT} in use by unrelated process; using ${free}`);
-  return free;
+  return { port: free, reuseExisting: false };
 }
 
 // ---------------------------------------------------------------------------
@@ -1555,9 +1630,14 @@ app.whenReady().then(async () => {
     // The wizard paths leave a live wizardWin; other launches have none yet.
     if (!wizardWin || wizardWin.isDestroyed()) showStartupLoadingWindow();
 
-    appPort = await resolvePort();
-    spawnBackend(appPort);
-    await pollReady(appPort);
+    const portResult = await resolvePort();
+    appPort = portResult.port;
+    if (portResult.reuseExisting) {
+      logSetup('Skipping backend spawn - connecting to the already-running instance');
+    } else {
+      spawnBackend(appPort);
+      await pollReady(appPort);
+    }
     logSetup('Creating main window');
     createWindow(appPort);
     startupComplete = true;

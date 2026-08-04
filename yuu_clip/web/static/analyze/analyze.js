@@ -2,7 +2,7 @@
 //   API: routes/analyze.py, routes/imports.py · Tests: tests/ui/test_ui_analyze.py
 import { AppState } from '../core/state.js';
 import { PanelNav } from '../core/panelnav.js';
-import { escHtml, plural, formatApiError, _msToHms } from '../core/format.js';
+import { escHtml, plural, formatApiError, actionFailedMsg, _msToHms } from '../core/format.js';
 import { showConfirm } from '../core/ui.js';
 import {
   showToast, appendLog, netErrMsg,
@@ -1229,8 +1229,8 @@ async function saveProfile() {
     body:   JSON.stringify({name, assignments}),
   });
   if (!res.ok) {
-    const e = await res.json();
-    showToast(e.detail || 'Save failed', 'error');
+    const e = await res.json().catch(() => null);
+    showToast(actionFailedMsg('Save', e), 'error');
     return;
   }
   _profileEditorDirty = false;
@@ -1252,8 +1252,8 @@ function deleteProfile(name) {
 async function _doDeleteProfile(name) {
   const res = await fetch(`/api/profiles/${encodeURIComponent(name)}`, {method: 'DELETE'});
   if (!res.ok) {
-    const e = await res.json().catch(() => ({}));
-    showToast(formatApiError(e) || 'Delete failed', 'error');
+    const e = await res.json().catch(() => null);
+    showToast(actionFailedMsg('Delete', e), 'error');
     return;
   }
   await _refreshProfileList();
