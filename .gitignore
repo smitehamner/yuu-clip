@@ -9,6 +9,7 @@ __pycache__/
 docs/dev/plans/
 .claude/*
 !.claude/skills/
+.claude/skills/*/screenshots/
 CLAUDE.local.md
 /.test-logs/
 
