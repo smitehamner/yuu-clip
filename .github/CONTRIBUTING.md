@@ -8,6 +8,15 @@ time if the direction needs a conversation first.
 By contributing you agree that your contribution is licensed under the project's
 [Apache License 2.0](../LICENSE).
 
+## Development approach
+
+Most of this codebase was written through AI-assisted development (Claude Code): the
+maintainer directs architecture, writes the plans, and reviews every change, but an AI
+agent authors most of the code itself. This isn't vibe coding - nothing lands without
+review - but it's worth knowing going in, since it shapes how consistent the code style
+is and how much is documented in `docs/dev/`. The code standards below apply to every
+contribution regardless of how it was authored.
+
 ## Platform notes (read this first)
 
 The **core** (the Python pipeline, web server, and the `yuu-dev` developer CLI) is
