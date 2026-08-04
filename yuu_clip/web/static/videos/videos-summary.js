@@ -5,6 +5,7 @@
 import { AppState } from '../core/state.js';
 import { openDiffModal, showConfirm } from '../core/ui.js';
 import { showToast, appendLog } from '../core/utils.js';
+import { actionFailedMsg } from '../core/format.js';
 import {
   _openSSE, _setActiveStream, _clearActiveStream, _supersedeActiveStream, _blockedByAnalyze,
   startJobUI, updateJobUI, endJobUI, setJobProgress, setJobCancel, SUMMARY_JOB_STEPS,
@@ -64,7 +65,7 @@ function summarizeVideo(id, btn) {
           method: 'PATCH', headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({action, field: 'both', new_title: edited[0], new_summary: edited[1]}),
         });
-        if (!patch.ok) { showToast('Save failed', 'error'); return; }
+        if (!patch.ok) { showToast(actionFailedMsg('Save', await patch.json().catch(() => null)), 'error'); return; }
         await loadVideos();
         const video = AppState.videos.find(v => v.id === id);
         if (video) renderVideoDetail(video, null);

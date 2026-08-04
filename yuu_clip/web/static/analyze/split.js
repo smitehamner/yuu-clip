@@ -2,7 +2,7 @@
 //   API: routes/videos.py (split) · Tests: tests/ui/test_ui_split.py, tests/integration/test_segments.py
 import { AppState } from '../core/state.js';
 import { PanelNav } from '../core/panelnav.js';
-import { escHtml, plural, formatApiError } from '../core/format.js';
+import { escHtml, plural, formatApiError, actionFailedMsg } from '../core/format.js';
 import { setupRecordingPreview, releaseVideoRespectingPip } from '../core/preview.js';
 import { showToast, netErrMsg, appendLog } from '../core/utils.js';
 import { showConfirm } from '../core/ui.js';
@@ -773,7 +773,7 @@ async function _doSplitAndReanalyze(keepExported) {
       body: JSON.stringify({keep_exported: keepExported}),
     });
     if (!clearRes.ok) {
-      showToast(`Failed to clear clips on segment ${segId}`, 'error');
+      showToast(actionFailedMsg(`Clear clips on segment ${segId}`, await clearRes.json().catch(() => null)), 'error');
       btn.disabled = false;
       btn.textContent = 'Split recording';
       return;

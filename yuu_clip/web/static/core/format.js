@@ -109,8 +109,26 @@ function formatApiError(err) {
   if (typeof err.detail === 'string') return err.detail;
   if (Array.isArray(err.detail)) return err.detail.map(e => e.msg || JSON.stringify(e)).join('; ');
   if (err.message) return err.message;
-  const stringified = JSON.stringify(err);
-  return (!stringified || stringified === '{}') ? 'Unknown error (no details from server)' : stringified;
+  // Anything else (a body shape the server didn't mean to send back raw, e.g. an
+  // unhandled exception dict) must never reach the user as a JSON dump - say
+  // plainly that no explanation was given rather than printing it (2.20).
+  return 'Unknown error (no details from server)';
+}
+
+// A consistently good toast message for a failed action: the real cause when the
+// server or fetch() gave one (via formatApiError, never a raw JSON dump - see
+// above), a plain-English fallback when it didn't, and always a next step -
+// never a bare "X failed" with nothing else. `err` may be omitted, a fetch()
+// rejection (Error/TypeError), or a parsed API error body ({detail: ...}).
+function actionFailedMsg(action, err) {
+  if (err instanceof TypeError) {
+    return `${action} failed - couldn't reach YuuClip. Try again, or restart the app.`;
+  }
+  const detail = err ? formatApiError(err) : '';
+  const knownCause = detail && detail !== 'Unknown error' && detail !== 'Unknown error (no details from server)';
+  return knownCause
+    ? `${action} failed: ${detail}. Try again.`
+    : `${action} failed. Try again - if it keeps happening, restart YuuClip.`;
 }
 
 function stripRichMarkup(text) {
@@ -182,6 +200,6 @@ function _parseIntervalS(value, unit) {
 
 export {
   AXIS_ICONS, _scoreIcon, _lerpColor, _scoreBorderColor, _sortScore, _fmtVideoStatus, _msToHms,
-  fmtClock, plural, finiteOr, fmtDuration, truncate, escHtml, formatApiError, stripRichMarkup,
+  fmtClock, plural, finiteOr, fmtDuration, truncate, escHtml, formatApiError, actionFailedMsg, stripRichMarkup,
   _parseServerDate, _fmtDate, _fmtAgo, _fmtOffset, _fmtElapsed, _parseIntervalS, stripQuotedPath,
 };

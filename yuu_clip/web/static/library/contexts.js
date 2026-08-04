@@ -7,7 +7,7 @@
 //        (auto-approve/reset-approvals)
 //   Tests: tests/ui/test_ui_contexts.py, tests/js/library/contexts.test.js
 import { AppState } from '../core/state.js';
-import { escHtml, formatApiError, plural } from '../core/format.js';
+import { escHtml, formatApiError, actionFailedMsg, plural } from '../core/format.js';
 import { showConfirm, openDiffModal } from '../core/ui.js';
 import {
   showToast, appendLog,
@@ -465,7 +465,7 @@ async function _saveVideoContexts(videoId, context_ids) {
     method: 'PATCH', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({context_names: context_ids}),
   });
-  if (!res.ok) { showToast('Failed to update contexts', 'error'); return; }
+  if (!res.ok) { showToast(actionFailedMsg('Update contexts', await res.json().catch(() => null)), 'error'); return; }
   const video = AppState.videos.find(v => v.id === videoId);
   if (video) {
     video.context_names = context_ids;

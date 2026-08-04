@@ -74,8 +74,12 @@ function renderFfmpegSlot(s) {
       return;
     }
     el.innerHTML = row('ffmpeg', 'err', '✗', 'FFmpeg install is damaged',
-      'The FFmpeg bundled with YuuClip is missing or damaged. Try reinstalling YuuClip; ' +
-      'if the problem persists, please report it.');
+      'The FFmpeg bundled with YuuClip is missing or damaged. Reinstalling YuuClip replaces it - ' +
+      'download a fresh installer below. If the problem persists after that, please report it.',
+      `<div style="display:flex;gap:6px;align-items:center;width:100%">` +
+        `<button class="sm" data-open-url="https://github.com/smitehamner/yuu-clip/releases">Download the latest installer</button>` +
+        `<button class="sm" data-open-url="https://github.com/smitehamner/yuu-clip/issues">Report this</button>` +
+      `</div>`);
     return;
   }
   if (s.ffmpegOk) {

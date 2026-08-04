@@ -3,6 +3,7 @@
 import { AppState } from '../core/state.js';
 import {
   escHtml, plural, _fmtVideoStatus, _msToHms, _fmtDate, _parseServerDate, _fmtElapsed, formatApiError,
+  actionFailedMsg,
 } from '../core/format.js';
 import { collapsibleCard, showToast, netErrMsg, revealInFolder, _syncSortDirBtn, appendLog } from '../core/utils.js';
 import { showConfirm, openFieldEditModal, openDiffModal, showKebab, openActionsModal } from '../core/ui.js';
@@ -398,9 +399,21 @@ function _updateDemoButton(approvedCount) {
 function _updateStartIngestButton() {
   const btn = document.getElementById('btn-start-analyze');
   if (!btn) return;
-  if (window._prereqs && !window._prereqs.ffmpeg_ok) return;
+  const hint = document.getElementById('start-analyze-hint');
+  // FFmpeg-missing already has its own always-visible reason via the
+  // prereq-banner (_applyPrereqWarnings) - hide this hint rather than show two
+  // reasons at once.
+  if (window._prereqs && !window._prereqs.ffmpeg_ok) {
+    if (hint) hint.style.display = 'none';
+    return;
+  }
+  const reason = _probedInfo ? '' : 'Select a valid recording file first';
   btn.disabled = !_probedInfo;
-  btn.title = _probedInfo ? '' : 'Select a valid recording file first';
+  btn.title = reason;
+  // The tooltip alone is a dead end for touch and keyboard users, who can never
+  // hover to discover why the button is disabled (review finding 2.18) - mirror
+  // it as always-visible text next to the button.
+  if (hint) hint.style.display = reason ? '' : 'none';
 }
 
 function _clipsSortParam() {
@@ -1154,7 +1167,7 @@ async function _patchVideoField(videoId, action, field, newTitle, newSummary) {
     method: 'PATCH', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({action, field, new_title: newTitle, new_summary: newSummary}),
   });
-  if (!res.ok) showToast('Save failed', 'error');
+  if (!res.ok) showToast(actionFailedMsg('Save', await res.json().catch(() => null)), 'error');
   return res.ok;
 }
 

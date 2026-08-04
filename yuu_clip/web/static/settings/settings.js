@@ -8,7 +8,7 @@ import {
 } from './modelcatalog.js';
 import { showConfirm, playbackRatePref, applyPlaybackRate } from '../core/ui.js';
 import { showToast } from '../core/utils.js';
-import { plural, escHtml, formatApiError, _parseIntervalS, stripQuotedPath } from '../core/format.js';
+import { plural, escHtml, formatApiError, actionFailedMsg, _parseIntervalS, stripQuotedPath } from '../core/format.js';
 import { languageOptionsHtml } from '../shared/whisperlang.js';
 import { _filterGlossary, closeGlossaryModal } from '../core/helpmodals.js';
 import { _isNewRecordingPanelOpen, _doCloseNewRecordingPanel } from '../analyze/analyze.js';
@@ -154,7 +154,7 @@ async function openSettings(scrollToSectionId) {
     // Kick the rail scroll-spy so the header height + active link are set on open.
     requestAnimationFrame(() => panel.dispatchEvent(new Event('scroll')));
   } catch (e) {
-    showToast('Failed to load settings', 'error');
+    showToast(actionFailedMsg('Load settings', e), 'error');
   }
   const pathsEl = document.getElementById('s-paths-display');
   if (pathsEl) {
@@ -798,8 +798,8 @@ async function saveSettings() {
     // banner, per-clip description chips, vision frames) so changing the model or
     // AI settings takes effect without a restart.
     if (window.refreshServerState) refreshServerState();
-  } catch {
-    showToast('Settings save failed', 'error');
+  } catch (e) {
+    showToast(actionFailedMsg('Save settings', e), 'error');
     if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
   }
 }

@@ -1,5 +1,5 @@
 import { AppState } from '../core/state.js';
-import { escHtml, formatApiError, fmtClock } from '../core/format.js';
+import { escHtml, formatApiError, actionFailedMsg, fmtClock } from '../core/format.js';
 import { PanelNav } from '../core/panelnav.js';
 import { setupRecordingPreview, releaseVideoRespectingPip } from '../core/preview.js';
 import {
@@ -836,7 +836,11 @@ async function _edSaveEdits() {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ crop_x: _edCropX }),
     }).catch(() => null);
-    if (!framingRes || !framingRes.ok) { showToast('Failed to save vertical framing', 'error'); return false; }
+    if (!framingRes || !framingRes.ok) {
+      const framingDetail = framingRes ? await framingRes.json().catch(() => null) : null;
+      showToast(actionFailedMsg('Save vertical framing', framingDetail), 'error');
+      return false;
+    }
     _edClip.crop_x = _edCropX;
   }
   _edClip.start_offset = _edStartOffset;

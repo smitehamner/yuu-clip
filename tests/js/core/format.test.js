@@ -4,7 +4,7 @@
 // (compare two values computed the same way) exactly as the Playwright versions did.
 import {
   escHtml, _parseServerDate, _fmtAgo, _fmtOffset, _msToHms, finiteOr, fmtDuration,
-  formatApiError, stripRichMarkup, _scoreBorderColor, _lerpColor, _fmtElapsed,
+  formatApiError, actionFailedMsg, stripRichMarkup, _scoreBorderColor, _lerpColor, _fmtElapsed,
   _fmtVideoStatus, _fmtDate, _sortScore, plural, _parseIntervalS, stripQuotedPath, fmtClock,
 } from '../../../yuu_clip/web/static/core/format.js';
 import { registerRefreshHooks, _resetRefreshHooks } from '../../../yuu_clip/web/static/core/refreshhooks.js';
@@ -97,11 +97,32 @@ describe('formatApiError', () => {
   it('object without detail uses message', () => {
     expect(formatApiError({ message: 'boom' })).toBe('boom');
   });
-  it('object without detail or message stringifies', () => {
-    expect(formatApiError({ status: 500 })).toBe('{"status":500}');
+  it('object without detail or message never dumps raw JSON at the user (2.20)', () => {
+    expect(formatApiError({ status: 500 })).toBe('Unknown error (no details from server)');
   });
   it('empty object returns a readable fallback', () => {
     expect(formatApiError({})).toBe('Unknown error (no details from server)');
+  });
+});
+
+// actionFailedMsg (2.20): every call site building a failure toast should route
+// through this instead of a bare "X failed" or a raw exception dump, so there is
+// always a cause (when one is known) and always a next step.
+describe('actionFailedMsg', () => {
+  it('a fetch()-level TypeError (server unreachable) gets the network-down copy', () => {
+    expect(actionFailedMsg('Save', new TypeError('Failed to fetch')))
+      .toBe("Save failed - couldn't reach YuuClip. Try again, or restart the app.");
+  });
+  it('a known API detail is included with a next step', () => {
+    expect(actionFailedMsg('Delete', { detail: 'Recording not found' }))
+      .toBe('Delete failed: Recording not found. Try again.');
+  });
+  it('no error at all still gets an honest next step, never a bare "X failed"', () => {
+    expect(actionFailedMsg('Save')).toBe('Save failed. Try again - if it keeps happening, restart YuuClip.');
+  });
+  it('an error with no usable detail falls back the same as no error', () => {
+    expect(actionFailedMsg('Restore', {}))
+      .toBe('Restore failed. Try again - if it keeps happening, restart YuuClip.');
   });
 });
 

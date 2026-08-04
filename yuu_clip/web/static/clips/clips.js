@@ -7,7 +7,7 @@
 import { AppState } from '../core/state.js';
 import {
   AXIS_ICONS, escHtml, _scoreIcon, _scoreBorderColor, _sortScore, fmtDuration, plural, truncate,
-  _fmtAgo, _fmtOffset, formatApiError,
+  _fmtAgo, _fmtOffset, formatApiError, actionFailedMsg,
 } from '../core/format.js';
 import {
   showToast, collapsibleCard, copyText, _syncSortDirBtn, appendLog,
@@ -1225,7 +1225,7 @@ async function _scoreOverrideSave() {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({score_overall_user: num}),
   });
-  if (!res.ok) { showToast('Failed to set score override', 'error'); return; }
+  if (!res.ok) { showToast(actionFailedMsg('Set score override', await res.json().catch(() => null)), 'error'); return; }
   const updated = await res.json();
   _replaceClipInList(updated);
   renderDetail(updated);
@@ -1236,7 +1236,7 @@ async function clearScoreOverride(clipId) {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({score_overall_user: null}),
   });
-  if (!res.ok) { showToast('Failed to clear override', 'error'); return; }
+  if (!res.ok) { showToast(actionFailedMsg('Clear score override', await res.json().catch(() => null)), 'error'); return; }
   const updated = await res.json();
   _replaceClipInList(updated);
   renderDetail(updated);
@@ -1414,7 +1414,7 @@ async function _patchClipField(clipId, action, field, newDesc, newDescLong) {
     method: 'PATCH', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({action, field, new_description: newDesc, new_description_long: newDescLong}),
   });
-  if (!res.ok) showToast('Save failed', 'error');
+  if (!res.ok) showToast(actionFailedMsg('Save', await res.json().catch(() => null)), 'error');
   return res.ok;
 }
 
