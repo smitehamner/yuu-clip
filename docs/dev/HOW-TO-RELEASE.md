@@ -10,14 +10,14 @@ Install these once on your dev machine:
 
 | Tool | Install |
 |------|---------|
-| Python 3.11+ | `winget install Python.Python.3.11` |
+| Python 3.11 - 3.13 (`pyproject.toml` caps at `<3.14`) | `winget install Python.Python.3.11` |
 | `build` (Python wheel builder) | `pip install build` |
 | Node.js 20+ | `winget install OpenJS.NodeJS.LTS` |
 | electron-builder | `npm install -g electron-builder` (or `npm ci` in `electron/`) |
 
 Verify:
 ```powershell
-python --version        # 3.11+
+python --version        # 3.11 - 3.13
 node --version          # 20+
 ```
 

@@ -16,9 +16,14 @@ energy/scenes/laugh/visual scoring, the DB, routes, ffmpeg cut/encode, and SRT s
 all run for real. It needs ffmpeg on PATH (guard-skips otherwise) and no live server.
 
 - Run it with `yuu-dev test-system` (writes `.test-logs/test-system-last.log` +
-  `-summary.log`, mirroring test-api). It is a **pre-release gate, not a per-edit
-  check**, and is deliberately excluded from `test-api`'s default selection (which stays
-  ~1 min). `scripts/test-system.ps1` is a thin wrapper over the same command.
+  `-summary.log`, mirroring test-api). **CI runs it as a required check on every PR**
+  (the `pytest (system)` matrix job in `.github/workflows/ci.yml`), but it stays out of
+  the local day-to-day loop: it is deliberately excluded from `test-api`'s default
+  selection (which stays ~1 min) and from the fast `test-unit`/`test-js` inner loop, so
+  run `yuu-dev test-system` yourself only when you want that full-stack signal before
+  CI does (e.g. before a release, or to reproduce a CI-only failure locally) - CI will
+  run it on your PR either way. `scripts/test-system.ps1` is a thin wrapper over the
+  same command.
 - Determinism: no real models/network, generated (not committed) fixture video, fixed
   transcript, exact-match assertions on what we control (durations, file existence, flag
   booleans, sidecar contents). The stubs and fixture live in `tests/system/conftest.py`
@@ -167,9 +172,13 @@ serve process should sit near 0% CPU when idle.
 
 ## Tier boundaries (directory, not markers)
 
-The tiers are split by **directory**, not markers. `pytest.ini` registers no custom
-markers. A test that needs real installed packages / HF cache / OS state belongs in
-`tests/integration`, never `tests/unit`. A unit test that references
-`project_dir`/`client` fails at collection (no such fixture in the unit tier) - move
-it to `tests/integration`, splitting the file if it mixes pure and seeded tests.
-`tests/unit` must pass offline regardless of machine state.
+The unit/integration/system/ui/js tiers above are split by **directory**, not markers -
+picking a test's tier is a matter of which directory it lives in, not a marker tag. The
+one registered marker (`pytest.ini`'s `markers =`) is `golden`, which exists only to
+carve the opt-in real-models test out of the `system` directory (`test-system` runs
+`-m "not golden"`; `test-golden` runs `-m golden`) - it is not a general-purpose tiering
+mechanism, and no other marker is registered. A test that needs real installed
+packages / HF cache / OS state belongs in `tests/integration`, never `tests/unit`. A
+unit test that references `project_dir`/`client` fails at collection (no such fixture in
+the unit tier) - move it to `tests/integration`, splitting the file if it mixes pure and
+seeded tests. `tests/unit` must pass offline regardless of machine state.

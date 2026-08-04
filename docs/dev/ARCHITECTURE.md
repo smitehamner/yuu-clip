@@ -76,9 +76,10 @@ go through the `startJobUI` / `endJobUI` / `streamSSE` helpers, not ad-hoc fetch
 
 The schema has exactly one source of truth:
 [db/models.py](../../yuu_clip/db/models.py). Everything below is derived from it -
-when this section and the code disagree, the code wins. There is no migration
-framework: `create_all()` plus an additive-column list (`_ADDITIVE_COLUMNS` in
-`models.py`) is the whole story, so new columns must be nullable or carry a DEFAULT.
+when this section and the code disagree, the code wins. Schema changes are versioned by
+**Alembic** migrations, not `create_all()` plus a hand-maintained additive-column list -
+see landmine #5 below for the full mechanics (startup auto-migrate + timestamped backup,
+forward-only, the schema-drift guard).
 
 How data flows: each analyze stage writes its tables, and the web server's routes
 read them back for the UI. (Hot-words and Sensitive Terms flow the other way - the
@@ -226,7 +227,17 @@ gate); `yuu-dev test-ui` runs ui (see CLAUDE.md for the `--changed` / `--smoke` 
 (js + unit + integration, but not ui - a missing Node toolchain skips js rather than
 failing). The fast inner loop is `test-unit` (+ `test-js` when `static/*.js` changed); run
 `test-js` after editing any `static/*.js` that has (or should have) a `tests/js/`
-counterpart. CI runs lint, typecheck, test-api, and test-js; the ui tier stays local.
+counterpart.
+
+CI (`.github/workflows/ci.yml`) gates every PR on seven separate checks: `lint`,
+`typecheck`, three `pytest` matrix jobs running `test-unit` / `test-integration` /
+`test-system` as independent required checks (not the local `test-api` combo command),
+`test-js`, and `test-electron` (Windows-only, the desktop wrapper's `node --test` suite).
+So the system tier - despite being a slower, deliberately-excluded-from-`test-api` tier
+locally - is itself a required per-PR CI gate, not just a pre-release check; see
+[TESTING.md](TESTING.md#system-tier-testssystem---full-stack-use-case-tests). The ui
+(Playwright) tier and the golden path stay out of CI entirely (ui needs a live browser
+against a live server; golden is env-gated on real models and would only ever skip).
 
 ---
 

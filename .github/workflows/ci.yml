@@ -75,6 +75,17 @@ jobs:
       # keeps the matrix uniform at negligible cost.
       - name: Install FFmpeg
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      # tests/unit/test_bundle_drift.py (part of the unit tier) needs Node + esbuild
+      # to verify the committed bundle.esm.js/setup.bundle.js aren't stale - without
+      # this it silently skips (esbuild_available() is False) and the guard never
+      # actually runs in CI. Installed uniformly across the matrix, same reasoning as
+      # the FFmpeg install above: negligible cost, keeps the three tiers identical.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - name: Install JS toolchain (guards the committed bundle drift check)
+        run: npm ci
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
