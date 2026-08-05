@@ -1,3 +1,14 @@
+# Normalize line endings to LF in the repo regardless of a contributor's local
+# core.autocrlf - a stray CRLF baked into a committed blob is invisible to `git
+# status` on a checkout with core.autocrlf=input (it looks clean while the file
+# genuinely differs byte-for-byte), which has caused real build drift (a stale
+# bundle.esm.js whose inline sourcemap embedded a CRLF-polluted source file).
+* text=auto eol=lf
+
+*.png binary
+*.woff2 binary
+*.ico binary
+
 # Vendored third-party source archives (GPL compliance accompaniment for the
 # bundled FFmpeg build - see docs/dev/THIRD-PARTY-NOTICES-FFMPEG.md). Binary,
 # infrequently changed, tracked via Git LFS rather than as a plain git blob.
