@@ -1,8 +1,10 @@
 # yuu-clip - Roadmap
 
-Forward-looking only. Deliberate scope calls (things we chose not to do, and why)
-live in [DECISIONS.md](DECISIONS.md); this file tracks just the work that is still
-open.
+Open items only. When an item ships, delete it here; the planning workspace keeps the
+history.
+
+Deliberate scope calls (things we chose not to do, and why) live in
+[DECISIONS.md](DECISIONS.md); this file tracks just the work that is still open.
 
 Two tiers:
 
@@ -20,21 +22,8 @@ Implemented-but-unverified surfaces and latent traps to close before distributio
 
 ### Packaged-app VM run findings (2026-07-19, v0.1.23)
 
-First real clean-VM packaged run. The native-file-protocol surface (previously the
-headline unverified item here) was **verified working** and closed. Shipped since:
-the immediate/easy subset (reel timebase mismatch + false-success reporting, DB-locked
--> clear 503, CLI log-line leak, Getting-Started modal X/scroll, HF symlink warning,
-empty wizard Optional section); retry-on-locked for lightweight writes so
-approve/reject and speaker-merge succeed during a long analyze instead of failing;
-recovery for the active-but-missing model state; a speaker-clustering re-tune (raised
-cluster distance + a distance-gated small-cluster prune); the model-download progress
-view now survives a Settings Save/re-render instead of vanishing; analyze progress has
-its own dedicated header row and the window has a sane minimum size; and speaker names
-are click-to-rename directly from a transcript, with every floating menu (speaker/
-kebab/color-picker) now height-capped so a rename field can no longer fall off-screen.
-Full triage with repro detail is in the private planning workspace
-(`PACKAGED-APP-FINDINGS-2026-07-19.md` + `PACKAGED-APP-FIXES-PLAN.md`, both closed out
-except the two items below).
+Residue from the first clean-VM packaged run. Full triage with repro detail is in the
+planning workspace.
 
 - [ ] **Stale single-job lock falsely blocks export** - after an analyze + reel build,
   export was refused with "another job is running" when none was; a page refresh cleared
@@ -62,29 +51,22 @@ except the two items below).
   guard already covers the partials (`tests/unit/test_static_theme_colors.py` globs
   every static `*.html`), and `style="display:none"` (still the single most-repeated
   literal pattern) is JS-toggled and must NOT become a class.
-  **Partially done (2026-07-29, code-quality pass):** extracted the patterns repeated
-  4+ times - `.flex-1`, `.btn-sm`, `.modal-close-btn`, `.layer-fill`, `.inline-row`,
-  `.hint-text`, `.modal-header-row`, `.legend-term` (`app.css`) - collapsing ~55 inline
-  `style="..."` sites across 19 partial files down to shared classes (existing `.muted`
-  absorbed another 12). ~370 inline styles remain, each below that 4-occurrence bar
-  (one-off layout tweaks); keep extracting opportunistically when a partial is next
-  touched, not as a further blind sweep.
+  The patterns repeated 4+ times already have shared `app.css` classes; the ~370
+  inline styles that remain are each below that bar (one-off layout tweaks). Keep
+  extracting opportunistically when a partial is next touched, not as a further blind
+  sweep.
 
 ---
 
 ## 2 - Post-release polish
 
-The repo went public 2026-07-26 and v0.2.0 shipped 2026-08-02, so nothing here blocks
-distribution any more. What is left is opportunistic cleanup.
+Nothing here blocks distribution; it is opportunistic cleanup.
 
 - [ ] **Opportunistic: extract remaining inline styles in the partials into `app.css`
-  classes.** The `index.html` build-time stitch (`static/index.src.html` + `partials/*`
-  via `yuu-dev bundle`) already shipped; the paired inline-style extraction was deferred as
-  opportunistic cleanup (the remaining inline styles are valid `var(--token)`/layout
-  styles, and the color-literal guard already globs the partials, so there is no safety
-  gap). The most-repeated patterns were extracted 2026-07-29 (see section 1's matching
-  item for the class list); do the rest when a region is being edited anyway, not as a
-  blind sweep.
+  classes.** The remaining inline styles are valid `var(--token)`/layout styles, and the
+  color-literal guard already globs the partials, so there is no safety gap. Do the rest
+  when a region is being edited anyway, not as a blind sweep - see section 1's matching
+  item.
 
 ---
 
@@ -101,35 +83,14 @@ distribution any more. What is left is opportunistic cleanup.
   different backends are never compared) was kept, so a re-add is mostly restoring the
   client class, the config enum value, and the Settings/token UI.
 
-- [ ] **Transcript & speaker editing UX - fuller pass** *(deferred, behavior OK today)* -
-  the concrete ask (**name or rename a speaker directly from a clip or video transcript**)
-  shipped: the speaker name label in the transcript is now click-to-rename, and every
-  floating menu caps its height so the dot menu's rename field can no longer fall off-screen.
-  What remains deferred is the broader smoother-editing pass over the transcript/speaker
-  surface - scope it fresh when this area is next touched (candidates surfaced during R1:
-  per-line menu polish, whole-recording speaker management, bulk line moves, caption fixes).
-  **Owner call (2026-07-20): definitely revisit the Speakers card UI/UX as part of this** -
-  the current card grew feature-by-feature (per-row merge picker, voice/person match rows,
-  Suggest-names, samples) and wants a deliberate layout/interaction rethink, not just the
-  incremental fixes already shipped. Fold the "Suggest names" progress+cancel gap (section 1)
-  into the same pass since it lives on this card.
-  **Owner feedback (2026-07-25, 0.1.29 manual check):** the card's two header buttons
-  (`+ New speaker` / `Suggest names`, `people/speakers.js` `_renderSpeakersCard`) aren't
-  formatted consistently with each other; add a **Re-detect Speakers** shortcut directly
-  on the card (today it's only reachable via the video-level "Additional Actions" modal -
-  `rediarizeVideo` in `videos/videos.js`); and `+ New speaker` is the least-used of the
-  three, so it should not get equal header prominence with Suggest names/Re-detect - lower
-  it (e.g. behind a kebab, or visually deprioritized) when this pass happens.
-  **SHIPPED (2026-07-27, panel-layout-v2 Follow-up A + B):** the Speakers-card rethink
-  landed - each speaker is now one fixed identity line (play / name / colour / merge), a
-  suggested name sits inside the name field as a ghost value with inline accept/dismiss,
-  and the LLM name-guess + cross-recording voice match collapse into one "Also X" line
-  instead of two stacked banners; the three header buttons are now uniformly styled and a
-  **Re-detect speakers** shortcut sits on the card. Long-transcript navigation also
-  shipped (windowed paging + within-recording search + jump-to-time + bounded scroll box),
-  covering part of the deferred per-line/whole-recording polish. **Still open:** lowering
-  `+ New speaker`'s header prominence (it kept equal weight with Suggest names / Re-detect),
-  and the remaining per-line menu / caption-fix polish - scope fresh when next touched.
+- [ ] **Transcript & speaker editing UX - remaining polish** *(deferred, behavior OK today)* -
+  the concrete asks (rename a speaker from a transcript, the Speakers-card rethink,
+  long-transcript navigation) shipped. What is still open:
+  - Lower `+ New speaker`'s header prominence on the Speakers card - it kept equal weight
+    with Suggest names / Re-detect, and it is the least-used of the three (e.g. move it
+    behind a kebab, or visually deprioritize it).
+  - The remaining per-line transcript menu polish and caption fixes - scope fresh when
+    this area is next touched.
 
 - [ ] **Sidebar grouping for split segments** *(speculative)* - a collapsible parent row
   "session.mkv (3 segments)" with indented children, as an alternative to the flat list.
@@ -168,10 +129,7 @@ distribution any more. What is left is opportunistic cleanup.
   (`cli/analyze.py`'s `analyze` command accepts multiple video paths/a glob and pauses between
   them via `_wait_while_paused`), but the web UI's `/api/analyze/start` always builds the CLI
   command for exactly one video, so nothing in the app can ever reach that multi-video path.
-  Surfaced 2026-07-19 alongside a related bug (UX bug hunt B9): the job header's "Pause after
-  current video" toggle was a dead control on a plain single-recording run. That is now fixed
-  at the pipeline level - transcription and scoring both poll the pause flag mid-stage, and
-  the stage boundaries poll it too - so the toggle does something on every run. Its *label*
+  The job header's "Pause after current video" toggle does poll on every run, but its *label*
   still describes the between-videos behaviour only, and would want revisiting alongside real
   batch-analyze support.
 
@@ -206,13 +164,11 @@ distribution any more. What is left is opportunistic cleanup.
   - Thermal monitoring (`analyze/thermal.py`, pynvml) stays NVIDIA-only and degrades gracefully;
     not a blocker, but no AMD/Intel temperature readout until a vendor-neutral source is wired in.
     See the dedicated thermal-sensor-coverage item below.
-    (The wizard GPU-line messaging was corrected 2026-07-10 to report LLM scoring running on
-    any-vendor GPUs via Vulkan while transcription stays NVIDIA/CUDA-only.)
 
 - [ ] **CPU and non-NVIDIA GPU temperature sources (widen auto-pause coverage)** - the
-  auto-pause machinery is now genuinely effective: as of the B9 follow-up, transcription,
-  scoring, and every pipeline stage boundary poll the pause flag, so a thermal trip is
-  honoured within seconds instead of at the end of the run. What limits it now is the
+  auto-pause machinery is genuinely effective: transcription, scoring, and every pipeline
+  stage boundary poll the pause flag, so a thermal trip is honoured within seconds instead
+  of at the end of the run. What limits it now is the
   *sensor*, not the response. `GpuThermalMonitor` reads pynvml only, so users on AMD/Intel
   graphics get no protection at all, and nobody gets CPU-temperature protection - which
   matters more than it sounds, because two of the heaviest stages are CPU-bound for a large
@@ -234,12 +190,9 @@ distribution any more. What is left is opportunistic cleanup.
 - [ ] **Linux compatibility** - code analysis done. Python core is close (uses `platformdirs`, not
   raw `%APPDATA%`; `llama-server` binary name and FFmpeg resolution already branch off-Windows;
   platform-specific features guard and fail safe). The remaining work, phased:
-  - **Backend-only Linux (small):** one real correctness bug **now fixed** - process-tree kill on
-    cancel orphaned ffmpeg grandchildren on POSIX (`web/sse.py` `terminate_process_tree` did a bare
-    `terminate()`); now launches the analyze-family subprocesses with `start_new_session=True` and
-    `killpg`s the group. Remaining stubs: reveal-in-folder (`web/routes/reveal.py`, hard 501 off-Windows -
-    needs `xdg-open`) and the dev-CLI stale-process reap (`dev/procs.py`, no-op off-Windows,
-    contributor-facing only). CUDA-from-wheels may need `LD_LIBRARY_PATH` handling
+  - **Backend-only Linux (small):** remaining stubs are reveal-in-folder
+    (`web/routes/reveal.py`, hard 501 off-Windows - needs `xdg-open`) and the dev-CLI
+    stale-process reap (`dev/procs.py`, no-op off-Windows, contributor-facing only). CUDA-from-wheels may need `LD_LIBRARY_PATH` handling
     (`transcribe/whisper_runner.py` `_register_cuda_dll_dirs` is Windows-only) but degrades to CPU.
   - **Full packaged app (large):** the entire Electron packaging pipeline is Windows/NSIS-only
     (`electron/package.json` targets `win`/`nsis`; `electron/constants.js` is saturated with

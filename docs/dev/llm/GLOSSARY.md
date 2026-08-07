@@ -69,7 +69,7 @@ Most lookups only need this table: the authoritative user-facing term, the code 
 | Privacy Term | `category='privacy'` | A name or personal detail to flag, never scored |
 | Censor Word | `category='censor'` | Language to flag before posting to a restricted platform, never scored |
 | Flagged | `sensitive_matches` non-empty | Clip filter tab / badge - a clip containing a Sensitive Terms match |
-| AI privacy mode | `ai_privacy_mode` | The trust control: No generative AI / Local models only / Allow remote models |
+| AI privacy mode | `ai_privacy_mode` | The trust control: No generative AI / Local models only |
 | LLM scoring | `LLMScorer` | Transcript-based scoring - not "AI scoring" |
 | Audio energy scoring | `EnergyScorer` | Loudness/activity-based scoring |
 | Scene scoring | `SceneScorer` | Scene-cut-frequency scoring |
@@ -919,7 +919,7 @@ Timeline](#session-timeline)), never a prerequisite.
   **Settings → Capabilities** overview, one row per upgrade tier (Similarity,
   Descriptions & summaries, Audio-event detection) with its active tier + install guidance
 - **Notes:** Copy framing only, not a config value. Distinct from a future no-ML
-  "Signal-only" mode and from the planned AI privacy mode (which *chooses* what may run);
+  "Signal-only" mode and from the AI privacy mode (which *chooses* what may run);
   lightweight mode is simply "nothing installed yet, everything works."
 
 ---

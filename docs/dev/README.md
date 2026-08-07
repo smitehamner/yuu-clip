@@ -16,10 +16,12 @@ Also here:
   release process and what ships in each install tier.
 - **`llm/`** - agent-maintained reference docs (GLOSSARY, DOC-CLAIMS fact registry,
   review maps). Exhaustive by design; humans usually want the files above instead.
-- **`testing/`** - manual release sign-off checklists (installed-app, packaged-app,
-  regression, test-video matrix).
+- **`testing/`** - manual release sign-off checklists (installed-app, regression,
+  test-video matrix).
 - **`third-party-source/`** + [THIRD-PARTY-NOTICES-FFMPEG.md](THIRD-PARTY-NOTICES-FFMPEG.md) -
   GPL source-accompaniment for the bundled FFmpeg.
 
 Contributor setup and the `yuu-dev` commands live in
 [CONTRIBUTING.md](../../.github/CONTRIBUTING.md).
+
+When adding or removing a file under `docs/dev/`, update this index in the same commit.

@@ -185,8 +185,9 @@ axes, or a documented number:
 
 ## Code standards
 
-Full details live in [CLAUDE.md](../CLAUDE.md) (which doubles as the architecture map and
-the assistant-context file). The essentials:
+Project-specific conventions live in [CLAUDE.md](../CLAUDE.md) (the assistant-context
+file) and [docs/dev/ARCHITECTURE.md](../docs/dev/ARCHITECTURE.md) (the architecture map
+and landmines). The essentials:
 
 - Comments only when the *why* is genuinely non-obvious. No docstrings on internal
   functions - clear names instead.

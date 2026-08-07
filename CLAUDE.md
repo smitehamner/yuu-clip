@@ -8,6 +8,15 @@ best clip candidates, and presents a web UI for review and export.
 
 Single-user tool - no auth, no multi-tenancy, no public network exposure.
 
+## Maintaining this file
+
+1. Project-specifics only - never restate a rule from the global `~/.claude/CLAUDE.md`.
+2. A rule that needs more than ~3 lines of mechanism becomes a `docs/dev/` section
+   (usually an ARCHITECTURE.md landmine) plus a one-line pointer here.
+3. Status never lives here - open work is in `docs/project/ROADMAP.md` (open items
+   only) and in the planning workspace.
+4. Soft ceiling: ~250 lines. Past it, something belongs in `docs/dev/`.
+
 ## How to start / restart the server
 
 The daily dev-loop commands live in the `yuu-dev` CLI (`yuu_clip/dev/`, a Typer
@@ -104,8 +113,8 @@ No server restart needed. But before reporting a UI fix as complete:
 2. Run the UI tests to catch regressions (`yuu-dev test-ui` stands up its own
    isolated fixture server - your interactive `yuu-dev serve` need not be running)
 
-**Run targeted, not the whole suite every time.** The full suite is ~711 tests
-/ ~2.7 min and is server-bound - its wall time is DB/server throughput divided
+**Run targeted, not the whole suite every time.** The full suite is ~600+ UI tests
+/ a few minutes and is server-bound - its wall time is DB/server throughput divided
 across workers, so adding workers past 4 does not help and running it on every
 edit is the slow part of the loop. Pick the run by scope, using judgment:
 
@@ -117,7 +126,7 @@ edit is the slow part of the loop. Pick the run by scope, using judgment:
   "is the app fundamentally working?" check.
 - **`yuu-dev test-ui`** (full suite) - run when the change is
   cross-cutting (`utils.js`, `ui.js`, `boot.js`, the app shell/`index.html`,
-  `tests/conftest.py` or `tests/ui/conftest.py`), when `-Changed` prints a cross-cutting/backend advisory,
+  `tests/conftest.py` or `tests/ui/conftest.py`), when `--changed` prints a cross-cutting/backend advisory,
   before reporting a broad UI change complete, and as the final step of any
   UX/UI review pass (`/code-review` or `shqr-ux-ui-review`). The user has also
   OK'd leaving the full run for review passes rather than every "done".
@@ -180,18 +189,13 @@ enforces both patterns with allowlists that are now **empty** - a new violation 
 unit tier. `boot.js` is the one exempt module (it is the side-effect entry point).
 
 **Do NOT defer a cross-module `import` because it looks like a cycle.** esbuild bundles the
-graph into one scope and hoists function declarations, so a mutual import is fine as long as
-the imported name is used inside a function body (which is true of essentially every handler
-/ render call here) rather than at module-evaluation time. The one real exception is
-`core/jobs.js` and `core/format.js`'s reads of `videos.js`/
-`clips.js` render functions: a direct `jobs.js -> videos/clips` (or `format.js -> videos`)
-import adds an edge that esbuild bundles fine but that breaks vitest's
-`vi.mock`/`importActual` resolution (the real `streamSSE` runs instead of the mock). These
-route through `core/refreshhooks.js`'s registry (`registerRefreshHooks`/`refreshHooks`)
-instead - see that module's header for the seam's shape and why it replaced the old
-implicit `window.loadVideos`/`window._renderClips` reads.
+graph into one scope; the one real exception (jobs.js/format.js reading videos/clips render
+functions, routed through `core/refreshhooks.js`'s registry) is explained in that module's
+header - read it before adding a cross-module import there.
 
 ## Project layout
+
+New to the codebase? `docs/dev/README.md` is the read order.
 
 The authoritative file-by-file map lives in **`docs/dev/LAYOUT.md`** - read it there
 when you need to locate a module; keep it (not this section) up to date when files
@@ -215,9 +219,11 @@ must be immediately visible to someone landing on the repo page. Everything else
 named subdirectory - never a new loose file or folder at root.
 
 - **Tool-required at root**: `pyproject.toml`, `package.json`/`package-lock.json`,
-  `pytest.ini`, `vitest.config.mjs`, `alembic.ini`, `.venv/`, `.mypy_cache/`,
+  `requirements.lock`, `pytest.ini`, `vitest.config.mjs`, `alembic.ini`,
+  `mypy-baseline.txt` (the frozen typecheck baseline), `.venv/`, `.mypy_cache/`,
   `.pytest_cache/`, `.ruff_cache/`, `.git*`, `CLAUDE.md`/`CLAUDE.local.md` (Claude Code
-  convention), `yuu_clip/` (the package itself).
+  convention), `yuu_clip/` (the package itself). `yuu-clip.code-workspace` is a
+  gitignored local-only editor file - it is not part of the repo's contents.
 - **First-thing-a-visitor-reads at root**: `README.md`, `LICENSE`, `DEV-README.md`.
 - **GitHub-discovered but does not need to be at root**: `CONTRIBUTING.md`,
   `SECURITY.md` - these live in `.github/` (GitHub auto-discovers them there for the
@@ -258,16 +264,11 @@ the Electron wrapper suite, and the isolated fixture server's determinism
 guarantees are documented in `docs/dev/TESTING.md` - read it before touching
 `tests/system/`, `electron/test/`, or `tests/ui/conftest.py`'s fixture server.
 
-Run at least `yuu-dev test-api` before reporting a backend fix as done.
-
 ## Current focus
 
-The pipeline and web UI are complete, in regular use, and the repo is public.
-Open work is tracked in `docs/project/ROADMAP.md` - read it for what's currently
-open (verification/known-issue debt in section 1, larger/speculative features
-further down) rather than relying on this file, which doesn't track status.
+Open work is tracked in `docs/project/ROADMAP.md`.
 
-When fixing a UI bug, the loop is still:
+When fixing a UI bug, the loop is:
 
 1. Try an action in the browser
 2. If it fails, check `.yuu-clip\yuu-clip.log`
@@ -275,22 +276,10 @@ When fixing a UI bug, the loop is still:
 
 ## Terminology
 
-The authoritative term list is in `docs/dev/llm/GLOSSARY.md` (the exhaustive dev
-superset; the human-facing subset is the in-app glossary at
-`yuu_clip/web/static/glossary.md`). Read it before introducing any new concept, and
-follow these rules:
-
-- **User-facing text** (UI labels, button text, toast messages, error messages, CLI
-  help text, docs) must use the glossary term - not the code name.
-- **Code names** (Python identifiers, JS variable names, API route paths, DB column
-  names) may differ from the user-facing term. The glossary records both under
-  "Code:" and "Also called in codebase:".
-- **When you add a new concept**: define it in the glossary first, then use that
-  term everywhere from the start. Don't name it one thing in code and something
-  else in the UI without documenting the split.
-- **When a concept is renamed**: update `docs/dev/llm/GLOSSARY.md`, then update all
-  user-facing strings. Code identifiers can be left for a separate refactor pass -
-  but the glossary entry must note the divergence under "Also called in codebase:".
+The authoritative term list is `docs/dev/llm/GLOSSARY.md` (the exhaustive dev superset;
+the human-facing subset is the in-app glossary at `yuu_clip/web/static/glossary.md`) -
+read it before introducing or renaming any concept, and record the code/user-facing
+split there under "Code:" / "Also called in codebase:".
 
 Key terms to get right (common sources of drift - this is a curated subset of
 GLOSSARY.md's quick-reference table, kept here so it stays always-visible; update
@@ -309,9 +298,9 @@ both when a term changes):
 - "Track role" - not "label" in user-facing text (code: `track.label`)
 - "Last scored with" - not "provenance" in user-facing text
 
-Use these glossary terms in **conversation** too, not just in code. If discussing a concept with the user, use the user-facing term (e.g. say "track layout" not "profile", "world context" not "RP context").
-
 ## Branching and commits
+
+**Never push, open a PR, or merge unless asked - commit locally and say what is ready.**
 
 The repo is public and `main` is protected: it is always releasable, and every change
 reaches it through a pull request with green CI. There are no direct commits to `main`,
@@ -323,33 +312,15 @@ intended, not a misconfiguration to route around.
 - Tag releases on the merged commit on `main`, never on a local one
   (`docs/dev/HOW-TO-RELEASE.md`).
 
-Never push, open a PR, or merge unless asked - commit locally and say what is ready.
-
 ## Behavior
-- Never cd into the current working directory before running a command
 - Always use the approved dev CLI (`yuu-dev <cmd>`) - never raw python calls outside the venv
 - Ask before touching files outside the current task scope
-- If uncertain about approach, stop and ask rather than proceeding with assumptions
-- Be concise in responses - no preamble, no "I've completed..." summaries
-- State what changed and why, nothing else
-- Make easy, low-risk fixes autonomously then report what remains - don't ask for approval on obvious fixes
-
-## Testing
-- Tests before or alongside implementation, never after
-- Test behavior, not implementation
-- If you change existing code, verify existing tests still make sense
-- Run `yuu-dev test-api` before reporting any backend fix as done
-- If stuck in a circular codegen loop, write a minimal test first instead of iterating further on the implementation
 
 ## Code standards
 
 ### AI/model backends must sit behind a swappable interface
-Every model-backed capability is exposed through a generic interface so a backend can
-be swapped (or added) without touching the callers - this is a hard convention, keep it
-even when there is only one implementation today. Each seam is: an ABC (or `Protocol`) +
-a single `make_*(config)` factory keyed on a `*_backend` config value, and the interface
-exposes `available() -> (ok, reason)`. Callers only ever go through the factory; they
-never import a concrete backend class. The existing seams:
+The seam's shape and how to add a backend are in `docs/dev/ARCHITECTURE.md`'s
+"The swappable-backend seam"; this is the authoritative inventory of the seams:
 
 - **LLM text + vision** - `LLMClient` + `make_client` (`scoring/llm_client.py`), keyed on
   `llm_backend`. Backends: `llamacpp` (local, the only real backend) and the `NullLLMClient`
@@ -367,21 +338,11 @@ never import a concrete backend class. The existing seams:
 - **Scorers** - the `Scorer` `Protocol` (`scoring/protocol.py`), assembled by
   `scoring/scorer_set.py`. Adding a scoring dimension/model = a new `Scorer`.
 
-To add a backend: implement the interface, register it in that module's `_BACKEND_*`
-dict, add the `*_backend` value. Do NOT add a caller-side `if backend == ...`. Keep the
-backend's own tunables under a backend-specific config prefix (e.g. `whisper_*` for
-faster-whisper, `speaker_*` for diarization) rather than renaming them generic.
+Keep each backend's own tunables under a backend-specific config prefix (e.g.
+`whisper_*` for faster-whisper, `speaker_*` for diarization) rather than renaming them
+generic.
 
 ### General
-- No comments unless the WHY is genuinely non-obvious (hidden constraint, workaround, subtle invariant)
-- No docstrings on internal functions - clear names are enough
-- No error handling for things that can't happen; trust framework guarantees
-- Don't add features beyond what the immediate task requires
-- Methods/functions under 30 lines - decompose and flag if longer
-- No duplication - if similar logic appears twice, extract it
-- Names must be descriptive - no `x`, `tmp`, `data`, `result`, `val`
-- Error paths must be handled explicitly, not silently swallowed
-- One concern per function
 - **Type hints: annotate as-you-touch, no big-bang pass.** `yuu-dev typecheck` runs mypy
   with a lenient global config and a frozen baseline (`mypy-baseline.txt`) of the current
   errors; it fails only on NEW errors. When you edit a function, add parameter/return
@@ -409,7 +370,7 @@ to a *recommended* catalog entry.
 - For new route handlers that read the DB: follow the existing pattern in `routes/videos.py`
 
 ### JavaScript / frontend
-- **Never hardcode colors** - no hex/rgba literals in CSS rules, inline styles, or JS-built HTML. Every color must be `var(--token)` or `color-mix(in srgb, var(--token) N%, transparent)` using the theme tokens. The tokens now live in **`static/shared/tokens.css`** (linked before `app.css` in `index.src.html`, and mirrored to `electron/shared/tokens.css` so the setup wizard uses the same palette - regenerate that mirror with `yuu-dev shared-data`). Literals are only allowed inside the theme definition blocks in `tokens.css` (`:root` and `html[data-theme=...]`), which must each override the full token set. `app.css` and the wizard's `<style>` must carry NO color literal. Exceptions: `#000` video letterboxing and `rgba(0,0,0,…)` scrims drawn *over video content* (theme-independent by design), and the score-gradient stops in `format.js` (data encoding, not UI chrome). `tests/unit/test_static_theme_colors.py` enforces the no-literal + full-token-set rules (reading `tokens.css`); `tests/ui/test_ui_theme.py` checks live WCAG AA contrast per theme, and `tests/unit/test_wizard_theme.py` checks the wizard's token pairings - when adding a new color pairing, add its contrast assertion there.
+- Theme tokens live in `static/shared/tokens.css` and are mirrored to the wizard - the token set, the two literal exceptions, and the enforcing tests are `docs/dev/ARCHITECTURE.md` landmine #10.
 - `escHtml(s)` must escape `"` → `&quot;` (used for `data-*` attributes in onclick delegation)
 - Dynamic button lists must use event delegation (`el.onclick = e => { ... }`) not inline `onclick=` attributes with JS values - inline attributes break when names contain quotes
 - SSE streams are tracked in `_activeES`; call `_activeES.close()` before starting a new one
@@ -434,7 +395,7 @@ to a *recommended* catalog entry.
   a confirm-dialog config across call sites is exactly how this drifts - never reuse a
   literal `confirm: 'Cancel'` across different call sites.
 - **Panel flows**: a multi-step flow (Split Editor, manual-clip picker, etc.) must take
-  over the main detail panel via `PanelNav.open()` (`panelnav.js`), not a modal. Tabs are only
+  over the main detail panel via `PanelNav.open()` (`core/panelnav.js`), not a modal. Tabs are only
   for navigation *within* a single view. `PanelNav.open({id, title, render, isDirty, onClose})`
   handles the `← Back` breadcrumb, the stack (for future nesting), and the shared discard
   prompt; `PanelNav.close()` gates on `isDirty()`, `PanelNav.forceClose()` bypasses it for

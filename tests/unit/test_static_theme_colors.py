@@ -10,7 +10,7 @@ contrast checks (getComputedStyle) and the theme/accent switcher behaviour stay 
 Guards enforced here:
   - every theme block overrides the complete colour-token set;
   - app.css carries no colour literal outside a theme-definition block;
-  - the served *.js and *.html carry no hardcoded colour (CLAUDE.md) - the .html
+  - the served *.js and *.html carry no hardcoded colour - the .html
     scan globs the whole static tree, so it covers the stitched index.html AND its
     source (index.src.html + partials/*.html), closing the blind spot that let the
     split-editor legend literals in before WS-A;
@@ -105,7 +105,7 @@ def test_app_css_has_no_color_literals_outside_theme_blocks():
 
 
 # ── No hardcoded colors in JS-built HTML / inline styles (CLAUDE.md) ─────────
-# The rule in CLAUDE.md bans color literals in JS-built HTML and inline styles,
+# The rule (ARCHITECTURE.md landmine #10) bans color literals in JS-built HTML and inline styles,
 # not just in app.css. This scans every static *.js and *.html for them - the
 # .html glob covers the stitched index.html plus its source (index.src.html and
 # partials/*.html), so an inline-style literal in a partial is caught too.
@@ -118,7 +118,7 @@ def test_app_css_has_no_color_literals_outside_theme_blocks():
 #     title-card color-picker default), not UI chrome.
 #   - Over-video overlays (#000/#fff/#e6e6e6 caption text, black/white scrims):
 #     drawn over video, theme-independent by design - same class as #000
-#     letterboxing (the documented CLAUDE.md exemption).
+#     letterboxing (the documented landmine #10 exemption).
 #   - The score-gradient stops in format.js: data encoding, not chrome.
 #   - The starter swatches in colorpicker.js: pickable colour data (the colours a
 #     user can choose), not UI chrome - same class as the score-gradient stops.

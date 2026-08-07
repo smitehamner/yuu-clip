@@ -17,9 +17,8 @@ Where this sits in the docs:
   "see the layout map", it means that file.
 - **[TESTING.md](TESTING.md)** - the system/golden/Electron test tiers and the
   isolated fixture server, past what the "Test tiers" section below covers.
-- **[CLAUDE.md](../../CLAUDE.md)** - the exhaustive assistant-context file, carrying
-  every convention. Do not expect to read all of it to get oriented - that is what
-  this file is for.
+- **[CLAUDE.md](../../CLAUDE.md)** - the assistant-context file: the project's own
+  conventions and workflow gates, kept short and pointing here for mechanism.
 
 ---
 
@@ -462,6 +461,30 @@ exit. A bare script needs the same pattern - see
 copy-pasteable version. Do not "fix" this by adding a blanket `os._exit()` at the end of
 one-off scripts - that skips whatever cleanup ran before the hang and can leave the
 driver/Chromium subprocess itself still running.
+
+### 10. Colors come from the theme tokens, never a literal
+
+Every color in the app must be `var(--token)` or
+`color-mix(in srgb, var(--token) N%, transparent)` - no hex/rgba literal in a CSS rule,
+an inline style, or JS-built HTML.
+
+The tokens live in [static/shared/tokens.css](../../yuu_clip/web/static/shared/tokens.css),
+linked before `app.css` in `index.src.html` and **mirrored** to `electron/shared/tokens.css`
+so the setup wizard uses the same palette - regenerate that mirror with `yuu-dev shared-data`
+after changing a token. Literals are allowed only inside the theme definition blocks in
+`tokens.css` (`:root` and `html[data-theme=...]`), and each block must override the full
+token set. `app.css` and the wizard's `<style>` must carry NO color literal.
+
+Two deliberate exceptions, both theme-independent by design: `#000` video letterboxing and
+`rgba(0,0,0,...)` scrims drawn *over video content*, and the score-gradient stops in
+`format.js` (data encoding, not UI chrome).
+
+Enforcement: [tests/unit/test_static_theme_colors.py](../../tests/unit/test_static_theme_colors.py)
+(no-literal + full-token-set, reading `tokens.css`),
+[tests/ui/test_ui_theme.py](../../tests/ui/test_ui_theme.py) (live WCAG AA contrast per
+theme), and [tests/unit/test_wizard_theme.py](../../tests/unit/test_wizard_theme.py) (the
+wizard's token pairings). When you add a new color pairing, add its contrast assertion
+there.
 
 ---
 
