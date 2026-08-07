@@ -207,7 +207,7 @@ Fast export that copies the video without re-encoding. The clip may start or end
 Slower export that re-encodes the video to cut at the exact frame. Required when burning captions into the video or prepending a title card.
 
 ### Export preset
-A named recipe for export - container, resolution, and bitrate - instead of exporting at original quality. Built-in presets include "YouTube 1080p", "Discord (≤10 MB)", and "TikTok / Shorts (9:16)"; you can also create your own in Settings → Export.
+A named recipe for export - container, resolution, and bitrate - instead of exporting at original quality. Built-in presets include "YouTube 1080p", "Discord (<=10 MB)", and "TikTok / Shorts (9:16)"; you can also create your own in Settings → Export.
 
 ### Exports
 The "Exports" list on a clip shows every file you've exported for it. A clip can have more than one at once (say, an original-quality export plus a Discord-sized one) - exporting with a new preset adds another export instead of replacing your existing one.

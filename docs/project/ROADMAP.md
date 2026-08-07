@@ -129,9 +129,10 @@ Nothing here blocks distribution; it is opportunistic cleanup.
   (`cli/analyze.py`'s `analyze` command accepts multiple video paths/a glob and pauses between
   them via `_wait_while_paused`), but the web UI's `/api/analyze/start` always builds the CLI
   command for exactly one video, so nothing in the app can ever reach that multi-video path.
-  The job header's "Pause after current video" toggle does poll on every run, but its *label*
-  still describes the between-videos behaviour only, and would want revisiting alongside real
-  batch-analyze support.
+  The job header's pause toggle already reads generically ("Pause at next safe point"), but
+  the surfaces around it still describe between-videos behaviour only - the paused badge's
+  tooltip and the auto-pause toast both say "will hold before the next video". Those would
+  want revisiting alongside real batch-analyze support.
 
 - [ ] **Right-click context menus for videos/clips** *(unscoped, deferred)* - investigated
   2026-07-19: everything a context menu would offer already exists via visible affordances
@@ -193,7 +194,7 @@ Nothing here blocks distribution; it is opportunistic cleanup.
   - **Backend-only Linux (small):** remaining stubs are reveal-in-folder
     (`web/routes/reveal.py`, hard 501 off-Windows - needs `xdg-open`) and the dev-CLI
     stale-process reap (`dev/procs.py`, no-op off-Windows, contributor-facing only). CUDA-from-wheels may need `LD_LIBRARY_PATH` handling
-    (`transcribe/whisper_runner.py` `_register_cuda_dll_dirs` is Windows-only) but degrades to CPU.
+    (`transcribe/transcriber.py` `_register_cuda_dll_dirs` is Windows-only) but degrades to CPU.
   - **Full packaged app (large):** the entire Electron packaging pipeline is Windows/NSIS-only
     (`electron/package.json` targets `win`/`nsis`; `electron/constants.js` is saturated with
     `LOCALAPPDATA`/`APPDATA`/`USERPROFILE`/`Scripts/python.exe`; every build/fetch script is `.ps1`).

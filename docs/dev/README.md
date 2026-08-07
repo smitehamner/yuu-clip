@@ -12,6 +12,8 @@ Read order for someone new to the codebase:
 Also here:
 
 - **[LAYOUT.md](LAYOUT.md)** - the file-by-file map of the repo.
+- **[TESTING.md](TESTING.md)** - the system/golden/Electron test tiers and the isolated
+  fixture server, past what ARCHITECTURE.md's "Test tiers" section covers.
 - **[HOW-TO-RELEASE.md](HOW-TO-RELEASE.md)** / **[PACKAGING-TIERS.md](PACKAGING-TIERS.md)** -
   release process and what ships in each install tier.
 - **`llm/`** - agent-maintained reference docs (GLOSSARY, DOC-CLAIMS fact registry,

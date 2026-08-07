@@ -1,7 +1,6 @@
 """``yuu-dev release-smoke`` - drive a live server through the release-gate flows.
 
-Plan of record:
-D:\\1\\Hamner\\Code\\000_project_planning\\finalized_plans\\yuu-clip_plans\\plans\\release-smoke-harness\\INDEX.md
+Plan of record: the release-smoke-harness plan set in the maintainer's planning repo.
 
 This module owns option parsing and the try/finally shell (preflight, run the
 selected steps serially, always switch the server back to its original project).

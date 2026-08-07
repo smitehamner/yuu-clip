@@ -147,7 +147,7 @@ the code name in code):
 | `person_characters` (`PersonCharacterLink`) | One Person<->Character alias link, at most one per world context per Person; real FKs, `ON DELETE CASCADE` both sides | (internal - never named in UI) | Person picker in People view (`routes/voices.py::set_voice_character`) | Context-scoped resolution in `scoring/llm.py::_characters_in_clip` (filtered by `scoring/term_scope.video_context_ids`) |
 | `clip_candidates` (`ClipCandidate`) | A proposed highlight: ms window, `kind` (`clip`/`scene`), four axis scores + laugh, descriptions, status, export/staleness stamps | Clip (kind `scene`: Scene; status `pending`: Unreviewed) | Generate Clips (`segments/windower.py` + `visual_windower.py` + `merge.py`; scenes via `scene_segmenter.py`); manual clips (`routes/clips/crud.py`); Score stage fills scores (`scoring/engine.py`) | `routes/clips/` -> clip list + review UI (`clips/clips.js`); export + reel |
 | `clip_exports` (`ClipExport`) | One exported file per (clip, export preset), with settings + size | Export file | Export (`export/render.py::_record_clip_export`) | `routes/clips/serialize.py` -> Exports card (`clips/clipexport.js`) |
-| `audio_energy` (`AudioEnergy`) | Per-second RMS loudness curve per track | (internal - powers Audio energy scoring) | Score stage (`scoring/energy.py::compute_energy`) | `EnergyScorer`; recording detail routes (`routes/videos.py`) |
+| `audio_energy` (`AudioEnergy`) | Per-second RMS loudness curve per track | (internal - powers Audio energy scoring) | Score stage (`scoring/energy.py::compute_energy`) | `AudioEnergyScorer`; recording detail routes (`routes/videos.py`) |
 | `scene_boundaries` (`SceneBoundary`) | Detected visual scene-cut timecodes per recording (NOT the `kind='scene'` candidate type) | (internal - powers Scene scoring / the Visual axis) | Score stage (`scoring/scenes.py::compute_scenes`) | `SceneCutScorer`; `segments/scene_segmenter.py` + `visual_windower.py`; `routes/videos.py` |
 | `visual_activity` (`VisualActivity`) | Per-sample frame-diff on-screen activity, model-free | (internal - powers the Visual axis) | Score stage (`analyze/motion.py::compute_activity`) | `scoring/visual.py`; `segments/windower.py` + `visual_windower.py`; `routes/videos.py` |
 | `hot_words` (`HotWord`) | Creator phrase that boosts a clip's score when it appears in the transcript; global or context-scoped | Hot-word | Settings UI (`routes/hotwords.py`) | Score stage (`scoring/engine.py::apply_hotword_boosts` via `scoring/textmatch.py` + `term_scope.py`) |
@@ -174,10 +174,10 @@ The shape is always:
 
 The canonical example is the LLM seam:
 [scoring/llm_client.py](../../yuu_clip/scoring/llm_client.py) - `LLMClient` (ABC),
-`make_client` ([llm_client.py:167](../../yuu_clip/scoring/llm_client.py#L167)) keyed on
-`llm_backend`, `_BACKEND_CLIENTS` ([llm_client.py:158](../../yuu_clip/scoring/llm_client.py#L158)),
+`make_client` ([llm_client.py:199](../../yuu_clip/scoring/llm_client.py#L199)) keyed on
+`llm_backend`, `_BACKEND_CLIENTS` ([llm_client.py:182](../../yuu_clip/scoring/llm_client.py#L182)),
 with `LlamaCppServerClient` (local) and `NullLLMClient`
-([llm_client.py:112](../../yuu_clip/scoring/llm_client.py#L112)) as the fallback.
+([llm_client.py:120](../../yuu_clip/scoring/llm_client.py#L120)) as the fallback.
 `make_client` is also the single point that enforces AI-privacy policy - it returns
 `NullLLMClient` when generative AI is off. YuuClip is local-only by design; there is no
 remote/hosted backend and no "send my transcript to an API" path.
@@ -300,7 +300,7 @@ Model selection exists in **two separate stacks that cannot share runtime code**
   `download-gguf` CLI.
 - **Electron setup wizard** - renderer (`electron/setup.html`) -> IPC ->
   [electron/main.js](../../electron/main.js) handler `setup:download-gguf-model`
-  ([main.js:341](../../electron/main.js#L341)), which downloads `DEFAULT_LLAMACPP_MODEL`
+  ([main.js:427](../../electron/main.js#L427)), which downloads `DEFAULT_LLAMACPP_MODEL`
   ([electron/constants.js](../../electron/constants.js)) with Node and writes
   `config.json` directly.
 
@@ -354,7 +354,7 @@ package and dies with `ModuleNotFoundError: k2`. In the analyze subprocess, diar
 silently die for the whole run.
 
 The fix is a pre-warm: `ingest.py` resolves `transformers.pipeline` via
-`prewarm_transformers_pipeline()` ([ingest.py:239-240](../../yuu_clip/pipeline/ingest.py#L239-L240))
+`prewarm_transformers_pipeline()` ([ingest.py:257-258](../../yuu_clip/pipeline/ingest.py#L257-L258))
 *before* diarization imports speechbrain. If you reorder the analyze pipeline, keep that
 call ahead of any speechbrain import.
 
@@ -368,13 +368,13 @@ Because the server and the analyze subprocess share one SQLite file (see the pro
 model above), three rules are non-negotiable:
 
 - **`NullPool` on every engine.** Set in `make_engine`
-  ([db/models.py:73](../../yuu_clip/db/models.py#L73)). Connections close immediately so
+  ([db/models.py:92](../../yuu_clip/db/models.py#L92)). Connections close immediately so
   a pooled server connection cannot hold a lock and block the subprocess's INSERT. Never
   change this to a pooled class. A 30 s `busy_timeout` PRAGMA
-  ([db/models.py:91](../../yuu_clip/db/models.py#L91)) gives a blocked writer time to wait
+  ([db/models.py:100](../../yuu_clip/db/models.py#L100)) gives a blocked writer time to wait
   rather than fail instantly.
 - **Every route handler that opens a session must close it in `try/finally`.** See the
-  pattern in [routes/videos.py:82-95](../../yuu_clip/web/routes/videos.py#L82-L95). A
+  pattern in [routes/videos.py:92-107](../../yuu_clip/web/routes/videos.py#L92-L107). A
   leaked session is a held connection is a lock.
 - **If you see `OperationalError: database is locked`:** the usual cause is a zombie
   analyze subprocess still holding the file (kill it and restart the server), or a route

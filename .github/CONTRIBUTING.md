@@ -162,7 +162,8 @@ cd electron
 npm test
 ```
 
-CI runs `lint`, `typecheck`, `test-api`, and `test-js` on every pull request; keep them
+CI runs `lint`, `typecheck`, the `unit` / `integration` / `system` pytest tiers as three
+separate jobs, `test-js`, and the Electron wrapper suite on every pull request; keep them
 all green. The ui (Playwright) tier is not run in CI - it drives a real browser against
 a live server, so run it locally (it self-hosts everything, above) before a frontend
 change.

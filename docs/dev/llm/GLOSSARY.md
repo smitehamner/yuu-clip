@@ -36,10 +36,10 @@ Most lookups only need this table: the authoritative user-facing term, the code 
 | Track | `AudioTrack`, `stream_index` | One audio stream in a recording - not "stream" in UI |
 | Track role | `label` | Semantic function: Player Voice / Voice Chat / Game Sounds / Combined / Unlabeled |
 | Track layout | `profile` | Saved template mapping track positions to roles |
-| Analyze | `ingest`, `run_ingest()` | End-to-end pipeline run - never "ingest" in UI |
+| Analyze | `ingest`, `pipeline/ingest.py` | End-to-end pipeline run - never "ingest" in UI |
 | Pipeline stage | `step` | Inspect → Assign Tracks → Extract → Transcribe → Detect Speakers → Generate Clips → Summarize → Score |
 | Inspect | `probe()` | Read recording metadata - never "probe" in UI |
-| Extract | `extract_audio()` | Track → WAV conversion (internal stage) |
+| Extract | `extract_audio_track()` | Track → WAV conversion (internal stage) |
 | Re-score | `score`, `/api/score` | Re-run scoring only |
 | Job | `ingest_proc` | The one active analysis/rescore operation |
 | Pause / Resume analysis | `analyze.pause` flag file | Hold a running analysis at its next pause point, without losing progress |
@@ -71,13 +71,13 @@ Most lookups only need this table: the authoritative user-facing term, the code 
 | Flagged | `sensitive_matches` non-empty | Clip filter tab / badge - a clip containing a Sensitive Terms match |
 | AI privacy mode | `ai_privacy_mode` | The trust control: No generative AI / Local models only |
 | LLM scoring | `LLMScorer` | Transcript-based scoring - not "AI scoring" |
-| Audio energy scoring | `EnergyScorer` | Loudness/activity-based scoring |
-| Scene scoring | `SceneScorer` | Scene-cut-frequency scoring |
+| Audio energy scoring | `AudioEnergyScorer` | Loudness/activity-based scoring |
+| Scene scoring | `SceneCutScorer` | Scene-cut-frequency scoring |
 | Lexicon scoring | `LexiconScorer` | Curated keyword-density funny/dramatic/action nudge - no model |
 | Speech-rate scoring | `SpeechRateScorer` | Words-per-second bursts nudge funny/action - no model |
 | Speaker-overlap scoring | `SpeakerChurnScorer` | Rapid speaker turn-taking + cross-talk nudge funny/action - needs diarization |
 | Prosody scoring | `ProsodyScorer` | Loudness + pitch delivery dynamics nudge dramatic/action - no model |
-| Audio-event scoring | `AudioEventScorer` | Gunshot/explosion/cheer detection via the AudioSet model → action/funny - heavy opt-in, off by default |
+| Audio-event scoring | `AudioEventScorer` | Gunshot/explosion/cheer detection via the AudioSet model → action/funny - heavy, on by default |
 | Similarity engine | `similarity_backend` | Powers Find related clips + "Meaning" hot-words: Fast (keyword) / Smart (embeddings) / LLM |
 | Clip description | `description`, `description_long` | AI one-liner + paragraph; `*_user` overrides win |
 | Basic description | `desc_basic` tag | Non-LLM template one-liner so a clip is never blank without a model |
@@ -88,13 +88,13 @@ Most lookups only need this table: the authoritative user-facing term, the code 
 | Context ID | `context_slug` | URL-safe identifier - not "slug" in UI |
 | Last scored with | `*_context_json` | Contexts active at last scoring - not "provenance" in UI |
 | Export | `export_clip()` | Save one clip to a file |
-| Export preset | `ExportPreset`, `export_presets` | Named container/resolution/bitrate recipe for export ("YouTube 1080p", "Discord (≤10 MB)", or a custom one) |
+| Export preset | `ExportPreset`, `export_presets` | Named container/resolution/bitrate recipe for export ("YouTube 1080p", "Discord (<=10 MB)", or a custom one) |
 | Export file | `ClipExport` (one row per clip+preset) | One of a clip's exported files - a clip can have several, one per Export preset used. UI heading: "Exports" |
 | Vertical framing | `crop_x`, `ExportPreset.vertical` | Which 9:16 slice of the frame fills a Shorts export - 0=left, 0.5=center, 1=right; not "crop position" in UI |
 | Quick export | `stream_copy=True` | Keyframe-aligned, no re-encode - not "stream copy" in UI |
 | Precise export | `reencode=True` | Frame-accurate re-encode; needed for baked-in captions or a title card |
 | Captions | `subtitles`, SRT/VTT | Sidecar or baked-in - not "subtitles" in UI |
-| Highlight reel | `demo_reel`, `build_reel()` | Compiled video from approved clips - not "demo reel" in UI |
+| Highlight reel | `demo_reel` (config/UI naming), `compile_demo()` | Compiled video from approved clips - not "demo reel" in UI |
 | Title card | `title_card` | Text overlay between reel clips |
 | Stale export | `export_stale` | An exported file no longer reflects the clip's current captions/window/description - needs re-export |
 | Project folder | `project_dir` | The hidden `.yuu-clip/` directory |
@@ -263,7 +263,7 @@ A saved template that maps track positions to roles, reusable across recordings 
 
 The end-to-end process of running a recording through all pipeline stages to produce scored clips.
 
-- **Code:** `ingest`, `run_ingest()`
+- **Code:** `ingest`, `pipeline/ingest.py`
 - **Also called in codebase:** "ingest"
 - **Do not call it:** "ingest" in user-facing text
 - **UI label:** "Analyze" / "+ New Recording" header button
@@ -308,7 +308,7 @@ Read a recording's metadata without running the full pipeline.
 
 Convert a raw audio track to a standardized WAV file for transcription and energy analysis.
 
-- **Code:** `extract_audio()`, `extracted_path`
+- **Code:** `extract_audio_track()`, `extracted_path`
 - **Also called in codebase:** "audio extraction"
 - **Do not call it:** "extract" in user-facing text - confusable with "Export"
 - **Notes:** Internal stage; creators never interact with it directly.
@@ -402,7 +402,7 @@ The local AI model that converts audio to text. YuuClip uses Whisper.
 - **Do not call it:** just "model" - ambiguous with the LLM scoring model; "Caption
   model" - retired, collides with the unrelated Caption Style feature
 - **Notes:** all five model selects share one canonical option-copy set
-  (guarded by `tests/test_ui_terminology.py`)
+  (guarded by `tests/ui/test_ui_terminology.py`)
 
 ---
 
@@ -414,7 +414,7 @@ a specific language when detection gets it wrong (e.g. mixed-language audio).
 - **Code:** `whisper_language` (config, `""` = auto), `language` (per-run CLI flag / `Transcript.language`)
 - **UI label:** "Transcription language" (Settings and setup wizard)
 - **Do not confuse with:** UI localization - this controls what Whisper hears, not what
-  the interface displays (that's a Phase 6 roadmap item)
+  the interface displays (that's a ROADMAP "Platform reach" item)
 
 ---
 
@@ -506,7 +506,7 @@ When a re-diarized voice lands just below the re-attach threshold (within a fixe
 
 ### Person / People
 
-A **project-wide identity**: one voice named once and applied across *every* recording it appears in, so a real person named in ten sessions is named once. A per-recording **Speaker** links to a Person; a Speaker's effective **display name** resolves through the linked Person (naming the Person is what "applies everywhere" means). The **People** view (hamburger menu) lists people, their member recordings, and pending cross-recording suggestions, with promote / rename / recolor / merge / split and a "Find people across recordings" backfill.
+A **project-wide identity**: one voice named once and applied across *every* recording it appears in, so a real person named in ten sessions is named once. A per-recording **Speaker** links to a Person; a Speaker's effective **display name** resolves through the linked Person (naming the Person is what "applies everywhere" means). The **People** view (header nav) lists people, their member recordings, and pending cross-recording suggestions, with promote / rename / recolor / merge / split and a "Find people across recordings" backfill.
 
 - **Code:** `ProjectVoice` (the identity), `Speaker.global_voice_id` (the link), `VoiceExemplar` (the multi-exemplar voiceprints), `Speaker.suggested_voice_id` / `suggested_voice_score` (an unconfirmed cross-recording match); routes in `web/routes/voices.py` (`/api/voices*`, `/api/speakers/{id}/confirm-voice` · `/reject-voice`); matching core `transcribe/project_voice.py`; UI `voices.js`.
 - **Also called in codebase:** `global_voice`, "project voice".
@@ -594,7 +594,7 @@ Creator-adjustable offsets that shift a clip's start or end from its analyzed wi
 
 The pipeline stage that produces clip candidates from the transcript by finding time windows with meaningful speech.
 
-- **Code:** `segment_candidates()`, `generate_candidates()`
+- **Code:** `generate_candidates()`
 - **Also called in codebase:** "segmentation", "candidate generation", "windowing"
 - **Do not call it:** "segmentation" in user-facing text - too technical
 
@@ -625,7 +625,7 @@ Two or more clips in one recording whose time windows heavily overlap - usually 
 A longer contextual candidate - a 1-5 minute moment with a story arc, which may include pauses. Reviewed and exported through the same machinery as a Clip; only generation and scoring differ. Distinct from a Clip (a punchy 15-90s bit).
 
 - **Code:** a `ClipCandidate` row with `kind='scene'` (Clips are `kind='clip'`, the default)
-- **Also called in codebase:** not to be confused with `SceneBoundary` / `SceneScorer` (see Scene Scoring below), which are an unrelated **visual scene-cut timecode**, not this candidate type. The UI calls that detector **"Scene cuts"** (the analyze step pill and the Settings/Advanced "Scene cut detection" option) precisely to avoid colliding with this term - see [Disambiguation](#disambiguation).
+- **Also called in codebase:** not to be confused with `SceneBoundary` / `SceneCutScorer` (see Scene Scoring below), which are an unrelated **visual scene-cut timecode**, not this candidate type. The UI calls that detector **"Scene cuts"** (the analyze step pill and the Settings/Advanced "Scene cut detection" option) precisely to avoid colliding with this term - see [Disambiguation](#disambiguation).
 - **Do not call it:** a "SceneBoundary" - that is a different concept.
 - **UI label:** "Scenes" (the All / Clips / Scenes filter chips above the clip list; scene rows carry a **SCENE** badge)
 - **Notes:** Shares the `clip_candidates` table with Clips via the `kind` discriminator. The review UI shows both kinds in one merged list by default (the **All** chip); the **Clips** / **Scenes** chips filter it client-side, and the choice persists in `localStorage` (`clips-kind-filter`).
@@ -735,11 +735,11 @@ concept. Tiered so it works with no language model installed.
   `TfidfBackend` / `EmbeddingsBackend` / `LlmBackend`)
 - **UI label:** "Similarity engine" (Settings → LLM scoring), with tiers **Fast
   (keyword)** / **Smart (embeddings)** / **LLM**
-- **Notes:** Default **Fast** is a zero-dependency TF-IDF keyword cosine (always
-  available). **Smart** uses a small local embeddings model via `fastembed` (opt-in
-  package, ONNX, no PyTorch) for paraphrase matching. **LLM** reuses the language-model
-  path. An unavailable tier (e.g. Smart without `fastembed`) transparently falls back to
-  Fast so the features never hard-fail - see [Hot-word](#hot-word).
+- **Notes:** Default is **Smart**, a small local embeddings model via `fastembed` (a
+  base install dependency, ONNX, no PyTorch) for paraphrase matching. **Fast** is a
+  zero-dependency TF-IDF keyword cosine, now the always-available fallback rather than
+  the default. **LLM** reuses the language-model path. An unavailable tier (e.g. Smart
+  without `fastembed`) transparently falls back to Fast so the features never hard-fail - see [Hot-word](#hot-word).
 
 ---
 
@@ -804,7 +804,7 @@ The single setting that decides whether YuuClip runs a generative model on a rec
 
 Scoring and description generation performed by a local language model that reads the clip's transcript.
 
-- **Code:** `LLMScorer`, `llm_score()`
+- **Code:** `LLMScorer`, `LLMScorer.score()`
 - **Also called:** "AI scoring"
 - **Do not call it:** "AI scoring" - LLM is the accurate term; use it to build the habit of distinguishing LLMs from "AI" broadly
 - **Notes:** Uses the bundled local llama.cpp engine (the only backend - all inference is on-device). Gracefully skipped if no model is configured.
@@ -852,7 +852,7 @@ User-facing: **"Analyze frames"** / **"What's on screen"**. Optional, off by def
 
 Scoring based on how loud and active the audio was during a clip window.
 
-- **Code:** `EnergyScorer`, `AudioEnergy`
+- **Code:** `AudioEnergyScorer`, `AudioEnergy`
 - **Also called in codebase:** "energy scoring", "RMS scoring"
 - **Notes:** Clips with energy above the session's baseline score higher on Action.
 
@@ -862,7 +862,7 @@ Scoring based on how loud and active the audio was during a clip window.
 
 Scoring based on how many visual scene cuts occur within a clip window.
 
-- **Code:** `SceneScorer` (code name for `SceneCutScorer`), `SceneBoundary`
+- **Code:** `SceneCutScorer`, `SceneBoundary`
 - **Notes:** More cuts per minute → higher [Visual](#visual) score. As of the video-heavy analysis work, scene cuts feed the Visual axis, **not** Action (Action is now a purely narrative axis). Boundaries are detected once per recording.
 
 ---
@@ -938,7 +938,7 @@ A title and paragraph overview of an entire recording session, generated by AI.
 
 AI-generated descriptions of what happened in each 15-minute chunk of a session.
 
-- **Code:** `Video.timeline`, `generate_timeline()`
+- **Code:** `Video.timeline`, `generate_timeline_chunk()`
 - **UI label:** "Timeline" button; expandable timeline panel
 - **Notes:** Useful for navigating long sessions. Not the same as a video-editing timeline - see [Disambiguation](#disambiguation).
 
@@ -986,7 +986,7 @@ polluting each other.
   context's display name; the Settings list groups entries under those headings
 - **Notes:** A term counts for a recording when its `context_slug` is NULL, or is in the
   recording's `context_names_json`. A term whose context was deleted becomes **orphaned** -
-  shown under a "Removed context" heading and inert in scoring, never auto-deleted.
+  shown under a "<slug> (removed)" group label and inert in scoring, never auto-deleted.
 
 ---
 
@@ -1031,7 +1031,7 @@ of exporting at original quality - e.g. to fit a platform's upload limits.
 
 - **Code:** `ExportPreset` (`yuu_clip/export/presets.py`), `export_presets` (custom
   presets, stored in global config - they're a user preference, not project data)
-- **Built-ins:** "YouTube 1080p" (`youtube-1080p`), "Discord (≤10 MB)"
+- **Built-ins:** "YouTube 1080p" (`youtube-1080p`), "Discord (<=10 MB)"
   (`discord-10mb`), and "TikTok / Shorts (9:16)" (`tiktok-9x16`) - always
   available, not editable
 - **UI label:** "Export preset" dropdown in the export options; "Original quality"
@@ -1174,10 +1174,10 @@ the chosen `start_offset`/`end_offset`/`crop_x`.
 
 A compiled video assembled from multiple approved clips, with optional transitions and title cards.
 
-- **Code:** `demo_reel`, `build_reel()`
+- **Code:** `demo_reel` (config/UI naming), `compile_demo()`
 - **Also called in codebase:** "demo reel", "compilation"
 - **Do not call it:** "demo reel" in user-facing text - "highlight reel" is more creator-natural
-- **UI label:** "Highlight Reel" (header button) / "View Highlight Reels" (hamburger) / "Highlight Reels" (viewer modal title)
+- **UI label:** "Highlight Reels" (header nav button and viewer modal title)
 
 ---
 
@@ -1190,8 +1190,8 @@ what the next clip contains - also usable on a single clip export.
   `title_card_font_color`, `title_card_scale`, `title_card_template`,
   `title_card_duration_s`; shared line-building helper `title_card_lines()`
   (`yuu_clip/reel.py`)
-- **UI label:** "Title cards" option in reel builder; "Add title card" option in
-  the clip export options; "Title card" subsection in Settings → Export
+- **UI label:** "Title card duration (s)" in the reel builder; "Title card" checkbox
+  in the clip export options; "Title card" subsection in Settings → Export
   (background color, text color, text size, text, duration)
 - **Notes:** Background color, text color, text size, and the **text template**
   are creator-configurable (Settings → Export). The template is free text with
@@ -1293,14 +1293,14 @@ The collapsible section that shows live output from the running job.
 The app-wide color scheme, chosen in Settings → UI. Three themes are
 maintained: **Dark** (default), **Light**, and **High contrast**.
 
-- **Code:** `data-theme` attribute on `<html>`; theme blocks in `app.css`
+- **Code:** `data-theme` attribute on `<html>`; theme blocks in `shared/tokens.css`
   (`:root` = Dark, `html[data-theme="light"]`, `html[data-theme="high-contrast"]`);
   `applyTheme()` in `settings.js`; localStorage key `yuuclip-theme`
 - **Do not call it:** "skin", "color scheme", "dark mode" (a theme named Dark
   exists; the feature is "theme")
 - **Notes:** Every color in the UI must resolve from a theme token (CSS custom
   property) - never a hardcoded hex/rgba literal. Enforced by
-  `tests/test_ui_theme.py`. Each theme must keep WCAG AA contrast; the same
+  `tests/ui/test_ui_theme.py`. Each theme must keep WCAG AA contrast; the same
   test file checks the token pairs per theme.
 
 ---
@@ -1327,17 +1327,17 @@ independently of the base **Theme**. Eight variants ship: **Default** (cyan),
 
 ### Colour picker
 
-The shared control for choosing a colour (speaker caption colour; title-card
-background/text colours). A swatch trigger opens a popover with hex entry, a
+The shared control for choosing a colour (speaker caption colour; Person colour;
+title-card background/text colours). A swatch trigger opens a popover with hex entry, a
 recently-used strip, starter swatches, and a user-curated named palette.
 
 - **Code:** `colorpicker.js` (`ColorPicker.attach`); progressive-enhances a
   hex-valued `<input>` into a hidden value-store; localStorage keys
   `yuuclip-color-recent`, `yuuclip-color-palette`. Tests:
-  `tests/test_ui_colorpicker.py`
-- **Notes:** Replaced the native `<input type="color">` at all three sites. The
+  `tests/ui/test_ui_colorpicker.py`
+- **Notes:** Replaced the native `<input type="color">` at all four sites. The
   picker chrome uses theme tokens; only the picked/data colours (swatch fills)
-  are inline literals, which `tests/test_ui_theme.py` allowlists.
+  are inline literals, which `tests/ui/test_ui_theme.py` allowlists.
 
 ---
 
@@ -1382,7 +1382,7 @@ These terms are used with multiple meanings in the codebase or everyday speech. 
 | **Segment** | Caption segment (a timed Whisper output unit) | Clip window (a generated highlight candidate) | Use **"caption segment"** for Whisper output; **"clip"** or **"clip window"** for generated candidates; never bare "segment" |
 | **Segment (recording)** | Recording Segment / Split (a piece of a recording made by Split Recording) | The other two "Segment" meanings above (caption segment / clip window) | See [Recording Segment / Split](#recording-segment); never bare "segment" for any of the three without context |
 | **Score** | A numeric rating (noun) | To evaluate a clip (verb) | Both valid; rely on context |
-| **Scene** | Scene (a `kind='scene'` clip candidate - a 1-5 min contextual moment) | Scene cuts (a detected visual shot-boundary timecode - `SceneBoundary`/`SceneScorer`) | Use **"Scene(s)"** only for the clip-candidate kind (filter chips, SCENE badge); use **"Scene cuts"** for the detector (analyze step pill, Settings/Advanced "Scene cut detection" option, the Scene cuts scoring weight) |
+| **Scene** | Scene (a `kind='scene'` clip candidate - a 1-5 min contextual moment) | Scene cuts (a detected visual shot-boundary timecode - `SceneBoundary`/`SceneCutScorer`) | Use **"Scene(s)"** only for the clip-candidate kind (filter chips, SCENE badge); use **"Scene cuts"** for the detector (analyze step pill, Settings/Advanced "Scene cut detection" option, the Scene cuts scoring weight) |
 | **Timeline** | Video-editing timeline (common meaning) | Session timeline (AI 15-min chunk descriptions) | Always say **"session timeline"** for the AI feature; avoid bare "timeline" in UI labels |
 | **Context** | World context (RP game info) | Python/FastAPI execution context | Use **"world context"** in user-facing text; reserve bare "context" for code |
 | **Speaker** | A diarized voice in a recording | - | A **Speaker** is a voice; a **Character** is a world-context lore entity. Don't use them interchangeably; never expose the raw `SPEAKER_00` label |
