@@ -1,6 +1,6 @@
 # Feature-map - Track layout (code: profile; UI term "Track layout")
 #   UI: static/analyze/analyze.js (New Recording panel → Track layout picker + Profile Manager modal)
-#   Siblings: track_labels.py (load/save_profiles) · tests/integration/test_profiles_contexts.py
+#   Siblings: track_labels.py (load_profiles, save_profile) · tests/integration/test_profiles_contexts.py
 """
 Track layout CRUD routes.
 

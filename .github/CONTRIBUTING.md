@@ -35,7 +35,8 @@ API-level tests run anywhere.
 - **Python 3.11 - 3.13**
 - **FFmpeg** on your `PATH` (`ffmpeg -version` should work)
 - **git**
-- **Node 18+** - only if you touch `electron/`
+- **Node 18+** - only if you touch `electron/` or any `static/*.js` (the committed
+  bundles are rebuilt with esbuild)
 
 ## Lightweight setups (you may not need the full install)
 
@@ -50,7 +51,7 @@ of contribution skip it entirely:
 
   ```bash
   npm install
-  npm run test:js        # vitest (browser-less), ~10s
+  npm run test:js        # vitest (browser-less), ~6s
   npm run build:esm      # rebuild the committed bundles after editing any static/*.js
   ```
 

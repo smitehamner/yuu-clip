@@ -36,12 +36,12 @@ Most lookups only need this table: the authoritative user-facing term, the code 
 | Track | `AudioTrack`, `stream_index` | One audio stream in a recording - not "stream" in UI |
 | Track role | `label` | Semantic function: Player Voice / Voice Chat / Game Sounds / Combined / Unlabeled |
 | Track layout | `profile` | Saved template mapping track positions to roles |
-| Analyze | `ingest`, `pipeline/ingest.py` | End-to-end pipeline run - never "ingest" in UI |
+| Analyze | `ingest`, `analyze_one()` | End-to-end pipeline run - never "ingest" in UI |
 | Pipeline stage | `step` | Inspect → Assign Tracks → Extract → Transcribe → Detect Speakers → Generate Clips → Summarize → Score |
 | Inspect | `probe()` | Read recording metadata - never "probe" in UI |
 | Extract | `extract_audio_track()` | Track → WAV conversion (internal stage) |
 | Re-score | `score`, `/api/score` | Re-run scoring only |
-| Job | `ingest_proc` | The one active analysis/rescore operation |
+| Job | `AnalyzeJob`, `ctx.analyze_job` | The one active analysis/rescore operation |
 | Pause / Resume analysis | `analyze.pause` flag file | Hold a running analysis at its next pause point, without losing progress |
 | GPU temperature warning | `GpuThermalMonitor`, `ThermalTrigger` | Heads-up (and optional auto-pause) when the GPU runs hot during analysis |
 | Transcript | `Transcript`, `full_text` | Speech-to-text output, one per eligible track |
@@ -59,7 +59,7 @@ Most lookups only need this table: the authoritative user-facing term, the code 
 | Clip | `ClipCandidate` | A proposed highlight moment - never "clip candidate" in UI |
 | Clip status | `status` | `pending` → **Unreviewed**, `approved` → Approved, `rejected` → Rejected |
 | Clip window | `start_ms`, `end_ms` | The analyzed time range |
-| Trim | `start_offset_s`, `end_offset_s` | Creator offsets applied at export |
+| Trim | `start_offset`, `end_offset` | Creator offsets applied at export |
 | Clip generation | `generate_candidates()` | Transcript → candidate windows - not "segmentation" in UI |
 | Manual clip | `"manual"` tag, `clipcreate.js` | A clip picked by hand from the transcript, instead of clip generation |
 | Score | `score_overall`, `score_funny`, … | 0-1 rating per dimension |
@@ -82,7 +82,7 @@ Most lookups only need this table: the authoritative user-facing term, the code 
 | Clip description | `description`, `description_long` | AI one-liner + paragraph; `*_user` overrides win |
 | Basic description | `desc_basic` tag | Non-LLM template one-liner so a clip is never blank without a model |
 | Session summary | `Video.summary` | AI title + overview of a recording |
-| Session timeline | `Video.timeline` | AI 15-min chunk descriptions - always "session timeline" |
+| Session timeline | `Video.timeline_json` | AI 15-min chunk descriptions - always "session timeline" |
 | World context | `rp_context`, `Context` | Setting/characters/lore bundle for the scorer - not "RP context" in UI |
 | Template | `builtin` (contexts only) | Shipped world context: editable, resettable, duplicable, not deletable - not "Built-in" in UI (Track Layouts keep "Built-in": locked, not editable) |
 | Context ID | `context_slug` | URL-safe identifier - not "slug" in UI |
@@ -94,7 +94,7 @@ Most lookups only need this table: the authoritative user-facing term, the code 
 | Quick export | `stream_copy=True` | Keyframe-aligned, no re-encode - not "stream copy" in UI |
 | Precise export | `reencode=True` | Frame-accurate re-encode; needed for baked-in captions or a title card |
 | Captions | `subtitles`, SRT/VTT | Sidecar or baked-in - not "subtitles" in UI |
-| Highlight reel | `demo_reel` (config/UI naming), `compile_demo()` | Compiled video from approved clips - not "demo reel" in UI |
+| Highlight reel | `demo` (`/api/demo/*`, `ctx.demo_cmd`), `compile_demo()` | Compiled video from approved clips - not "demo reel" in UI |
 | Title card | `title_card` | Text overlay between reel clips |
 | Stale export | `export_stale` | An exported file no longer reflects the clip's current captions/window/description - needs re-export |
 | Project folder | `project_dir` | The hidden `.yuu-clip/` directory |
@@ -263,7 +263,7 @@ A saved template that maps track positions to roles, reusable across recordings 
 
 The end-to-end process of running a recording through all pipeline stages to produce scored clips.
 
-- **Code:** `ingest`, `pipeline/ingest.py`
+- **Code:** `ingest`, `analyze_one()` (the public entry exported from `yuu_clip.pipeline`)
 - **Also called in codebase:** "ingest"
 - **Do not call it:** "ingest" in user-facing text
 - **UI label:** "Analyze" / "+ New Recording" header button
@@ -331,7 +331,7 @@ Re-run the scoring stage on an already-ingested recording.
 
 An active analysis or rescore operation currently running.
 
-- **Code:** `ingest_proc`, `ctx.ingest_proc`
+- **Code:** `AnalyzeJob` (`web/analyze_job.py`), `ctx.analyze_job`; `ctx.analyze_proc` is the legacy subprocess handle
 - **UI label:** job status in header; active step pills; live log panel
 - **Notes:** Only one job at a time. Can be cancelled.
 
@@ -454,7 +454,7 @@ The name a creator assigns to a detected **Speaker** (e.g. "Yuu").
 
 An LLM-proposed **Speaker Name** the creator has **not accepted yet** - surfaced by the Speakers card's **"Suggest names"** action, inferred from direct address in the transcript.
 
-- **Code:** `Speaker.name` with `Speaker.source='inferred'` and `Speaker.confirmed=False`; `infer_speaker_names` (`scoring/llm.py`), `POST /api/videos/{id}/infer-speaker-names`
+- **Code:** `Speaker.name` with `Speaker.source='inferred'` and `Speaker.confirmed=False`; `infer_speaker_names` (`scoring/llm.py`), `GET /api/videos/{id}/infer-speaker-names` (SSE)
 - **UI label:** "Suggested: …" with **Accept** / **Dismiss** in the Speakers card
 - **Do not call it:** a "Speaker name" without qualification in UI text until accepted - it is a *suggestion*
 - **Notes:** Never silent. `Speaker.display_name` returns the "Speaker N" fallback while unconfirmed, so a suggestion never reaches captions/excerpts/exports until the creator accepts it (which sets `confirmed=True`).
@@ -583,7 +583,7 @@ The precise time range a clip covers within its recording.
 
 Creator-adjustable offsets that shift a clip's start or end from its analyzed window, allowing fine-tuning without re-ingesting.
 
-- **Code:** `start_offset_s`, `end_offset_s`
+- **Code:** `start_offset`, `end_offset`
 - **Also called:** "trim offsets", "start/end offset"
 - **UI label:** "Trim" inputs in clip detail view
 - **Notes:** Positive start offset = clip starts later; negative = starts earlier. Applied at export time.
@@ -938,7 +938,7 @@ A title and paragraph overview of an entire recording session, generated by AI.
 
 AI-generated descriptions of what happened in each 15-minute chunk of a session.
 
-- **Code:** `Video.timeline`, `generate_timeline_chunk()`
+- **Code:** `Video.timeline_json` (the column; `timeline` is the JSON API key), `generate_timeline_chunk()`
 - **UI label:** "Timeline" button; expandable timeline panel
 - **Notes:** Useful for navigating long sessions. Not the same as a video-editing timeline - see [Disambiguation](#disambiguation).
 
@@ -1174,7 +1174,7 @@ the chosen `start_offset`/`end_offset`/`crop_x`.
 
 A compiled video assembled from multiple approved clips, with optional transitions and title cards.
 
-- **Code:** `demo_reel` (config/UI naming), `compile_demo()`
+- **Code:** `demo` (routes `/api/demo/*`, `ctx.demo_cmd`, the `demo-*` element ids), `compile_demo()` (`yuu_clip/reel.py`)
 - **Also called in codebase:** "demo reel", "compilation"
 - **Do not call it:** "demo reel" in user-facing text - "highlight reel" is more creator-natural
 - **UI label:** "Highlight Reels" (header nav button and viewer modal title)
@@ -1347,7 +1347,7 @@ recently-used strip, starter swatches, and a user-curated named palette.
 
 The hidden directory `.yuu-clip/` created inside the folder containing the recording. Holds the database, extracted audio, and exported clips.
 
-- **Code:** `project_dir`, `project_root`
+- **Code:** `project_dir`
 - **Notes:** Transparent to the creator unless they go looking. All per-recording state lives here.
 
 ---
@@ -1436,7 +1436,7 @@ These appear in code but should not appear in the UI or creator-facing documenta
 | `label` (track role) | Track role |
 | `profile` (track layout) | Track layout |
 | `rp_context` | World context |
-| `ingest`, `ingest_proc` | Analyze / analysis *(internal)* |
+| `ingest`, `analyze_job` | Analyze / analysis *(internal)* |
 | `probe()` | Inspect |
 | `pending` (clip status) | Unreviewed |
 | `context_slug`, "slug" | Context ID *(show display name in UI instead)* |
