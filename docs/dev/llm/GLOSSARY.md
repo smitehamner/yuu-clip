@@ -15,6 +15,13 @@ Two design principles drove the choices below:
 - **Creator-first naming** - terminology should make sense to a content creator, not require a developer background.
 - **One term per concept** - when the codebase uses multiple names for the same thing, only one of them is correct.
 
+> **Every backticked `Code:` name must exist in the source tree.**
+> `tests/unit/test_doc_identifier_drift.py` checks each one on word boundaries and
+> fails the unit tier when a name no longer exists. To name code that is deliberately
+> not built yet, write `(planned)` immediately after the backticks - e.g.
+> `` `future_helper()` (planned) `` - and the check skips that name. There is no
+> allowlist inside the test; the tag on the row is the only exemption.
+
 ---
 
 ## Quick reference
@@ -91,7 +98,7 @@ Most lookups only need this table: the authoritative user-facing term, the code 
 | Export preset | `ExportPreset`, `export_presets` | Named container/resolution/bitrate recipe for export ("YouTube 1080p", "Discord (<=10 MB)", or a custom one) |
 | Export file | `ClipExport` (one row per clip+preset) | One of a clip's exported files - a clip can have several, one per Export preset used. UI heading: "Exports" |
 | Vertical framing | `crop_x`, `ExportPreset.vertical` | Which 9:16 slice of the frame fills a Shorts export - 0=left, 0.5=center, 1=right; not "crop position" in UI |
-| Quick export | `stream_copy=True` | Keyframe-aligned, no re-encode - not "stream copy" in UI |
+| Quick export | `reencode=False` | Keyframe-aligned, no re-encode - not "stream copy" in UI |
 | Precise export | `reencode=True` | Frame-accurate re-encode; needed for baked-in captions or a title card |
 | Captions | `subtitles`, SRT/VTT | Sidecar or baked-in - not "subtitles" in UI |
 | Highlight reel | `demo` (`/api/demo/*`, `ctx.demo_cmd`), `compile_demo()` | Compiled video from approved clips - not "demo reel" in UI |
@@ -1017,7 +1024,7 @@ The action of extracting a clip from its recording into a standalone video file.
 
 Export mode that copies audio and video without re-encoding, cutting at the nearest keyframe.
 
-- **Code:** `stream_copy=True`
+- **Code:** `reencode=False` (the `export_clip()` default)
 - **Also called in codebase:** "stream copy", "keyframe-aligned"
 - **Do not call it:** "stream copy" in user-facing text
 - **Notes:** Fast (seconds). The clip may start/end up to ~1 second off the exact requested time - acceptable for most uses.
@@ -1087,7 +1094,7 @@ different preset adds another.
 
 Export mode that re-encodes video to cut at exactly the requested frame.
 
-- **Code:** `stream_copy=False`, `reencode=True`
+- **Code:** `reencode=True`
 - **Also called in codebase:** "re-encode", "frame-accurate"
 - **Do not call it:** "re-encode" in user-facing text
 - **Notes:** Slower (~10-30s per minute of clip). Required for baked-in captions.
