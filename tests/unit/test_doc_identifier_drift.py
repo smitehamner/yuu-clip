@@ -57,6 +57,7 @@ _WORD = re.compile(r"[A-Za-z0-9_]+")
 _PLAIN_WORD = re.compile(r"[A-Za-z0-9_]+\Z")
 _CSS_VAR = re.compile(r"--[A-Za-z0-9_-]+\Z")
 _IDENTIFIER_GLOB = re.compile(r"[A-Za-z0-9_*]*\*[A-Za-z0-9_*]*\Z")
+_FEATURE_MAP_BLOCK = re.compile(r"\A(?:#[^\n]*\n)+")
 
 
 @dataclass(frozen=True)
@@ -85,7 +86,7 @@ def _source_files() -> tuple[Path, ...]:
 
 @lru_cache(maxsize=1)
 def _source_blob() -> str:
-    return "\n".join(_file_text(path) for path in _source_files())
+    return "\n".join(_evidence_text(path) for path in _source_files())
 
 
 @lru_cache(maxsize=1)
@@ -99,12 +100,21 @@ def _file_text(path: Path) -> str:
 
 
 @lru_cache(maxsize=None)
+def _evidence_text(path: Path) -> str:
+    """A file's code, minus its own Feature-map header - a claim cannot prove itself."""
+    text = _file_text(path)
+    if path.suffix == ".py" and text.startswith("# Feature-map"):
+        return _FEATURE_MAP_BLOCK.sub("", text, count=1)
+    return text
+
+
+@lru_cache(maxsize=None)
 def _file_words(path: Path) -> frozenset[str]:
-    return frozenset(_WORD.findall(_file_text(path)))
+    return frozenset(_WORD.findall(_evidence_text(path)))
 
 
 def _haystacks(scope: tuple[Path, ...]) -> tuple[str, ...]:
-    return (_source_blob(), *(_file_text(path) for path in scope))
+    return (_source_blob(), *(_evidence_text(path) for path in scope))
 
 
 def _word_sets(scope: tuple[Path, ...]) -> tuple[frozenset[str], ...]:
